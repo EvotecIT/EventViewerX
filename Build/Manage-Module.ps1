@@ -39,9 +39,9 @@ Build-Module -ModuleName 'PSWinReporting' {
     # The final frozen release carries the compatible v1 event-query engine
     # privately because later PSEventViewer versions changed its contract.
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' -RequiredVersion '0.0.312'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f' -RequiredVersion '1.0.3'
     New-ConfigurationModule -Type ExternalModule -Name 'ActiveDirectory'
-    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods' -RequiredVersion '0.0.312'
-    New-ConfigurationModule -Type ApprovedModule -Name 'PSWriteColor' -RequiredVersion '1.0.3'
 
     New-ConfigurationModuleSkip -IgnoreModuleName @(
         # this are builtin into PowerShell, so not critical
@@ -67,6 +67,7 @@ Build-Module -ModuleName 'PSWinReporting' {
         # Nested inside the frozen legacy event-query scriptblock.
         'Get-EventsFilter'
         'Get-EventsInternal'
+        'ConvertTo-XPathXmlLiteral'
         'Initialize-XPathFilter'
         'Join-XPathFilter'
         # slack
@@ -120,7 +121,7 @@ Build-Module -ModuleName 'PSWinReporting' {
     # when creating PSD1 use special style without comments and with only required parameters
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
     # configuration for documentation, at the same time it enables documentation processing
-    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
 
     #New-ConfigurationTest -TestsPath "$PSScriptRoot\..\Tests" -Enable
 
