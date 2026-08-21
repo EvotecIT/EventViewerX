@@ -66,8 +66,10 @@ function Get-Logger {
 
     if ($LogPath) {
         $LogsDir = [System.IO.Path]::GetDirectoryName($LogPath)
-        New-Item $LogsDir -ItemType Directory -Force | Out-Null
-        New-Item $LogPath -ItemType File -Force | Out-Null
+        if (-not [String]::IsNullOrWhiteSpace($LogsDir)) {
+            New-Item -Path $LogsDir -ItemType Directory -Force | Out-Null
+        }
+        New-Item -Path $LogPath -ItemType File -Force | Out-Null
     }
 
     $Logger = [PSCustomObject]@{

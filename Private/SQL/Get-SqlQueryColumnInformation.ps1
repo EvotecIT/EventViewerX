@@ -35,7 +35,7 @@ function Get-SqlQueryColumnInformation {
             Invoke-DbaQuery -ErrorAction Stop -SqlInstance $SqlServer -Query $Query #-Verbose
         } catch {
             $ErrorMessage = $_.Exception.Message -replace "`n", " " -replace "`r", " "
-            "Error occured (Get-SqlQueryColumnInformation): $ErrorMessage" # return of error
+            throw "Get-SqlQueryColumnInformation failed: $ErrorMessage"
         }
     )
     return $SQLReturn

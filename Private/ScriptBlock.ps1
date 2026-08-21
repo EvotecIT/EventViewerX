@@ -7,7 +7,9 @@ $Script:ScriptBlock = {
         [hashtable]$EventFilter,
         [int]$MaxEvents,
         [bool] $Oldest,
-        [bool] $Verbose
+        [bool] $Verbose,
+        [int] $EntryIndex = -1,
+        [bool] $IncludeEntryIndex = $false
     )
     if ($Verbose) {
         $VerbosePreference = 'continue'
@@ -481,8 +483,12 @@ $Script:ScriptBlock = {
         # keywords assigned.
         If ($null -ne $Keywords -and $Keywords.Count -gt 0) {
             $keyword_filter = ''
+            [bool] $HasZeroKeyword = $false
 
             ForEach ($item in $Keywords) {
+                if ([long] $item -eq 0) {
+                    $HasZeroKeyword = $true
+                }
                 If ($keyword_filter) {
                     $keyword_filter = $keyword_filter -bor $item
                 } Else {
@@ -492,6 +498,8 @@ $Script:ScriptBlock = {
 
             if ($keyword_filter -eq 0) {
                 $KeywordXPath = '*[System[Keywords=0]]'
+            } elseif ($HasZeroKeyword) {
+                $KeywordXPath = "*[System[Keywords=0 or band(Keywords,$keyword_filter)]]"
             } else {
                 $KeywordXPath = "*[System[band(Keywords,$keyword_filter)]]"
             }
@@ -687,6 +695,15 @@ $Script:ScriptBlock = {
                 [Array] $PostNamedDataExclusions = @()
                 [bool] $IsPathQuery = $null -ne $EventFilter.Path
                 [bool] $IsProviderQuery = -not $IsPathQuery -and $null -eq $EventFilter.LogName -and $null -ne $EventFilter.ProviderName
+                [bool] $IsLogWildcardQuery = $false
+                if (-not $IsPathQuery -and $null -ne $EventFilter.LogName) {
+                    ForEach ($LogPattern in @($EventFilter.LogName)) {
+                        if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters([String] $LogPattern)) {
+                            $IsLogWildcardQuery = $true
+                            break
+                        }
+                    }
+                }
                 if ($null -ne $EventFilter.RecordID -or `
                         $null -ne $EventFilter.NamedDataFilter -or `
                         $null -ne $EventFilter.ExcludeID -or `
@@ -707,7 +724,10 @@ $Script:ScriptBlock = {
                             $FilterForQuery.Remove('ProviderName')
                         }
                     }
-                    if ($IsPathQuery -or $IsProviderQuery) {
+                    if ($IsLogWildcardQuery) {
+                        $FilterForQuery.Remove('LogName')
+                    }
+                    if ($IsPathQuery -or $IsProviderQuery -or $IsLogWildcardQuery) {
                         if ($FilterForQuery.NamedDataExcludeFilter) {
                             [Array] $PostNamedDataExclusions = @($FilterForQuery.NamedDataExcludeFilter)
                             $FilterForQuery.Remove('NamedDataExcludeFilter')
@@ -724,10 +744,14 @@ $Script:ScriptBlock = {
                         if ($IsPathQuery) {
                             $SplatEvents.Path = $EventFilter.Path
                             Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for path: `n$FilterXPath"
-                        } else {
+                        } elseif ($IsProviderQuery) {
                             $SplatEvents.ProviderName = $EventFilter.ProviderName
                             $SplatEvents.ComputerName = $Comp
                             Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for provider: `n$FilterXPath"
+                        } else {
+                            $SplatEvents.LogName = $EventFilter.LogName
+                            $SplatEvents.ComputerName = $Comp
+                            Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for wildcard log: `n$FilterXPath"
                         }
                     } else {
                         $FilterXML = Get-EventsFilter @FilterForQuery
@@ -1010,5 +1034,14 @@ $Script:ScriptBlock = {
     Write-Verbose "Get-Events -------------START---------------------"
     [Array] $Data = Get-EventsInternal -Comp $Comp -EventFilter $EventFilter -MaxEvents $MaxEvents -Oldest:$Oldest -Verbose:$Verbose -Credential $Credential
     Write-Verbose "Get-Events --------------END----------------------"
-    return $Data
+    if ($IncludeEntryIndex) {
+        foreach ($EventData in $Data) {
+            [PSCustomObject] @{
+                EntryIndex = $EntryIndex
+                Event      = $EventData
+            }
+        }
+    } else {
+        return $Data
+    }
 }

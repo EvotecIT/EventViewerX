@@ -10,7 +10,7 @@ function Start-ADReporting () {
 
     if ($ReportOptions.DisplayConsole -and $ReportOptions.DisplayConsole.LogFile) {
         $ReportPath = [io.path]::GetDirectoryName($ReportOptions.DisplayConsole.LogFile)
-        if (-not (Test-Path -LiteralPath $ReportPath)) {
+        if (-not [String]::IsNullOrWhiteSpace($ReportPath) -and -not (Test-Path -LiteralPath $ReportPath)) {
             Write-Color -Text '[i] ', "LogFile path doesn't exists ", $ReportPath, ". Please fix log path or provide an empty string. Current log file: ", $ReportOptions.DisplayConsole.LogFile -Color White, White, Yellow, White, Yellow
             return
             #$null = New-Item -Path $ReportPath -ItemType Directory -Force
