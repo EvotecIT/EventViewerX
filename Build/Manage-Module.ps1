@@ -1,10 +1,24 @@
-Clear-Host
+param(
+    [Alias('ConfigurationGateMode')]
+    [ValidateSet('Manifest', 'Build', 'Publish')]
+    [string] $RunMode = 'Build',
 
-Invoke-ModuleBuild -ModuleName 'PSWinReporting' {
+    [bool] $SignModule = $false,
+
+    [string] $PowerShellGalleryApiKeyPath = 'C:\Support\Important\PowerShellGalleryAPI.txt',
+
+    [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
+)
+
+$ErrorActionPreference = 'Stop'
+
+Import-Module PSPublishModule -Force
+
+Build-Module -ModuleName 'PSWinReporting' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
         # Version number of this module.
-        ModuleVersion = '1.8.1.X'
+        ModuleVersion = '1.8.1.7'
         # ID used to uniquely identify this module
         GUID          = '4b446d15-93e7-4eec-a6ee-d741f2ae2f3b'
         # Author of this module
@@ -18,16 +32,16 @@ Invoke-ModuleBuild -ModuleName 'PSWinReporting' {
         # Tags applied to this module. These help with module discovery in online galleries.
         Tags          = @('Windows', 'PSWinReporting', 'ActiveDirectory', 'Events', 'Reporting')
         IconUri       = 'https://evotec.xyz/wp-content/uploads/2018/10/PSWinReporting.png'
-        ProjectUri    = 'https://github.com/EvotecIT/PSWinReporting'
+        ProjectUri    = 'https://github.com/EvotecIT/EventViewerX'
     }
     New-ConfigurationManifest @Manifest #-Prerelease "Alpha02"
 
-    #New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid Auto -Version Latest
-    New-ConfigurationModule -Type RequiredModule -Name 'PSEventViewer' -Guid Auto -Version 1.0.22
-    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid Auto -Version 0.1.15
-    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid Auto -Version Latest
+    # The final frozen release carries the compatible v1 event-query engine
+    # privately because later PSEventViewer versions changed its contract.
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
     New-ConfigurationModule -Type ExternalModule -Name 'ActiveDirectory'
-    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods', 'PSWriteColor', 'Connectimo', 'PSUnifi', 'PSWebToolbox', 'PSMyPassword'
+    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods' -RequiredVersion '0.0.312'
+    New-ConfigurationModule -Type ApprovedModule -Name 'PSWriteColor' -RequiredVersion '1.0.3'
 
     New-ConfigurationModuleSkip -IgnoreModuleName @(
         # this are builtin into PowerShell, so not critical
@@ -35,11 +49,14 @@ Invoke-ModuleBuild -ModuleName 'PSWinReporting' {
         'Microsoft.PowerShell.Security'
         'Microsoft.PowerShell.Utility'
         'ScheduledTasks'
+        'PSWriteExcel'
+        'TeamsX'
         # this is optional, and checked for existance in the source codes directly
         'PSTeams'
         'PSSlack'
         'dbatools'
     ) -IgnoreFunctionName @(
+        'ConvertTo-Excel'
         # those functions are internal within private function
         'Select-Unique', 'Compare-TwoArrays', 'IsNumeric', 'IsOfType', 'Format-HTML', 'Optimize-HTML'
         # Special nofunctions
@@ -47,9 +64,16 @@ Invoke-ModuleBuild -ModuleName 'PSWinReporting' {
         'eventID'
         'eventRecordID'
         'eventSeverity'
+        # Nested inside the frozen legacy event-query scriptblock.
+        'Get-EventsFilter'
+        'Get-EventsInternal'
+        'Initialize-XPathFilter'
+        'Join-XPathFilter'
         # slack
         'New-SlackMessage'
         'New-SlackMessageAttachment'
+        'New-TeamsFact'
+        'New-TeamsSection'
         'Send-SlackMessage'
         # dbatools
         'Invoke-DbaQuery'
@@ -96,18 +120,15 @@ Invoke-ModuleBuild -ModuleName 'PSWinReporting' {
     # when creating PSD1 use special style without comments and with only required parameters
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
     # configuration for documentation, at the same time it enables documentation processing
-    New-ConfigurationDocumentation -Enable:$false -StartClean -UpdateWhenNew -PathReadme 'Docs\Readme.md' -Path 'Docs'
-
-    New-ConfigurationImportModule -ImportSelf
-
-    New-ConfigurationBuild -Enable:$true -SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
 
     #New-ConfigurationTest -TestsPath "$PSScriptRoot\..\Tests" -Enable
 
-    New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked" -AddRequiredModules
+    New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked" -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -ArtefactName '<ModuleName>.v<ModuleVersion>.zip'
 
-    # options for publishing to github/psgallery
-    #New-ConfigurationPublish -Type PowerShellGallery -FilePath 'C:\Support\Important\PowerShellGalleryAPI.txt' -Enabled:$true
-    #New-ConfigurationPublish -Type GitHub -FilePath 'C:\Support\Important\GitHubAPI.txt' -UserName 'EvotecIT' -Enabled:$true
-} -ExitCode
+    New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
+    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
+
+    New-ConfigurationGate -Mode $RunMode
+}

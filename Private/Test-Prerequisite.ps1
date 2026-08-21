@@ -13,13 +13,6 @@ Function Test-Prerequisite () {
     }
 
     Write-Color @script:WriteParameters "[i] ", "Testing for prerequisite availability..." -Color White, Yellow
-    $ImportPSEventViewer = Get-ModulesAvailability -Name "PSEventViewer"
-    If ($ImportPSEventViewer -eq $true) {
-        Write-Color @script:WriteParameters  "[+] ", "PSEventViewer", " module imported. Continuing..." -Color White, Green, White
-    } else {
-        Write-Color @script:WriteParameters  "[-] ", "PSEventViewer", " module not found." -Color White, Red, White
-    }
-
     $ImportPSADReporting = Get-ModulesAvailability -Name "PSWinReporting"
     If ($ImportPSADReporting -eq $true) {
         Write-Color @script:WriteParameters  "[+] ", "PSWinReporting", " module imported. Continuing..." -Color White, Green, White
@@ -58,7 +51,7 @@ Function Test-Prerequisite () {
         $AdIsAvailable = $false
     }
 
-    if ($ImportPSEventViewer -eq $true -and $ImportPSADReporting -eq $true -and $ImportActiveDirectory -eq $true -and (($ReportOptions.AsExcel -eq $true -and $ImportExcel -eq $true) -or $ReportOptions.AsExcel -eq $false) -and $AdIsAvailable -eq $true) {
+    if ($ImportPSADReporting -eq $true -and $ImportActiveDirectory -eq $true -and (($ReportOptions.AsExcel -eq $true -and $ImportExcel -eq $true) -or $ReportOptions.AsExcel -eq $false) -and $AdIsAvailable -eq $true) {
         return #$true
     } else {
         Exit
