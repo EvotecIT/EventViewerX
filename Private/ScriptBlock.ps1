@@ -635,6 +635,9 @@ $Script:ScriptBlock = {
             }
             return [System.Net.WebUtility]::HtmlDecode([String] $Filter)
         } else {
+            if (-not $filter) {
+                $filter = '*'
+            }
             if ($Path -ne '') {
                 $EscapedPath = [System.Security.SecurityElement]::Escape("file://$Path")
                 $FilterXML = @"
@@ -674,6 +677,73 @@ $Script:ScriptBlock = {
             [int]$MaxEvents,
             [switch] $Oldest
         )
+
+        function Test-XPathLiteralRequiresPostFilter {
+            param (
+                [AllowNull()]
+                [Object] $Value
+            )
+
+            [String] $Text = [String] $Value
+            $Text.Contains("'") -and $Text.Contains('"')
+        }
+
+        function Test-NamedDataRequiresPostFilter {
+            param (
+                [Array] $Filters
+            )
+
+            ForEach ($NamedDataEntry in @($Filters)) {
+                ForEach ($Key in $NamedDataEntry.Keys) {
+                    if (Test-XPathLiteralRequiresPostFilter -Value $Key) {
+                        return $true
+                    }
+                    ForEach ($Value in @($NamedDataEntry[$Key])) {
+                        if (Test-XPathLiteralRequiresPostFilter -Value $Value) {
+                            return $true
+                        }
+                    }
+                }
+            }
+            $false
+        }
+
+        function Test-NamedDataMatch {
+            param (
+                [xml] $EventXml,
+                [System.Collections.IDictionary] $Filter
+            )
+
+            ForEach ($Key in $Filter.Keys) {
+                [Array] $DataNodes = ForEach ($CandidateDataNode in @($EventXml.Event.EventData.Data)) {
+                    if ([String] $CandidateDataNode.Name -ceq [String] $Key) {
+                        $CandidateDataNode
+                    }
+                }
+                [Array] $ExpectedValues = @($Filter[$Key])
+                if ($ExpectedValues.Count -eq 0 -or ($Filter[$Key] -is [String] -and $Filter[$Key].Length -eq 0)) {
+                    [bool] $KeyMatches = $DataNodes.Count -gt 0
+                } else {
+                    [bool] $KeyMatches = $false
+                    ForEach ($DataNode in $DataNodes) {
+                        ForEach ($ExpectedValue in $ExpectedValues) {
+                            if ([String] $DataNode.InnerText -ceq [String] $ExpectedValue) {
+                                $KeyMatches = $true
+                                break
+                            }
+                        }
+                        if ($KeyMatches) {
+                            break
+                        }
+                    }
+                }
+                if (-not $KeyMatches) {
+                    return $false
+                }
+            }
+            $true
+        }
+
         $Measure = [System.Diagnostics.Stopwatch]::StartNew() # Timer Start
 
         Write-Verbose "Get-Events - Inside $Comp for Events ID: $($EventFilter.ID)"
@@ -683,7 +753,11 @@ $Script:ScriptBlock = {
         try {
             [Array] $Events = @(
                 [bool] $PostFilterProvider = $false
+                [Array] $PostDataValues = @()
+                [Array] $PostNamedDataInclusions = @()
                 [Array] $PostNamedDataExclusions = @()
+                [Array] $PostIncludeIDs = @()
+                [Array] $PostExcludeIDs = @()
                 [bool] $IsPathQuery = $null -ne $EventFilter.Path
                 [bool] $IsProviderQuery = -not $IsPathQuery -and $null -eq $EventFilter.LogName -and $null -ne $EventFilter.ProviderName
                 [bool] $IsLogWildcardQuery = $false
@@ -703,10 +777,15 @@ $Script:ScriptBlock = {
                         $IsPathQuery
                 ) {
                     $FilterForQuery = $EventFilter.Clone()
+                    if ($FilterForQuery.ID) {
+                        [Array] $PostIncludeIDs = @($FilterForQuery.ID | Sort-Object -Unique)
+                        $FilterForQuery.Remove('ID')
+                    }
                     if ($FilterForQuery.ProviderName) {
                         [Array] $ProviderPatterns = @($FilterForQuery.ProviderName)
                         ForEach ($ProviderPattern in $ProviderPatterns) {
-                            if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters([String] $ProviderPattern)) {
+                            if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters([String] $ProviderPattern) -or
+                                (Test-XPathLiteralRequiresPostFilter -Value $ProviderPattern)) {
                                 $PostFilterProvider = -not $IsProviderQuery
                                 break
                             }
@@ -715,14 +794,39 @@ $Script:ScriptBlock = {
                             $FilterForQuery.Remove('ProviderName')
                         }
                     }
+                    if ($FilterForQuery.Data) {
+                        ForEach ($DataValue in @($FilterForQuery.Data)) {
+                            if (Test-XPathLiteralRequiresPostFilter -Value $DataValue) {
+                                [Array] $PostDataValues = @($FilterForQuery.Data)
+                                $FilterForQuery.Remove('Data')
+                                break
+                            }
+                        }
+                    }
+                    if ($FilterForQuery.NamedDataFilter -and
+                        (Test-NamedDataRequiresPostFilter -Filters @($FilterForQuery.NamedDataFilter))) {
+                        [Array] $PostNamedDataInclusions = @($FilterForQuery.NamedDataFilter)
+                        $FilterForQuery.Remove('NamedDataFilter')
+                    }
+                    if ($FilterForQuery.ExcludeID) {
+                        [Array] $PostExcludeIDs = @($FilterForQuery.ExcludeID | Sort-Object -Unique)
+                        $FilterForQuery.Remove('ExcludeID')
+                    }
                     if ($IsLogWildcardQuery) {
                         $FilterForQuery.Remove('LogName')
                     }
+                    if ($FilterForQuery.NamedDataExcludeFilter -and
+                        ($IsPathQuery -or $IsProviderQuery -or $IsLogWildcardQuery -or
+                            (Test-NamedDataRequiresPostFilter -Filters @($FilterForQuery.NamedDataExcludeFilter)))) {
+                        [Array] $PostNamedDataExclusions = @($FilterForQuery.NamedDataExcludeFilter)
+                        $FilterForQuery.Remove('NamedDataExcludeFilter')
+                    }
+                    [bool] $HasCustomFilter = $null -ne $FilterForQuery.RecordID -or
+                        $null -ne $FilterForQuery.NamedDataFilter -or
+                        $null -ne $FilterForQuery.ExcludeID -or
+                        $null -ne $FilterForQuery.NamedDataExcludeFilter -or
+                        $null -ne $FilterForQuery.UserID
                     if ($IsPathQuery -or $IsProviderQuery -or $IsLogWildcardQuery) {
-                        if ($FilterForQuery.NamedDataExcludeFilter) {
-                            [Array] $PostNamedDataExclusions = @($FilterForQuery.NamedDataExcludeFilter)
-                            $FilterForQuery.Remove('NamedDataExcludeFilter')
-                        }
                         $FilterXPath = Get-EventsFilter @FilterForQuery -XPathOnly
                         if (-not $FilterXPath) {
                             $FilterXPath = '*'
@@ -744,7 +848,7 @@ $Script:ScriptBlock = {
                             $SplatEvents.ComputerName = $Comp
                             Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for wildcard log: `n$FilterXPath"
                         }
-                    } else {
+                    } elseif ($HasCustomFilter) {
                         $FilterXML = Get-EventsFilter @FilterForQuery
                         $SplatEvents = @{
                             ErrorAction  = 'Stop'
@@ -753,6 +857,13 @@ $Script:ScriptBlock = {
                             FilterXml    = $FilterXML
                         }
                         Write-Verbose "Get-Events - Inside $Comp - Custom FilterXML: `n$FilterXML"
+                    } else {
+                        $SplatEvents = @{
+                            ErrorAction     = 'Stop'
+                            ComputerName    = $Comp
+                            Oldest          = $Oldest
+                            FilterHashtable = $FilterForQuery
+                        }
                     }
                 } else {
                     $SplatEvents = @{
@@ -765,7 +876,13 @@ $Script:ScriptBlock = {
                         Write-Verbose "Get-Events - Inside $Comp Data in FilterHashTable $k $($EventFilter[$k])"
                     }
                 }
-                if ($MaxEvents -ne 0 -and -not $PostFilterProvider -and $PostNamedDataExclusions.Count -eq 0) {
+                [bool] $NeedsPostFilter = $PostFilterProvider -or
+                    $PostDataValues.Count -gt 0 -or
+                    $PostNamedDataInclusions.Count -gt 0 -or
+                    $PostNamedDataExclusions.Count -gt 0 -or
+                    $PostIncludeIDs.Count -gt 0 -or
+                    $PostExcludeIDs.Count -gt 0
+                if ($MaxEvents -ne 0 -and -not $NeedsPostFilter) {
                     $SplatEvents.MaxEvents = $MaxEvents
                     Write-Verbose "Get-Events - Inside $Comp for Events Max Events: $MaxEvents"
                 }
@@ -773,9 +890,9 @@ $Script:ScriptBlock = {
                     $SplatEvents.Credential = $Credential
                     Write-Verbose "Get-Events - Inside $Comp for Events Credential: $Credential"
                 }
-                [Array] $QueriedEvents = @(Get-WinEvent @SplatEvents)
-                if ($PostFilterProvider -or $PostNamedDataExclusions.Count -gt 0) {
-                    [Array] $PostFilteredEvents = ForEach ($QueriedEvent in $QueriedEvents) {
+                if ($NeedsPostFilter) {
+                    $PostFilterScript = {
+                        $QueriedEvent = $_
                         [bool] $ProviderMatched = -not $PostFilterProvider
                         if ($PostFilterProvider) {
                             ForEach ($ProviderPattern in $ProviderPatterns) {
@@ -785,56 +902,59 @@ $Script:ScriptBlock = {
                                 }
                             }
                         }
-                        [bool] $Excluded = $false
-                        if ($ProviderMatched -and $PostNamedDataExclusions.Count -gt 0) {
-                            [xml] $QueriedEventXml = $QueriedEvent.ToXml()
-                            ForEach ($Exclusion in $PostNamedDataExclusions) {
-                                [bool] $AllKeysMatch = $true
-                                ForEach ($Key in $Exclusion.Keys) {
-                                    [Array] $DataNodes = ForEach ($CandidateDataNode in @($QueriedEventXml.Event.EventData.Data)) {
-                                        if ($CandidateDataNode.Name -eq [String] $Key) {
-                                            $CandidateDataNode
-                                        }
-                                    }
-                                    [Array] $ExpectedValues = @($Exclusion[$Key])
-                                    if ($ExpectedValues.Count -eq 0 -or ($Exclusion[$Key] -is [String] -and $Exclusion[$Key].Length -eq 0)) {
-                                        [bool] $KeyMatches = $DataNodes.Count -gt 0
-                                    } else {
-                                        [bool] $KeyMatches = $false
-                                        ForEach ($DataNode in $DataNodes) {
-                                            ForEach ($ExpectedValue in $ExpectedValues) {
-                                                if ([String] $DataNode.'#text' -ceq [String] $ExpectedValue) {
-                                                    $KeyMatches = $true
-                                                    break
-                                                }
-                                            }
-                                            if ($KeyMatches) {
-                                                break
-                                            }
-                                        }
-                                    }
-                                    if (-not $KeyMatches) {
-                                        $AllKeysMatch = $false
+                        [bool] $EventIDMatched = ($PostIncludeIDs.Count -eq 0 -or $PostIncludeIDs -contains $QueriedEvent.Id) -and
+                            ($PostExcludeIDs.Count -eq 0 -or $PostExcludeIDs -notcontains $QueriedEvent.Id)
+                        [bool] $RequiresEventXml = $PostDataValues.Count -gt 0 -or
+                            $PostNamedDataInclusions.Count -gt 0 -or
+                            $PostNamedDataExclusions.Count -gt 0
+                        [xml] $QueriedEventXml = $null
+                        if ($ProviderMatched -and $EventIDMatched -and $RequiresEventXml) {
+                            $QueriedEventXml = $QueriedEvent.ToXml()
+                        }
+                        [bool] $DataMatched = $PostDataValues.Count -eq 0
+                        if ($ProviderMatched -and $EventIDMatched -and $PostDataValues.Count -gt 0) {
+                            ForEach ($DataNode in @($QueriedEventXml.Event.EventData.Data)) {
+                                ForEach ($ExpectedDataValue in $PostDataValues) {
+                                    if ([String] $DataNode.InnerText -ceq [String] $ExpectedDataValue) {
+                                        $DataMatched = $true
                                         break
                                     }
                                 }
-                                if ($AllKeysMatch) {
+                                if ($DataMatched) {
+                                    break
+                                }
+                            }
+                        }
+                        [bool] $NamedDataIncluded = $PostNamedDataInclusions.Count -eq 0
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $PostNamedDataInclusions.Count -gt 0) {
+                            ForEach ($Inclusion in $PostNamedDataInclusions) {
+                                if (Test-NamedDataMatch -EventXml $QueriedEventXml -Filter $Inclusion) {
+                                    $NamedDataIncluded = $true
+                                    break
+                                }
+                            }
+                        }
+                        [bool] $Excluded = $false
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $NamedDataIncluded -and
+                            $PostNamedDataExclusions.Count -gt 0) {
+                            ForEach ($Exclusion in $PostNamedDataExclusions) {
+                                if (Test-NamedDataMatch -EventXml $QueriedEventXml -Filter $Exclusion) {
                                     $Excluded = $true
                                     break
                                 }
                             }
                         }
-                        if ($ProviderMatched -and -not $Excluded) {
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $NamedDataIncluded -and -not $Excluded) {
                             $QueriedEvent
                         }
                     }
                     if ($MaxEvents -ne 0) {
-                        $PostFilteredEvents | Select-Object -First $MaxEvents
+                        Get-WinEvent @SplatEvents | ForEach-Object -Process $PostFilterScript | Select-Object -First $MaxEvents
                     } else {
-                        $PostFilteredEvents
+                        Get-WinEvent @SplatEvents | ForEach-Object -Process $PostFilterScript
                     }
                 } else {
-                    $QueriedEvents
+                    Get-WinEvent @SplatEvents
                 }
             )
             #$EventsCount = ($Events | Measure-Object).Count

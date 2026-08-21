@@ -70,6 +70,9 @@ Build-Module -ModuleName 'PSWinReporting' {
         'ConvertTo-XPathXmlLiteral'
         'Initialize-XPathFilter'
         'Join-XPathFilter'
+        'Test-NamedDataMatch'
+        'Test-NamedDataRequiresPostFilter'
+        'Test-XPathLiteralRequiresPostFilter'
         # slack
         'New-SlackMessage'
         'New-SlackMessageAttachment'
