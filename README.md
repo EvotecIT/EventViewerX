@@ -13,6 +13,34 @@ runtime, Rust engine, or provider-specific parsing dependency.
 [![Test PowerShell](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-powershell.yml/badge.svg)](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-powershell.yml)
 [![License](https://img.shields.io/github/license/EvotecIT/EventViewerX.svg)](https://github.com/EvotecIT/EventViewerX)
 
+## One project, one home
+
+PSWinReporting began as an Active Directory event-reporting module. Its second
+generation, PSWinReportingV2, broadened that work, while PSEventViewer grew
+into the focused PowerShell module and reusable EventViewerX .NET engine used
+for modern Windows Event Log automation.
+
+Those projects increasingly solved the same problems from different starting
+points. In August 2026, the PSWinReporting and PSWinReportingV2 lines were
+frozen and folded into the PSEventViewer/EventViewerX home. Their Git histories
+were preserved rather than copied as a source-only snapshot, and the former
+`EvotecIT/PSWinReporting` repository was renamed to
+[`EvotecIT/EventViewerX`](https://github.com/EvotecIT/EventViewerX). The old
+PSWinReporting URL redirects here; the former PSEventViewer repository is now
+an archive that points here.
+
+The names users install have not changed:
+
+- PowerShell users continue to install `PSEventViewer`.
+- .NET users continue to reference the `EventViewerX` packages.
+- `PSWinReporting` and `PSWinReportingV2` remain available as frozen packages
+  for existing deployments, but new development belongs here.
+
+The final PSWinReporting 1.x source is retained on the
+[`Legacy` branch](https://github.com/EvotecIT/EventViewerX/tree/Legacy), and the
+final PSWinReportingV2 source is retained in the
+[pre-consolidation snapshot](https://github.com/EvotecIT/EventViewerX/commit/01c0514e7d5058e61dec265abab0f8f287367377).
+
 ## Why use it
 
 - Stream local channels, remote channels, offline EVTX files, or structured
