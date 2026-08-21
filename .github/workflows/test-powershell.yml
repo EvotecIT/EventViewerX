@@ -1,0 +1,117 @@
+name: Test PowerShell Module
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'Docs/**'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:  # 👈 enables manual triggering
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: 'Debug'
+
+jobs:
+  refresh-psd1:
+    name: 'Refresh PSD1'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup PowerShell modules
+        run: |
+          Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
+        shell: pwsh
+
+      - name: Refresh module manifest
+        run: |
+          .\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
+        shell: pwsh
+
+      - name: Upload refreshed manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: psd1
+          path: PSEventViewer.psd1
+
+  test-windows-ps5:
+    needs: refresh-psd1
+    name: 'Windows PowerShell 5.1'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: psd1
+          path: .
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install PowerShell modules
+        shell: powershell
+        run: |
+          Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+          Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+          Install-Module -Name PSSharedGoods -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+
+      - name: Build .NET solution
+        run: |
+          dotnet restore Sources/EventViewerX.sln
+          dotnet build Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run PowerShell tests
+        shell: powershell
+        run: .\PSEventViewer.Tests.ps1
+
+  test-windows-ps7:
+    needs: refresh-psd1
+    name: 'Windows PowerShell 7'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: psd1
+          path: .
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: |
+          Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+          Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+          Install-Module -Name PSSharedGoods -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+
+      - name: Build .NET solution
+        run: |
+          dotnet restore Sources/EventViewerX.sln
+          dotnet build Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run PowerShell tests
+        shell: pwsh
+        run: .\PSEventViewer.Tests.ps1

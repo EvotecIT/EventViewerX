@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsWindows>true</IsWindows>
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sources\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
+  </ItemGroup>
+</Project>

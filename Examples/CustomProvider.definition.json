@@ -1,0 +1,47 @@
+{
+  "name": "Contoso.Scanner",
+  "id": "7a87f315-4b5e-40a2-b748-b0cdd8adab41",
+  "packageVersion": "1.0.0",
+  "defaultCulture": "en-US",
+  "displayNames": {
+    "en-US": "Contoso Scanner"
+  },
+  "descriptions": {
+    "en-US": "Structured events produced by Contoso Scanner."
+  },
+  "channels": [
+    {
+      "id": "Operational",
+      "name": "Contoso.Scanner/Operational",
+      "type": "operational",
+      "isolation": "application",
+      "enabled": true,
+      "maximumSizeBytes": 16777216,
+      "displayNames": {
+        "en-US": "Operational"
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ScanCompleted",
+      "id": 1000,
+      "version": 0,
+      "channel": "Operational",
+      "level": "win:Informational",
+      "fields": [
+        {
+          "name": "ComputerName",
+          "type": "unicodeString"
+        },
+        {
+          "name": "FindingCount",
+          "type": "uint32"
+        }
+      ],
+      "messages": {
+        "en-US": "Scan of {ComputerName} found {FindingCount} issues."
+      }
+    }
+  ]
+}

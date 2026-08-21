@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <Description>Typed HTML, Excel, and email reporting for EventViewerX.</Description>
+    <AssemblyName>EventViewerX.Reporting</AssemblyName>
+    <AssemblyTitle>EventViewerX.Reporting</AssemblyTitle>
+    <VersionPrefix>4.0.0</VersionPrefix>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Company>Evotec</Company>
+    <Authors>Przemyslaw Klys</Authors>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <IsWindows>true</IsWindows>
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
+    <PackageReference Include="HtmlForgeX" Version="0.55.0" />
+    <PackageReference Include="HtmlForgeX.Email" Version="1.5.0" />
+    <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.CSV" Version="3.2.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>EventViewerX.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Diagnostics" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Text" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+  </ItemGroup>
+</Project>
