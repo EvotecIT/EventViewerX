@@ -231,16 +231,7 @@ $Script:ScriptBlock = {
             } ElseIf (-not $Value.Contains([String] $DoubleQuote)) {
                 $Literal = [String] $DoubleQuote + $Value + [String] $DoubleQuote
             } Else {
-                $Parts = $Value.Split($SingleQuote)
-                [Array] $Segments = For ($Index = 0; $Index -lt $Parts.Length; $Index++) {
-                    If ($Parts[$Index].Length -gt 0) {
-                        [String] $SingleQuote + $Parts[$Index] + [String] $SingleQuote
-                    }
-                    If ($Index -lt $Parts.Length - 1) {
-                        [String] $DoubleQuote + [String] $SingleQuote + [String] $DoubleQuote
-                    }
-                }
-                $Literal = 'concat(' + ($Segments -join ',') + ')'
+                throw 'Windows Event Log XPath cannot represent a string containing both single and double quotes.'
             }
 
             [System.Security.SecurityElement]::Escape($Literal)
@@ -642,7 +633,7 @@ $Script:ScriptBlock = {
             if ($SuppressFilter) {
                 throw 'NamedDataExcludeFilter requires FilterXml output so excluded matches can be represented with a Suppress query.'
             }
-            return $Filter
+            return [System.Net.WebUtility]::HtmlDecode([String] $Filter)
         } else {
             if ($Path -ne '') {
                 $EscapedPath = [System.Security.SecurityElement]::Escape("file://$Path")
