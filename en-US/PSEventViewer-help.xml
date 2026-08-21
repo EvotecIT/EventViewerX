@@ -2104,6 +2104,392 @@ already provides integrity validation.</maml:para>
       <maml:para>Supports local and remote logs, built-in event types, custom JSON definitions, record ID resumes, parallel queries, and rich filtering.</maml:para>
     </maml:description>
     <command:syntax>
+      <command:syntaxItem parameterSetName="TypedFilter">
+        <maml:name>Get-EVXEvent</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Authentication</maml:name>
+          <maml:description>
+            <maml:para>Authentication package used for remote Windows Event Log sessions.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventLogAuthentication</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Default</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Negotiate</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Kerberos</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Ntlm</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>EventLogAuthentication</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>BufferCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of projected events buffered between parallel readers and the PowerShell pipeline. Zero selects a bounded default.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Collector</maml:name>
+          <maml:description>
+            <maml:para>Windows Event Collector computers from which typed events are read through ForwardedEvents.&#xD;
+The selected Type still owns each event's original source channel and identifiers.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">List`1</command:parameterValue>
+          <dev:type>
+            <maml:name>List`1</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ContinueOnError</maml:name>
+          <maml:description>
+            <maml:para>Continues other independent sources when a channel, computer, or file query fails.&#xD;
+Each isolated failure is emitted as a non-terminating PowerShell error.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Credential</maml:name>
+          <maml:description>
+            <maml:para>Credentials used for remote channel or structured queries.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSCredential</command:parameterValue>
+          <dev:type>
+            <maml:name>PSCredential</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Describe</maml:name>
+          <maml:description>
+            <maml:para>Returns definition and field metadata without querying event sources.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>DisableParallel</maml:name>
+          <maml:description>
+            <maml:para>Disables parallel processing of queries.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateTo">
+          <maml:name>EndTime</maml:name>
+          <maml:description>
+            <maml:para>End time for the event query.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+          <dev:type>
+            <maml:name>DateTime</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="RecordId">
+          <maml:name>EventRecordId</maml:name>
+          <maml:description>
+            <maml:para>Specific event record identifiers to retrieve.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
+          <maml:name>ExpandData</maml:name>
+          <maml:description>
+            <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>FallbackMessageCulture</maml:name>
+          <maml:description>
+            <maml:para>Culture used when provider resources do not contain MessageCulture.&#xD;
+Get-EVXEvent requests en-US by default, then falls back to the current UI culture&#xD;
+so deterministic English is preferred without discarding locally available messages.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">CultureInfo</command:parameterValue>
+          <dev:type>
+            <maml:name>CultureInfo</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Filter</maml:name>
+          <maml:description>
+            <maml:para>Reusable typed filter produced by New-EVXFilter or EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
+          <dev:type>
+            <maml:name>Object</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>IncludeBookmark</maml:name>
+          <maml:description>
+            <maml:para>Materializes a native bookmark for each returned event. This is disabled by&#xD;
+default because bookmark creation adds native handle and render work per record.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="ComputerName,ServerName">
+          <maml:name>MachineName</maml:name>
+          <maml:description>
+            <maml:para>Computer names against which to run the query.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">List`1</command:parameterValue>
+          <dev:type>
+            <maml:name>List`1</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="NumberOfThreads">
+          <maml:name>MaxConcurrency</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of independent event sources opened concurrently.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaxEvents</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of events to return.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaxEventsScanned</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of merged candidate events delivered for message and checkpoint filtering.&#xD;
+Zero continues until the output limit is satisfied or the query is exhausted. Native selection may perform&#xD;
+one initial lookahead per machine/XPath chunk plus bounded page prefetch; those rows are not evaluated by the cmdlet.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MessageCulture</maml:name>
+          <maml:description>
+            <maml:para>Culture used to format provider messages and display names for offline EVTX queries.&#xD;
+For example, use en-US for deterministic English output.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">CultureInfo</command:parameterValue>
+          <dev:type>
+            <maml:name>CultureInfo</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MessageRegex</maml:name>
+          <maml:description>
+            <maml:para>Filters events by matching their formatted message against the provided regular expression.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Regex</command:parameterValue>
+          <dev:type>
+            <maml:name>Regex</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Oldest</maml:name>
+          <maml:description>
+            <maml:para>Reads events from oldest to newest when querying files.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ReadMode</maml:name>
+          <maml:description>
+            <maml:para>Controls per-event materialization. Metadata skips provider messages, XML, attachments, and bookmarks;&#xD;
+Message formats the provider message; StructuredData parses XML without formatting the message;&#xD;
+StructuredDataAndMessage includes both without decoding attachments; Full includes all data.&#xD;
+Typed queries default to StructuredDataAndMessage; other query sets default to Message.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReadMode</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Metadata</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Message</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">StructuredData</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RawXml</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Full</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">StructuredDataAndMessage</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>EventReadMode</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>RecordIdFile</maml:name>
+          <maml:description>
+            <maml:para>Path to a file storing last processed record ID.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>RecordIdKey</maml:name>
+          <maml:description>
+            <maml:para>Identifier used when persisting record IDs to allow multiple jobs to share a file.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>SessionTimeoutMs</maml:name>
+          <maml:description>
+            <maml:para>Overrides both remote connection and no-progress read timeouts in milliseconds.&#xD;
+Zero uses Settings.SessionTimeoutMs for connection establishment and&#xD;
+Settings.QuerySessionTimeoutMs for reading.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
+          <maml:name>StartTime</maml:name>
+          <maml:description>
+            <maml:para>Start time for the event query.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+          <dev:type>
+            <maml:name>DateTime</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>TimePeriod</maml:name>
+          <maml:description>
+            <maml:para>Relative time period for filtering events.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">TimePeriod</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">PastHour</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CurrentHour</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">PastDay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CurrentDay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">PastMonth</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CurrentMonth</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">PastQuarter</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CurrentQuarter</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last3Days</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last7Days</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last14Days</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last1Hour</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last2Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last3Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last6Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last12Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last16Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last24Hours</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Today</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Yesterday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Everything</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastMonday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastTuesday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastWednesday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastThursday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastFriday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastSaturday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TillLastSunday</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last15Minutes</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Last30Minutes</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>TimePeriod</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
       <command:syntaxItem parameterSetName="Channel">
         <maml:name>Get-EVXEvent</maml:name>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
@@ -2661,6 +3047,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Describe</maml:name>
+          <maml:description>
+            <maml:para>Returns definition and field metadata without querying event sources.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>DisableParallel</maml:name>
           <maml:description>
             <maml:para>Disables parallel processing of queries.</maml:para>
@@ -2712,6 +3110,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -5165,356 +5575,6 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
             <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-      </command:syntaxItem>
-      <command:syntaxItem parameterSetName="TypedFilter">
-        <maml:name>Get-EVXEvent</maml:name>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Authentication</maml:name>
-          <maml:description>
-            <maml:para>Authentication package used for remote Windows Event Log sessions.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">EventLogAuthentication</command:parameterValue>
-          <command:parameterValueGroup>
-            <command:parameterValue required="false" variableLength="false">Default</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Negotiate</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Kerberos</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Ntlm</command:parameterValue>
-          </command:parameterValueGroup>
-          <dev:type>
-            <maml:name>EventLogAuthentication</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>BufferCapacity</maml:name>
-          <maml:description>
-            <maml:para>Maximum number of projected events buffered between parallel readers and the PowerShell pipeline. Zero selects a bounded default.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
-          <dev:type>
-            <maml:name>Int32</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Collector</maml:name>
-          <maml:description>
-            <maml:para>Windows Event Collector computers from which typed events are read through ForwardedEvents.&#xD;
-The selected Type still owns each event's original source channel and identifiers.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">List`1</command:parameterValue>
-          <dev:type>
-            <maml:name>List`1</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>ContinueOnError</maml:name>
-          <maml:description>
-            <maml:para>Continues other independent sources when a channel, computer, or file query fails.&#xD;
-Each isolated failure is emitted as a non-terminating PowerShell error.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Credential</maml:name>
-          <maml:description>
-            <maml:para>Credentials used for remote channel or structured queries.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">PSCredential</command:parameterValue>
-          <dev:type>
-            <maml:name>PSCredential</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Describe</maml:name>
-          <maml:description>
-            <maml:para>Returns definition and field metadata without querying event sources.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>DisableParallel</maml:name>
-          <maml:description>
-            <maml:para>Disables parallel processing of queries.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateTo">
-          <maml:name>EndTime</maml:name>
-          <maml:description>
-            <maml:para>End time for the event query.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
-          <dev:type>
-            <maml:name>DateTime</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
-          <maml:name>ExpandData</maml:name>
-          <maml:description>
-            <maml:para>Expands event data into individual properties.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Explain</maml:name>
-          <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>FallbackMessageCulture</maml:name>
-          <maml:description>
-            <maml:para>Culture used when provider resources do not contain MessageCulture.&#xD;
-Get-EVXEvent requests en-US by default, then falls back to the current UI culture&#xD;
-so deterministic English is preferred without discarding locally available messages.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">CultureInfo</command:parameterValue>
-          <dev:type>
-            <maml:name>CultureInfo</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Filter</maml:name>
-          <maml:description>
-            <maml:para>Reusable typed filter produced by New-EVXFilter or EventViewerX.</maml:para>
-          </maml:description>
-          <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
-          <dev:type>
-            <maml:name>Object</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>IncludeBookmark</maml:name>
-          <maml:description>
-            <maml:para>Materializes a native bookmark for each returned event. This is disabled by&#xD;
-default because bookmark creation adds native handle and render work per record.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="ComputerName,ServerName">
-          <maml:name>MachineName</maml:name>
-          <maml:description>
-            <maml:para>Computer names against which to run the query.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">List`1</command:parameterValue>
-          <dev:type>
-            <maml:name>List`1</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="NumberOfThreads">
-          <maml:name>MaxConcurrency</maml:name>
-          <maml:description>
-            <maml:para>Maximum number of independent event sources opened concurrently.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
-          <dev:type>
-            <maml:name>Int32</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>MaxEvents</maml:name>
-          <maml:description>
-            <maml:para>Maximum number of events to return.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
-          <dev:type>
-            <maml:name>Int64</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>MaxEventsScanned</maml:name>
-          <maml:description>
-            <maml:para>Maximum number of merged candidate events delivered for message and checkpoint filtering.&#xD;
-Zero continues until the output limit is satisfied or the query is exhausted. Native selection may perform&#xD;
-one initial lookahead per machine/XPath chunk plus bounded page prefetch; those rows are not evaluated by the cmdlet.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
-          <dev:type>
-            <maml:name>Int64</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>MessageCulture</maml:name>
-          <maml:description>
-            <maml:para>Culture used to format provider messages and display names for offline EVTX queries.&#xD;
-For example, use en-US for deterministic English output.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">CultureInfo</command:parameterValue>
-          <dev:type>
-            <maml:name>CultureInfo</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>MessageRegex</maml:name>
-          <maml:description>
-            <maml:para>Filters events by matching their formatted message against the provided regular expression.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Regex</command:parameterValue>
-          <dev:type>
-            <maml:name>Regex</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>Oldest</maml:name>
-          <maml:description>
-            <maml:para>Reads events from oldest to newest when querying files.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
-          <dev:type>
-            <maml:name>SwitchParameter</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>ReadMode</maml:name>
-          <maml:description>
-            <maml:para>Controls per-event materialization. Metadata skips provider messages, XML, attachments, and bookmarks;&#xD;
-Message formats the provider message; StructuredData parses XML without formatting the message;&#xD;
-StructuredDataAndMessage includes both without decoding attachments; Full includes all data.&#xD;
-Typed queries default to StructuredDataAndMessage; other query sets default to Message.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">EventReadMode</command:parameterValue>
-          <command:parameterValueGroup>
-            <command:parameterValue required="false" variableLength="false">Metadata</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Message</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">StructuredData</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">RawXml</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Full</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">StructuredDataAndMessage</command:parameterValue>
-          </command:parameterValueGroup>
-          <dev:type>
-            <maml:name>EventReadMode</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>SessionTimeoutMs</maml:name>
-          <maml:description>
-            <maml:para>Overrides both remote connection and no-progress read timeouts in milliseconds.&#xD;
-Zero uses Settings.SessionTimeoutMs for connection establishment and&#xD;
-Settings.QuerySessionTimeoutMs for reading.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
-          <dev:type>
-            <maml:name>Int32</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
-          <maml:name>StartTime</maml:name>
-          <maml:description>
-            <maml:para>Start time for the event query.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
-          <dev:type>
-            <maml:name>DateTime</maml:name>
-            <maml:uri />
-          </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
-        </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
-          <maml:name>TimePeriod</maml:name>
-          <maml:description>
-            <maml:para>Relative time period for filtering events.</maml:para>
-          </maml:description>
-          <command:parameterValue required="false" variableLength="false">TimePeriod</command:parameterValue>
-          <command:parameterValueGroup>
-            <command:parameterValue required="false" variableLength="false">PastHour</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">CurrentHour</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">PastDay</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">CurrentDay</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">PastMonth</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">CurrentMonth</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">PastQuarter</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">CurrentQuarter</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last3Days</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last7Days</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last14Days</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last1Hour</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last2Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last3Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last6Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last12Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last16Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last24Hours</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Today</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Yesterday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Everything</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastMonday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastTuesday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastWednesday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastThursday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastFriday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastSaturday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">TillLastSunday</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last15Minutes</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">Last30Minutes</command:parameterValue>
-          </command:parameterValueGroup>
-          <dev:type>
-            <maml:name>TimePeriod</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>

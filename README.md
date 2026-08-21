@@ -9,9 +9,9 @@ runtime, Rust engine, or provider-specific parsing dependency.
 
 [![PowerShell Gallery](https://img.shields.io/powershellgallery/v/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
 [![PowerShell Gallery downloads](https://img.shields.io/powershellgallery/dt/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
-[![Test .NET](https://github.com/EvotecIT/PSEventViewer/actions/workflows/test-dotnet.yml/badge.svg)](https://github.com/EvotecIT/PSEventViewer/actions/workflows/test-dotnet.yml)
-[![Test PowerShell](https://github.com/EvotecIT/PSEventViewer/actions/workflows/test-powershell.yml/badge.svg)](https://github.com/EvotecIT/PSEventViewer/actions/workflows/test-powershell.yml)
-[![License](https://img.shields.io/github/license/EvotecIT/PSEventViewer.svg)](https://github.com/EvotecIT/PSEventViewer)
+[![Test .NET](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-dotnet.yml/badge.svg)](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-dotnet.yml)
+[![Test PowerShell](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-powershell.yml/badge.svg)](https://github.com/EvotecIT/EventViewerX/actions/workflows/test-powershell.yml)
+[![License](https://img.shields.io/github/license/EvotecIT/EventViewerX.svg)](https://github.com/EvotecIT/EventViewerX)
 
 ## Why use it
 

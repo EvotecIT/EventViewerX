@@ -14,7 +14,7 @@
         PSData = @{
             ExternalModuleDependencies = @()
             IconUri                    = 'https://evotec.xyz/wp-content/uploads/2018/10/PSEventViewer.png'
-            ProjectUri                 = 'https://github.com/EvotecIT/PSEventViewer'
+            ProjectUri                 = 'https://github.com/EvotecIT/EventViewerX'
             RequireLicenseAcceptance   = $false
             Tags                       = @('Events', 'Viewer', 'Windows', 'XML', 'XPATH', 'EVTX', 'WEC', 'Reporting')
         }

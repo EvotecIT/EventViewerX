@@ -1,7 +1,7 @@
 ---
 external help file: PSEventViewer-help.xml
 Module Name: PSEventViewer
-online version: https://github.com/EvotecIT/PSEventViewer
+online version: https://github.com/EvotecIT/EventViewerX
 schema: 2.0.0
 ---
 # New-EVXCollectorSubscription

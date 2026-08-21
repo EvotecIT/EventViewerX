@@ -1,7 +1,7 @@
 ---
 Module Name: PSEventViewer
 Module Guid: 5df72a79-cdf6-4add-b38d-bcacf26fb7bc
-Download Help Link: https://github.com/EvotecIT/PSEventViewer
+Download Help Link: https://github.com/EvotecIT/EventViewerX
 Help Version: 4.0.0
 Locale: en-US
 ---

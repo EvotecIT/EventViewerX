@@ -1,7 +1,7 @@
 ---
 external help file: PSEventViewer-help.xml
 Module Name: PSEventViewer
-online version: https://github.com/EvotecIT/PSEventViewer
+online version: https://github.com/EvotecIT/EventViewerX
 schema: 2.0.0
 ---
 # Get-EVXEvent
@@ -11,14 +11,19 @@ Enhanced event querying cmdlet that replaces and extends Get-WinEvent functional
 Supports local and remote logs, built-in event types, custom JSON definitions, record ID resumes, parallel queries, and rich filtering.
 
 ## SYNTAX
-### Channel (Default)
+### TypedFilter (Default)
+```powershell
+Get-EVXEvent -Filter <Object> [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+```
+
+### Channel
 ```powershell
 Get-EVXEvent [-LogName] <string[]> [[-EventId] <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-Force] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Path
 ```powershell
-Get-EVXEvent -Path <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-ProviderName <string[]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent -Path <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-ProviderName <string[]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Type
@@ -44,11 +49,6 @@ Get-EVXEvent [-FilterHashtable] <hashtable[]> [-RecordIdFile <string>] [-RecordI
 ### Xml
 ```powershell
 Get-EVXEvent [-FilterXml] <xml> [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-TolerateQueryErrors] [-IncludeBookmark] [<CommonParameters>]
-```
-
-### TypedFilter
-```powershell
-Get-EVXEvent -Filter <Object> [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -128,7 +128,7 @@ Authentication package used for remote Windows Event Log sessions.
 
 ```yaml
 Type: EventLogAuthentication
-Parameter Sets: Channel, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values: Default, Negotiate, Kerberos, Ntlm
 
@@ -177,7 +177,7 @@ Maximum number of projected events buffered between parallel readers and the Pow
 
 ```yaml
 Type: Int32
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -194,7 +194,7 @@ The selected Type still owns each event's original source channel and identifier
 
 ```yaml
 Type: List`1
-Parameter Sets: Type, Definition, TypedFilter
+Parameter Sets: TypedFilter, Type, Definition
 Aliases: None
 Possible values:
 
@@ -211,7 +211,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -227,7 +227,7 @@ Credentials used for remote channel or structured queries.
 
 ```yaml
 Type: PSCredential
-Parameter Sets: Channel, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -259,7 +259,7 @@ Returns definition and field metadata without querying event sources.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Type, Definition, TypedFilter
+Parameter Sets: TypedFilter, Path, Type, Definition
 Aliases: None
 Possible values:
 
@@ -275,7 +275,7 @@ Disables parallel processing of queries.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -323,7 +323,7 @@ End time for the event query.
 
 ```yaml
 Type: DateTime
-Parameter Sets: Channel, Path, Type, Definition, Provider, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
 Aliases: DateTo
 Possible values:
 
@@ -355,7 +355,7 @@ Specific event record identifiers to retrieve.
 
 ```yaml
 Type: Int64[]
-Parameter Sets: Channel, Path, Type, Definition, Provider
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
 Aliases: RecordId
 Possible values:
 
@@ -371,7 +371,7 @@ Expands event data into individual properties.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: Expand
 Possible values:
 
@@ -387,7 +387,7 @@ Returns the native/managed predicate plan without querying event sources.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Type, Definition, TypedFilter
+Parameter Sets: TypedFilter, Path, Type, Definition
 Aliases: None
 Possible values:
 
@@ -405,7 +405,7 @@ so deterministic English is preferred without discarding locally available messa
 
 ```yaml
 Type: CultureInfo
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -421,7 +421,7 @@ Reusable typed filter produced by New-EVXFilter or EventViewerX.
 
 ```yaml
 Type: Object
-Parameter Sets: Channel, Path, Provider, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Provider
 Aliases: None
 Possible values:
 
@@ -522,7 +522,7 @@ default because bookmark creation adds native handle and render work per record.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -586,7 +586,7 @@ Computer names against which to run the query.
 
 ```yaml
 Type: List`1
-Parameter Sets: Channel, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
 Aliases: ComputerName, ServerName
 Possible values:
 
@@ -602,7 +602,7 @@ Maximum number of independent event sources opened concurrently.
 
 ```yaml
 Type: Int32
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: NumberOfThreads
 Possible values:
 
@@ -618,7 +618,7 @@ Maximum number of events to return.
 
 ```yaml
 Type: Int64
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -636,7 +636,7 @@ one initial lookahead per machine/XPath chunk plus bounded page prefetch; those 
 
 ```yaml
 Type: Int64
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -653,7 +653,7 @@ For example, use en-US for deterministic English output.
 
 ```yaml
 Type: CultureInfo
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -669,7 +669,7 @@ Filters events by matching their formatted message against the provided regular 
 
 ```yaml
 Type: Regex
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -717,7 +717,7 @@ Reads events from oldest to newest when querying files.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -768,7 +768,7 @@ Typed queries default to StructuredDataAndMessage; other query sets default to M
 
 ```yaml
 Type: EventReadMode
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values: Metadata, Message, StructuredData, RawXml, Full, StructuredDataAndMessage
 
@@ -784,7 +784,7 @@ Path to a file storing last processed record ID.
 
 ```yaml
 Type: String
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -800,7 +800,7 @@ Identifier used when persisting record IDs to allow multiple jobs to share a fil
 
 ```yaml
 Type: String
-Parameter Sets: Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -835,7 +835,7 @@ Settings.QuerySessionTimeoutMs for reading.
 
 ```yaml
 Type: Int32
-Parameter Sets: Channel, Type, Definition, Provider, Hashtable, Xml, TypedFilter
+Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -851,7 +851,7 @@ Start time for the event query.
 
 ```yaml
 Type: DateTime
-Parameter Sets: Channel, Path, Type, Definition, Provider, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
 Aliases: DateFrom
 Possible values:
 
@@ -867,7 +867,7 @@ Relative time period for filtering events.
 
 ```yaml
 Type: TimePeriod
-Parameter Sets: Channel, Path, Type, Definition, Provider, TypedFilter
+Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
 Aliases: None
 Possible values: PastHour, CurrentHour, PastDay, CurrentDay, PastMonth, CurrentMonth, PastQuarter, CurrentQuarter, Last3Days, Last7Days, Last14Days, Last1Hour, Last2Hours, Last3Hours, Last6Hours, Last12Hours, Last16Hours, Last24Hours, Today, Yesterday, Everything, TillLastMonday, TillLastTuesday, TillLastWednesday, TillLastThursday, TillLastFriday, TillLastSaturday, TillLastSunday, Last15Minutes, Last30Minutes
 

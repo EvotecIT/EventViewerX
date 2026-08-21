@@ -38,7 +38,7 @@ Build-Module -ModuleName 'PSEventViewer' {
 
         IconUri              = 'https://evotec.xyz/wp-content/uploads/2018/10/PSEventViewer.png'
 
-        ProjectUri           = 'https://github.com/EvotecIT/PSEventViewer'
+        ProjectUri           = 'https://github.com/EvotecIT/EventViewerX'
 
         PowerShellVersion    = '5.1'
     }
@@ -79,7 +79,6 @@ Build-Module -ModuleName 'PSEventViewer' {
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
     # configuration for documentation, at the same time it enables documentation processing
     New-ConfigurationDocumentation -Enable -PathReadme 'Docs\Readme.md' -Path 'Docs' -SyncExternalHelpToProjectRoot
-
     $newConfigurationBuildSplat = @{
         Enable                            = $true
         SignModule                        = $SignModule
@@ -121,7 +120,7 @@ Build-Module -ModuleName 'PSEventViewer' {
     New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName
 
     New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false -UseAsDependencyVersionSource
-    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'PSEventViewer' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
+    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
 
     New-ConfigurationGate -Mode $RunMode
 }

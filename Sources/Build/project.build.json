@@ -30,7 +30,7 @@
   "PublishFailFast": true,
   "GitHubAccessTokenFilePath": "C:\\Support\\Important\\GithubAPI.txt",
   "GitHubUsername": "EvotecIT",
-  "GitHubRepositoryName": "PSEventViewer",
+  "GitHubRepositoryName": "EventViewerX",
   "GitHubIsPreRelease": false,
   "GitHubIncludeProjectNameInTag": true,
   "GitHubGenerateReleaseNotes": true,
