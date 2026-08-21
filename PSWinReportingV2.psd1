@@ -25,6 +25,14 @@
             Guid            = 'a7bdf640-f5cb-4acf-9de0-365b322d245c'
             ModuleName      = 'PSWriteHTML'
             RequiredVersion = '1.41.0'
+        }, @{
+            Guid            = 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe'
+            ModuleName      = 'PSSharedGoods'
+            RequiredVersion = '0.0.312'
+        }, @{
+            Guid            = '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f'
+            ModuleName      = 'PSWriteColor'
+            RequiredVersion = '1.0.3'
         })
     RootModule           = 'PSWinReportingV2.psm1'
     PowerShellVersion    = '5.1'

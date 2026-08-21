@@ -224,6 +224,34 @@ $Script:ScriptBlock = {
         )
 
         #region Function definitions
+        Function ConvertTo-XPathXmlLiteral {
+            Param (
+                [AllowEmptyString()]
+                [String] $Value
+            )
+
+            $SingleQuote = [Char] 39
+            $DoubleQuote = [Char] 34
+            If (-not $Value.Contains([String] $SingleQuote)) {
+                $Literal = [String] $SingleQuote + $Value + [String] $SingleQuote
+            } ElseIf (-not $Value.Contains([String] $DoubleQuote)) {
+                $Literal = [String] $DoubleQuote + $Value + [String] $DoubleQuote
+            } Else {
+                $Parts = $Value.Split($SingleQuote)
+                [Array] $Segments = For ($Index = 0; $Index -lt $Parts.Length; $Index++) {
+                    If ($Parts[$Index].Length -gt 0) {
+                        [String] $SingleQuote + $Parts[$Index] + [String] $SingleQuote
+                    }
+                    If ($Index -lt $Parts.Length - 1) {
+                        [String] $DoubleQuote + [String] $SingleQuote + [String] $DoubleQuote
+                    }
+                }
+                $Literal = 'concat(' + ($Segments -join ',') + ')'
+            }
+
+            [System.Security.SecurityElement]::Escape($Literal)
+        }
+
         Function Join-XPathFilter {
             Param
             (
@@ -290,13 +318,16 @@ $Script:ScriptBlock = {
                 [String]
                 $Logic = 'or',
 
-                [switch]$NoParenthesis
+                [switch]$NoParenthesis,
+
+                [switch]$EscapeItems
             )
 
             $filter = ''
 
             ForEach ($item in $Items) {
-                $options = @{'NewFilter' = ($ForEachFormatString -f $item)
+                $FormattedItem = If ($EscapeItems) { ConvertTo-XPathXmlLiteral -Value ([String] $item) } Else { $item }
+                $options = @{'NewFilter' = ($ForEachFormatString -f $FormattedItem)
                     'ExistingFilter'     = $filter
                     'Logic'              = $logic
                     'NoParenthesis'      = $NoParenthesis
@@ -349,6 +380,7 @@ $Script:ScriptBlock = {
                 'Items'                = $ExcludeID
                 'ForEachFormatString'  = "EventID!={0}"
                 'FinalizeFormatString' = "*[System[{0}]]"
+                'Logic'                = 'and'
             }
             $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
         }
@@ -386,8 +418,9 @@ $Script:ScriptBlock = {
         If ($Data) {
             $options = @{
                 'Items'                = $Data
-                'ForEachFormatString'  = "Data='{0}'"
+                'ForEachFormatString'  = "Data={0}"
                 'FinalizeFormatString' = "*[EventData[{0}]]"
+                'EscapeItems'          = $true
             }
             $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
         }
@@ -397,8 +430,9 @@ $Script:ScriptBlock = {
         If ($ProviderName) {
             $options = @{
                 'Items'                = $ProviderName
-                'ForEachFormatString'  = "@Name='{0}'"
+                'ForEachFormatString'  = "@Name={0}"
                 'FinalizeFormatString' = "*[System[Provider[{0}]]]"
+                'EscapeItems'          = $true
             }
             $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
         }
@@ -487,8 +521,9 @@ $Script:ScriptBlock = {
 
             $options = @{
                 'Items'                = $sids
-                'ForEachFormatString'  = "@UserID='{0}'"
+                'ForEachFormatString'  = "@UserID={0}"
                 'FinalizeFormatString' = "*[System[Security[{0}]]]"
+                'EscapeItems'          = $true
             }
             $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
         }
@@ -511,18 +546,21 @@ $Script:ScriptBlock = {
                                         #XPath for the Data node with that Name attribute
                                         #and value. Use 'and' logic to join the data values.
                                         #to the Name Attribute.
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
                                         $options = @{
                                             'Items'                = $item[$key]
                                             'NoParenthesis'        = $true
-                                            'ForEachFormatString'  = "Data[@Name='$key'] = '{0}'"
+                                            'ForEachFormatString'  = "Data[@Name=$KeyLiteral] = {0}"
                                             'FinalizeFormatString' = "{0}"
+                                            'EscapeItems'          = $true
                                         }
                                         Initialize-XPathFilter @options
                                     } Else {
                                         #If there isn't a value for the key, create
                                         #XPath for the existence of the Data node with
                                         #that paritcular Name attribute.
-                                        "Data[@Name='$key']"
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                        "Data[@Name=$KeyLiteral]"
                                     }
                                 }
                             )
@@ -557,19 +595,22 @@ $Script:ScriptBlock = {
                                         #XPath for the Data node with that Name attribute
                                         #and value. Use 'and' logic to join the data values.
                                         #to the Name Attribute.
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
                                         $options = @{
                                             'Items'                = $item[$key]
                                             'NoParenthesis'        = $true
-                                            'ForEachFormatString'  = "Data[@Name='$key'] != '{0}'"
+                                            'ForEachFormatString'  = "Data[@Name=$KeyLiteral] != {0}"
                                             'FinalizeFormatString' = "{0}"
                                             'Logic'                = 'and'
+                                            'EscapeItems'          = $true
                                         }
                                         Initialize-XPathFilter @options
                                     } Else {
                                         #If there isn't a value for the key, create
                                         #XPath for the existence of the Data node with
                                         #that paritcular Name attribute.
-                                        "Data[@Name='$key']"
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                        "Data[@Name=$KeyLiteral]"
                                     }
                                 }
                             )
@@ -693,8 +734,8 @@ $Script:ScriptBlock = {
             # Iterate through each one of the XML message properties
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name "Computer" -Value $event.MachineName.ToString() -Force
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name "Date" -Value $Event.TimeCreated -Force
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('Computer', $event.MachineName.ToString()))
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('Date', $Event.TimeCreated))
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Computer' -Value $event.MachineName.ToString() -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Date' -Value $Event.TimeCreated -Force
 
             #$EventTopNodes = Get-Member -InputObject $eventXML.Event -MemberType Properties | Where-Object { $_.Name -ne 'System' -and $_.Name -ne 'xmlns' }
             $EventTopNodes = $eventXML.Event.PSAdapted.PSObject.Properties.Name #| Where-Object { $_ -ne 'System' -and $_ -ne 'xmlns' }
@@ -720,7 +761,7 @@ $Script:ScriptBlock = {
                             #$SubSubNode = Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode -MemberType Properties | Where-Object { $_.Name -ne 'xmlns' -and $_.Definition -like "string*" }
                             $SubSubNode = $eventXML.Event.$TopNode.$SubNode.PSAdapted.PSObject.Properties #| Where-Object { $_.Name -ne 'xmlns' -and $_.TypeNameOfValue -like "string*" }
                             [Array] $SubSubNode = foreach ($Entry in $SubSubNode) {
-                                if ($Entry.Name -ne 'xmls' -and $_.TypeNameOfValue -like "string*") {
+                                if ($Entry.Name -ne 'xmls' -and $Entry.TypeNameOfValue -like "string*") {
                                     $Entry
                                 }
                             }
@@ -728,7 +769,7 @@ $Script:ScriptBlock = {
                                 $fieldName = $Name
                                 $fieldValue = $eventXML.Event.$TopNode.$SubNode.$Name
                                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
-                                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $fieldValue))
+                                Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
                             }
                             # Case 1
 
@@ -746,7 +787,7 @@ $Script:ScriptBlock = {
                                     }
                                     if ($fieldName -ne "") {
                                         #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
-                                        $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $fieldValue))
+                                        Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
                                     }
                                     # Case 2
                                 } else {
@@ -756,7 +797,7 @@ $Script:ScriptBlock = {
                                         $fieldName = "NoNameA$i"
                                         $fieldValue = $Value
                                         # Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
-                                        $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $fieldValue))
+                                        Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
                                     }
                                     # Case 3
                                 }
@@ -765,10 +806,15 @@ $Script:ScriptBlock = {
                         }
                     } elseif ($EventSubSub.TypeNameOfValue -like "System.Xml.XmlElement*") {
                         # Case 1
+                        if ($SubNode -eq 'Data' -and $eventXML.Event.$TopNode.$SubNode.Name) {
+                            $fieldName = $eventXML.Event.$TopNode.$SubNode.Name
+                            $fieldValue = $eventXML.Event.$TopNode.$SubNode.'#text'
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                        }
                         #$SubSubNode = Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode -MemberType Properties | Where-Object { $_.Name -ne 'xmlns' -and $_.Definition -like "string*" }
                         $SubSubNode = $eventXML.Event.$TopNode.$SubNode.PSAdapted.PSObject.Properties #| Where-Object { $_.Name -ne 'xmlns' -and $_.TypeNameOfValue -like "string*" }
                         [Array] $SubSubNode = foreach ($Entry in $SubSubNode) {
-                            if ($Entry.Name -ne 'xmls' -and $_.TypeNameOfValue -like "string*") {
+                            if ($Entry.Name -ne 'xmls' -and $Entry.TypeNameOfValue -like "string*") {
                                 $Entry
                             }
                         }
@@ -776,7 +822,7 @@ $Script:ScriptBlock = {
                             $fieldName = $Name
                             $fieldValue = $eventXML.Event.$TopNode.$SubNode.$Name
                             # Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
-                            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $fieldValue))
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
                         }
                         # Case 1
                     } else {
@@ -789,13 +835,13 @@ $Script:ScriptBlock = {
                                 $h++
                                 $fieldName = "NoNameB$h"
                                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $Split -Force
-                                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $Split))
+                                Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $Split -Force
                             }
                         } else {
                             $h++
                             $fieldName = "NoNameB$h"
                             #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
-                            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new($fieldName, $fieldValue))
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
                         }
                         # Case 4
                     }
@@ -805,43 +851,43 @@ $Script:ScriptBlock = {
             [string] $MessageSubject = ($Event.Message -split '\n')[0] -replace "`n", '' -replace "`r", '' -replace "`t", ''
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MessageSubject' -Value $MessageSubject -Force
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Action' -Value $MessageSubject -Force
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('MessageSubject', $MessageSubject))
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('Action', $MessageSubject))
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MessageSubject' -Value $MessageSubject -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Action' -Value $MessageSubject -Force
 
             # Level value is not needed because there is actually LevelDisplayName
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'LevelTranslated' -Value ([PSEventViewer.Level] $Event.Level)
 
             # Overwrite value - the old value is collection
             # Add-Member -InputObject $Event -MemberType NoteProperty -Name 'KeywordDisplayName' -Value ($Event.KeywordsDisplayNames -join ',') -Force
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('KeywordDisplayName', ($Event.KeywordsDisplayNames -join ',')))
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'KeywordDisplayName' -Value ($Event.KeywordsDisplayNames -join ',') -Force
 
             if ($Event.SubjectDomainName -and $Event.SubjectUserName) {
                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectDomainName)\$($Event.SubjectUserName)" -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('Who', "$($Event.SubjectDomainName)\$($Event.SubjectUserName)" ))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectDomainName)\$($Event.SubjectUserName)" -Force
             } elseif ($Event.SubjectUserName) {
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('Who', "$($Event.SubjectUserName)"))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectUserName)" -Force
             }
             if ($Event.TargetDomainName -and $Event.TargetUserName) {
                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetDomainName)\$($Event.TargetUserName)" -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('ObjectAffected', "$($Event.TargetDomainName)\$($Event.TargetUserName)"))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetDomainName)\$($Event.TargetUserName)" -Force
             } elseif ($Event.TargetUserName) {
                 # Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetUserName)" -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('ObjectAffected', "$($Event.TargetUserName)"))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetUserName)" -Force
             }
             if ($Event.MemberName) {
                 [string] $MemberNameWithoutCN = $Event.MemberName -replace 'CN=|\\|,(OU|DC|CN).*$'
                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MemberNameWithoutCN' -Value $MemberNameWithoutCN -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('MemberNameWithoutCN', $MemberNameWithoutCN))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MemberNameWithoutCN' -Value $MemberNameWithoutCN -Force
             }
             if ($EventFilter.Path) {
                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredFrom" -Value $EventFilter.Path -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('GatheredFrom', $EventFilter.Path))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredFrom' -Value $EventFilter.Path -Force
             } else {
                 #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredFrom" -Value $Comp -Force
-                $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('GatheredFrom', $Comp))
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredFrom' -Value $Comp -Force
             }
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredLogName" -Value $EventFilter.LogName -Force
-            $Event.PSObject.Properties.Add([System.Management.Automation.PSNoteProperty]::new('GatheredLogName', $EventFilter.LogName))
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredLogName' -Value $EventFilter.LogName -Force
         }
         Write-Verbose "Get-Events - Inside $Comp Time to generate $($Measure.Elapsed.Hours) hours, $($Measure.Elapsed.Minutes) minutes, $($Measure.Elapsed.Seconds) seconds, $($Measure.Elapsed.Milliseconds) milliseconds"
         $Measure.Stop()

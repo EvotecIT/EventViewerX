@@ -237,6 +237,34 @@ function Get-EventsFilter {
     )
 
     #region Function definitions
+    Function ConvertTo-XPathXmlLiteral {
+        Param (
+            [AllowEmptyString()]
+            [String] $Value
+        )
+
+        $SingleQuote = [Char] 39
+        $DoubleQuote = [Char] 34
+        If (-not $Value.Contains([String] $SingleQuote)) {
+            $Literal = [String] $SingleQuote + $Value + [String] $SingleQuote
+        } ElseIf (-not $Value.Contains([String] $DoubleQuote)) {
+            $Literal = [String] $DoubleQuote + $Value + [String] $DoubleQuote
+        } Else {
+            $Parts = $Value.Split($SingleQuote)
+            [Array] $Segments = For ($Index = 0; $Index -lt $Parts.Length; $Index++) {
+                If ($Parts[$Index].Length -gt 0) {
+                    [String] $SingleQuote + $Parts[$Index] + [String] $SingleQuote
+                }
+                If ($Index -lt $Parts.Length - 1) {
+                    [String] $DoubleQuote + [String] $SingleQuote + [String] $DoubleQuote
+                }
+            }
+            $Literal = 'concat(' + ($Segments -join ',') + ')'
+        }
+
+        [System.Security.SecurityElement]::Escape($Literal)
+    }
+
     Function Join-XPathFilter {
         Param
         (
@@ -303,13 +331,16 @@ function Get-EventsFilter {
             [String]
             $Logic = 'or',
 
-            [switch]$NoParenthesis
+            [switch]$NoParenthesis,
+
+            [switch]$EscapeItems
         )
 
         $filter = ''
 
         ForEach ($item in $Items) {
-            $options = @{'NewFilter' = ($ForEachFormatString -f $item)
+            $FormattedItem = If ($EscapeItems) { ConvertTo-XPathXmlLiteral -Value ([String] $item) } Else { $item }
+            $options = @{'NewFilter' = ($ForEachFormatString -f $FormattedItem)
                 'ExistingFilter'     = $filter
                 'Logic'              = $logic
                 'NoParenthesis'      = $NoParenthesis
@@ -362,6 +393,7 @@ function Get-EventsFilter {
             'Items'                = $ExcludeID
             'ForEachFormatString'  = "EventID!={0}"
             'FinalizeFormatString' = "*[System[{0}]]"
+            'Logic'                = 'and'
         }
         $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
     }
@@ -399,8 +431,9 @@ function Get-EventsFilter {
     If ($Data) {
         $options = @{
             'Items'                = $Data
-            'ForEachFormatString'  = "Data='{0}'"
+            'ForEachFormatString'  = "Data={0}"
             'FinalizeFormatString' = "*[EventData[{0}]]"
+            'EscapeItems'          = $true
         }
         $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
     }
@@ -410,8 +443,9 @@ function Get-EventsFilter {
     If ($ProviderName) {
         $options = @{
             'Items'                = $ProviderName
-            'ForEachFormatString'  = "@Name='{0}'"
+            'ForEachFormatString'  = "@Name={0}"
             'FinalizeFormatString' = "*[System[Provider[{0}]]]"
+            'EscapeItems'          = $true
         }
         $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
     }
@@ -500,8 +534,9 @@ function Get-EventsFilter {
 
         $options = @{
             'Items'                = $sids
-            'ForEachFormatString'  = "@UserID='{0}'"
+            'ForEachFormatString'  = "@UserID={0}"
             'FinalizeFormatString' = "*[System[Security[{0}]]]"
+            'EscapeItems'          = $true
         }
         $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
     }
@@ -524,18 +559,21 @@ function Get-EventsFilter {
                                     #XPath for the Data node with that Name attribute
                                     #and value. Use 'and' logic to join the data values.
                                     #to the Name Attribute.
+                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
                                     $options = @{
                                         'Items'                = $item[$key]
                                         'NoParenthesis'        = $true
-                                        'ForEachFormatString'  = "Data[@Name='$key'] = '{0}'"
+                                        'ForEachFormatString'  = "Data[@Name=$KeyLiteral] = {0}"
                                         'FinalizeFormatString' = "{0}"
+                                        'EscapeItems'          = $true
                                     }
                                     Initialize-XPathFilter @options
                                 } Else {
                                     #If there isn't a value for the key, create
                                     #XPath for the existence of the Data node with
                                     #that paritcular Name attribute.
-                                    "Data[@Name='$key']"
+                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                    "Data[@Name=$KeyLiteral]"
                                 }
                             }
                         )
@@ -570,19 +608,22 @@ function Get-EventsFilter {
                                     #XPath for the Data node with that Name attribute
                                     #and value. Use 'and' logic to join the data values.
                                     #to the Name Attribute.
+                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
                                     $options = @{
                                         'Items'                = $item[$key]
                                         'NoParenthesis'        = $true
-                                        'ForEachFormatString'  = "Data[@Name='$key'] != '{0}'"
+                                        'ForEachFormatString'  = "Data[@Name=$KeyLiteral] != {0}"
                                         'FinalizeFormatString' = "{0}"
                                         'Logic'                = 'and'
+                                        'EscapeItems'          = $true
                                     }
                                     Initialize-XPathFilter @options
                                 } Else {
                                     #If there isn't a value for the key, create
                                     #XPath for the existence of the Data node with
                                     #that paritcular Name attribute.
-                                    "Data[@Name='$key']"
+                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                    "Data[@Name=$KeyLiteral]"
                                 }
                             }
                         )

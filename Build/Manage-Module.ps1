@@ -34,9 +34,8 @@ Build-Module -ModuleName 'PSWinReportingV2' {
     # privately because later PSEventViewer versions changed its contract.
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteHTML' -Guid 'a7bdf640-f5cb-4acf-9de0-365b322d245c' -RequiredVersion '1.41.0'
-
-    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods' -RequiredVersion '0.0.312'
-    New-ConfigurationModule -Type ApprovedModule -Name 'PSWriteColor' -RequiredVersion '1.0.3'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' -RequiredVersion '0.0.312'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f' -RequiredVersion '1.0.3'
 
     New-ConfigurationModuleSkip -IgnoreModuleName @(
         'Microsoft.PowerShell.Management'
@@ -60,6 +59,7 @@ Build-Module -ModuleName 'PSWinReportingV2' {
         'eventSeverity'
         # Nested inside the frozen legacy event-query scriptblock.
         'Get-EventsInternal'
+        'ConvertTo-XPathXmlLiteral'
         'Initialize-XPathFilter'
         'Join-XPathFilter'
         'New-SlackMessage'
@@ -104,7 +104,7 @@ Build-Module -ModuleName 'PSWinReportingV2' {
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'DefaultPSM1' -EnableFormatting -Sort None
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
 
-    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
 
     New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -ModulesPath 'Modules' -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName

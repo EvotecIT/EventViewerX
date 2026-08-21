@@ -222,14 +222,19 @@ function Get-Events {
                     }
                 }
             }
-            if ($null -ne $EventEntry.EventID) {
-                $ID = $EventEntry.EventID | Sort-Object -Unique
-                Write-Verbose "Get-Events - Events to process in Total (unique): $($Id.Count)"
-                Write-Verbose "Get-Events - Events to process in Total ID: $($ID -join ', ')"
-                if ($Id.Count -gt 22) {
+            $EventIds = if ($null -ne $EventEntry.EventID) {
+                $EventEntry.EventID
+            } else {
+                $ID
+            }
+            if ($null -ne $EventIds) {
+                $EventIds = $EventIds | Sort-Object -Unique
+                Write-Verbose "Get-Events - Events to process in Total (unique): $($EventIds.Count)"
+                Write-Verbose "Get-Events - Events to process in Total ID: $($EventIds -join ', ')"
+                if ($EventIds.Count -gt 22) {
                     Write-Verbose "Get-Events - There are more events to process then 22, split will be required."
                 }
-                $SplitArrayID = Split-Array -inArray $ID -size 22  # Support for more ID's then 22 (limitation of Get-WinEvent)
+                $SplitArrayID = Split-Array -inArray $EventIds -size 22  # Support for more ID's then 22 (limitation of Get-WinEvent)
                 foreach ($EventIdGroup in $SplitArrayID) {
                     $EventFilter.Id = @($EventIdGroup)
                     @{
