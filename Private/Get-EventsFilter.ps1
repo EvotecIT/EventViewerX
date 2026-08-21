@@ -358,7 +358,7 @@ function Get-EventsFilter {
     [string] $filter = ''
 
     #region ID filter
-    If ($ID) {
+    If ($null -ne $ID -and @($ID).Count -gt 0) {
         $options = @{
             'Items'                = $ID
             'ForEachFormatString'  = "EventID={0}"
@@ -380,7 +380,7 @@ function Get-EventsFilter {
     #endregion EventRecordID filter
 
     #region Exclude ID filter
-    If ($ExcludeID) {
+    If ($null -ne $ExcludeID -and @($ExcludeID).Count -gt 0) {
         $options = @{
             'Items'                = $ExcludeID
             'ForEachFormatString'  = "EventID!={0}"
@@ -569,7 +569,7 @@ function Get-EventsFilter {
                             #This will result in as set of XPath subexpressions
                             #for each key submitted in the hashtable
                             ForEach ($key in $item.Keys) {
-                                If ($item[$key]) {
+                                If (@($item[$key]).Count -gt 0 -and -not ($item[$key] -is [String] -and $item[$key].Length -eq 0)) {
                                     #If there is a value for the key, create the
                                     #XPath for the Data node with that Name attribute
                                     #and value. Use 'and' logic to join the data values.
@@ -609,75 +609,67 @@ function Get-EventsFilter {
 
     #region NamedDataExcludeFilter
     If ($NamedDataExcludeFilter) {
-        $options = @{
-            'Items'                = $(
-                # This will create set of datafilters for each of
-                # the hash tables submitted in the hash table array
-                ForEach ($item in $NamedDataExcludeFilter) {
+        $ExcludedMatches = ForEach ($item in $NamedDataExcludeFilter) {
+            $KeyFilters = ForEach ($key in $item.Keys) {
+                $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                If (@($item[$key]).Count -gt 0 -and -not ($item[$key] -is [String] -and $item[$key].Length -eq 0)) {
                     $options = @{
-                        'Items'                = $(
-                            #This will result in as set of XPath subexpressions
-                            #for each key submitted in the hashtable
-                            ForEach ($key in $item.Keys) {
-                                If ($item[$key]) {
-                                    #If there is a value for the key, create the
-                                    #XPath for the Data node with that Name attribute
-                                    #and value. Use 'and' logic to join the data values.
-                                    #to the Name Attribute.
-                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
-                                    $options = @{
-                                        'Items'                = $item[$key]
-                                        'NoParenthesis'        = $true
-                                        'ForEachFormatString'  = "Data[@Name=$KeyLiteral] != {0}"
-                                        'FinalizeFormatString' = "{0}"
-                                        'Logic'                = 'and'
-                                        'EscapeItems'          = $true
-                                    }
-                                    Initialize-XPathFilter @options
-                                } Else {
-                                    #If there isn't a value for the key, create
-                                    #XPath for the existence of the Data node with
-                                    #that paritcular Name attribute.
-                                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
-                                    "Data[@Name=$KeyLiteral]"
-                                }
-                            }
-                        )
-                        'ForEachFormatString'  = "{0}"
+                        'Items'                = $item[$key]
+                        'NoParenthesis'        = $true
+                        'ForEachFormatString'  = "Data[@Name=$KeyLiteral] = {0}"
                         'FinalizeFormatString' = "{0}"
-                        'Logic'                = 'and'
+                        'EscapeItems'          = $true
                     }
                     Initialize-XPathFilter @options
+                } Else {
+                    "Data[@Name=$KeyLiteral]"
                 }
-            )
-            'ForEachFormatString'  = "{0}"
-            'FinalizeFormatString' = "*[EventData[{0}]]"
-
+            }
+            $options = @{
+                'Items'                = $KeyFilters
+                'ForEachFormatString'  = "{0}"
+                'FinalizeFormatString' = "{0}"
+                'Logic'                = 'and'
+            }
+            $MatchingData = Initialize-XPathFilter @options
+            "*[EventData[$MatchingData]]"
         }
-        $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        $options = @{
+            'Items'                = $ExcludedMatches
+            'ForEachFormatString'  = "{0}"
+            'FinalizeFormatString' = "{0}"
+        }
+        $SuppressFilter = Initialize-XPathFilter @options
     }
     #endregion NamedDataExcludeFilter
 
     if ($XPathOnly) {
+        if ($SuppressFilter) {
+            throw 'NamedDataExcludeFilter requires FilterXml output so excluded matches can be represented with a Suppress query.'
+        }
         return $Filter
     } else {
         if ($Path -ne '') {
+            $EscapedPath = [System.Security.SecurityElement]::Escape("file://$Path")
             $FilterXML = @"
                 <QueryList>
-                    <Query Id="0" Path="file://$Path">
+                    <Query Id="0" Path="$EscapedPath">
                         <Select>
                                 $filter
                         </Select>
+                        $(if ($SuppressFilter) { "<Suppress>$SuppressFilter</Suppress>" })
                     </Query>
                 </QueryList>
 "@
         } else {
+            $EscapedLogName = [System.Security.SecurityElement]::Escape($LogName)
             $FilterXML = @"
                 <QueryList>
-                    <Query Id="0" Path="$LogName">
-                        <Select Path="$LogName">
+                    <Query Id="0" Path="$EscapedLogName">
+                        <Select Path="$EscapedLogName">
                                 $filter
                         </Select>
+                        $(if ($SuppressFilter) { "<Suppress Path=`"$EscapedLogName`">$SuppressFilter</Suppress>" })
                     </Query>
                 </QueryList>
 "@

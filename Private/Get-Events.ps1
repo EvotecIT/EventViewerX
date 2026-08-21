@@ -148,7 +148,7 @@ function Get-Events {
         [string] $Path = $null,
         [ValidateSet('AuditFailure', 'AuditSuccess', 'CorrelationHint2', 'EventLogClassic', 'Sqm', 'WdiDiagnostic', 'WdiContext', 'ResponseTime', 'None')]
         [string[]] $Keywords = $null,
-        [alias("EventRecordID")][int64] $RecordID,
+        [alias("EventRecordID")][nullable[int64]] $RecordID = $null,
         [int] $MaxRunspaces = [int]$env:NUMBER_OF_PROCESSORS + 1,
         [switch] $Oldest,
         [switch] $DisableParallel,
@@ -203,12 +203,20 @@ function Get-Events {
             Add-ToHashTable -Hashtable $EventFilter -Key "EndTime" -Value $EventEntry.DateTo
             Add-ToHashTable -Hashtable $EventFilter -Key "Keywords" -Value $ConvertedKeywords
             Add-ToHashTable -Hashtable $EventFilter -Key "Level" -Value $ConvertedLevels
-            Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $EventEntry.UserSID
+            $RequestedUserIDs = @(
+                foreach ($EventUserID in @($EventEntry.UserSID) + @($EventEntry.UserID)) {
+                    if (-not [String]::IsNullOrWhiteSpace([String] $EventUserID)) {
+                        $EventUserID
+                    }
+                }
+            )
+            Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $RequestedUserIDs
             Add-ToHashTable -Hashtable $EventFilter -Key "Data" -Value $EventEntry.Data
-            Add-ToHashTable -Hashtable $EventFilter -Key "RecordID" -Value $EventEntry.RecordID
+            if ([long] $EventEntry.RecordID -gt 0) {
+                Add-ToHashTable -Hashtable $EventFilter -Key "RecordID" -Value $EventEntry.RecordID
+            }
             Add-ToHashTable -Hashtable $EventFilter -Key "NamedDataFilter" -Value $EventEntry.NamedDataFilter
             Add-ToHashTable -Hashtable $EventFilter -Key "NamedDataExcludeFilter" -Value $EventEntry.NamedDataExcludeFilter
-            Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $EventEntry.UserID
             Add-ToHashTable -Hashtable $EventFilter -Key "ExcludeID" -Value $EventEntry.ExcludeID
 
             if ($Verbose) {
@@ -275,16 +283,24 @@ function Get-Events {
         [array] $ConvertedLevels = foreach ($DataLevel in $Level) {
             $LegacyLevelValues[[string] $DataLevel]
         }
+        $RequestedUserIDs = @(
+            foreach ($EventUserID in @($UserSID) + @($UserID)) {
+                if (-not [String]::IsNullOrWhiteSpace([String] $EventUserID)) {
+                    $EventUserID
+                }
+            }
+        )
         Add-ToHashTable -Hashtable $EventFilter -Key "Keywords" -Value $ConvertedKeywords
         Add-ToHashTable -Hashtable $EventFilter -Key "Level" -Value $ConvertedLevels
         Add-ToHashTable -Hashtable $EventFilter -Key "StartTime" -Value $DateFrom
         Add-ToHashTable -Hashtable $EventFilter -Key "EndTime" -Value $DateTo
-        Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $UserSID
+        Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $RequestedUserIDs
         Add-ToHashTable -Hashtable $EventFilter -Key "Data" -Value $Data
-        Add-ToHashTable -Hashtable $EventFilter -Key "RecordID" -Value $RecordID
+        if ($null -ne $RecordID -and $RecordID -gt 0) {
+            Add-ToHashTable -Hashtable $EventFilter -Key "RecordID" -Value $RecordID
+        }
         Add-ToHashTable -Hashtable $EventFilter -Key "NamedDataFilter" -Value $NamedDataFilter
         Add-ToHashTable -Hashtable $EventFilter -Key "NamedDataExcludeFilter" -Value $NamedDataExcludeFilter
-        Add-ToHashTable -Hashtable $EventFilter -Key "UserID" -Value $UserID
         Add-ToHashTable -Hashtable $EventFilter -Key "ExcludeID" -Value $ExcludeID
 
         [Array] $Param = foreach ($Comp in $Machine) {
@@ -340,7 +356,16 @@ function Get-Events {
     if ($DisableParallel) {
         Write-Verbose 'Get-Events - Running query with parallel disabled...'
         [Array] $AllEvents = foreach ($Parameter in $ParametersList) {
-            Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose
+            if ($ExtendedOutput) {
+                $DirectErrors = @()
+                [Array] $DirectOutput = @(Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose -ErrorAction SilentlyContinue -ErrorVariable +DirectErrors)
+                @{
+                    Output = $DirectOutput
+                    Errors = $DirectErrors
+                }
+            } else {
+                Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose
+            }
         }
     } else {
         Write-Verbose 'Get-Events - Running query with parallel enabled...'
@@ -349,6 +374,44 @@ function Get-Events {
             Start-Runspace -ScriptBlock $Script:ScriptBlock -Parameters $Parameter -RunspacePool $RunspacePool -Verbose:$Verbose
         }
         [Array] $AllEvents = Stop-Runspace -Runspaces $Runspaces -FunctionName "Get-Events" -RunspacePool $RunspacePool -Verbose:$Verbose -ErrorAction SilentlyContinue -ErrorVariable +AllErrors -ExtendedOutput:$ExtendedOutput
+    }
+    if ($ExtendedInput.Count -eq 0 -and $MaxEvents -gt 0) {
+        if ($ExtendedOutput) {
+            [Array] $EventCandidates = For ($ResultIndex = 0; $ResultIndex -lt $AllEvents.Count; $ResultIndex++) {
+                [Array] $ResultEvents = @($AllEvents[$ResultIndex].Output)
+                For ($EventIndex = 0; $EventIndex -lt $ResultEvents.Count; $EventIndex++) {
+                    [PSCustomObject] @{
+                        Key         = "$ResultIndex`:$EventIndex"
+                        TimeCreated = $ResultEvents[$EventIndex].TimeCreated
+                    }
+                }
+            }
+            [Array] $SelectedCandidates = if ($Oldest) {
+                @($EventCandidates | Sort-Object -Property TimeCreated | Select-Object -First $MaxEvents)
+            } else {
+                @($EventCandidates | Sort-Object -Property TimeCreated -Descending | Select-Object -First $MaxEvents)
+            }
+            $SelectedKeys = [System.Collections.Generic.HashSet[String]]::new([System.StringComparer]::Ordinal)
+            foreach ($Candidate in $SelectedCandidates) {
+                $null = $SelectedKeys.Add($Candidate.Key)
+            }
+            For ($ResultIndex = 0; $ResultIndex -lt $AllEvents.Count; $ResultIndex++) {
+                [Array] $ResultEvents = @($AllEvents[$ResultIndex].Output)
+                $AllEvents[$ResultIndex].Output = @(
+                    For ($EventIndex = 0; $EventIndex -lt $ResultEvents.Count; $EventIndex++) {
+                        if ($SelectedKeys.Contains("$ResultIndex`:$EventIndex")) {
+                            $ResultEvents[$EventIndex]
+                        }
+                    }
+                )
+            }
+        } elseif ($AllEvents.Count -gt $MaxEvents) {
+            if ($Oldest) {
+                [Array] $AllEvents = @($AllEvents | Sort-Object -Property TimeCreated | Select-Object -First $MaxEvents)
+            } else {
+                [Array] $AllEvents = @($AllEvents | Sort-Object -Property TimeCreated -Descending | Select-Object -First $MaxEvents)
+            }
+        }
     }
     Write-Verbose "Get-Events - Overall errors: $($AllErrors.Count)"
     Write-Verbose "Get-Events - Overall events processed in total for the report: $($AllEvents.Count)"

@@ -64,7 +64,7 @@ function Start-WinNotifications {
         return
     }
 
-    [Array] $ExtendedInput = Get-ServersListLimited -Target $Target -RecordID $EventRecordID
+    [Array] $ExtendedInput = Get-ServersListLimited -Target $Target -EventID $EventID -RecordID $EventRecordID -LogName $EventChannel
     foreach ($Entry in $ExtendedInput) {
         if ($Entry.Type -eq 'Computer') {
             $Logger.AddInfoRecord("Computer $($Entry.Server) added to scan $($Entry.LogName) log for events: $($Entry.EventID -join ', ')")
