@@ -66,7 +66,14 @@ Describe 'PSEventViewer v4 command surface' {
         }
     }
 
-    It 'keeps the managed cmdlet assembly architecture-neutral' {
+    It 'declares the packaged module as AMD64' {
+        $Module = Get-Module PSEventViewer
+        $Manifest = Import-PowerShellDataFile -Path (Join-Path $Module.ModuleBase 'PSEventViewer.psd1')
+
+        $Manifest.ProcessorArchitecture | Should -Be 'Amd64'
+    }
+
+    It 'uses the expected managed cmdlet architecture for the selected payload' {
         $Module = Get-Module PSEventViewer
         $AssemblyPath = $Module.ExportedCommands['Get-EVXEvent'].ImplementingType.Assembly.Location
         $Assembly = [System.Reflection.Assembly]::LoadFile($AssemblyPath)
@@ -76,7 +83,15 @@ Describe 'PSEventViewer v4 command surface' {
 
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::ILOnly) | Should -Not -Be 0
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::Required32Bit) | Should -Be 0
-        ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Be 0
+        $IsCoreDevelopmentPayload = $PSVersionTable.PSEdition -eq 'Core' -and
+            $AssemblyPath -like '*\Sources\PSEventViewer\bin\*'
+        if ($IsCoreDevelopmentPayload) {
+            ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Be 0
+            $Machine | Should -Be ([System.Reflection.ImageFileMachine]::I386)
+        } else {
+            ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Not -Be 0
+            $Machine | Should -Be ([System.Reflection.ImageFileMachine]::AMD64)
+        }
     }
 
     It 'declares both collector subscription result shapes' {
