@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-    <TargetFrameworks>net472;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
         <Description>Thin compiled PowerShell commands over the EventViewerX Windows Event Log engine.</Description>
         <AssemblyName>PSEventViewer</AssemblyName>
         <AssemblyTitle>PSEventViewer</AssemblyTitle>
@@ -30,9 +30,15 @@
       <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
   </ItemGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
-      <!-- SQLite chooses native assets through the RID, but the cmdlet assembly remains loadable by x86 and x64 hosts. -->
+      <!-- The packaged module contains the win-x64 SQLite runtime and therefore has an explicit AMD64 contract. -->
       <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-      <PlatformTarget>AnyCPU</PlatformTarget>
+      <PlatformTarget>x64</PlatformTarget>
+      <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+      <!-- PowerShell 7.0 consumes this portable managed payload; select the Windows SQLite native asset for the packaged module. -->
+      <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+      <PlatformTarget>x64</PlatformTarget>
       <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
     <!-- Make sure the output DLL's from library are included in the output -->

@@ -10,6 +10,7 @@
     GUID                 = '5df72a79-cdf6-4add-b38d-bcacf26fb7bc'
     ModuleVersion        = '4.0.0'
     PowerShellVersion    = '5.1'
+    ProcessorArchitecture = 'Amd64'
     PrivateData          = @{
         PSData = @{
             ExternalModuleDependencies = @()

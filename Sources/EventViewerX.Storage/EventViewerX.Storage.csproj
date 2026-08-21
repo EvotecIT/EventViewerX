@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net472;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
     <Description>Optional DbaClientX-backed local event history and summary storage for EventViewerX.</Description>
     <AssemblyName>EventViewerX.Storage</AssemblyName>
     <AssemblyTitle>EventViewerX.Storage</AssemblyTitle>
@@ -23,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
-    <PackageReference Include="DBAClientX.SQLite" Version="0.15.0" />
+    <PackageReference Include="DBAClientX.SQLite" Version="0.16.0" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />

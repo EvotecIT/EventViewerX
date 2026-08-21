@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Reflection;
-#if NET472
+#if NET472 || NETSTANDARD2_1
 using System.Reflection.Emit;
 #endif
 using System.Runtime.InteropServices;
@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 namespace EventViewerX.Native;
 
 internal sealed class WindowsEventBookmarkRenderer : IDisposable {
-#if NET472
+#if NET472 || NETSTANDARD2_1
     private static readonly Func<string, EventBookmark> CreateEventBookmark = CreateBookmarkFactory();
 #endif
     private readonly NativeEventBuffer _buffer = new();
@@ -64,7 +64,7 @@ internal sealed class WindowsEventBookmarkRenderer : IDisposable {
             throw new InvalidDataException(
                 "The Windows Event Log API returned an empty bookmark.");
         }
-#if NET472
+#if NET472 || NETSTANDARD2_1
         EventBookmark eventBookmark = CreateEventBookmark(bookmarkXml);
 #else
         EventBookmark eventBookmark = new(bookmarkXml);
@@ -73,7 +73,7 @@ internal sealed class WindowsEventBookmarkRenderer : IDisposable {
         return eventBookmark;
     }
 
-#if NET472
+#if NET472 || NETSTANDARD2_1
     private static Func<string, EventBookmark> CreateBookmarkFactory() {
         ConstructorInfo? constructor = typeof(EventBookmark).GetConstructor(
             BindingFlags.Instance | BindingFlags.NonPublic,

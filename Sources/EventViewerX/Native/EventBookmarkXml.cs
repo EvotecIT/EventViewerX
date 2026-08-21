@@ -1,6 +1,6 @@
 using System.Diagnostics.Eventing.Reader;
 using System.Runtime.CompilerServices;
-#if NET472
+#if NET472 || NETSTANDARD2_1
 using System.Runtime.Serialization;
 #endif
 
@@ -33,7 +33,7 @@ internal static class EventBookmarkXml {
     }
 
     private static string Read(EventBookmark bookmark) {
-#if NET472
+#if NET472 || NETSTANDARD2_1
         var information = new SerializationInfo(
             typeof(EventBookmark),
             new FormatterConverter());

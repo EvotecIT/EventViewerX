@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net472;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
     <Description>Typed HTML, Excel, and email reporting for EventViewerX.</Description>
     <AssemblyName>EventViewerX.Reporting</AssemblyName>
     <AssemblyTitle>EventViewerX.Reporting</AssemblyTitle>

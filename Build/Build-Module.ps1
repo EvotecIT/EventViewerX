@@ -90,9 +90,10 @@ Build-Module -ModuleName 'PSEventViewer' {
         NETProjectName                    = 'PSEventViewer'
         NETProjectPath                    = 'Sources\PSEventViewer\PSEventViewer.csproj'
         NETConfiguration                  = 'Release'
-        NETFramework                      = 'net8.0-windows', 'net472'
+        NETFramework                      = 'net8.0-windows', 'netstandard2.1', 'net472'
         NETSearchClass                    = 'PSEventViewer.CmdletGetEVXEvent'
         NETHandleAssemblyWithSameName     = $true
+        NETAssemblyLoadContext            = $true
         NETHandleRuntimes                 = $true
         NETIgnoreLibraryOnLoad            = @(
             'HtmlForgeX.dll'
