@@ -1,0 +1,19 @@
+{
+  "Name": "ServiceStartTypeChange",
+  "DisplayName": "Service start-type changes",
+  "Description": "Service Control Manager start-type changes.",
+  "Category": "Services",
+  "Sources": [
+    {
+      "LogName": "System",
+      "EventIds": [ 7040 ],
+      "ProviderNames": [ "Service Control Manager" ]
+    }
+  ],
+  "Fields": [
+    { "Name": "ServiceName", "Source": "Data", "SourceName": "param1" },
+    { "Name": "OldStartType", "Source": "Data", "SourceName": "param2" },
+    { "Name": "NewStartType", "Source": "Data", "SourceName": "param3" },
+    { "Name": "Computer", "Source": "Metadata", "SourceName": "SourceComputer" }
+  ]
+}

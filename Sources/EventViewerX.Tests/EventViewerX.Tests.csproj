@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+    <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <LangVersion>latest</LangVersion>
+        <IsWindows>true</IsWindows>
+        <SupportedOSPlatform>windows</SupportedOSPlatform>
+        <!-- Suppress noisy nullable/test analyzer warnings in tests; product warnings still surface in main builds -->
+        <NoWarn>$(NoWarn);CS8600;CS8602;CS8603;CS8618;CS8620;CS8625;SYSLIB0050;xUnit1031</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector" Version="10.0.1">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
+        <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
+        <ProjectReference Include="..\EventViewerX.Storage\EventViewerX.Storage.csproj" />
+    </ItemGroup>
+
+</Project>

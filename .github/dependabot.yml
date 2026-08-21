@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - /Sources
+      - /Benchmarks/EventLogParsing/EventLogParsing.BenchmarkHost
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      include:
+        - '*'
+    open-pull-requests-limit: 1
+    groups:
+      all-dependencies:
+        patterns:
+          - '*'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      include:
+        - '*'
+    open-pull-requests-limit: 1
+    groups:
+      all-dependencies:
+        patterns:
+          - '*'

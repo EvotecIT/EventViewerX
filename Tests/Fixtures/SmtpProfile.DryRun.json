@@ -1,0 +1,11 @@
+{
+  "Server": "smtp.example.test",
+  "Port": 587,
+  "SecureSocketOptions": "StartTls",
+  "From": "eventviewerx@example.test",
+  "To": [
+    "operator@example.test"
+  ],
+  "Subject": "{Title}",
+  "DryRun": true
+}

@@ -1,0 +1,98 @@
+name: Test .NET Libraries
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'Docs/**'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:  # 👈 enables manual triggering
+
+env:
+  BUILD_CONFIGURATION: 'Debug'
+  TEST_VERBOSITY: minimal # set to 'detailed' to restore full test output
+  SUMMARIZE_FAILURES: true # set to 'false' to disable summarizing failing tests
+
+jobs:
+  test-windows:
+    name: 'Windows'
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        dotnet-version: ['10.0.x']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Restore dependencies
+        run: dotnet restore Sources/EventViewerX.sln
+
+      - name: Build solution
+        run: dotnet build Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run tests (all TFMs)
+        run: dotnet test Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+        timeout-minutes: 30
+
+      - name: Summarize failing tests
+        if: failure() && env.SUMMARIZE_FAILURES == 'true'
+        run: |
+          $trxFiles = Get-ChildItem -Recurse -Filter *.trx
+          if ($trxFiles.Count -eq 0) {
+            Write-Host "No TRX files found for failure analysis"
+            exit 0
+          }
+
+          Write-Host "=== Failed Tests Summary ==="
+          $failureCount = 0
+
+          $trxFiles | ForEach-Object {
+            try {
+              Select-Xml -Path $_.FullName -XPath "//UnitTestResult[@outcome='Failed']" |
+                ForEach-Object {
+                  $name = $_.Node.testName
+                  $msg = $_.Node.Output.ErrorInfo.Message ?? "No error message available"
+                  Write-Host "❌ $name"
+                  Write-Host "   $msg"
+                  $failureCount++
+                }
+            } catch {
+              Write-Host "Warning: Could not parse TRX file $($_.Name): $($_.Exception.Message)"
+            }
+          }
+
+          if ($failureCount -eq 0) {
+            Write-Host "No failed tests found in TRX files"
+          } else {
+            Write-Host "=== Total failed tests: $failureCount ==="
+          }
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-windows-${{ matrix.dotnet-version }}
+          path: '**/*.trx'
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage-reports-windows-${{ matrix.dotnet-version }}
+          path: '**/coverage.cobertura.xml'
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: '**/coverage.cobertura.xml'
+          verbose: true
