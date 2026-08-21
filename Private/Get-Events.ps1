@@ -179,10 +179,14 @@ function Get-Events {
 
     $MeasureTotal = [System.Diagnostics.Stopwatch]::StartNew() # Timer Start
     $ParametersList = [System.Collections.Generic.List[Object]]::new()
+    $ExtendedEntryQueryCounts = [System.Collections.Generic.List[Int]]::new()
+    $ExtendedEntryLimits = [System.Collections.Generic.List[Int]]::new()
 
     if ($ExtendedInput.Count -gt 0) {
         # Special input - PSWinReporting requires it
-        [Array] $Param = foreach ($EventEntry in $ExtendedInput) {
+        [Array] $Param = For ($ExtendedEntryIndex = 0; $ExtendedEntryIndex -lt $ExtendedInput.Count; $ExtendedEntryIndex++) {
+            $EventEntry = $ExtendedInput[$ExtendedEntryIndex]
+            [int] $EntryQueryCount = 0
             $EventFilter = @{ }
             if ($EventEntry.Type -eq 'File') {
                 Write-Verbose "Get-Events - Preparing data to scan file $($EventEntry.Server)"
@@ -244,6 +248,7 @@ function Get-Events {
                 }
                 $SplitArrayID = Split-Array -inArray $EventIds -size 22  # Support for more ID's then 22 (limitation of Get-WinEvent)
                 foreach ($EventIdGroup in $SplitArrayID) {
+                    $EntryQueryCount++
                     $EventFilter.Id = @($EventIdGroup)
                     @{
                         Comp        = $Comp
@@ -252,9 +257,11 @@ function Get-Events {
                         MaxEvents   = $EventEntry.MaxEvents
                         Oldest      = $Oldest
                         Verbose     = $Verbose
+                        EntryIndex  = $ExtendedEntryIndex
                     }
                 }
             } else {
+                $EntryQueryCount = 1
                 @{
                     Comp        = $Comp
                     Credential  = $Credential
@@ -262,8 +269,11 @@ function Get-Events {
                     MaxEvents   = $EventEntry.MaxEvents
                     Oldest      = $Oldest
                     Verbose     = $Verbose
+                    EntryIndex  = $ExtendedEntryIndex
                 }
             }
+            $null = $ExtendedEntryQueryCounts.Add($EntryQueryCount)
+            $null = $ExtendedEntryLimits.Add([int] $EventEntry.MaxEvents)
         }
         if ($null -ne $Param) {
             $null = $ParametersList.AddRange($Param)
@@ -334,6 +344,7 @@ function Get-Events {
                         MaxEvents   = $MaxEvents
                         Oldest      = $Oldest
                         Verbose     = $Verbose
+                        EntryIndex  = -1
                     }
                 }
             } else {
@@ -345,6 +356,7 @@ function Get-Events {
                     MaxEvents   = $MaxEvents
                     Oldest      = $Oldest
                     Verbose     = $Verbose
+                    EntryIndex  = -1
                 }
             }
         }
@@ -352,19 +364,29 @@ function Get-Events {
             $null = $ParametersList.AddRange($Param)
         }
     }
+    [bool] $NeedsExtendedEntryLimit = $false
+    For ($EntryIndex = 0; $EntryIndex -lt $ExtendedEntryQueryCounts.Count; $EntryIndex++) {
+        if ($ExtendedEntryQueryCounts[$EntryIndex] -gt 1 -and $ExtendedEntryLimits[$EntryIndex] -gt 0) {
+            $NeedsExtendedEntryLimit = $true
+            break
+        }
+    }
+    foreach ($Parameter in $ParametersList) {
+        $Parameter.IncludeEntryIndex = $NeedsExtendedEntryLimit
+    }
     $AllErrors = @()
     if ($DisableParallel) {
         Write-Verbose 'Get-Events - Running query with parallel disabled...'
         [Array] $AllEvents = foreach ($Parameter in $ParametersList) {
-            if ($ExtendedOutput) {
+            if ($ExtendedOutput -or $NeedsExtendedEntryLimit) {
                 $DirectErrors = @()
-                [Array] $DirectOutput = @(Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose -ErrorAction SilentlyContinue -ErrorVariable +DirectErrors)
+                [Array] $DirectOutput = @(Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose, $Parameter.EntryIndex, $Parameter.IncludeEntryIndex -ErrorAction SilentlyContinue -ErrorVariable +DirectErrors)
                 @{
                     Output = $DirectOutput
                     Errors = $DirectErrors
                 }
             } else {
-                Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose
+                Invoke-Command -ScriptBlock $Script:ScriptBlock -ArgumentList $Parameter.Comp, $Parameter.Credential, $Parameter.EventFilter, $Parameter.MaxEvents, $Parameter.Oldest, $Parameter.Verbose, $Parameter.EntryIndex, $Parameter.IncludeEntryIndex
             }
         }
     } else {
@@ -373,7 +395,65 @@ function Get-Events {
         $Runspaces = foreach ($Parameter in $ParametersList) {
             Start-Runspace -ScriptBlock $Script:ScriptBlock -Parameters $Parameter -RunspacePool $RunspacePool -Verbose:$Verbose
         }
-        [Array] $AllEvents = Stop-Runspace -Runspaces $Runspaces -FunctionName "Get-Events" -RunspacePool $RunspacePool -Verbose:$Verbose -ErrorAction SilentlyContinue -ErrorVariable +AllErrors -ExtendedOutput:$ExtendedOutput
+        [Array] $AllEvents = Stop-Runspace -Runspaces $Runspaces -FunctionName "Get-Events" -RunspacePool $RunspacePool -Verbose:$Verbose -ErrorAction SilentlyContinue -ErrorVariable +AllErrors -ExtendedOutput:($ExtendedOutput -or $NeedsExtendedEntryLimit)
+    }
+    if ($NeedsExtendedEntryLimit) {
+        $SelectedEntryKeys = [System.Collections.Generic.HashSet[String]]::new([System.StringComparer]::Ordinal)
+        $LimitedEntryIndexes = [System.Collections.Generic.HashSet[Int]]::new()
+        For ($EntryIndex = 0; $EntryIndex -lt $ExtendedEntryQueryCounts.Count; $EntryIndex++) {
+            [int] $EntryQueryCount = $ExtendedEntryQueryCounts[$EntryIndex]
+            [int] $EntryLimit = $ExtendedEntryLimits[$EntryIndex]
+            if ($EntryQueryCount -gt 1 -and $EntryLimit -gt 0) {
+                $null = $LimitedEntryIndexes.Add($EntryIndex)
+                [Array] $EntryCandidates = For ($ResultIndex = 0; $ResultIndex -lt $AllEvents.Count; $ResultIndex++) {
+                    [Array] $ResultEvents = @($AllEvents[$ResultIndex].Output)
+                    For ($EventIndex = 0; $EventIndex -lt $ResultEvents.Count; $EventIndex++) {
+                        if ($ResultEvents[$EventIndex].EntryIndex -eq $EntryIndex) {
+                            [PSCustomObject] @{
+                                Key         = "$ResultIndex`:$EventIndex"
+                                TimeCreated = $ResultEvents[$EventIndex].Event.TimeCreated
+                            }
+                        }
+                    }
+                }
+                [Array] $SelectedCandidates = if ($Oldest) {
+                    @($EntryCandidates | Sort-Object -Property TimeCreated | Select-Object -First $EntryLimit)
+                } else {
+                    @($EntryCandidates | Sort-Object -Property TimeCreated -Descending | Select-Object -First $EntryLimit)
+                }
+                foreach ($Candidate in $SelectedCandidates) {
+                    $null = $SelectedEntryKeys.Add($Candidate.Key)
+                }
+            }
+        }
+        For ($ResultIndex = 0; $ResultIndex -lt $AllEvents.Count; $ResultIndex++) {
+            [Array] $ResultEvents = @($AllEvents[$ResultIndex].Output)
+            $AllEvents[$ResultIndex].Output = @(
+                For ($EventIndex = 0; $EventIndex -lt $ResultEvents.Count; $EventIndex++) {
+                    if (-not $LimitedEntryIndexes.Contains([int] $ResultEvents[$EventIndex].EntryIndex) -or $SelectedEntryKeys.Contains("$ResultIndex`:$EventIndex")) {
+                        $ResultEvents[$EventIndex].Event
+                    }
+                }
+            )
+        }
+        if (-not $ExtendedOutput) {
+            [Array] $ExtendedLimitErrors = foreach ($QueryResult in $AllEvents) {
+                foreach ($QueryError in @($QueryResult.Errors)) {
+                    $QueryError
+                    if ($QueryError -is [System.Management.Automation.ErrorRecord]) {
+                        Write-Error -ErrorRecord $QueryError
+                    } else {
+                        Write-Error -Message ([String] $QueryError)
+                    }
+                }
+            }
+            $AllErrors = @($AllErrors) + @($ExtendedLimitErrors)
+            [Array] $AllEvents = @(
+                foreach ($QueryResult in $AllEvents) {
+                    $QueryResult.Output
+                }
+            )
+        }
     }
     if ($ExtendedInput.Count -eq 0 -and $MaxEvents -gt 0) {
         if ($ExtendedOutput) {

@@ -494,8 +494,12 @@ function Get-EventsFilter {
     # keywords assigned.
     If ($null -ne $Keywords -and $Keywords.Count -gt 0) {
         $keyword_filter = ''
+        [bool] $HasZeroKeyword = $false
 
         ForEach ($item in $Keywords) {
+            if ([long] $item -eq 0) {
+                $HasZeroKeyword = $true
+            }
             If ($keyword_filter) {
                 $keyword_filter = $keyword_filter -bor $item
             } Else {
@@ -505,6 +509,8 @@ function Get-EventsFilter {
 
         if ($keyword_filter -eq 0) {
             $KeywordXPath = '*[System[Keywords=0]]'
+        } elseif ($HasZeroKeyword) {
+            $KeywordXPath = "*[System[Keywords=0 or band(Keywords,$keyword_filter)]]"
         } else {
             $KeywordXPath = "*[System[band(Keywords,$keyword_filter)]]"
         }

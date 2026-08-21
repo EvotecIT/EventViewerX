@@ -114,12 +114,10 @@ function Get-ServersListLimited {
                 $Logger.AddInfoRecord('Preparing file list - defined event log files')
             }
             foreach ($File in @(Get-EventLogFileList -Sections $Target.LocalFiles)) {
-                foreach ($FileLogName in $DefaultLogNames) {
-                    [PSCustomObject] @{
-                        Server  = $File
-                        LogName = $FileLogName
-                        Type    = 'File'
-                    }
+                [PSCustomObject] @{
+                    Server  = $File
+                    LogName = $null
+                    Type    = 'File'
                 }
             }
         }
