@@ -59,7 +59,7 @@ function Send-Email {
             $EmailParameters = $Email.Clone()
             $EmailParameters.EmailEncoding = $EmailParameters.EmailEncoding -replace "-", ''
             $EmailParameters.EmailEncodingSubject = $EmailParameters.EmailEncodingSubject -replace "-", ''
-            $EmailParameters.EmailEncodingBody = $EmailParameters.EmailEncodingSubject -replace "-", ''
+            $EmailParameters.EmailEncodingBody = $EmailParameters.EmailEncodingBody -replace "-", ''
             $EmailParameters.EmailEncodingAlternateView = $EmailParameters.EmailEncodingAlternateView -replace "-", ''
         } else {
             $EmailParameters = @{

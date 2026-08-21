@@ -66,8 +66,10 @@ function Get-Logger {
 
     if ($LogPath) {
         $LogsDir = [System.IO.Path]::GetDirectoryName($LogPath)
-        New-Item $LogsDir -ItemType Directory -Force | Out-Null
-        New-Item $LogPath -ItemType File -Force | Out-Null
+        if (-not [String]::IsNullOrWhiteSpace($LogsDir)) {
+            New-Item -Path $LogsDir -ItemType Directory -Force | Out-Null
+        }
+        New-Item -Path $LogPath -ItemType File -Force | Out-Null
     }
 
     $Logger = [PSCustomObject]@{
@@ -82,9 +84,9 @@ function Get-Logger {
             [string]$String
         )
         if (-not $this.LogPath) {
-            Write-Color -Text "[Error] ", $String -Color Red, White -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Error] ", $String -Color Red, White -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         } else {
-            Write-Color -Text "[Error] ", $String -Color Red, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Error] ", $String -Color Red, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         }
     }
 
@@ -94,9 +96,9 @@ function Get-Logger {
             [string]$String
         )
         if (-not $this.LogPath) {
-            Write-Color -Text "[Info] ", $String -Color Yellow, White -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Info] ", $String -Color Yellow, White -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         } else {
-            Write-Color -Text "[Info] ", $String -Color Yellow, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Info] ", $String -Color Yellow, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         }
     }
 
@@ -106,9 +108,9 @@ function Get-Logger {
             [string]$String
         )
         if (-not $this.LogPath) {
-            Write-Color -Text "[Warning] ", $String -Color Magenta, White -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Warning] ", $String -Color Magenta, White -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         } else {
-            Write-Color -Text "[Warning] ", $String -Color Magenta, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Warning] ", $String -Color Magenta, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         }
     }
 
@@ -118,9 +120,9 @@ function Get-Logger {
             [string]$String
         )
         if (-not $this.LogPath) {
-            Write-Color -Text " $String" -Color White -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text " $String" -Color White -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         } else {
-            Write-Color -Text " $String" -Color White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text " $String" -Color White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         }
     }
     Add-Member -InputObject $Logger -MemberType ScriptMethod AddSuccessRecord -Value {
@@ -129,9 +131,9 @@ function Get-Logger {
             [string]$String
         )
         if (-not $this.LogPath) {
-            Write-Color -Text "[Success] ", $String -Color Green, White -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Success] ", $String -Color Green, White -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         } else {
-            Write-Color -Text "[Success] ", $String -Color Green, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this:TimeFormat
+            Write-Color -Text "[Success] ", $String -Color Green, White -LogFile:$this.LogPath -ShowTime:$this.ShowTime -TimeFormat $this.TimeFormat
         }
     }
     return $Logger

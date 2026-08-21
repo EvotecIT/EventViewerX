@@ -25,7 +25,9 @@ function Add-ToHashTable($Hashtable, $Key, $Value) {
     Add-ToHashTable -Hashtable $myHashtable -Key "Age" -Value 25
     # Adds the key-value pair "Age"-25 to $myHashtable.
     #>
-    if ($null -ne $Value -and $Value -ne '') {
+    if ($null -ne $Value -and
+        -not ($Value -is [string] -and $Value.Length -eq 0) -and
+        -not ($Value -is [System.Collections.ICollection] -and $Value.Count -eq 0)) {
         $Hashtable.Add($Key, $Value)
     }
 }
