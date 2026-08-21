@@ -1,157 +1,119 @@
-Clear-Host
-Import-Module "C:\Support\GitHub\PSPublishModule\PSPublishModule.psm1" -Force
+param(
+    [Alias('ConfigurationGateMode')]
+    [ValidateSet('Manifest', 'Build', 'Publish')]
+    [string] $RunMode = 'Build',
 
-$Configuration = @{
-    Information = @{
-        ModuleName        = 'PSWinReportingV2'
+    [bool] $SignModule = $false,
 
-        DirectoryProjects = 'C:\Support\GitHub'
-        #DirectoryModules  = "$Env:USERPROFILE\Documents\WindowsPowerShell\Modules"
-        FunctionsToExport = 'Public'
-        AliasesToExport   = 'Public'
+    [string] $PowerShellGalleryApiKeyPath = 'C:\Support\Important\PowerShellGalleryAPI.txt',
 
-        Manifest          = @{
-            # Version number of this module.
-            ModuleVersion   = '2.0.X'
-            # ID used to uniquely identify this module
-            GUID            = 'ea2bd8d2-cca1-4dc3-9e1c-ff80b06e8fbe'
-            # Author of this module
-            Author          = 'Przemyslaw Klys'
-            # Company or vendor of this module
-            CompanyName     = 'Evotec'
-            # Copyright statement for this module
-            Copyright       = "(c) 2011 - $((Get-Date).Year) Przemyslaw Klys @ Evotec. All rights reserved."
-            # Description of the functionality provided by this module
-            Description     = "PSWinReportingV2 is fast and efficient Event Viewing, Event Reporting and Event Collecting tool. It's version 2 of known PSWinReporting PowerShell module and can work next to it."
-            # Tags applied to this module. These help with module discovery in online galleries.
-            Tags            = @('PSWinReporting', 'ActiveDirectory', 'Events', 'Reporting', 'Windows', 'EventLog')
+    [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
+)
 
-            IconUri         = 'https://evotec.xyz/wp-content/uploads/2018/10/PSWinReporting.png'
+$ErrorActionPreference = 'Stop'
 
-            ProjectUri      = 'https://github.com/EvotecIT/PSWinReporting'
-            #ReleaseNotes = ''
-            RequiredModules = @(
-                @{ ModuleName = 'PSEventViewer'; ModuleVersion = "Latest"; Guid = '5df72a79-cdf6-4add-b38d-bcacf26fb7bc' }
-                @{ ModuleName = 'PSSharedGoods'; ModuleVersion = "Latest"; Guid = 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' }
-                @{ ModuleName = 'PSWriteExcel'; ModuleVersion = "Latest"; Guid = '82232c6a-27f1-435d-a496-929f7221334b' }
-                @{ ModuleName = 'PSWriteHTML'; ModuleVersion = 'Latest'; Guid = 'a7bdf640-f5cb-4acf-9de0-365b322d245c' }
-            )
-        }
+Import-Module PSPublishModule -Force
+
+Build-Module -ModuleName 'PSWinReportingV2' {
+    $Manifest = [ordered] @{
+        ModuleVersion        = '2.0.24'
+        CompatiblePSEditions = @('Desktop', 'Core')
+        GUID                 = 'ea2bd8d2-cca1-4dc3-9e1c-ff80b06e8fbe'
+        Author               = 'Przemyslaw Klys'
+        CompanyName          = 'Evotec'
+        Copyright            = "(c) 2011 - $((Get-Date).Year) Przemyslaw Klys @ Evotec. All rights reserved."
+        Description          = "PSWinReportingV2 is a fast and efficient event viewing, reporting, and collection tool. It is version 2 of PSWinReporting and can be installed alongside it."
+        Tags                 = @('PSWinReporting', 'ActiveDirectory', 'Events', 'Reporting', 'Windows', 'EventLog')
+        IconUri              = 'https://evotec.xyz/wp-content/uploads/2018/10/PSWinReporting.png'
+        ProjectUri           = 'https://github.com/EvotecIT/EventViewerX'
+        PowerShellVersion    = '5.1'
     }
-    Options     = @{
-        Merge             = @{
-            Sort           = 'None'
-            FormatCodePSM1 = @{
-                Enabled           = $true
-                RemoveComments    = $true
-                FormatterSettings = @{
-                    IncludeRules = @(
-                        'PSPlaceOpenBrace',
-                        'PSPlaceCloseBrace',
-                        'PSUseConsistentWhitespace',
-                        'PSUseConsistentIndentation',
-                        'PSAlignAssignmentStatement',
-                        'PSUseCorrectCasing'
-                    )
+    New-ConfigurationManifest @Manifest
 
-                    Rules        = @{
-                        PSPlaceOpenBrace           = @{
-                            Enable             = $true
-                            OnSameLine         = $true
-                            NewLineAfter       = $true
-                            IgnoreOneLineBlock = $true
-                        }
+    # The final frozen release carries the compatible v1 event-query engine
+    # privately because later PSEventViewer versions changed its contract.
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteHTML' -Guid 'a7bdf640-f5cb-4acf-9de0-365b322d245c' -RequiredVersion '1.41.0'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' -RequiredVersion '0.0.312'
+    New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f' -RequiredVersion '1.0.3'
 
-                        PSPlaceCloseBrace          = @{
-                            Enable             = $true
-                            NewLineAfter       = $false
-                            IgnoreOneLineBlock = $true
-                            NoEmptyLineBefore  = $false
-                        }
+    New-ConfigurationModuleSkip -IgnoreModuleName @(
+        'Microsoft.PowerShell.Management'
+        'Microsoft.PowerShell.Security'
+        'Microsoft.PowerShell.Utility'
+        'Microsoft.WSMan.Management'
+        'ActiveDirectory'
+        'NetTCPIP'
+        'PSWriteExcel'
+        'ScheduledTasks'
+        'TeamsX'
+        'PSTeams'
+        'PSSlack'
+        'PSDiscord'
+        'dbatools'
+    ) -IgnoreFunctionName @(
+        'ConvertTo-Excel'
+        'eventChannel'
+        'eventID'
+        'eventRecordID'
+        'eventSeverity'
+        # Nested inside the frozen legacy event-query scriptblock.
+        'Get-EventsInternal'
+        'ConvertTo-XPathXmlLiteral'
+        'Initialize-XPathFilter'
+        'Join-XPathFilter'
+        'Test-NamedDataMatch'
+        'Test-NamedDataRequiresPostFilter'
+        'Test-XPathLiteralRequiresPostFilter'
+        'New-SlackMessage'
+        'New-SlackMessageAttachment'
+        'Send-SlackMessage'
+        'New-TeamsFact'
+        'New-TeamsSection'
+        'Send-TeamsMessage'
+        'New-DiscordFact'
+        'New-DiscordImage'
+        'New-DiscordSection'
+        'Send-DiscordMessage'
+    )
 
-                        PSUseConsistentIndentation = @{
-                            Enable              = $true
-                            Kind                = 'space'
-                            PipelineIndentation = 'IncreaseIndentationAfterEveryPipeline'
-                            IndentationSize     = 4
-                        }
-
-                        PSUseConsistentWhitespace  = @{
-                            Enable          = $true
-                            CheckInnerBrace = $true
-                            CheckOpenBrace  = $true
-                            CheckOpenParen  = $true
-                            CheckOperator   = $true
-                            CheckPipe       = $true
-                            CheckSeparator  = $true
-                        }
-
-                        PSAlignAssignmentStatement = @{
-                            Enable         = $true
-                            CheckHashtable = $true
-                        }
-
-                        PSUseCorrectCasing         = @{
-                            Enable = $true
-                        }
-                    }
-                }
-            }
-            FormatCodePSD1 = @{
-                Enabled        = $true
-                RemoveComments = $false
-            }
-            Integrate      = @{
-                ApprovedModules = @('PSSharedGoods', 'PSWriteColor', 'Connectimo', 'PSUnifi', 'PSWebToolbox', 'PSMyPassword')
-            }
-        }
-        Standard          = @{
-            FormatCodePSM1 = @{
-
-            }
-            FormatCodePSD1 = @{
-                Enabled = $true
-                #RemoveComments = $true
-            }
-        }
-        PowerShellGallery = @{
-            ApiKey   = 'C:\Support\Important\PowerShellGalleryAPI.txt'
-            FromFile = $true
-        }
-        GitHub            = @{
-            ApiKey         = 'C:\Support\Important\GithubAPI.txt'
-            FromFile       = $true
-            UserName       = 'EvotecIT'
-            RepositoryName = 'PSWinReporting'
-        }
-        Documentation     = @{
-            Path       = 'Docs'
-            PathReadme = 'Docs\Readme.md'
-        }
+    $ConfigurationFormat = [ordered] @{
+        RemoveComments                              = $true
+        RemoveEmptyLines                            = $true
+        PlaceOpenBraceEnable                        = $true
+        PlaceOpenBraceOnSameLine                    = $true
+        PlaceOpenBraceNewLineAfter                  = $true
+        PlaceOpenBraceIgnoreOneLineBlock            = $true
+        PlaceCloseBraceEnable                       = $true
+        PlaceCloseBraceNewLineAfter                 = $false
+        PlaceCloseBraceIgnoreOneLineBlock           = $true
+        PlaceCloseBraceNoEmptyLineBefore            = $false
+        UseConsistentIndentationEnable              = $true
+        UseConsistentIndentationKind                = 'space'
+        UseConsistentIndentationPipelineIndentation = 'IncreaseIndentationAfterEveryPipeline'
+        UseConsistentIndentationIndentationSize     = 4
+        UseConsistentWhitespaceEnable               = $true
+        UseConsistentWhitespaceCheckInnerBrace      = $true
+        UseConsistentWhitespaceCheckOpenBrace       = $true
+        UseConsistentWhitespaceCheckOpenParen       = $true
+        UseConsistentWhitespaceCheckOperator        = $true
+        UseConsistentWhitespaceCheckPipe            = $true
+        UseConsistentWhitespaceCheckSeparator       = $true
+        AlignAssignmentStatementEnable              = $true
+        AlignAssignmentStatementCheckHashtable      = $true
+        UseCorrectCasingEnable                      = $true
     }
-    Steps       = @{
-        BuildModule        = @{  # requires Enable to be on to process all of that
-            Enable           = $true
-            DeleteBefore     = $false
-            Merge            = $true
-            MergeMissing     = $true
-            SignMerged       = $true
-            Releases         = $true
-            ReleasesUnpacked = $false
-            RefreshPSD1Only  = $false
-        }
-        BuildDocumentation = $false
-        ImportModules      = @{
-            Self            = $true
-            RequiredModules = $false
-            Verbose         = $false
-        }
-        PublishModule      = @{  # requires Enable to be on to process all of that
-            Enabled      = $false
-            Prerelease   = ''
-            RequireForce = $false
-            GitHub       = $false
-        }
-    }
+    New-ConfigurationFormat -ApplyTo 'OnMergePSM1', 'OnMergePSD1' -Sort None @ConfigurationFormat
+    New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'DefaultPSM1' -EnableFormatting -Sort None
+    New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
+
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+
+    New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -ModulesPath 'Modules' -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
+    New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName
+
+    New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
+    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
+
+    New-ConfigurationGate -Mode $RunMode
 }
-New-PrepareModule -Configuration $Configuration

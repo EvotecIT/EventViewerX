@@ -1,0 +1,1158 @@
+$Script:ScriptBlock = {
+    Param (
+        [string]$Comp,
+        [ValidateNotNull()]
+        [alias('Credentials')][System.Management.Automation.PSCredential]
+        [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty,
+        [hashtable]$EventFilter,
+        [int]$MaxEvents,
+        [bool] $Oldest,
+        [bool] $Verbose,
+        [int] $EntryIndex = -1,
+        [bool] $IncludeEntryIndex = $false
+    )
+    if ($Verbose) {
+        $VerbosePreference = 'continue'
+    }
+    function Get-EventsFilter {
+        <#
+        .SYNOPSIS
+        This function generates an xpath filter that can be used with the -FilterXPath
+        parameter of Get-WinEvent.  It may also be used inside the <Select></Select tags
+        of a Custom View in Event Viewer.
+        .DESCRIPTION
+        This function generates an xpath filter that can be used with the -FilterXPath
+        parameter of Get-WinEvent.  It may also be used inside the <Select></Select tags
+        of a Custom View in Event Viewer.
+
+        This function allows for the create of xpath which can select events based on
+        many properties of the event including those of named data nodes in the event's
+        XML.
+
+        XPath is case sensetive and the data passed to the parameters here must
+        match the case of the data in the event's XML.
+        .NOTES
+        Original Code by https://community.spiceworks.com/scripts/show/3238-powershell-xpath-generator-for-windows-events
+        Extended by Justin Grote
+        Extended by Przemyslaw Klys
+        .LINK
+
+        .PARAMETER ID
+        This parameter accepts and array of event ids to include in the xpath filter.
+        .PARAMETER StartTime
+        This parameter sets the oldest event that may be returned by the xpath.
+
+        Please, note that the xpath time selector created here is based of of the
+        time the xpath is generated.  XPath uses a time difference method to select
+        events by time; that time difference being the number of milliseconds between
+        the time and now.
+        .PARAMETER EndTime
+        This parameter sets the newest event that may be returned by the xpath.
+
+        Please, note that the xpath time selector created here is based of of the
+        time the xpath is generated.  XPath uses a time difference method to select
+        events by time; that time difference being the number of milliseconds between
+        the time and now.
+        .PARAMETER Data
+        This parameter will accept an array of values that may be found in the data
+        section of the event's XML.
+        .PARAMETER ProviderName
+        This parameter will accept an array of values that select events from event
+        providers.
+        .PARAMETER Level
+        This parameter will accept an array of values that specify the severity
+        rating of the events to be returned.
+
+        It accepts the following values.
+
+        'Critical',
+        'Error',
+        'Informational',
+        'LogAlways',
+        'Verbose',
+        'Warning'
+        .PARAMETER Keywords
+        This parameter accepts and array of long integer keywords. You must
+        pass this parameter the long integer value of the keywords you want
+        to search and not the keyword description.
+        .PARAMETER UserID
+        This parameter will accept an array of SIDs or domain accounts.
+        .PARAMETER NamedDataFilter
+        This parameter will accept and array of hashtables that define the key
+        value pairs for which you want to filter against the event's named data
+        fields.
+
+        Key values, as with XPath filters, are case sensetive.
+
+        You may assign an array as the value of any key. This will search
+        for events where any of the values are present in that particular
+        data field. If you wanted to define a filter that searches for a SubjectUserName
+        of either john.doe or jane.doe, pass the following
+
+        @{'SubjectUserName'=('john.doe','jane.doe')}
+
+        You may specify multiple data files and values. Doing so will create
+        an XPath filter that will only return results where both values
+        are found. If you only wanted to return events where both the
+        SubjectUserName is john.doe and the TargetUserName is jane.doe, then
+        pass the following
+
+        @{'SubjectUserName'='john.doe';'TargetUserName'='jane.doe'}
+
+        You may pass an array of hash tables to create an 'or' XPath filter
+        that will return objects where either key value set will be returned.
+        If you wanted to define a filter that searches for either a
+        SubjectUserName of john.doe or a TargetUserName of jane.doe then pass
+        the following
+
+        (@{'SubjectUserName'='john.doe'},@{'TargetUserName'='jane.doe'})
+        .EXAMPLE
+        Get-EventsFilter -ID 4663 -NamedDataFilter @{'SubjectUserName'='john.doe'} -LogName 'ForwardedEvents'
+
+        This will return an XPath filter that will return any events with
+        the id of 4663 and has a SubjectUserName of 'john.doe'
+
+        Output:
+        <QueryList>
+            <Query Id="0" Path="ForwardedEvents">
+                <Select Path="ForwardedEvents">
+                        (*[System[EventID=4663]]) and (*[EventData[Data[@Name='SubjectUserName'] = 'john.doe']])
+                </Select>
+            </Query>
+        </QueryList>
+
+        .EXAMPLE
+        Get-EventsFilter -StartTime '1/1/2015 01:30:00 PM' -EndTime '1/1/2015 02:00:00 PM' -LogName 'ForwardedEvents
+
+        This will return an XPath filter that will return events that occured between 1:30
+        2:00 PM on 1/1/2015.  The filter will only be good if used immediately.  XPath time
+        filters are based on the number of milliseconds that have occured since the event
+        and when the filter is used.  StartTime and EndTime simply calculate the number of
+        milliseconds and use that for the filter.
+
+        Output:
+        <QueryList>
+            <Query Id="0" Path="ForwardedEvents">
+                <Select Path="ForwardedEvents">
+                        (*[System[TimeCreated[timediff(@SystemTime) &lt;= 125812885399]]]) and (*[System[TimeCreated[timediff(@SystemTime)
+    &gt;= 125811085399]]])
+                </Select>
+            </Query>
+        </QueryList>
+
+        .EXAMPLE
+        Get-EventsFilter -StartTime (Get-Date).AddDays(-1) -LogName System
+
+        This will return an XPath filter that will get events that occured within the last 24 hours.
+
+        Output:
+        <QueryList>
+            <Query Id="0" Path="System">
+                    <Select Path="System">
+                        *[System[TimeCreated[timediff(@SystemTime) &lt;= 86404194]]]
+                </Select>
+            </Query>
+        </QueryList>
+
+        .EXAMPLE
+        Get-EventsFilter -ID 1105 -LogName 'ForwardedEvents' -RecordID '3512231','3512232'
+
+        This will return an XPath filter that will get events with EventRecordID 3512231 or 3512232 in Log ForwardedEvents with EventID 1105
+
+        Output:
+        <QueryList>
+            <Query Id="0" Path="ForwardedEvents">
+                    <Select Path="ForwardedEvents">
+                        (*[System[EventID=1105]]) and (*[System[(EventRecordID=3512231) or (EventRecordID=3512232)]])
+                </Select>
+            </Query>
+        </QueryList>
+        #>
+
+        [CmdletBinding()]
+        Param
+        (
+            [String[]]
+            $ID,
+
+            [alias('RecordID')][string[]]
+            $EventRecordID,
+
+            [DateTime]
+            $StartTime,
+
+            [DateTime]
+            $EndTime,
+
+            [String[]]
+            $Data,
+
+            [String[]]
+            $ProviderName,
+
+            [Long[]]
+            $Keywords,
+
+            [Object[]]
+            $Level,
+
+            [String[]]
+            $UserID,
+
+            [Hashtable[]]
+            $NamedDataFilter,
+
+            [Hashtable[]]
+            $NamedDataExcludeFilter,
+
+            [String[]]
+            $ExcludeID,
+
+            [String]
+            $LogName,
+
+            [String]
+            $Path,
+
+            [switch] $XPathOnly
+        )
+
+        #region Function definitions
+        Function ConvertTo-XPathXmlLiteral {
+            Param (
+                [AllowEmptyString()]
+                [String] $Value
+            )
+
+            $SingleQuote = [Char] 39
+            $DoubleQuote = [Char] 34
+            If (-not $Value.Contains([String] $SingleQuote)) {
+                $Literal = [String] $SingleQuote + $Value + [String] $SingleQuote
+            } ElseIf (-not $Value.Contains([String] $DoubleQuote)) {
+                $Literal = [String] $DoubleQuote + $Value + [String] $DoubleQuote
+            } Else {
+                throw 'Windows Event Log XPath cannot represent a string containing both single and double quotes.'
+            }
+
+            [System.Security.SecurityElement]::Escape($Literal)
+        }
+
+        Function Join-XPathFilter {
+            Param
+            (
+                [Parameter(
+                    Mandatory = $True,
+                    Position = 0
+                )]
+                [String]
+                $NewFilter,
+
+                [Parameter(
+                    Position = 1
+                )]
+                [String]
+                $ExistingFilter = '',
+
+                [Parameter(
+                    Position = 2
+                )]
+                # and and or are case sensitive
+                # in xpath
+                [ValidateSet(
+                    "and",
+                    "or",
+                    IgnoreCase = $False
+                )]
+                [String]
+                $Logic = 'and',
+
+                [switch]$NoParenthesis
+            )
+
+            If ($ExistingFilter) {
+                # If there is an existing filter add parenthesis unless noparenthesis is specified
+                # and the logical operator
+                if ($NoParenthesis) {
+                    Return "$ExistingFilter $Logic $NewFilter"
+                } Else {
+                    Return "($ExistingFilter) $Logic ($NewFilter)"
+                }
+            } Else {
+                Return $NewFilter
+            }
+            <#
+        .SYNOPSIS
+        This function handles the parenthesis and logical joining
+        of XPath statements inside of Get-EventsFilter
+        #>
+        }
+
+        Function Initialize-XPathFilter {
+            Param
+            (
+                [Object[]]
+                $Items,
+
+                [String]
+                $ForEachFormatString,
+
+                [String]
+                $FinalizeFormatString,
+
+                [ValidateSet("and", "or", IgnoreCase = $False)]
+                [String]
+                $Logic = 'or',
+
+                [switch]$NoParenthesis,
+
+                [switch]$EscapeItems
+            )
+
+            $filter = ''
+
+            ForEach ($item in $Items) {
+                $FormattedItem = If ($EscapeItems) { ConvertTo-XPathXmlLiteral -Value ([String] $item) } Else { $item }
+                $options = @{'NewFilter' = ($ForEachFormatString -f $FormattedItem)
+                    'ExistingFilter'     = $filter
+                    'Logic'              = $logic
+                    'NoParenthesis'      = $NoParenthesis
+                }
+                $filter = Join-XPathFilter @options
+            }
+
+            Return $FinalizeFormatString -f $filter
+            <#
+        .SYNOPSIS
+        This function loops thru a set of items and injecting each
+        item in the format string given by ForEachFormatString, then
+        combines each of those items together with 'or' logic
+        using the function Join-XPathFilter, which handles the
+        joining and parenthesis.  Before returning the result,
+        it injects the resultant xpath into FinalizeFormatString.
+
+        This function is a part of Get-EventsFilter
+        #>
+        }
+        #endregion Function definitions
+
+        [string] $filter = ''
+
+        #region ID filter
+        If ($null -ne $ID -and @($ID).Count -gt 0) {
+            $options = @{
+                'Items'                = $ID
+                'ForEachFormatString'  = "EventID={0}"
+                'FinalizeFormatString' = "*[System[{0}]]"
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion ID filter
+
+        # region EventRecordID filter
+        If ($EventRecordID) {
+            $options = @{
+                'Items'                = $EventRecordID
+                'ForEachFormatString'  = "EventRecordID={0}"
+                'FinalizeFormatString' = "*[System[{0}]]"
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion EventRecordID filter
+
+        #region Exclude ID filter
+        If ($null -ne $ExcludeID -and @($ExcludeID).Count -gt 0) {
+            $options = @{
+                'Items'                = $ExcludeID
+                'ForEachFormatString'  = "EventID!={0}"
+                'FinalizeFormatString' = "*[System[{0}]]"
+                'Logic'                = 'and'
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion Exclude ID filter
+
+        #region Date filters
+        $Now = Get-Date
+
+        # Time in XPath is filtered based on the number of milliseconds
+        # between the creation of the event and when the XPath filter is
+        # used.
+        #
+        # The timediff xpath function is used against the SystemTime
+        # attribute of the TimeCreated node.
+
+        ## Special chars needs replacement
+        # <= is &lt;=
+        # <  is &lt;
+        # >  is &gt;
+        # >= is &gt;=
+        #
+
+        If ($StartTime) {
+            $Diff = [Math]::Round($Now.Subtract($StartTime).TotalMilliseconds)
+            $filter = Join-XPathFilter -NewFilter "*[System[TimeCreated[timediff(@SystemTime) &lt;= $Diff]]]" -ExistingFilter $filter
+        }
+
+        If ($EndTime) {
+            $Diff = [Math]::Round($Now.Subtract($EndTime).TotalMilliseconds)
+            $filter = Join-XPathFilter -NewFilter "*[System[TimeCreated[timediff(@SystemTime) &gt;= $Diff]]]" -ExistingFilter $filter
+        }
+        #endregion Date filters
+
+        #region Data filter
+        If ($Data) {
+            $options = @{
+                'Items'                = $Data
+                'ForEachFormatString'  = "Data={0}"
+                'FinalizeFormatString' = "*[EventData[{0}]]"
+                'EscapeItems'          = $true
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion Data filter
+
+        #region ProviderName filter
+        If ($ProviderName) {
+            $options = @{
+                'Items'                = $ProviderName
+                'ForEachFormatString'  = "@Name={0}"
+                'FinalizeFormatString' = "*[System[Provider[{0}]]]"
+                'EscapeItems'          = $true
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion ProviderName filter
+
+        #region Level filter
+        If ($null -ne $Level -and $Level.Count -gt 0) {
+            $NamedLevels = @{
+                Critical      = 1
+                Error         = 2
+                Warning       = 3
+                Informational = 4
+                Verbose       = 5
+                LogAlways     = 0
+            }
+            $levels = ForEach ($item in $Level) {
+                # Levels in an event's XML are defined
+                # with integer values.
+                $NumericLevel = 0
+                if ([Int]::TryParse([String] $item, [ref] $NumericLevel)) {
+                    if ($NumericLevel -lt 0 -or $NumericLevel -gt 5) {
+                        throw "Event level '$item' must be between 0 and 5."
+                    }
+                    $NumericLevel
+                } elseif ($NamedLevels.ContainsKey([String] $item)) {
+                    $NamedLevels[[String] $item]
+                } else {
+                    throw "Unknown event level '$item'."
+                }
+            }
+
+            $options = @{
+                'Items'                = $levels
+                'ForEachFormatString'  = "Level={0}"
+                'FinalizeFormatString' = "*[System[{0}]]"
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion Level filter
+
+        #region Keyword filter
+        # Keywords are stored as a long integer
+        # numeric value.  That integer is the
+        # flagged (binary) combination of
+        # all the keywords.
+        #
+        # By combining all given keywords
+        # with a binary OR operation, and then
+        # taking the resultant number and
+        # comparing that against the number
+        # stored in the events XML with a
+        # binary AND operation will return
+        # events that have any of the submitted
+        # keywords assigned.
+        If ($null -ne $Keywords -and $Keywords.Count -gt 0) {
+            $keyword_filter = ''
+            [bool] $HasZeroKeyword = $false
+
+            ForEach ($item in $Keywords) {
+                if ([long] $item -eq 0) {
+                    $HasZeroKeyword = $true
+                }
+                If ($keyword_filter) {
+                    $keyword_filter = $keyword_filter -bor $item
+                } Else {
+                    $keyword_filter = $item
+                }
+            }
+
+            if ($keyword_filter -eq 0) {
+                $KeywordXPath = '*[System[Keywords=0]]'
+            } elseif ($HasZeroKeyword) {
+                $KeywordXPath = "*[System[Keywords=0 or band(Keywords,$keyword_filter)]]"
+            } else {
+                $KeywordXPath = "*[System[band(Keywords,$keyword_filter)]]"
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter $KeywordXPath
+        }
+        #endregion Keyword filter
+
+        #region UserID filter
+        # The UserID attribute of the Security node contains a Sid.
+        If ($UserID) {
+            $sids = ForEach ($item in $UserID) {
+                Try {
+                    #If the value submitted isn't a valid sid, it'll error.
+                    $sid = [System.Security.Principal.SecurityIdentifier]($item)
+                    $sid = $sid.Translate([System.Security.Principal.SecurityIdentifier])
+                } Catch [System.Management.Automation.RuntimeException] {
+                    # If a RuntimeException occured with an InvalidArgument category
+                    # attempt to create an NTAccount object and resolve.
+                    If ($Error[0].CategoryInfo.Category -eq 'InvalidArgument') {
+                        Try {
+                            $user = [System.Security.Principal.NTAccount]($item)
+                            $sid = $user.Translate([System.Security.Principal.SecurityIdentifier])
+                        } Catch {
+                            #There was an error with either creating the NTAccount or
+                            #Translating that object to a sid.
+                            Throw $Error[0]
+                        }
+                    } Else {
+                        #There was a RuntimeException from either creating the
+                        #SecurityIdentifier object or the translation
+                        #and the category was not InvalidArgument
+                        Throw $Error[0]
+                    }
+                } Catch {
+                    #There was an error from ether the creation of the SecurityIdentifier
+                    #object or the Translatation
+                    Throw $Error[0]
+                }
+
+                $sid.Value
+            }
+
+            $options = @{
+                'Items'                = $sids
+                'ForEachFormatString'  = "@UserID={0}"
+                'FinalizeFormatString' = "*[System[Security[{0}]]]"
+                'EscapeItems'          = $true
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion UserID filter
+
+        #region NamedDataFilter
+        If ($NamedDataFilter) {
+            $options = @{
+                'Items'                = $(
+                    # This will create set of datafilters for each of
+                    # the hash tables submitted in the hash table array
+                    ForEach ($item in $NamedDataFilter) {
+                        $options = @{
+                            'Items'                = $(
+                                #This will result in as set of XPath subexpressions
+                                #for each key submitted in the hashtable
+                                ForEach ($key in $item.Keys) {
+                                    If (@($item[$key]).Count -gt 0 -and -not ($item[$key] -is [String] -and $item[$key].Length -eq 0)) {
+                                        #If there is a value for the key, create the
+                                        #XPath for the Data node with that Name attribute
+                                        #and value. Use 'and' logic to join the data values.
+                                        #to the Name Attribute.
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                        $options = @{
+                                            'Items'                = $item[$key]
+                                            'NoParenthesis'        = $true
+                                            'ForEachFormatString'  = "Data[@Name=$KeyLiteral] = {0}"
+                                            'FinalizeFormatString' = "{0}"
+                                            'EscapeItems'          = $true
+                                        }
+                                        Initialize-XPathFilter @options
+                                    } Else {
+                                        #If there isn't a value for the key, create
+                                        #XPath for the existence of the Data node with
+                                        #that paritcular Name attribute.
+                                        $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                                        "Data[@Name=$KeyLiteral]"
+                                    }
+                                }
+                            )
+                            'ForEachFormatString'  = "{0}"
+                            'FinalizeFormatString' = "{0}"
+                            'Logic'                = 'and'
+                        }
+                        Initialize-XPathFilter @options
+                    }
+                )
+                'ForEachFormatString'  = "{0}"
+                'FinalizeFormatString' = "*[EventData[{0}]]"
+
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter (Initialize-XPathFilter @options)
+        }
+        #endregion NamedDataFilter
+
+        #region NamedDataExcludeFilter
+        If ($NamedDataExcludeFilter) {
+            $ExcludedMatches = ForEach ($item in $NamedDataExcludeFilter) {
+                $KeyFilters = ForEach ($key in $item.Keys) {
+                    $KeyLiteral = ConvertTo-XPathXmlLiteral -Value ([String] $key)
+                    If (@($item[$key]).Count -gt 0 -and -not ($item[$key] -is [String] -and $item[$key].Length -eq 0)) {
+                        $options = @{
+                            'Items'                = $item[$key]
+                            'NoParenthesis'        = $true
+                            'ForEachFormatString'  = "Data[@Name=$KeyLiteral] = {0}"
+                            'FinalizeFormatString' = "{0}"
+                            'EscapeItems'          = $true
+                        }
+                        Initialize-XPathFilter @options
+                    } Else {
+                        "Data[@Name=$KeyLiteral]"
+                    }
+                }
+                $options = @{
+                    'Items'                = $KeyFilters
+                    'ForEachFormatString'  = "{0}"
+                    'FinalizeFormatString' = "{0}"
+                    'Logic'                = 'and'
+                }
+                $MatchingData = Initialize-XPathFilter @options
+                "*[EventData[$MatchingData]]"
+            }
+            $options = @{
+                'Items'                = $ExcludedMatches
+                'ForEachFormatString'  = "{0}"
+                'FinalizeFormatString' = "{0}"
+            }
+            $SuppressFilter = Initialize-XPathFilter @options
+        }
+        #endregion NamedDataExcludeFilter
+
+        if ($XPathOnly) {
+            if ($SuppressFilter) {
+                throw 'NamedDataExcludeFilter requires FilterXml output so excluded matches can be represented with a Suppress query.'
+            }
+            return [System.Net.WebUtility]::HtmlDecode([String] $Filter)
+        } else {
+            if (-not $filter) {
+                $filter = '*'
+            }
+            if ($Path -ne '') {
+                $EscapedPath = [System.Security.SecurityElement]::Escape("file://$Path")
+                $FilterXML = @"
+                    <QueryList>
+                        <Query Id="0" Path="$EscapedPath">
+                            <Select>
+                                    $filter
+                            </Select>
+                            $(if ($SuppressFilter) { "<Suppress>$SuppressFilter</Suppress>" })
+                        </Query>
+                    </QueryList>
+"@
+            } else {
+                $EscapedLogName = [System.Security.SecurityElement]::Escape($LogName)
+                $FilterXML = @"
+                    <QueryList>
+                        <Query Id="0" Path="$EscapedLogName">
+                            <Select Path="$EscapedLogName">
+                                    $filter
+                            </Select>
+                            $(if ($SuppressFilter) { "<Suppress Path=`"$EscapedLogName`">$SuppressFilter</Suppress>" })
+                        </Query>
+                    </QueryList>
+"@
+            }
+            return $FilterXML
+        }
+    } # Function Get-EventsFilter
+    function Get-EventsInternal () {
+        [CmdLetBinding()]
+        param (
+            [string]$Comp,
+            [ValidateNotNull()]
+            [alias('Credentials')][System.Management.Automation.PSCredential]
+            [System.Management.Automation.Credential()]$Credential = [System.Management.Automation.PSCredential]::Empty,
+            [hashtable]$EventFilter,
+            [int]$MaxEvents,
+            [switch] $Oldest
+        )
+
+        function Test-XPathLiteralRequiresPostFilter {
+            param (
+                [AllowNull()]
+                [Object] $Value
+            )
+
+            [String] $Text = [String] $Value
+            $Text.Contains("'") -and $Text.Contains('"')
+        }
+
+        function Test-NamedDataRequiresPostFilter {
+            param (
+                [Array] $Filters
+            )
+
+            ForEach ($NamedDataEntry in @($Filters)) {
+                ForEach ($Key in $NamedDataEntry.Keys) {
+                    if (Test-XPathLiteralRequiresPostFilter -Value $Key) {
+                        return $true
+                    }
+                    ForEach ($Value in @($NamedDataEntry[$Key])) {
+                        if (Test-XPathLiteralRequiresPostFilter -Value $Value) {
+                            return $true
+                        }
+                    }
+                }
+            }
+            $false
+        }
+
+        function Test-NamedDataMatch {
+            param (
+                [xml] $EventXml,
+                [System.Collections.IDictionary] $Filter
+            )
+
+            ForEach ($Key in $Filter.Keys) {
+                [Array] $DataNodes = ForEach ($CandidateDataNode in @($EventXml.Event.EventData.Data)) {
+                    if ([String] $CandidateDataNode.Name -ceq [String] $Key) {
+                        $CandidateDataNode
+                    }
+                }
+                [Array] $ExpectedValues = @($Filter[$Key])
+                if ($ExpectedValues.Count -eq 0 -or ($Filter[$Key] -is [String] -and $Filter[$Key].Length -eq 0)) {
+                    [bool] $KeyMatches = $DataNodes.Count -gt 0
+                } else {
+                    [bool] $KeyMatches = $false
+                    ForEach ($DataNode in $DataNodes) {
+                        ForEach ($ExpectedValue in $ExpectedValues) {
+                            if ([String] $DataNode.InnerText -ceq [String] $ExpectedValue) {
+                                $KeyMatches = $true
+                                break
+                            }
+                        }
+                        if ($KeyMatches) {
+                            break
+                        }
+                    }
+                }
+                if (-not $KeyMatches) {
+                    return $false
+                }
+            }
+            $true
+        }
+
+        $Measure = [System.Diagnostics.Stopwatch]::StartNew() # Timer Start
+
+        Write-Verbose "Get-Events - Inside $Comp for Events ID: $($EventFilter.ID)"
+        Write-Verbose "Get-Events - Inside $Comp for Events LogName: $($EventFilter.LogName)"
+        Write-Verbose "Get-Events - Inside $Comp for Events RecordID: $($EventFilter.RecordID)"
+        Write-Verbose "Get-Events - Inside $Comp for Events Oldest: $Oldest"
+        try {
+            [Array] $Events = @(
+                [bool] $PostFilterProvider = $false
+                [Array] $PostDataValues = @()
+                [Array] $PostNamedDataInclusions = @()
+                [Array] $PostNamedDataExclusions = @()
+                [Array] $PostIncludeIDs = @()
+                [Array] $PostExcludeIDs = @()
+                [bool] $IsPathQuery = $null -ne $EventFilter.Path
+                [bool] $IsProviderQuery = -not $IsPathQuery -and $null -eq $EventFilter.LogName -and $null -ne $EventFilter.ProviderName
+                [bool] $IsLogWildcardQuery = $false
+                if (-not $IsPathQuery -and $null -ne $EventFilter.LogName) {
+                    ForEach ($LogPattern in @($EventFilter.LogName)) {
+                        if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters([String] $LogPattern)) {
+                            $IsLogWildcardQuery = $true
+                            break
+                        }
+                    }
+                }
+                if ($null -ne $EventFilter.RecordID -or `
+                        $null -ne $EventFilter.NamedDataFilter -or `
+                        $null -ne $EventFilter.ExcludeID -or `
+                        $null -ne $EventFilter.NamedDataExcludeFilter -or `
+                        $null -ne $EventFilter.UserID -or `
+                        $IsPathQuery
+                ) {
+                    $FilterForQuery = $EventFilter.Clone()
+                    if ($FilterForQuery.ID) {
+                        [Array] $PostIncludeIDs = @($FilterForQuery.ID | Sort-Object -Unique)
+                        $FilterForQuery.Remove('ID')
+                    }
+                    if ($FilterForQuery.ProviderName) {
+                        [Array] $ProviderPatterns = @($FilterForQuery.ProviderName)
+                        ForEach ($ProviderPattern in $ProviderPatterns) {
+                            if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters([String] $ProviderPattern) -or
+                                (Test-XPathLiteralRequiresPostFilter -Value $ProviderPattern)) {
+                                $PostFilterProvider = -not $IsProviderQuery
+                                break
+                            }
+                        }
+                        if ($PostFilterProvider -or $IsProviderQuery) {
+                            $FilterForQuery.Remove('ProviderName')
+                        }
+                    }
+                    if ($FilterForQuery.Data) {
+                        ForEach ($DataValue in @($FilterForQuery.Data)) {
+                            if (Test-XPathLiteralRequiresPostFilter -Value $DataValue) {
+                                [Array] $PostDataValues = @($FilterForQuery.Data)
+                                $FilterForQuery.Remove('Data')
+                                break
+                            }
+                        }
+                    }
+                    if ($FilterForQuery.NamedDataFilter -and
+                        (Test-NamedDataRequiresPostFilter -Filters @($FilterForQuery.NamedDataFilter))) {
+                        [Array] $PostNamedDataInclusions = @($FilterForQuery.NamedDataFilter)
+                        $FilterForQuery.Remove('NamedDataFilter')
+                    }
+                    if ($FilterForQuery.ExcludeID) {
+                        [Array] $PostExcludeIDs = @($FilterForQuery.ExcludeID | Sort-Object -Unique)
+                        $FilterForQuery.Remove('ExcludeID')
+                    }
+                    if ($IsLogWildcardQuery) {
+                        $FilterForQuery.Remove('LogName')
+                    }
+                    if ($FilterForQuery.NamedDataExcludeFilter -and
+                        ($IsPathQuery -or $IsProviderQuery -or $IsLogWildcardQuery -or
+                            (Test-NamedDataRequiresPostFilter -Filters @($FilterForQuery.NamedDataExcludeFilter)))) {
+                        [Array] $PostNamedDataExclusions = @($FilterForQuery.NamedDataExcludeFilter)
+                        $FilterForQuery.Remove('NamedDataExcludeFilter')
+                    }
+                    [bool] $HasCustomFilter = $null -ne $FilterForQuery.RecordID -or
+                        $null -ne $FilterForQuery.NamedDataFilter -or
+                        $null -ne $FilterForQuery.ExcludeID -or
+                        $null -ne $FilterForQuery.NamedDataExcludeFilter -or
+                        $null -ne $FilterForQuery.UserID
+                    if ($IsPathQuery -or $IsProviderQuery -or $IsLogWildcardQuery) {
+                        $FilterXPath = Get-EventsFilter @FilterForQuery -XPathOnly
+                        if (-not $FilterXPath) {
+                            $FilterXPath = '*'
+                        }
+                        $SplatEvents = @{
+                            ErrorAction = 'Stop'
+                            Oldest      = $Oldest
+                            FilterXPath = $FilterXPath
+                        }
+                        if ($IsPathQuery) {
+                            $SplatEvents.Path = $EventFilter.Path
+                            Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for path: `n$FilterXPath"
+                        } elseif ($IsProviderQuery) {
+                            $SplatEvents.ProviderName = $EventFilter.ProviderName
+                            $SplatEvents.ComputerName = $Comp
+                            Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for provider: `n$FilterXPath"
+                        } else {
+                            $SplatEvents.LogName = $EventFilter.LogName
+                            $SplatEvents.ComputerName = $Comp
+                            Write-Verbose "Get-Events - Inside $Comp - Custom FilterXPath for wildcard log: `n$FilterXPath"
+                        }
+                    } elseif ($HasCustomFilter) {
+                        $FilterXML = Get-EventsFilter @FilterForQuery
+                        $SplatEvents = @{
+                            ErrorAction  = 'Stop'
+                            ComputerName = $Comp
+                            Oldest       = $Oldest
+                            FilterXml    = $FilterXML
+                        }
+                        Write-Verbose "Get-Events - Inside $Comp - Custom FilterXML: `n$FilterXML"
+                    } else {
+                        $SplatEvents = @{
+                            ErrorAction     = 'Stop'
+                            ComputerName    = $Comp
+                            Oldest          = $Oldest
+                            FilterHashtable = $FilterForQuery
+                        }
+                    }
+                } else {
+                    $SplatEvents = @{
+                        ErrorAction     = 'Stop'
+                        ComputerName    = $Comp
+                        Oldest          = $Oldest
+                        FilterHashtable = $EventFilter
+                    }
+                    foreach ($k in $EventFilter.Keys) {
+                        Write-Verbose "Get-Events - Inside $Comp Data in FilterHashTable $k $($EventFilter[$k])"
+                    }
+                }
+                [bool] $NeedsPostFilter = $PostFilterProvider -or
+                    $PostDataValues.Count -gt 0 -or
+                    $PostNamedDataInclusions.Count -gt 0 -or
+                    $PostNamedDataExclusions.Count -gt 0 -or
+                    $PostIncludeIDs.Count -gt 0 -or
+                    $PostExcludeIDs.Count -gt 0
+                if ($MaxEvents -ne 0 -and -not $NeedsPostFilter) {
+                    $SplatEvents.MaxEvents = $MaxEvents
+                    Write-Verbose "Get-Events - Inside $Comp for Events Max Events: $MaxEvents"
+                }
+                if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
+                    $SplatEvents.Credential = $Credential
+                    Write-Verbose "Get-Events - Inside $Comp for Events Credential: $Credential"
+                }
+                if ($NeedsPostFilter) {
+                    $PostFilterScript = {
+                        $QueriedEvent = $_
+                        [bool] $ProviderMatched = -not $PostFilterProvider
+                        if ($PostFilterProvider) {
+                            ForEach ($ProviderPattern in $ProviderPatterns) {
+                                if ($QueriedEvent.ProviderName -like $ProviderPattern) {
+                                    $ProviderMatched = $true
+                                    break
+                                }
+                            }
+                        }
+                        [bool] $EventIDMatched = ($PostIncludeIDs.Count -eq 0 -or $PostIncludeIDs -contains $QueriedEvent.Id) -and
+                            ($PostExcludeIDs.Count -eq 0 -or $PostExcludeIDs -notcontains $QueriedEvent.Id)
+                        [bool] $RequiresEventXml = $PostDataValues.Count -gt 0 -or
+                            $PostNamedDataInclusions.Count -gt 0 -or
+                            $PostNamedDataExclusions.Count -gt 0
+                        [xml] $QueriedEventXml = $null
+                        if ($ProviderMatched -and $EventIDMatched -and $RequiresEventXml) {
+                            $QueriedEventXml = $QueriedEvent.ToXml()
+                        }
+                        [bool] $DataMatched = $PostDataValues.Count -eq 0
+                        if ($ProviderMatched -and $EventIDMatched -and $PostDataValues.Count -gt 0) {
+                            ForEach ($DataNode in @($QueriedEventXml.Event.EventData.Data)) {
+                                ForEach ($ExpectedDataValue in $PostDataValues) {
+                                    if ([String] $DataNode.InnerText -ceq [String] $ExpectedDataValue) {
+                                        $DataMatched = $true
+                                        break
+                                    }
+                                }
+                                if ($DataMatched) {
+                                    break
+                                }
+                            }
+                        }
+                        [bool] $NamedDataIncluded = $PostNamedDataInclusions.Count -eq 0
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $PostNamedDataInclusions.Count -gt 0) {
+                            ForEach ($Inclusion in $PostNamedDataInclusions) {
+                                if (Test-NamedDataMatch -EventXml $QueriedEventXml -Filter $Inclusion) {
+                                    $NamedDataIncluded = $true
+                                    break
+                                }
+                            }
+                        }
+                        [bool] $Excluded = $false
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $NamedDataIncluded -and
+                            $PostNamedDataExclusions.Count -gt 0) {
+                            ForEach ($Exclusion in $PostNamedDataExclusions) {
+                                if (Test-NamedDataMatch -EventXml $QueriedEventXml -Filter $Exclusion) {
+                                    $Excluded = $true
+                                    break
+                                }
+                            }
+                        }
+                        if ($ProviderMatched -and $EventIDMatched -and $DataMatched -and $NamedDataIncluded -and -not $Excluded) {
+                            $QueriedEvent
+                        }
+                    }
+                    if ($MaxEvents -ne 0) {
+                        Get-WinEvent @SplatEvents | ForEach-Object -Process $PostFilterScript | Select-Object -First $MaxEvents
+                    } else {
+                        Get-WinEvent @SplatEvents | ForEach-Object -Process $PostFilterScript
+                    }
+                } else {
+                    Get-WinEvent @SplatEvents
+                }
+            )
+            #$EventsCount = ($Events | Measure-Object).Count
+            Write-Verbose -Message "Get-Events - Inside $Comp Events found $($Events.Count)"
+        } catch {
+            if ($_.Exception -match "No events were found that match the specified selection criteria") {
+                Write-Verbose -Message "Get-Events - Inside $Comp No events found."
+            } elseif ($_.Exception -match "There are no more endpoints available from the endpoint") {
+                Write-Verbose -Message "Get-Events - Inside $Comp Error $($_.Exception.Message)"
+                Write-Error -Message "$Comp`: $_"
+            } else {
+                Write-Verbose -Message "Get-Events - Inside $Comp Error $($_.Exception.Message)"
+                Write-Error -Message "$Comp`: $_"
+            }
+            Write-Verbose "Get-Events - Inside $Comp Time to generate $($Measure.Elapsed.Hours) hours, $($Measure.Elapsed.Minutes) minutes, $($Measure.Elapsed.Seconds) seconds, $($Measure.Elapsed.Milliseconds) milliseconds"
+            $Measure.Stop()
+            return
+        }
+        Write-Verbose "Get-Events - Inside $Comp Processing events..."
+
+        # Parse out the event message data
+        ForEach ($Event in $Events) {
+            # Convert the event to XML
+            $eventXML = [xml]$Event.ToXml()
+            # Iterate through each one of the XML message properties
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name "Computer" -Value $event.MachineName.ToString() -Force
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name "Date" -Value $Event.TimeCreated -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Computer' -Value $event.MachineName.ToString() -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Date' -Value $Event.TimeCreated -Force
+
+            #$EventTopNodes = Get-Member -InputObject $eventXML.Event -MemberType Properties | Where-Object { $_.Name -ne 'System' -and $_.Name -ne 'xmlns' }
+            $EventTopNodes = $eventXML.Event.PSAdapted.PSObject.Properties.Name #| Where-Object { $_ -ne 'System' -and $_ -ne 'xmlns' }
+
+            [Array] $EventTopNodes = foreach ($Entry in $EventTopNodes) {
+                if ($Entry -ne 'System' -and $Entry -ne 'xmlns' ) {
+                    $Entry
+                }
+            }
+            foreach ($TopNode in $EventTopNodes) {
+                #$TopNode = $EventTopNode.Name
+
+                #$EventSubsSubs = Get-Member -InputObject $eventXML.Event.$TopNode -MemberType Properties
+                $EventSubsSubs = $eventXML.Event.$TopNode.PSAdapted.PSObject.Properties
+                $h = 0
+                foreach ($EventSubSub in $EventSubsSubs) {
+                    $SubNode = $EventSubSub.Name
+                    #$EventSubSub | ft -a
+                    if ($EventSubSub.TypeNameOfValue -like "System.Object*") {
+                        #if (Get-Member -InputObject $eventXML.Event.$TopNode -Name "$SubNode" -MemberType Properties) {
+                        if ($eventXML.Event.$TopNode.$SubNode) {
+                            # Case 1
+                            #$SubSubNode = Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode -MemberType Properties | Where-Object { $_.Name -ne 'xmlns' -and $_.Definition -like "string*" }
+                            $SubSubNode = $eventXML.Event.$TopNode.$SubNode.PSAdapted.PSObject.Properties #| Where-Object { $_.Name -ne 'xmlns' -and $_.TypeNameOfValue -like "string*" }
+                            [Array] $SubSubNode = foreach ($Entry in $SubSubNode) {
+                                if ($Entry.Name -ne 'xmls' -and $Entry.TypeNameOfValue -like "string*") {
+                                    $Entry
+                                }
+                            }
+                            foreach ($Name in $SubSubNode.Name) {
+                                $fieldName = $Name
+                                $fieldValue = $eventXML.Event.$TopNode.$SubNode.$Name
+                                #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                                Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                            }
+                            # Case 1
+
+                            For ($i = 0; $i -lt $eventXML.Event.$TopNode.$SubNode.Count; $i++) {
+                                #if (Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode[$i] -Name "Name" -MemberType Properties) {
+                                if ($eventXML.Event.$TopNode.$SubNode[$i].Name) {
+                                    # Case 2
+                                    $fieldName = $eventXML.Event.$TopNode.$SubNode[$i].Name
+                                    #if (Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode[$i] -Name "#text" -MemberType Properties) {
+                                    if ($eventXML.Event.$TopNode.$SubNode[$i]."#text") {
+                                        $fieldValue = $eventXML.Event.$TopNode.$SubNode[$i]."#text"
+                                        if ($fieldValue -eq "-".Trim()) { $fieldValue = $fieldValue -replace "-" }
+                                    } else {
+                                        $fieldValue = ""
+                                    }
+                                    if ($fieldName -ne "") {
+                                        #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                                        Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                                    }
+                                    # Case 2
+                                } else {
+                                    # Case 3
+                                    $Value = $eventXML.Event.$TopNode.$SubNode[$i]
+                                    if ($Value.Name -ne 'Name' -and $Value.Name -ne '#text') {
+                                        $fieldName = "NoNameA$i"
+                                        $fieldValue = $Value
+                                        # Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                                        Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                                    }
+                                    # Case 3
+                                }
+
+                            }
+                        }
+                    } elseif ($EventSubSub.TypeNameOfValue -like "System.Xml.XmlElement*") {
+                        # Case 1
+                        if ($SubNode -eq 'Data' -and $eventXML.Event.$TopNode.$SubNode.Name) {
+                            $fieldName = $eventXML.Event.$TopNode.$SubNode.Name
+                            $fieldValue = $eventXML.Event.$TopNode.$SubNode.'#text'
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                        }
+                        #$SubSubNode = Get-Member -InputObject $eventXML.Event.$TopNode.$SubNode -MemberType Properties | Where-Object { $_.Name -ne 'xmlns' -and $_.Definition -like "string*" }
+                        $SubSubNode = $eventXML.Event.$TopNode.$SubNode.PSAdapted.PSObject.Properties #| Where-Object { $_.Name -ne 'xmlns' -and $_.TypeNameOfValue -like "string*" }
+                        [Array] $SubSubNode = foreach ($Entry in $SubSubNode) {
+                            if ($Entry.Name -ne 'xmls' -and $Entry.TypeNameOfValue -like "string*") {
+                                $Entry
+                            }
+                        }
+                        foreach ($Name in $SubSubNode.Name) {
+                            $fieldName = $Name
+                            $fieldValue = $eventXML.Event.$TopNode.$SubNode.$Name
+                            # Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                        }
+                        # Case 1
+                    } else {
+                        # Case 4 - Where Data has no Names
+                        $fieldValue = $eventXML.Event.$TopNode.$SubNode
+                        if ($fieldValue -match "\n") {
+                            # this is case with ADConnect - event id 6946 where 1 Value has multiple values line per line
+                            $SplittedValues = $fieldValue -split '\n'
+                            foreach ($Split in $SplittedValues) {
+                                $h++
+                                $fieldName = "NoNameB$h"
+                                #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $Split -Force
+                                Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $Split -Force
+                            }
+                        } else {
+                            $h++
+                            $fieldName = "NoNameB$h"
+                            #Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                            Add-Member -InputObject $Event -MemberType NoteProperty -Name $fieldName -Value $fieldValue -Force
+                        }
+                        # Case 4
+                    }
+                }
+            }
+            # This adds some fields specific to PSWinReporting
+            [string] $MessageSubject = ($Event.Message -split '\n')[0] -replace "`n", '' -replace "`r", '' -replace "`t", ''
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MessageSubject' -Value $MessageSubject -Force
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Action' -Value $MessageSubject -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MessageSubject' -Value $MessageSubject -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Action' -Value $MessageSubject -Force
+
+            # Level value is not needed because there is actually LevelDisplayName
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'LevelTranslated' -Value ([PSEventViewer.Level] $Event.Level)
+
+            # Overwrite value - the old value is collection
+            # Add-Member -InputObject $Event -MemberType NoteProperty -Name 'KeywordDisplayName' -Value ($Event.KeywordsDisplayNames -join ',') -Force
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'KeywordDisplayName' -Value ($Event.KeywordsDisplayNames -join ',') -Force
+
+            if ($Event.SubjectDomainName -and $Event.SubjectUserName) {
+                #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectDomainName)\$($Event.SubjectUserName)" -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectDomainName)\$($Event.SubjectUserName)" -Force
+            } elseif ($Event.SubjectUserName) {
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'Who' -Value "$($Event.SubjectUserName)" -Force
+            }
+            if ($Event.TargetDomainName -and $Event.TargetUserName) {
+                #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetDomainName)\$($Event.TargetUserName)" -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetDomainName)\$($Event.TargetUserName)" -Force
+            } elseif ($Event.TargetUserName) {
+                # Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetUserName)" -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'ObjectAffected' -Value "$($Event.TargetUserName)" -Force
+            }
+            if ($Event.MemberName) {
+                [string] $MemberNameWithoutCN = $Event.MemberName -replace 'CN=|\\|,(OU|DC|CN).*$'
+                #Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MemberNameWithoutCN' -Value $MemberNameWithoutCN -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'MemberNameWithoutCN' -Value $MemberNameWithoutCN -Force
+            }
+            if ($EventFilter.Path) {
+                #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredFrom" -Value $EventFilter.Path -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredFrom' -Value $EventFilter.Path -Force
+            } else {
+                #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredFrom" -Value $Comp -Force
+                Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredFrom' -Value $Comp -Force
+            }
+            #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredLogName" -Value $EventFilter.LogName -Force
+            $GatheredLogName = if ($EventFilter.LogName) { $EventFilter.LogName } else { $Event.LogName }
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredLogName' -Value $GatheredLogName -Force
+        }
+        Write-Verbose "Get-Events - Inside $Comp Time to generate $($Measure.Elapsed.Hours) hours, $($Measure.Elapsed.Minutes) minutes, $($Measure.Elapsed.Seconds) seconds, $($Measure.Elapsed.Milliseconds) milliseconds"
+        $Measure.Stop()
+        return $Events
+    }
+    Write-Verbose "Get-Events -------------START---------------------"
+    [Array] $Data = Get-EventsInternal -Comp $Comp -EventFilter $EventFilter -MaxEvents $MaxEvents -Oldest:$Oldest -Verbose:$Verbose -Credential $Credential
+    Write-Verbose "Get-Events --------------END----------------------"
+    if ($IncludeEntryIndex) {
+        foreach ($EventData in $Data) {
+            [PSCustomObject] @{
+                EntryIndex = $EntryIndex
+                Event      = $EventData
+            }
+        }
+    } else {
+        return $Data
+    }
+}
