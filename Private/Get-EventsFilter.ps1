@@ -646,6 +646,9 @@ function Get-EventsFilter {
         }
         return [System.Net.WebUtility]::HtmlDecode([String] $Filter)
     } else {
+        if (-not $filter) {
+            $filter = '*'
+        }
         if ($Path -ne '') {
             $EscapedPath = [System.Security.SecurityElement]::Escape("file://$Path")
             $FilterXML = @"
