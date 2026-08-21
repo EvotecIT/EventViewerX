@@ -204,15 +204,7 @@ function Get-EventsFilter {
         [Long[]]
         $Keywords,
 
-        [ValidateSet(
-            'Critical',
-            'Error',
-            'Informational',
-            'LogAlways',
-            'Verbose',
-            'Warning'
-        )]
-        [String[]]
+        [Object[]]
         $Level,
 
         [String[]]
@@ -452,11 +444,29 @@ function Get-EventsFilter {
     #endregion ProviderName filter
 
     #region Level filter
-    If ($Level) {
+    If ($null -ne $Level -and $Level.Count -gt 0) {
+        $NamedLevels = @{
+            Critical      = 1
+            Error         = 2
+            Warning       = 3
+            Informational = 4
+            Verbose       = 5
+            LogAlways     = 0
+        }
         $levels = ForEach ($item in $Level) {
             # Levels in an event's XML are defined
             # with integer values.
-            [Int][System.Diagnostics.Tracing.EventLevel]::$item
+            $NumericLevel = 0
+            if ([Int]::TryParse([String] $item, [ref] $NumericLevel)) {
+                if ($NumericLevel -lt 0 -or $NumericLevel -gt 5) {
+                    throw "Event level '$item' must be between 0 and 5."
+                }
+                $NumericLevel
+            } elseif ($NamedLevels.ContainsKey([String] $item)) {
+                $NamedLevels[[String] $item]
+            } else {
+                throw "Unknown event level '$item'."
+            }
         }
 
         $options = @{
@@ -482,7 +492,7 @@ function Get-EventsFilter {
     # binary AND operation will return
     # events that have any of the submitted
     # keywords assigned.
-    If ($Keywords) {
+    If ($null -ne $Keywords -and $Keywords.Count -gt 0) {
         $keyword_filter = ''
 
         ForEach ($item in $Keywords) {
@@ -493,7 +503,12 @@ function Get-EventsFilter {
             }
         }
 
-        $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter "*[System[band(Keywords,$keyword_filter)]]"
+        if ($keyword_filter -eq 0) {
+            $KeywordXPath = '*[System[Keywords=0]]'
+        } else {
+            $KeywordXPath = "*[System[band(Keywords,$keyword_filter)]]"
+        }
+        $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter $KeywordXPath
     }
     #endregion Keyword filter
 
@@ -579,6 +594,7 @@ function Get-EventsFilter {
                         )
                         'ForEachFormatString'  = "{0}"
                         'FinalizeFormatString' = "{0}"
+                        'Logic'                = 'and'
                     }
                     Initialize-XPathFilter @options
                 }
@@ -629,6 +645,7 @@ function Get-EventsFilter {
                         )
                         'ForEachFormatString'  = "{0}"
                         'FinalizeFormatString' = "{0}"
+                        'Logic'                = 'and'
                     }
                     Initialize-XPathFilter @options
                 }
