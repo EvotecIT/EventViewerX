@@ -191,15 +191,7 @@ $Script:ScriptBlock = {
             [Long[]]
             $Keywords,
 
-            [ValidateSet(
-                'Critical',
-                'Error',
-                'Informational',
-                'LogAlways',
-                'Verbose',
-                'Warning'
-            )]
-            [String[]]
+            [Object[]]
             $Level,
 
             [String[]]
@@ -439,11 +431,29 @@ $Script:ScriptBlock = {
         #endregion ProviderName filter
 
         #region Level filter
-        If ($Level) {
+        If ($null -ne $Level -and $Level.Count -gt 0) {
+            $NamedLevels = @{
+                Critical      = 1
+                Error         = 2
+                Warning       = 3
+                Informational = 4
+                Verbose       = 5
+                LogAlways     = 0
+            }
             $levels = ForEach ($item in $Level) {
                 # Levels in an event's XML are defined
                 # with integer values.
-                [Int][System.Diagnostics.Tracing.EventLevel]::$item
+                $NumericLevel = 0
+                if ([Int]::TryParse([String] $item, [ref] $NumericLevel)) {
+                    if ($NumericLevel -lt 0 -or $NumericLevel -gt 5) {
+                        throw "Event level '$item' must be between 0 and 5."
+                    }
+                    $NumericLevel
+                } elseif ($NamedLevels.ContainsKey([String] $item)) {
+                    $NamedLevels[[String] $item]
+                } else {
+                    throw "Unknown event level '$item'."
+                }
             }
 
             $options = @{
@@ -469,7 +479,7 @@ $Script:ScriptBlock = {
         # binary AND operation will return
         # events that have any of the submitted
         # keywords assigned.
-        If ($Keywords) {
+        If ($null -ne $Keywords -and $Keywords.Count -gt 0) {
             $keyword_filter = ''
 
             ForEach ($item in $Keywords) {
@@ -480,7 +490,12 @@ $Script:ScriptBlock = {
                 }
             }
 
-            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter "*[System[band(Keywords,$keyword_filter)]]"
+            if ($keyword_filter -eq 0) {
+                $KeywordXPath = '*[System[Keywords=0]]'
+            } else {
+                $KeywordXPath = "*[System[band(Keywords,$keyword_filter)]]"
+            }
+            $filter = Join-XPathFilter -ExistingFilter $filter -NewFilter $KeywordXPath
         }
         #endregion Keyword filter
 
@@ -566,6 +581,7 @@ $Script:ScriptBlock = {
                             )
                             'ForEachFormatString'  = "{0}"
                             'FinalizeFormatString' = "{0}"
+                            'Logic'                = 'and'
                         }
                         Initialize-XPathFilter @options
                     }
@@ -616,6 +632,7 @@ $Script:ScriptBlock = {
                             )
                             'ForEachFormatString'  = "{0}"
                             'FinalizeFormatString' = "{0}"
+                            'Logic'                = 'and'
                         }
                         Initialize-XPathFilter @options
                     }
@@ -887,7 +904,8 @@ $Script:ScriptBlock = {
                 Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredFrom' -Value $Comp -Force
             }
             #Add-Member -InputObject $Event -MemberType NoteProperty -Name "GatheredLogName" -Value $EventFilter.LogName -Force
-            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredLogName' -Value $EventFilter.LogName -Force
+            $GatheredLogName = if ($EventFilter.LogName) { $EventFilter.LogName } else { $Event.LogName }
+            Add-Member -InputObject $Event -MemberType NoteProperty -Name 'GatheredLogName' -Value $GatheredLogName -Force
         }
         Write-Verbose "Get-Events - Inside $Comp Time to generate $($Measure.Elapsed.Hours) hours, $($Measure.Elapsed.Minutes) minutes, $($Measure.Elapsed.Seconds) seconds, $($Measure.Elapsed.Milliseconds) milliseconds"
         $Measure.Stop()
