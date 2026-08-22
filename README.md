@@ -1,6 +1,6 @@
-# PSEventViewer and EventViewerX
+# EventViewerX
 
-High-performance Windows Event Log tooling for PowerShell and .NET.
+High-performance Windows Event Log tooling for .NET and PowerShell.
 
 PSEventViewer is the thin PowerShell surface. EventViewerX is the reusable C#
 engine underneath it. Both use the Windows Event Log API directly for live,
@@ -36,10 +36,14 @@ The names users install have not changed:
 - `PSWinReporting` and `PSWinReportingV2` remain available as frozen packages
   for existing deployments, but new development belongs here.
 
-The final PSWinReporting 1.x source is retained on the
-[`Legacy` branch](https://github.com/EvotecIT/EventViewerX/tree/Legacy), and the
-final PSWinReportingV2 source is retained in the
-[pre-consolidation snapshot](https://github.com/EvotecIT/EventViewerX/commit/01c0514e7d5058e61dec265abab0f8f287367377).
+The final frozen sources remain available on dedicated branches:
+
+- [`PSWinReporting`](https://github.com/EvotecIT/EventViewerX/tree/PSWinReporting)
+  contains the final 1.x release, version 1.8.1.7.
+- [`PSWinReportingV2`](https://github.com/EvotecIT/EventViewerX/tree/PSWinReportingV2)
+  contains the final 2.x release, version 2.0.24.
+
+The `master` branch is the active home of PSEventViewer and EventViewerX.
 
 ## Why use it
 
