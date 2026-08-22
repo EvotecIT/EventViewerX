@@ -9,6 +9,7 @@
   },
   "ExpectedVersionMapAsInclude": true,
   "ExpectedVersionMapUseWildcards": false,
+  "AlignPackageVersions": true,
   "NugetSource": [],
   "IncludePrerelease": false,
   "Configuration": "Release",
