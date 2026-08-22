@@ -34,8 +34,8 @@ $readiness = Test-EVXReadiness -Scenario DailyActiveDirectoryReport
 
 $target.Targets
 $readiness.Checks |
-    Sort-Object Layer, Target, Name |
-    Format-Table Layer, Status, EvidenceLevel, Target, Name -AutoSize
+    Sort-Object Layer, Target, Check |
+    Format-Table Layer, Status, EvidenceLevel, Target, Check -AutoSize
 ```
 
 `Pass` means the command directly inspected the stated evidence. `Warning`
@@ -112,6 +112,12 @@ target cap stopped expansion. Review the resolved domain controllers and
 fingerprint before using dynamic discovery for a scheduled direct-collection
 job; a later topology change is then visible in retained job evidence.
 
+`-Timeout` is a total discovery budget. Domains completed before that budget
+remain in the result beside a typed timeout failure. Windows directory APIs do
+not offer safe interruption for every native call, so one call already in
+progress may finish in the background; EventViewerX cancels further domain and
+trust expansion as soon as control returns from it.
+
 ## Inspect the requirements before changing policy
 
 `Get-EVXRequirement` returns the same compiled catalog used by readiness. It
@@ -146,9 +152,12 @@ The applicable advanced audit-policy subcategories are:
 | Subcategory | Outcomes | Applies to |
 | --- | --- | --- |
 | Audit Logon | Success and Failure | Computers whose logons are reported |
+| Audit Special Logon | Success | Computers whose privileged logons are reported |
 | Audit User Account Management | Success | Domain controllers |
 | Audit Computer Account Management | Success | Domain controllers |
 | Audit Security Group Management | Success | Domain controllers |
+| Audit Authorization Policy Change | Success | Computers whose user-rights assignments are reported |
+| Audit Authentication Policy Change | Success | Domain controllers |
 | Audit Directory Service Changes | Success | Domain controllers |
 | Audit Audit Policy Change | Success | Computers whose policy changes are reported |
 | Audit Kerberos Authentication Service | Success and Failure | Domain controllers |

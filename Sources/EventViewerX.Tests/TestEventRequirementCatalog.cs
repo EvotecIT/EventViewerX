@@ -74,4 +74,21 @@ public sealed class TestEventRequirementCatalog {
             static item => item.Kind == EventRequirementKind.TargetRole);
         Assert.Equal("target-role:domain-controller", role.Key);
     }
+
+    [Theory]
+    [InlineData(EventType.ADUserPrivilegeUse, "audit:special-logon")]
+    [InlineData(EventType.ADUserRightsAssignment, "audit:authorization-policy-change")]
+    [InlineData(EventType.KerberosPolicyChange, "audit:authentication-policy-change")]
+    public void DailyScenarioFamiliesDeclareTheirEffectiveAuditPolicy(
+        EventType type,
+        string requirementKey) {
+
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
+
+        EventPrerequisite audit = Assert.Single(
+            requirement.Prerequisites,
+            item => string.Equals(item.Key, requirementKey, StringComparison.Ordinal));
+        Assert.NotNull(audit.AuditSubcategoryGuid);
+        Assert.NotEqual(EventAuditOutcome.None, audit.AuditOutcomes);
+    }
 }

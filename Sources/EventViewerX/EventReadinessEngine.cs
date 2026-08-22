@@ -57,6 +57,7 @@ public static partial class EventReadinessEngine {
             : targets;
         AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks);
         IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(snapshot.Types);
+        AddChannelPolicyChecks(snapshot, discovery, sourceTargets, sources, evidenceProvider, checks);
         foreach (EventTargetInfo target in targets) {
             foreach (EventSourceDefinition source in sources) {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -103,6 +104,118 @@ public static partial class EventReadinessEngine {
             targets,
             checks,
             stopwatch.Elapsed);
+    }
+
+    private static void AddChannelPolicyChecks(
+        EventReadinessRequest request,
+        EventTargetDiscoveryResult? discovery,
+        IReadOnlyList<EventTargetInfo> sourceTargets,
+        IReadOnlyList<EventSourceDefinition> sources,
+        IEventReadinessEvidenceProvider evidenceProvider,
+        List<EventReadinessCheckResult> checks) {
+
+        if (request.Collector != null && discovery == null) {
+            foreach (EventSourceDefinition source in sources) {
+                checks.Add(new EventReadinessCheckResult(
+                    EventReadinessLayer.EventLogTransport,
+                    "ChannelPolicy",
+                    request.Collector + "/" + source.LogName,
+                    EventReadinessStatus.Unknown,
+                    EventReadinessEvidenceLevel.Unknown,
+                    "A collector was selected without an explicit source scope, so the source channel policy was not inspected.",
+                    "Supply an explicit Active Directory source scope or assess the source computers directly.",
+                    required: true,
+                    requirementKey: "channel:" + source.LogName.ToUpperInvariant(),
+                    diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            }
+            return;
+        }
+
+        foreach (EventTargetInfo target in sourceTargets) {
+            foreach (EventSourceDefinition source in sources) {
+                string? machineName = target.Kind == EventTargetKind.LocalMachine ? null : target.ComputerName;
+                NetworkCredential? credential = target.Kind == EventTargetKind.LocalMachine
+                    ? null
+                    : request.EventLogCredential;
+                try {
+                    ChannelPolicy? policy = evidenceProvider.ReadChannelPolicy(
+                        source.LogName,
+                        machineName,
+                        request.ProbeTimeout,
+                        credential,
+                        request.Authentication);
+                    if (policy == null) {
+                        checks.Add(CreateChannelPolicyCheck(
+                            target.ComputerName,
+                            source,
+                            EventReadinessStatus.Fail,
+                            EventReadinessEvidenceLevel.Inspected,
+                            "The event channel was not found.",
+                            "Register the required channel or remove event types that depend on it.",
+                            EventReadinessDiagnosticKind.Missing));
+                    } else if (!policy.IsEnabled.HasValue) {
+                        checks.Add(CreateChannelPolicyCheck(
+                            target.ComputerName,
+                            source,
+                            EventReadinessStatus.Unknown,
+                            EventReadinessEvidenceLevel.Unknown,
+                            $"Channel exists, but enabled state was not returned; mode={policy.ModeName}; maximum size={policy.MaximumSizeInBytes?.ToString() ?? "Unknown"} bytes.",
+                            "Inspect the channel configuration with an identity permitted to read channel policy.",
+                            EventReadinessDiagnosticKind.NoEvidence));
+                    } else {
+                        checks.Add(CreateChannelPolicyCheck(
+                            target.ComputerName,
+                            source,
+                            policy.IsEnabled.Value ? EventReadinessStatus.Pass : EventReadinessStatus.Fail,
+                            EventReadinessEvidenceLevel.Inspected,
+                            $"Channel enabled={policy.IsEnabled.Value}; mode={policy.ModeName}; maximum size={policy.MaximumSizeInBytes?.ToString() ?? "Unknown"} bytes.",
+                            policy.IsEnabled.Value ? string.Empty : "Enable the required event channel before relying on its events.",
+                            policy.IsEnabled.Value ? EventReadinessDiagnosticKind.None : EventReadinessDiagnosticKind.InvalidConfiguration));
+                    }
+                } catch (Exception exception) {
+                    EventReadinessDiagnosticKind kind = ClassifyInspectionException(exception);
+                    checks.Add(CreateChannelPolicyCheck(
+                        target.ComputerName,
+                        source,
+                        EventReadinessStatus.Unknown,
+                        EventReadinessEvidenceLevel.Unknown,
+                        exception.Message,
+                        "Inspect the channel policy locally or grant read access to the selected source.",
+                        kind));
+                }
+            }
+        }
+    }
+
+    private static EventReadinessCheckResult CreateChannelPolicyCheck(
+        string target,
+        EventSourceDefinition source,
+        EventReadinessStatus status,
+        EventReadinessEvidenceLevel evidenceLevel,
+        string evidence,
+        string remediation,
+        EventReadinessDiagnosticKind diagnosticKind) => new(
+            EventReadinessLayer.EventLogTransport,
+            "ChannelPolicy",
+            target + "/" + source.LogName,
+            status,
+            evidenceLevel,
+            evidence,
+            remediation,
+            required: true,
+            requirementKey: "channel:" + source.LogName.ToUpperInvariant(),
+            diagnosticKind: diagnosticKind);
+
+    private static EventReadinessDiagnosticKind ClassifyInspectionException(Exception exception) {
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is UnauthorizedAccessException || current is System.Security.SecurityException) {
+                return EventReadinessDiagnosticKind.AccessDenied;
+            }
+            if (current is TimeoutException) {
+                return EventReadinessDiagnosticKind.Timeout;
+            }
+        }
+        return EventReadinessDiagnosticKind.Error;
     }
 
     private static EventReadinessCheckResult CreateRuntimeCheck() {
@@ -164,16 +277,24 @@ public static partial class EventReadinessEngine {
                 diagnosticKind: MapDiscoveryFailure(failure.Kind)));
         }
         if (discovery.Targets.Count == 0) {
+            EventTargetDiscoveryFailure? firstFailure = discovery.Failures
+                .Concat(discovery.Domains.SelectMany(static domain => domain.Failures))
+                .FirstOrDefault();
+            bool indeterminate = firstFailure != null && IsIndeterminateDiscoveryFailure(firstFailure.Kind);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 "ResolvedTargets",
                 discovery.RequestedName ?? discovery.Scope.ToString(),
-                EventReadinessStatus.Fail,
-                EventReadinessEvidenceLevel.Unknown,
-                "No event-log target was resolved.",
+                indeterminate ? EventReadinessStatus.Unknown : EventReadinessStatus.Fail,
+                indeterminate ? EventReadinessEvidenceLevel.Unknown : EventReadinessEvidenceLevel.Inspected,
+                firstFailure == null
+                    ? "No event-log target was resolved."
+                    : "No event-log target was resolved because discovery did not complete: " + firstFailure.Message,
                 "Correct the explicit scope or use the default local-machine assessment.",
                 required: true,
-                diagnosticKind: EventReadinessDiagnosticKind.Missing));
+                diagnosticKind: firstFailure == null
+                    ? EventReadinessDiagnosticKind.Missing
+                    : MapDiscoveryFailure(firstFailure.Kind)));
         } else if (discovery.Domains.Count == 0 && discovery.Failures.Count == 0) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
@@ -186,6 +307,12 @@ public static partial class EventReadinessEngine {
                 required: true));
         }
     }
+
+    private static bool IsIndeterminateDiscoveryFailure(EventTargetDiscoveryFailureKind kind) => kind is
+        EventTargetDiscoveryFailureKind.AccessDenied or
+        EventTargetDiscoveryFailureKind.Timeout or
+        EventTargetDiscoveryFailureKind.LimitReached or
+        EventTargetDiscoveryFailureKind.Error;
 
     private static EventReadinessCheckResult CreateTransportCheck(
         EventTargetInfo target,

@@ -12,6 +12,8 @@ public static class EventRequirementCatalog {
             [EventType.ADUserUnlocked] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-user-account-management") },
             [EventType.ADUserCreateChange] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-user-account-management") },
             [EventType.ADUserStatus] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-user-account-management") },
+            [EventType.ADUserPrivilegeUse] = new[] { Audit("special-logon", "Audit Special Logon", EventAuditOutcome.Success, "Target computer", "audit-special-logon") },
+            [EventType.ADUserRightsAssignment] = new[] { Audit("authorization-policy-change", "Audit Authorization Policy Change", EventAuditOutcome.Success, "Target computer", "audit-authorization-policy-change") },
             [EventType.ADGroupMembershipChange] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
             [EventType.ADGroupChange] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
             [EventType.ADGroupCreateDelete] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
@@ -25,6 +27,9 @@ public static class EventRequirementCatalog {
             },
             [EventType.KerberosTicketFailure] = new[] {
                 Audit("kerberos-authentication-failure", "Audit Kerberos Authentication Service", EventAuditOutcome.Failure, "Domain controllers", "audit-kerberos-authentication-service")
+            },
+            [EventType.KerberosPolicyChange] = new[] {
+                Audit("authentication-policy-change", "Audit Authentication Policy Change", EventAuditOutcome.Success, "Domain controllers", "audit-authentication-policy-change")
             },
             [EventType.AuditPolicyChange] = new[] { Audit("audit-policy-change", "Audit Audit Policy Change", EventAuditOutcome.Success, "Target computer", "audit-audit-policy-change") },
             [EventType.FirewallRuleChange] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },
@@ -138,8 +143,11 @@ public static class EventRequirementCatalog {
 
     private static Guid ResolveAuditSubcategoryGuid(string key) => key switch {
         "logon-success" or "logon-failure" => new Guid("0CCE9215-69AE-11D9-BED3-505054503030"),
+        "special-logon" => new Guid("0CCE921B-69AE-11D9-BED3-505054503030"),
         "other-object-access" => new Guid("0CCE9227-69AE-11D9-BED3-505054503030"),
         "audit-policy-change" => new Guid("0CCE922F-69AE-11D9-BED3-505054503030"),
+        "authentication-policy-change" => new Guid("0CCE9230-69AE-11D9-BED3-505054503030"),
+        "authorization-policy-change" => new Guid("0CCE9231-69AE-11D9-BED3-505054503030"),
         "mpssvc-rule-change" => new Guid("0CCE9232-69AE-11D9-BED3-505054503030"),
         "user-account-management" => new Guid("0CCE9235-69AE-11D9-BED3-505054503030"),
         "computer-account-management" => new Guid("0CCE9236-69AE-11D9-BED3-505054503030"),

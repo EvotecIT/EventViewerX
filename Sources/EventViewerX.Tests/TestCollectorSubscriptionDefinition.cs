@@ -5,6 +5,15 @@ namespace EventViewerX.Tests;
 
 public class TestCollectorSubscriptionDefinition {
     [Fact]
+    public void CollectorReadinessPropagatesCallerCancellation() {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            CollectorSubscriptionManager.GetCollectorReadiness(cancellation.Token));
+    }
+
+    [Fact]
     public void RemoveIsIdempotentWhenSubscriptionIsAlreadyAbsent() {
         bool runnerCalled = false;
 

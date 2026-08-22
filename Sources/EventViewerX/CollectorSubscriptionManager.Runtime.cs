@@ -28,34 +28,66 @@ public static partial class CollectorSubscriptionManager {
             issues.Add("Administrative rights are required to initialize or change collector subscriptions.");
         }
 
-        (bool installed, bool running) = ReadServiceState("Wecsvc", cancellationToken);
-        string startMode = ReadServiceStartMode("Wecsvc");
+        bool installed = false;
+        bool running = false;
+        string startMode = string.Empty;
+        EventReadinessDiagnosticKind collectorDiagnostic = EventReadinessDiagnosticKind.None;
+        try {
+            (installed, running) = ReadServiceState("Wecsvc", cancellationToken);
+            startMode = installed ? ReadServiceStartMode("Wecsvc") : string.Empty;
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception exception) {
+            collectorDiagnostic = ClassifyReadinessException(exception);
+            issues.Add("Windows Event Collector service state could not be inspected: " + exception.Message);
+        }
         if (!installed) {
             issues.Add("Windows Event Collector service (Wecsvc) is not installed.");
         } else if (!running) {
             issues.Add("Windows Event Collector service (Wecsvc) is not running.");
         }
 
-        (bool winRmInstalled, bool winRmRunning) = ReadServiceState("WinRM", cancellationToken);
+        bool winRmInstalled = false;
+        bool winRmRunning = false;
+        EventReadinessDiagnosticKind winRmDiagnostic = EventReadinessDiagnosticKind.None;
+        try {
+            (winRmInstalled, winRmRunning) = ReadServiceState("WinRM", cancellationToken);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception exception) {
+            winRmDiagnostic = ClassifyReadinessException(exception);
+            issues.Add("WinRM service state could not be inspected: " + exception.Message);
+        }
         if (!winRmInstalled || !winRmRunning) {
             issues.Add("Windows Remote Management (WinRM) is not running.");
         }
-        bool listener = HasWinRmListener(cancellationToken);
+        bool listener = false;
+        EventReadinessDiagnosticKind listenerDiagnostic = EventReadinessDiagnosticKind.None;
+        try {
+            listener = HasWinRmListener(cancellationToken);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception exception) {
+            listenerDiagnostic = ClassifyReadinessException(exception);
+            issues.Add("WinRM listener state could not be inspected: " + exception.Message);
+        }
         if (!listener) {
             issues.Add("No enabled WinRM HTTP or HTTPS listener is available.");
         }
 
         bool forwardedExists = false;
         bool forwardedEnabled = false;
+        EventReadinessDiagnosticKind forwardedDiagnostic = EventReadinessDiagnosticKind.None;
         try {
             using var configuration = new System.Diagnostics.Eventing.Reader.EventLogConfiguration("ForwardedEvents");
             forwardedExists = true;
             forwardedEnabled = configuration.IsEnabled;
         } catch (System.Diagnostics.Eventing.Reader.EventLogNotFoundException) {
         } catch (System.Diagnostics.Eventing.Reader.EventLogException exception) {
+            forwardedDiagnostic = ClassifyReadinessException(exception);
             issues.Add($"ForwardedEvents readiness could not be read: {exception.Message}");
         }
-        if (!forwardedExists) {
+        if (forwardedDiagnostic == EventReadinessDiagnosticKind.None && !forwardedExists) {
             issues.Add("ForwardedEvents channel is not registered.");
         } else if (!forwardedEnabled) {
             issues.Add("ForwardedEvents channel is disabled.");
@@ -66,11 +98,15 @@ public static partial class CollectorSubscriptionManager {
             IsAdministrator = administrator,
             CollectorServiceInstalled = installed,
             CollectorServiceRunning = running,
+            CollectorServiceDiagnosticKind = collectorDiagnostic,
             CollectorServiceStartMode = startMode,
             WinRmServiceRunning = winRmRunning,
+            WinRmDiagnosticKind = winRmDiagnostic,
             WinRmListenerAvailable = listener,
+            WinRmListenerDiagnosticKind = listenerDiagnostic,
             ForwardedEventsExists = forwardedExists,
             ForwardedEventsEnabled = forwardedEnabled,
+            ForwardedEventsDiagnosticKind = forwardedDiagnostic,
             Issues = issues
         };
     }
@@ -201,16 +237,25 @@ public static partial class CollectorSubscriptionManager {
     }
 
     private static bool HasWinRmListener(CancellationToken cancellationToken) {
-        try {
-            string output = RunWinRm(
-                new[] { "enumerate", "winrm/config/listener" },
-                cancellationToken);
-            return output.IndexOf("Enabled = true", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                   (output.IndexOf("Transport = HTTP", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    output.IndexOf("Transport = HTTPS", StringComparison.OrdinalIgnoreCase) >= 0);
-        } catch (InvalidOperationException) {
-            return false;
+        string output = RunWinRm(
+            new[] { "enumerate", "winrm/config/listener" },
+            cancellationToken);
+        return output.IndexOf("Enabled = true", StringComparison.OrdinalIgnoreCase) >= 0 &&
+               (output.IndexOf("Transport = HTTP", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                output.IndexOf("Transport = HTTPS", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    private static EventReadinessDiagnosticKind ClassifyReadinessException(Exception exception) {
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is UnauthorizedAccessException || current is System.Security.SecurityException ||
+                current.Message.IndexOf("access is denied", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return EventReadinessDiagnosticKind.AccessDenied;
+            }
+            if (current is TimeoutException || current is OperationCanceledException) {
+                return EventReadinessDiagnosticKind.Timeout;
+            }
         }
+        return EventReadinessDiagnosticKind.Error;
     }
 
     private static string RunWinRm(

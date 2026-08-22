@@ -36,10 +36,30 @@ public static class EventTargetResolver {
                 Array.Empty<EventTargetDiscoveryFailure>(), stopwatch.Elapsed);
         }
 
+        var progressLock = new object();
+        var completedDomains = new List<EventTargetDomainResult>();
+        var reportedFailures = new List<EventTargetDiscoveryFailure>();
+        using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void ReportDomain(EventTargetDomainResult domain) {
+            if (operationCancellation.IsCancellationRequested) {
+                return;
+            }
+            lock (progressLock) {
+                completedDomains.Add(domain);
+            }
+        }
+        void ReportFailure(EventTargetDiscoveryFailure failure) {
+            if (operationCancellation.IsCancellationRequested) {
+                return;
+            }
+            lock (progressLock) {
+                reportedFailures.Add(failure);
+            }
+        }
         try {
             int timeoutMilliseconds = checked((int)Math.Ceiling(snapshot.Timeout.TotalMilliseconds));
             ActiveDirectoryTopologySnapshot topology = BoundedNativeOperation.Execute(
-                () => provider.Discover(snapshot),
+                () => provider.Discover(snapshot, operationCancellation.Token, ReportDomain, ReportFailure),
                 timeoutMilliseconds,
                 $"Active Directory target discovery exceeded {timeoutMilliseconds} ms.",
                 cancellationToken);
@@ -51,13 +71,31 @@ public static class EventTargetResolver {
                 .ToArray();
             return CreateResult(snapshot, targets, topology.Domains, topology.Failures, stopwatch.Elapsed);
         } catch (OperationCanceledException) {
+            operationCancellation.Cancel();
             throw;
         } catch (TimeoutException exception) {
-            EventTargetDiscoveryFailure[] failures = {
-                new(snapshot.Name ?? snapshot.Scope.ToString(), "Discovery", EventTargetDiscoveryFailureKind.Timeout, exception.Message)
-            };
-            return CreateResult(snapshot, Array.Empty<EventTargetInfo>(), Array.Empty<EventTargetDomainResult>(), failures, stopwatch.Elapsed);
+            operationCancellation.Cancel();
+            EventTargetDomainResult[] domains;
+            EventTargetDiscoveryFailure[] failures;
+            lock (progressLock) {
+                domains = completedDomains.ToArray();
+                failures = reportedFailures
+                    .Append(new EventTargetDiscoveryFailure(
+                        snapshot.Name ?? snapshot.Scope.ToString(),
+                        "Discovery",
+                        EventTargetDiscoveryFailureKind.Timeout,
+                        exception.Message))
+                    .ToArray();
+            }
+            EventTargetInfo[] targets = domains
+                .SelectMany(static domain => domain.Targets)
+                .GroupBy(static target => target.ComputerName, StringComparer.OrdinalIgnoreCase)
+                .Select(static group => group.First())
+                .OrderBy(static target => target.ComputerName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            return CreateResult(snapshot, targets, domains, failures, stopwatch.Elapsed);
         } catch (Exception exception) {
+            operationCancellation.Cancel();
             EventTargetDiscoveryFailure[] failures = {
                 ActiveDirectoryTopologyProvider.CreateFailure(
                     snapshot.Name ?? snapshot.Scope.ToString(),

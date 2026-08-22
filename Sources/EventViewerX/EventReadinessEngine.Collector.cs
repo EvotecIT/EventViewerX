@@ -18,28 +18,40 @@ public static partial class EventReadinessEngine {
                     checks,
                     collector,
                     "CollectorService",
-                    readiness.CollectorServiceInstalled && readiness.CollectorServiceRunning,
+                    readiness.CollectorServiceDiagnosticKind == EventReadinessDiagnosticKind.None
+                        ? readiness.CollectorServiceInstalled && readiness.CollectorServiceRunning
+                        : null,
                     $"Wecsvc installed={readiness.CollectorServiceInstalled}; running={readiness.CollectorServiceRunning}; start mode={readiness.CollectorServiceStartMode}.",
                     "Install and start the Windows Event Collector service before scheduling collection.",
-                    EventReadinessDiagnosticKind.Missing);
+                    EventReadinessDiagnosticKind.Missing,
+                    readiness.CollectorServiceDiagnosticKind);
                 AddCollectorBooleanCheck(
                     checks,
                     collector,
                     "WinRM",
-                    readiness.WinRmServiceRunning && readiness.WinRmListenerAvailable,
+                    readiness.WinRmDiagnosticKind == EventReadinessDiagnosticKind.None &&
+                    readiness.WinRmListenerDiagnosticKind == EventReadinessDiagnosticKind.None
+                        ? readiness.WinRmServiceRunning && readiness.WinRmListenerAvailable
+                        : null,
                     $"WinRM running={readiness.WinRmServiceRunning}; listener available={readiness.WinRmListenerAvailable}.",
                     "Configure the required scoped WinRM listener and firewall policy for Windows Event Forwarding.",
-                    EventReadinessDiagnosticKind.InvalidConfiguration);
+                    EventReadinessDiagnosticKind.InvalidConfiguration,
+                    readiness.WinRmDiagnosticKind != EventReadinessDiagnosticKind.None
+                        ? readiness.WinRmDiagnosticKind
+                        : readiness.WinRmListenerDiagnosticKind);
                 AddCollectorBooleanCheck(
                     checks,
                     collector,
                     "ForwardedEvents",
-                    readiness.ForwardedEventsExists && readiness.ForwardedEventsEnabled,
+                    readiness.ForwardedEventsDiagnosticKind == EventReadinessDiagnosticKind.None
+                        ? readiness.ForwardedEventsExists && readiness.ForwardedEventsEnabled
+                        : null,
                     $"ForwardedEvents exists={readiness.ForwardedEventsExists}; enabled={readiness.ForwardedEventsEnabled}.",
                     "Register and enable ForwardedEvents before scheduling collection.",
                     readiness.ForwardedEventsExists
                         ? EventReadinessDiagnosticKind.InvalidConfiguration
-                        : EventReadinessDiagnosticKind.Missing);
+                        : EventReadinessDiagnosticKind.Missing,
+                    readiness.ForwardedEventsDiagnosticKind);
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (UnauthorizedAccessException exception) {
@@ -92,12 +104,12 @@ public static partial class EventReadinessEngine {
             return;
         }
 
-        CollectorSubscriptionSnapshot? subscription;
+        CollectorSubscriptionSnapshot? subscription = null;
         try {
             subscription = evidenceProvider.ReadCollectorSubscription(
                 request.SubscriptionName,
                 localCollector ? null : collector);
-        } catch (UnauthorizedAccessException exception) {
+        } catch (Exception exception) when (IsAccessDeniedException(exception)) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "SubscriptionConfiguration",
@@ -108,7 +120,6 @@ public static partial class EventReadinessEngine {
                 "Grant read access to the collector subscription registry or run the assessment locally on the collector.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
-            return;
         } catch (Exception exception) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
@@ -120,7 +131,6 @@ public static partial class EventReadinessEngine {
                 "Inspect the named subscription locally on the collector.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.Error));
-            return;
         }
         if (subscription == null) {
             checks.Add(new EventReadinessCheckResult(
@@ -133,24 +143,39 @@ public static partial class EventReadinessEngine {
                 "Confirm the exact subscription name and read it locally when remote registry access is restricted.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
-            return;
+        } else {
+            AddCollectorBooleanCheck(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                "SubscriptionEnabled",
+                subscription.IsEnabled,
+                $"Subscription enabled={subscription.IsEnabled?.ToString() ?? "Unknown"}.",
+                "Enable the subscription after validating its source ACL and query definition.",
+                EventReadinessDiagnosticKind.InvalidConfiguration);
+            AddCollectorBooleanCheck(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                "SubscriptionDefinition",
+                subscription.HasXml && subscription.QueryCount > 0,
+                $"Subscription XML present={subscription.HasXml}; query count={subscription.QueryCount}.",
+                "Apply a typed EventViewerX subscription definition containing the selected event sources.",
+                EventReadinessDiagnosticKind.Missing);
+            CollectorSubscriptionCoverageResult coverage = CollectorSubscriptionCoverageEvaluator.Evaluate(
+                subscription,
+                EventTypeCatalog.GetSources(request.Types));
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionCoverage",
+                collector + "/" + request.SubscriptionName,
+                coverage.Status,
+                coverage.Status == EventReadinessStatus.Unknown
+                    ? EventReadinessEvidenceLevel.Unknown
+                    : EventReadinessEvidenceLevel.Inspected,
+                coverage.Evidence,
+                coverage.Remediation,
+                required: true,
+                diagnosticKind: coverage.DiagnosticKind));
         }
-        AddCollectorBooleanCheck(
-            checks,
-            collector + "/" + request.SubscriptionName,
-            "SubscriptionEnabled",
-            subscription.IsEnabled,
-            $"Subscription enabled={subscription.IsEnabled?.ToString() ?? "Unknown"}.",
-            "Enable the subscription after validating its source ACL and query definition.",
-            EventReadinessDiagnosticKind.InvalidConfiguration);
-        AddCollectorBooleanCheck(
-            checks,
-            collector + "/" + request.SubscriptionName,
-            "SubscriptionDefinition",
-            subscription.HasXml && subscription.QueryCount > 0,
-            $"Subscription XML present={subscription.HasXml}; query count={subscription.QueryCount}.",
-            "Apply a typed EventViewerX subscription definition containing the selected event sources.",
-            EventReadinessDiagnosticKind.Missing);
 
         string[] expectedSources = request.ExpectedSources
             .Concat(discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>())
@@ -169,7 +194,6 @@ public static partial class EventReadinessEngine {
                 "Supply -ExpectedSource or explicitly opt in with -ActiveDirectory CurrentDomain, CurrentForest, Domain, or Forest.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
-            return;
         }
         if (!localCollector) {
             checks.Add(new EventReadinessCheckResult(
@@ -190,7 +214,7 @@ public static partial class EventReadinessEngine {
             runtime = evidenceProvider.ReadLocalCollectorRuntime(request.SubscriptionName, cancellationToken);
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
             throw;
-        } catch (UnauthorizedAccessException exception) {
+        } catch (Exception exception) when (IsAccessDeniedException(exception)) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "SubscriptionRuntime",
@@ -217,7 +241,6 @@ public static partial class EventReadinessEngine {
         }
         bool runtimeEvidenceAvailable =
             !string.IsNullOrWhiteSpace(runtime.Status) ||
-            !string.IsNullOrWhiteSpace(runtime.RawStatus) ||
             runtime.LastErrorCode.HasValue ||
             runtime.Sources.Count > 0;
         AddCollectorBooleanCheck(
@@ -230,7 +253,7 @@ public static partial class EventReadinessEngine {
                 ? "Inspect the subscription and each source runtime error before accepting collection coverage."
                 : "Run 'wecutil gr' locally and confirm that Windows returned runtime evidence for the subscription.",
             EventReadinessDiagnosticKind.InvalidConfiguration);
-        if (!runtimeEvidenceAvailable) {
+        if (!runtimeEvidenceAvailable || expectedSources.Length == 0) {
             return;
         }
         var runtimeBySource = runtime.Sources
@@ -289,7 +312,8 @@ public static partial class EventReadinessEngine {
         bool? succeeded,
         string evidence,
         string remediation,
-        EventReadinessDiagnosticKind failureKind) => checks.Add(new EventReadinessCheckResult(
+        EventReadinessDiagnosticKind failureKind,
+        EventReadinessDiagnosticKind unknownKind = EventReadinessDiagnosticKind.NoEvidence) => checks.Add(new EventReadinessCheckResult(
             EventReadinessLayer.WindowsEventCollector,
             check,
             target,
@@ -308,6 +332,18 @@ public static partial class EventReadinessEngine {
                 ? succeeded.Value
                     ? EventReadinessDiagnosticKind.None
                     : failureKind
-                : EventReadinessDiagnosticKind.NoEvidence));
+                : unknownKind));
+
+    private static bool IsAccessDeniedException(Exception exception) {
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is UnauthorizedAccessException || current is System.Security.SecurityException) {
+                return true;
+            }
+            if (current.Message.IndexOf("access is denied", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
 }

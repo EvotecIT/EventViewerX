@@ -30,6 +30,13 @@ internal interface IEventReadinessEvidenceProvider {
 
     IReadOnlyList<EffectiveAuditPolicyResult> QueryAuditPolicy(IReadOnlyList<Guid> subcategoryGuids);
 
+    ChannelPolicy? ReadChannelPolicy(
+        string logName,
+        string? machineName,
+        TimeSpan timeout,
+        NetworkCredential? credential,
+        EventLogAuthentication authentication);
+
     EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey);
 
     CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName);

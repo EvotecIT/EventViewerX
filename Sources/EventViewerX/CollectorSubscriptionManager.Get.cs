@@ -105,6 +105,7 @@ public static partial class CollectorSubscriptionManager {
 
                 string? queryXml = subKey.GetValue("Query") as string;
                 if (!string.IsNullOrWhiteSpace(queryXml)) {
+                    info.RawXml = queryXml;
                     info.Queries = ReadSelectQueries(queryXml!);
                 }
 

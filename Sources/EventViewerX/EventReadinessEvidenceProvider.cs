@@ -49,6 +49,20 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
     public IReadOnlyList<EffectiveAuditPolicyResult> QueryAuditPolicy(
         IReadOnlyList<Guid> subcategoryGuids) => AuditPolicyReader.Query(subcategoryGuids);
 
+    public ChannelPolicy? ReadChannelPolicy(
+        string logName,
+        string? machineName,
+        TimeSpan timeout,
+        NetworkCredential? credential,
+        EventLogAuthentication authentication) => EventLogChannelPolicyService.Get(
+            logName,
+            new EventLogCatalogQuery {
+                MachineName = machineName,
+                Credential = credential,
+                Authentication = authentication,
+                ConnectionTimeoutMilliseconds = checked((int)Math.Ceiling(timeout.TotalMilliseconds))
+            });
+
     public EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey) {
         if (string.Equals(
                 requirementKey,

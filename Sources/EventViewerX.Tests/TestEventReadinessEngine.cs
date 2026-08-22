@@ -197,7 +197,8 @@ public sealed class TestEventReadinessEngine {
                 MachineName = EventLogTarget.LocalMachineName,
                 IsEnabled = true,
                 HasXml = true,
-                QueryCount = 1
+                QueryCount = 1,
+                RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ADUserLogonNTLMv1 })
             },
             CollectorReadiness = new CollectorReadinessStatus {
                 MachineName = EventLogTarget.LocalMachineName,
@@ -260,7 +261,8 @@ public sealed class TestEventReadinessEngine {
     public void EmptyCollectorRuntimeRemainsUnknownInsteadOfInventingFailure() {
         var evidence = CreateCollectorEvidence();
         evidence.CollectorRuntime = new CollectorSubscriptionRuntimeStatus {
-            SubscriptionName = "EventViewerX-AD"
+            SubscriptionName = "EventViewerX-AD",
+            RawStatus = "localized output that was not parsed"
         };
 
         EventReadinessReport report = EvaluateCollector(evidence);
@@ -270,6 +272,154 @@ public sealed class TestEventReadinessEngine {
         Assert.Equal(EventReadinessStatus.Unknown, runtime.Status);
         Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, runtime.DiagnosticKind);
         Assert.DoesNotContain(report.Checks, static check => check.Check == "ExpectedSourceRuntime");
+    }
+
+    [Fact]
+    public void NonEmptySubscriptionThatDoesNotCoverSelectedEventsFailsCoverage() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ScheduledTaskCreated });
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check => check.Check == "SubscriptionCoverage");
+        Assert.Equal(EventReadinessStatus.Fail, coverage.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, coverage.DiagnosticKind);
+    }
+
+    [Fact]
+    public void SubscriptionAccessFailureDoesNotSuppressIndependentRuntimeEvidence() {
+        var evidence = CreateCollectorEvidence();
+        evidence.SubscriptionException = new InvalidOperationException(
+            "wrapped",
+            new UnauthorizedAccessException("access is denied"));
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "SubscriptionConfiguration" &&
+            check.Status == EventReadinessStatus.Unknown &&
+            check.DiagnosticKind == EventReadinessDiagnosticKind.AccessDenied);
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "SubscriptionRuntime" && check.Status == EventReadinessStatus.Pass);
+        Assert.Equal(1, evidence.RuntimeReadCount);
+    }
+
+    [Fact]
+    public void CollectorInspectionErrorsRemainUnknownInsteadOfMissingConfiguration() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorReadiness.CollectorServiceInstalled = false;
+        evidence.CollectorReadiness.CollectorServiceRunning = false;
+        evidence.CollectorReadiness.CollectorServiceDiagnosticKind = EventReadinessDiagnosticKind.AccessDenied;
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult service = Assert.Single(report.Checks, static check => check.Check == "CollectorService");
+        Assert.Equal(EventReadinessStatus.Unknown, service.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.AccessDenied, service.DiagnosticKind);
+    }
+
+    [Fact]
+    public void DisabledChannelPolicyFailsWithoutInventingRetentionThresholds() {
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult(),
+            AuditOutcomes = EventAuditOutcome.Success,
+            ChannelPolicy = new ChannelPolicy {
+                IsEnabled = false,
+                MaximumSizeInBytes = 1048576
+            }
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest { Types = new[] { EventType.ADUserLogonNTLMv1 } },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult policy = Assert.Single(report.Checks, static check => check.Check == "ChannelPolicy");
+        Assert.Equal(EventReadinessStatus.Fail, policy.Status);
+        Assert.Equal("channel:SECURITY", policy.RequirementKey);
+        Assert.Contains("1048576", policy.Evidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OversizedSubscriptionEventIdProducesUnknownCoverageInsteadOfAborting() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml =
+            "<QueryList><Query Id=\"0\" Path=\"Security\"><Select Path=\"Security\">*[System[EventID=999999999999999999999]]</Select></Query></QueryList>";
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check => check.Check == "SubscriptionCoverage");
+        Assert.Equal(EventReadinessStatus.Unknown, coverage.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, coverage.DiagnosticKind);
+    }
+
+    [Fact]
+    public void DiscoveryFailureWithoutTargetsKeepsResolutionUnknown() {
+        var failure = new EventTargetDiscoveryFailure(
+            "example.com",
+            "ResolveDomain",
+            EventTargetDiscoveryFailureKind.Error,
+            "directory unavailable");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.Domain,
+                "example.com",
+                Array.Empty<EventTargetInfo>(),
+                Array.Empty<EventTargetDomainResult>(),
+                new[] { failure },
+                "FAILED",
+                TimeSpan.Zero)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Domain,
+                    Name = "example.com"
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
+        Assert.Equal(EventReadinessStatus.Unknown, resolved.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Error, resolved.DiagnosticKind);
+    }
+
+    [Fact]
+    public void DefinitiveNamedDomainNotFoundKeepsResolutionFailedAndComplete() {
+        var failure = new EventTargetDiscoveryFailure(
+            "missing.example.com",
+            "ResolveDomain",
+            EventTargetDiscoveryFailureKind.NotFound,
+            "domain not found");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.Domain,
+                "missing.example.com",
+                Array.Empty<EventTargetInfo>(),
+                Array.Empty<EventTargetDomainResult>(),
+                new[] { failure },
+                "NOTFOUND",
+                TimeSpan.Zero)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Domain,
+                    Name = "missing.example.com"
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
+        Assert.Equal(EventReadinessStatus.Fail, resolved.Status);
+        Assert.Equal(EventReadinessEvidenceLevel.Inspected, resolved.EvidenceLevel);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, resolved.DiagnosticKind);
     }
 
     [Fact]
@@ -311,7 +461,8 @@ public sealed class TestEventReadinessEngine {
             MachineName = EventLogTarget.LocalMachineName,
             IsEnabled = true,
             HasXml = true,
-            QueryCount = 1
+            QueryCount = 1,
+            RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ADUserLogonNTLMv1 })
         },
         CollectorReadiness = new CollectorReadinessStatus {
             MachineName = EventLogTarget.LocalMachineName,
@@ -399,6 +550,9 @@ public sealed class TestEventReadinessEngine {
         internal CollectorSubscriptionSnapshot? Subscription { get; set; }
         internal CollectorReadinessStatus CollectorReadiness { get; set; } = new();
         internal CollectorSubscriptionRuntimeStatus CollectorRuntime { get; set; } = new();
+        internal ChannelPolicy? ChannelPolicy { get; set; } = new() { IsEnabled = true };
+        internal Exception? SubscriptionException { get; set; }
+        internal int RuntimeReadCount { get; private set; }
         internal List<(string LogName, string XPath, string? MachineName, NetworkCredential? Credential)> ProbeCalls { get; } = new();
 
         public EventTargetDiscoveryResult ResolveTargets(
@@ -470,6 +624,25 @@ public sealed class TestEventReadinessEngine {
                 null)).ToArray();
         }
 
+        public ChannelPolicy? ReadChannelPolicy(
+            string logName,
+            string? machineName,
+            TimeSpan timeout,
+            NetworkCredential? credential,
+            EventLogAuthentication authentication) {
+
+            if (ChannelPolicy == null) {
+                return null;
+            }
+            return new ChannelPolicy {
+                LogName = logName,
+                MachineName = machineName,
+                IsEnabled = ChannelPolicy.IsEnabled,
+                MaximumSizeInBytes = ChannelPolicy.MaximumSizeInBytes,
+                Mode = ChannelPolicy.Mode
+            };
+        }
+
         public EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey) {
             ConfigurationReadCount++;
             return new EventReadinessConfigurationEvidence(
@@ -478,14 +651,22 @@ public sealed class TestEventReadinessEngine {
                 string.Empty);
         }
 
-        public CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName) =>
-            Subscription;
+        public CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName) {
+            if (SubscriptionException != null) {
+                throw SubscriptionException;
+            }
+            return Subscription;
+        }
 
         public CollectorReadinessStatus ReadLocalCollectorReadiness(CancellationToken cancellationToken) =>
             CollectorReadiness;
 
         public CollectorSubscriptionRuntimeStatus ReadLocalCollectorRuntime(
             string subscriptionName,
-            CancellationToken cancellationToken) => CollectorRuntime;
+            CancellationToken cancellationToken) {
+
+            RuntimeReadCount++;
+            return CollectorRuntime;
+        }
     }
 }

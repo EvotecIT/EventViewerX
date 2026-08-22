@@ -176,6 +176,29 @@ public sealed class TestEventTargetResolver {
         Assert.False(result.IsComplete);
     }
 
+    [Fact]
+    public void TimeoutPreservesCompletedDomainsAndStopsFurtherProgress() {
+        var provider = new ProgressiveSlowProvider();
+
+        EventTargetDiscoveryResult result = EventTargetResolver.Resolve(
+            new EventTargetDiscoveryRequest {
+                Scope = EventTargetDiscoveryScope.CurrentForest,
+                Timeout = TimeSpan.FromMilliseconds(50)
+            },
+            provider,
+            CancellationToken.None);
+
+        Assert.Single(result.Domains);
+        Assert.Equal("first.example.com", Assert.Single(result.Domains).DomainName);
+        Assert.Equal("dc01.first.example.com", Assert.Single(result.Targets).ComputerName);
+        Assert.Contains(result.Failures, static failure => failure.Kind == EventTargetDiscoveryFailureKind.Timeout);
+        Assert.Contains(result.Failures, static failure =>
+            failure.Stage == "ResolveTrustedForest" && failure.Scope == "unavailable.example.com");
+        Assert.False(result.IsComplete);
+        Assert.True(provider.CancellationObserved.Wait(TimeSpan.FromSeconds(2)));
+        Assert.Equal(1, provider.ReportedDomainCount);
+    }
+
     private sealed class RecordingProvider : IActiveDirectoryTopologyProvider {
         private readonly ActiveDirectoryTopologySnapshot _snapshot;
 
@@ -187,9 +210,58 @@ public sealed class TestEventTargetResolver {
 
         internal bool Called { get; private set; }
 
-        public ActiveDirectoryTopologySnapshot Discover(EventTargetDiscoveryRequest request) {
+        public ActiveDirectoryTopologySnapshot Discover(
+            EventTargetDiscoveryRequest request,
+            CancellationToken cancellationToken,
+            Action<EventTargetDomainResult> domainCompleted,
+            Action<EventTargetDiscoveryFailure> failureReported) {
+
             Called = true;
+            foreach (EventTargetDomainResult domain in _snapshot.Domains) {
+                domainCompleted(domain);
+            }
+            foreach (EventTargetDiscoveryFailure failure in _snapshot.Failures) {
+                failureReported(failure);
+            }
             return _snapshot;
+        }
+    }
+
+    private sealed class ProgressiveSlowProvider : IActiveDirectoryTopologyProvider {
+        internal ManualResetEventSlim CancellationObserved { get; } = new(false);
+        internal int ReportedDomainCount { get; private set; }
+
+        public ActiveDirectoryTopologySnapshot Discover(
+            EventTargetDiscoveryRequest request,
+            CancellationToken cancellationToken,
+            Action<EventTargetDomainResult> domainCompleted,
+            Action<EventTargetDiscoveryFailure> failureReported) {
+
+            EventTargetDomainResult first = new(
+                "first.example.com",
+                "example.com",
+                new[] { new EventTargetInfo("dc01.first.example.com", EventTargetKind.DomainController) },
+                Array.Empty<EventTargetDiscoveryFailure>());
+            domainCompleted(first);
+            ReportedDomainCount++;
+            failureReported(new EventTargetDiscoveryFailure(
+                "unavailable.example.com",
+                "ResolveTrustedForest",
+                EventTargetDiscoveryFailureKind.Error,
+                "trusted forest unavailable"));
+            Thread.Sleep(150);
+            if (cancellationToken.IsCancellationRequested) {
+                CancellationObserved.Set();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            EventTargetDomainResult second = new(
+                "second.example.com",
+                "example.com",
+                new[] { new EventTargetInfo("dc01.second.example.com", EventTargetKind.DomainController) },
+                Array.Empty<EventTargetDiscoveryFailure>());
+            domainCompleted(second);
+            ReportedDomainCount++;
+            return new ActiveDirectoryTopologySnapshot(new[] { first, second }, Array.Empty<EventTargetDiscoveryFailure>());
         }
     }
 }
