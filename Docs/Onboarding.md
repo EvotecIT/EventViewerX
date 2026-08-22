@@ -445,7 +445,8 @@ $readiness |
 $identityAccessFailures = $readiness.Checks | Where-Object {
     $_.DiagnosticKind -eq [EventViewerX.EventReadinessDiagnosticKind]::AccessDenied
 }
-if ($identityAccessFailures) {
+$requiredFailures = @($readiness.RequiredFailures)
+if ($identityAccessFailures -or $requiredFailures.Count -gt 0) {
     exit 5
 }
 '@

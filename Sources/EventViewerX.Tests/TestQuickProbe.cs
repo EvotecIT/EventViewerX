@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.ComponentModel;
+using System.Diagnostics.Eventing.Reader;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Reflection;
@@ -288,6 +289,21 @@ namespace EventViewerX.Tests {
                 EventLogProbe.ClassifyFailure(
                     null,
                     new Win32Exception(nativeErrorCode)));
+        }
+
+        [Fact]
+        public void RemoteMissingChannelPreservesItsTypedFailureKind() {
+            Assert.True(EventLogRemoteQueryFailureClassifier.TryClassify(
+                "remote.example.com",
+                new EventLogNotFoundException("ForwardedEvents was not found"),
+                out EventLogRemoteQueryFailureKind kind));
+            Assert.Equal(EventLogRemoteQueryFailureKind.LogNotFound, kind);
+            Assert.Equal(EventLogProbeStatus.LogNotFound, EventLogProbe.ClassifyFailure(
+                "remote.example.com",
+                new EventLogNotFoundException("Security was not found")));
+            Assert.Equal(
+                EventLogProbeStatus.LogNotFound,
+                EventReadinessEvidenceProvider.MapTargetFailure(kind));
         }
 
         [Fact]

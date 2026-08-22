@@ -147,16 +147,22 @@ public static partial class EventReadinessEngine {
         if (request.Collector == null) {
             return transportTargets;
         }
-        if (discovery != null) {
-            return discovery.Targets;
-        }
-        if (request.ExpectedSources.Count == 0) {
-            return transportTargets;
-        }
-        return request.ExpectedSources
+        EventTargetInfo[] expectedTargets = request.ExpectedSources
             .Select(static source => EventLogTarget.IsLocalMachine(source)
                 ? new EventTargetInfo(EventLogTarget.LocalMachineName, EventTargetKind.LocalMachine)
-                : new EventTargetInfo(source, EventTargetKind.EventLogMachine))
+                : new EventTargetInfo(source.Trim().TrimEnd('.'), EventTargetKind.EventLogMachine))
+            .ToArray();
+        if (discovery == null && expectedTargets.Length == 0) {
+            return transportTargets;
+        }
+        return (discovery?.Targets ?? Array.Empty<EventTargetInfo>())
+            .Concat(expectedTargets)
+            .GroupBy(
+                static target => EventLogTarget.IsLocalMachine(target.ComputerName)
+                    ? EventLogTarget.LocalMachineName
+                    : target.ComputerName.Trim().TrimEnd('.'),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
             .ToArray();
     }
 
@@ -513,7 +519,7 @@ public static partial class EventReadinessEngine {
             .SelectMany(static requirement => requirement.Prerequisites)
             .Where(static prerequisite => prerequisite.Kind == EventRequirementKind.TargetRole)
             .GroupBy(static prerequisite => prerequisite.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
+            .Select(EventRequirementCatalog.MergePrerequisites)
             .ToArray();
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in requirements) {
@@ -564,7 +570,7 @@ public static partial class EventReadinessEngine {
             .SelectMany(static requirement => requirement.Prerequisites)
             .Where(static prerequisite => prerequisite.Kind == EventRequirementKind.AuditPolicy)
             .GroupBy(static prerequisite => prerequisite.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
+            .Select(EventRequirementCatalog.MergePrerequisites)
             .ToArray();
         Guid[] guids = auditRequirements
             .Where(static requirement => requirement.AuditSubcategoryGuid.HasValue)
@@ -665,7 +671,7 @@ public static partial class EventReadinessEngine {
             .SelectMany(static requirement => requirement.Prerequisites)
             .Where(static prerequisite => prerequisite.Kind == EventRequirementKind.Configuration)
             .GroupBy(static prerequisite => prerequisite.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
+            .Select(EventRequirementCatalog.MergePrerequisites)
             .ToArray();
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in requirements) {

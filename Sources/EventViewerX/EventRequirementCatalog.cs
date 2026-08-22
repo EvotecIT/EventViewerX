@@ -19,7 +19,7 @@ public static class EventRequirementCatalog {
             [EventType.ADGroupMembershipChange] = GroupManagement(),
             [EventType.ADGroupChange] = GroupManagement(),
             [EventType.ADGroupCreateDelete] = GroupManagement(),
-            [EventType.ADGroupEnumeration] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-user-account-management") },
+            [EventType.ADGroupEnumeration] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Target computer", "audit-user-account-management") },
             [EventType.ADComputerCreateChange] = new[] { Audit("computer-account-management", "Audit Computer Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-computer-account-management") },
             [EventType.ADComputerDeleted] = new[] { Audit("computer-account-management", "Audit Computer Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-computer-account-management") },
             [EventType.KerberosTGTRequest] = new[] {
@@ -93,11 +93,33 @@ public static class EventRequirementCatalog {
         }
         EventPrerequisite[] distinct = prerequisites
             .GroupBy(static requirement => requirement.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
+            .Select(MergePrerequisites)
             .OrderBy(static requirement => requirement.Kind)
             .ThenBy(static requirement => requirement.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         return new EventTypeRequirement(type, definition.Sources, distinct, leaves);
+    }
+
+    internal static EventPrerequisite MergePrerequisites(IEnumerable<EventPrerequisite> requirements) {
+        EventPrerequisite[] items = requirements.ToArray();
+        EventPrerequisite first = items[0];
+        EventAuditOutcome outcomes = items.Aggregate(
+            EventAuditOutcome.None,
+            static (current, requirement) => current | requirement.AuditOutcomes);
+        EventRequirementVolume volume = items.Max(static requirement => requirement.Volume);
+        if (outcomes == first.AuditOutcomes && volume == first.Volume) {
+            return first;
+        }
+        return new EventPrerequisite(
+            first.Key,
+            first.Kind,
+            first.Name,
+            first.Description,
+            first.AppliesTo,
+            outcomes,
+            volume,
+            first.DocumentationUri,
+            first.AuditSubcategoryGuid);
     }
 
     private static EventPrerequisite Channel(string logName) => new(

@@ -390,6 +390,59 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void ExpectedSourcesExtendDiscoveredPrerequisiteTargets() {
+        var evidence = CreateCollectorEvidence();
+        evidence.TargetResult = DomainControllerTargetResult();
+        evidence.Subscription!.RawXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.GpoDeleted });
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.GpoDeleted },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc02.example.com" },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "ChannelPolicy" &&
+            check.Target == "dc01.example.com/Security");
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "ChannelPolicy" &&
+            check.Target == "dc02.example.com/Security");
+        Assert.Contains(report.Checks, static check =>
+            check.RequirementKey == "target-role:domain-controller" &&
+            check.Target == "dc02.example.com" &&
+            check.Status == EventReadinessStatus.Unknown);
+    }
+
+    [Fact]
+    public void MultipleRequestedTypesMergeSharedAuditOutcomes() {
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult(),
+            AuditOutcomes = EventAuditOutcome.Success
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserCreateChange, EventType.ADUserStatus }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult audit = Assert.Single(report.Checks, static check =>
+            check.Layer == EventReadinessLayer.AuditPolicy &&
+            check.RequirementKey == "audit:user-account-management");
+        Assert.Equal(EventReadinessStatus.Fail, audit.Status);
+        Assert.Contains("Failure", audit.Evidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LocalExpectedSourceAliasesCanonicalizeForRuntimeEnrollment() {
         var evidence = CreateCollectorEvidence();
         evidence.CollectorRuntime.Sources = new[] {

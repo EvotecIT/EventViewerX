@@ -47,6 +47,18 @@ public sealed class TestEventRequirementCatalog {
     }
 
     [Fact]
+    public void CompositeRequirementMergesAuditOutcomesForSharedPrerequisites() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.ActiveDirectoryChanges);
+        EventPrerequisite accountManagement = Assert.Single(
+            requirement.Prerequisites,
+            static item => item.Key == "audit:user-account-management");
+
+        Assert.Equal(
+            EventAuditOutcome.Success | EventAuditOutcome.Failure,
+            accountManagement.AuditOutcomes);
+    }
+
+    [Fact]
     public void GpoRequirementsIncludeAuditPolicyAndObjectSacl() {
         EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.GpoDeleted);
 
@@ -64,6 +76,10 @@ public sealed class TestEventRequirementCatalog {
             static item => item.Kind == EventRequirementKind.AuditPolicy);
         Assert.Equal("audit:user-account-management", audit.Key);
         Assert.Equal(EventAuditOutcome.Success, audit.AuditOutcomes);
+        Assert.Equal("Target computer", audit.AppliesTo);
+        Assert.DoesNotContain(
+            requirement.Prerequisites,
+            static item => item.Kind == EventRequirementKind.TargetRole);
     }
 
     [Fact]

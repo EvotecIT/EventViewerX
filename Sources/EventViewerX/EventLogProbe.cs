@@ -401,6 +401,8 @@ public static class EventLogProbe {
                     EventLogProbeStatus.Timeout,
                 EventLogRemoteQueryFailureKind.HostUnavailable =>
                     EventLogProbeStatus.HostUnavailable,
+                EventLogRemoteQueryFailureKind.LogNotFound =>
+                    EventLogProbeStatus.LogNotFound,
                 _ => EventLogProbeStatus.Error
             };
         }

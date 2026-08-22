@@ -226,17 +226,11 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             }
             EventLogQueryTargetFailure? failure = executionInfo.TargetFailures.FirstOrDefault();
             if (failure != null) {
-                EventLogProbeStatus failureStatus = failure.Kind switch {
-                    EventLogRemoteQueryFailureKind.AccessDenied => EventLogProbeStatus.AccessDenied,
-                    EventLogRemoteQueryFailureKind.Timeout => EventLogProbeStatus.Timeout,
-                    EventLogRemoteQueryFailureKind.HostUnavailable => EventLogProbeStatus.HostUnavailable,
-                    _ => EventLogProbeStatus.Error
-                };
                 return new EventLogProbeResult(
                     collector ? "ForwardedEvents" : source.LogName,
                     target ?? EventLogTarget.LocalMachineName,
                     null,
-                    failureStatus,
+                    MapTargetFailure(failure.Kind),
                     failure.Message,
                     checked((int)executionInfo.EventsScanned),
                     null,
@@ -293,6 +287,14 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 nativeQueryVerified: false);
         }
     }
+
+    internal static EventLogProbeStatus MapTargetFailure(EventLogRemoteQueryFailureKind failureKind) => failureKind switch {
+        EventLogRemoteQueryFailureKind.AccessDenied => EventLogProbeStatus.AccessDenied,
+        EventLogRemoteQueryFailureKind.Timeout => EventLogProbeStatus.Timeout,
+        EventLogRemoteQueryFailureKind.HostUnavailable => EventLogProbeStatus.HostUnavailable,
+        EventLogRemoteQueryFailureKind.LogNotFound => EventLogProbeStatus.LogNotFound,
+        _ => EventLogProbeStatus.Error
+    };
 
     internal static EventLogProbeStatus ClassifyTypedProbe(
         DateTime? eventTimeUtc,
