@@ -427,9 +427,16 @@ $principal = New-ScheduledTaskPrincipal `
     -LogonType ServiceAccount `
     -RunLevel Highest
 
-$settings = New-ScheduledTaskSettingsSet `
+$readinessSettings = New-ScheduledTaskSettingsSet `
+    -MultipleInstances IgnoreNew `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+$collectionSettings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
+    -StartWhenAvailable
+$reportSettings = New-ScheduledTaskSettingsSet `
+    -MultipleInstances IgnoreNew `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 25) `
     -StartWhenAvailable
 
 $readinessCommand = @'
@@ -442,11 +449,28 @@ $readiness = Test-EVXReadiness `
 $readiness |
     ConvertTo-Json -Depth 8 |
     Set-Content -LiteralPath C:\ProgramData\EventViewerX\readiness.json -Encoding UTF8
-$identityAccessFailures = $readiness.Checks | Where-Object {
+$collectorTarget = [EventViewerX.EventLogTarget]::LocalMachineName
+$taskOwnedChecks = @($readiness.Checks | Where-Object {
+    $_.Layer -eq [EventViewerX.EventReadinessLayer]::Runtime -or
+    $_.Layer -eq [EventViewerX.EventReadinessLayer]::WindowsEventCollector -or
+    ($_.Layer -eq [EventViewerX.EventReadinessLayer]::EventLogTransport -and
+        ($_.Target -eq $collectorTarget -or
+            $_.Target.StartsWith(
+                $collectorTarget + '/',
+                [StringComparison]::OrdinalIgnoreCase)))
+})
+$taskAccessFailures = @($taskOwnedChecks | Where-Object {
     $_.DiagnosticKind -eq [EventViewerX.EventReadinessDiagnosticKind]::AccessDenied
-}
-$requiredFailures = @($readiness.RequiredFailures)
-if ($identityAccessFailures -or $requiredFailures.Count -gt 0) {
+})
+$taskRequiredFailures = @($taskOwnedChecks | Where-Object {
+    $_.Required -and $_.Status -eq [EventViewerX.EventReadinessStatus]::Fail
+})
+$taskUnknownChecks = @($taskOwnedChecks | Where-Object {
+    $_.Required -and $_.Status -eq [EventViewerX.EventReadinessStatus]::Unknown
+})
+if ($taskAccessFailures.Count -gt 0 -or
+    $taskRequiredFailures.Count -gt 0 -or
+    $taskUnknownChecks.Count -gt 0) {
     exit 5
 }
 '@
@@ -455,43 +479,73 @@ $readinessEncoded = [Convert]::ToBase64String(
 $readinessAction = New-ScheduledTaskAction `
     -Execute 'powershell.exe' `
     -Argument "-NoProfile -NonInteractive -EncodedCommand $readinessEncoded"
-$readinessTrigger = New-ScheduledTaskTrigger `
-    -Once `
-    -At (Get-Date).AddMinutes(5)
-
 Register-ScheduledTask `
     -TaskName 'EventViewerX-Verify-Readiness' `
     -Action $readinessAction `
-    -Trigger $readinessTrigger `
     -Principal $principal `
-    -Settings $settings
+    -Settings $readinessSettings
 
 $collectAction = New-ScheduledTaskAction `
     -Execute $evx `
     -Argument "query --type ActiveDirectoryChanges --collector WEC01 --since 00:20:00 --write-store `"$store`""
-$collectTrigger = New-ScheduledTaskTrigger `
-    -Once `
-    -At (Get-Date).Date.AddMinutes(5) `
-    -RepetitionInterval (New-TimeSpan -Minutes 15)
-
 Register-ScheduledTask `
     -TaskName 'EventViewerX-Collect-ADChanges' `
     -Action $collectAction `
-    -Trigger $collectTrigger `
     -Principal $principal `
-    -Settings $settings
+    -Settings $collectionSettings
 
+$reportCommand = @'
+$evx = 'C:\Program Files\EventViewerX\evx.exe'
+$store = 'C:\ProgramData\EventViewerX\events.db'
+$report = 'C:\Reports\EventViewerX\AD-Changes-Daily'
+$collectionTaskName = 'EventViewerX-Collect-ADChanges'
+$collectionWasRunning =
+    (Get-ScheduledTask -TaskName $collectionTaskName).State -in 'Running', 'Queued'
+$collectionRequestedAt = Get-Date
+if (-not $collectionWasRunning) {
+    Start-ScheduledTask -TaskName $collectionTaskName
+}
+$collectionDeadline = (Get-Date).AddMinutes(12)
+do {
+    Start-Sleep -Seconds 2
+    $collectionTask = Get-ScheduledTask -TaskName $collectionTaskName
+    $collectionInfo = Get-ScheduledTaskInfo -TaskName $collectionTaskName
+    $collectionObserved = $collectionWasRunning -or
+        $collectionInfo.LastRunTime -ge $collectionRequestedAt.AddSeconds(-2)
+    if ((Get-Date) -ge $collectionDeadline) {
+        exit 6
+    }
+} while ($collectionTask.State -in 'Running', 'Queued' -or -not $collectionObserved)
+if ($collectionInfo.LastTaskResult -ne 0) {
+    exit 6
+}
+
+$periodEnd = (Get-Date).ToUniversalTime().Date
+$periodStart = $periodEnd.AddDays(-1)
+& $evx report `
+    --store $store `
+    --type ActiveDirectoryChanges `
+    --start $periodStart.ToString('o') `
+    --end $periodEnd.ToString('o') `
+    --summary Day `
+    --title 'Daily Active Directory changes' `
+    --html ($report + '.html') `
+    --excel ($report + '.xlsx')
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+'@
+$reportEncoded = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($reportCommand))
 $reportAction = New-ScheduledTaskAction `
-    -Execute $evx `
-    -Argument "report --store `"$store`" --type ActiveDirectoryChanges --since 1.00:00:00 --summary Day --title `"Daily Active Directory changes`" --html `"$report.html`" --excel `"$report.xlsx`""
-$reportTrigger = New-ScheduledTaskTrigger -Daily -At '06:05'
+    -Execute 'powershell.exe' `
+    -Argument "-NoProfile -NonInteractive -EncodedCommand $reportEncoded"
 
 Register-ScheduledTask `
     -TaskName 'EventViewerX-Report-ADChanges' `
     -Action $reportAction `
-    -Trigger $reportTrigger `
     -Principal $principal `
-    -Settings $settings
+    -Settings $reportSettings
 ```
 
 Windows grants and applies **Log on as a batch job** according to the task
@@ -502,17 +556,20 @@ security impact in [Log on as a batch job](https://learn.microsoft.com/en-us/pre
 
 ```powershell
 Remove-Item -LiteralPath $readinessOutput -ErrorAction SilentlyContinue
+$readinessRequestedAt = Get-Date
 Start-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness'
-$readinessDeadline = (Get-Date).AddMinutes(2)
+$readinessDeadline = (Get-Date).AddMinutes(12)
 do {
     Start-Sleep -Seconds 2
     $readinessTask = Get-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness'
+    $readinessTaskInfo = Get-ScheduledTaskInfo -TaskName 'EventViewerX-Verify-Readiness'
+    $readinessObserved =
+        $readinessTaskInfo.LastRunTime -ge $readinessRequestedAt.AddSeconds(-2)
     if ((Get-Date) -ge $readinessDeadline) {
-        throw 'The scheduled readiness assessment did not finish within two minutes.'
+        throw 'The scheduled readiness assessment did not finish within 12 minutes.'
     }
-} while ($readinessTask.State -eq 'Running')
+} while ($readinessTask.State -in 'Running', 'Queued' -or -not $readinessObserved)
 
-$readinessTaskInfo = Get-ScheduledTaskInfo -TaskName 'EventViewerX-Verify-Readiness'
 if ($readinessTaskInfo.LastTaskResult -ne 0) {
     throw "The scheduled readiness assessment failed with task result $($readinessTaskInfo.LastTaskResult)."
 }
@@ -522,22 +579,74 @@ $taskReadiness.Checks |
     Format-Table Layer, Status, DiagnosticKind, EvidenceLevel, Target, Check -AutoSize
 Unregister-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness' -Confirm:$false
 
-Start-ScheduledTask -TaskName 'EventViewerX-Collect-ADChanges'
+$reportRequestedAt = Get-Date
 Start-ScheduledTask -TaskName 'EventViewerX-Report-ADChanges'
+$reportDeadline = (Get-Date).AddMinutes(30)
+do {
+    Start-Sleep -Seconds 2
+    $reportTask = Get-ScheduledTask -TaskName 'EventViewerX-Report-ADChanges'
+    $reportTaskInfo = Get-ScheduledTaskInfo -TaskName 'EventViewerX-Report-ADChanges'
+    $reportObserved =
+        $reportTaskInfo.LastRunTime -ge $reportRequestedAt.AddSeconds(-2)
+    if ((Get-Date) -ge $reportDeadline) {
+        throw 'The scheduled collection and report workflow did not finish within 30 minutes.'
+    }
+} while ($reportTask.State -in 'Running', 'Queued' -or -not $reportObserved)
+if ($reportTaskInfo.LastTaskResult -ne 0) {
+    throw "The scheduled report workflow failed with task result $($reportTaskInfo.LastTaskResult)."
+}
 
-Get-ScheduledTaskInfo -TaskName 'EventViewerX-Collect-ADChanges'
-Get-ScheduledTaskInfo -TaskName 'EventViewerX-Report-ADChanges'
+$collectTaskInfo = Get-ScheduledTaskInfo -TaskName 'EventViewerX-Collect-ADChanges'
+if ($collectTaskInfo.LastTaskResult -ne 0) {
+    throw "The scheduled collection failed with task result $($collectTaskInfo.LastTaskResult)."
+}
 
-Get-Item `
+$outputs = Get-Item `
     C:\ProgramData\EventViewerX\events.db, `
     C:\Reports\EventViewerX\AD-Changes-Daily.html, `
     C:\Reports\EventViewerX\AD-Changes-Daily.xlsx
+$outputs
+$freshReportOutputs = @($outputs | Where-Object {
+    $_.Extension -in '.html', '.xlsx' -and
+    $_.LastWriteTimeUtc -ge $reportRequestedAt.ToUniversalTime().AddSeconds(-2)
+})
+if ($freshReportOutputs.Count -ne 2) {
+    throw 'The scheduled report did not refresh both report outputs.'
+}
+
+$now = Get-Date
+$collectTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At $now.AddMinutes(2) `
+    -RepetitionInterval (New-TimeSpan -Minutes 15)
+$nextReport = $now.Date.AddHours(6).AddMinutes(5)
+if ($nextReport -le $now) {
+    $nextReport = $nextReport.AddDays(1)
+}
+$reportTrigger = New-ScheduledTaskTrigger -Daily -At $nextReport
+Set-ScheduledTask `
+    -TaskName 'EventViewerX-Collect-ADChanges' `
+    -Trigger $collectTrigger
+Set-ScheduledTask `
+    -TaskName 'EventViewerX-Report-ADChanges' `
+    -Trigger $reportTrigger
 ```
 
-The one-time readiness task exits with code 5 when the scheduled identity sees
-an `AccessDenied` diagnostic. Other `Unknown` checks, such as effective policy
-that can only be inspected on a remote source, remain visible in the saved
-typed report and require separate evidence rather than being treated as pass.
+The one-time readiness task exits with code 5 when the scheduled identity
+cannot prove its local runtime, collector, or collector-query boundary. Remote
+source policy and channel permissions remain visible in the saved typed report
+and require the separate source-side verification described above; they are not
+permissions owned by the collector task identity.
+
+The recurring tasks receive triggers only after that verification succeeds.
+The daily report task starts or joins a collection run, waits for its successful
+completion, and then reports the closed previous UTC day with explicit start and
+end boundaries. This avoids a rolling-window race and prevents report reads from
+overlapping the collection commit they depend on.
+
+The first scheduled report is complete only after collection has covered the
+entire reported UTC day. Treat an earlier first report as onboarding proof, not
+as a complete daily baseline.
 
 Also verify WEC runtime status and the source forwarding operational log. A
 successful task exit with an empty report can be correct when no matching

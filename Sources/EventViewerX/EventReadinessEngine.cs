@@ -477,7 +477,9 @@ public static partial class EventReadinessEngine {
                     : EventReadinessDiagnosticKind.NoEvidence;
                 break;
             default:
-                status = probe.Status == EventLogProbeStatus.AccessDenied
+                status = probe.Status is EventLogProbeStatus.AccessDenied or
+                    EventLogProbeStatus.Timeout or
+                    EventLogProbeStatus.Error
                     ? EventReadinessStatus.Unknown
                     : EventReadinessStatus.Fail;
                 evidenceLevel = EventReadinessEvidenceLevel.Unknown;

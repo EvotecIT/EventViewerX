@@ -194,12 +194,9 @@ public static partial class EventReadinessEngine {
                 diagnosticKind: coverage.DiagnosticKind));
         }
 
-        string[] expectedSources = request.ExpectedSources
-            .Concat(discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>())
-            .Select(static source => source.Trim().TrimEnd('.'))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static source => source, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        string[] expectedSources = BuildExpectedSourceSet(
+            request.ExpectedSources.Concat(
+                discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>()));
         if (expectedSources.Length == 0) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
@@ -276,12 +273,19 @@ public static partial class EventReadinessEngine {
         if ((!runtimeStateConclusive && runtime.Sources.Count == 0) || expectedSources.Length == 0) {
             return;
         }
-        var runtimeBySource = runtime.Sources
+        CollectorSubscriptionSourceRuntimeStatus[] runtimeSources = runtime.Sources
             .Where(static source => !string.IsNullOrWhiteSpace(source.Address))
-            .GroupBy(static source => source.Address.Trim().TrimEnd('.'), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+            .GroupBy(
+                static source => NormalizeSourceAddress(source.Address),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
+            .ToArray();
         foreach (string expectedSource in expectedSources) {
-            if (!runtimeBySource.TryGetValue(expectedSource, out CollectorSubscriptionSourceRuntimeStatus? source)) {
+            CollectorSubscriptionSourceRuntimeStatus? source = FindRuntimeSource(
+                expectedSource,
+                expectedSources,
+                runtimeSources);
+            if (source == null) {
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.WindowsEventCollector,
                     "ExpectedSourceRuntime",
@@ -325,6 +329,87 @@ public static partial class EventReadinessEngine {
                         : EventReadinessDiagnosticKind.InvalidConfiguration));
         }
     }
+
+    private static string[] BuildExpectedSourceSet(IEnumerable<string> sources) => sources
+        .Where(static source => !string.IsNullOrWhiteSpace(source))
+        .Select(NormalizeSourceAddress)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .GroupBy(GetSourceLeaf, StringComparer.OrdinalIgnoreCase)
+        .SelectMany(static group => {
+            string[] names = group.ToArray();
+            string[] qualified = names
+                .Where(IsQualifiedSourceAddress)
+                .ToArray();
+            return qualified.Length == 1
+                ? qualified
+                : names;
+        })
+        .OrderBy(static source => source, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private static CollectorSubscriptionSourceRuntimeStatus? FindRuntimeSource(
+        string expectedSource,
+        IReadOnlyList<string> expectedSources,
+        IReadOnlyList<CollectorSubscriptionSourceRuntimeStatus> runtimeSources) {
+
+        string normalizedExpected = NormalizeSourceAddress(expectedSource);
+        CollectorSubscriptionSourceRuntimeStatus? exact = runtimeSources.FirstOrDefault(source =>
+            string.Equals(
+                NormalizeSourceAddress(source.Address),
+                normalizedExpected,
+                StringComparison.OrdinalIgnoreCase));
+        if (exact != null) {
+            return exact;
+        }
+
+        string leaf = GetSourceLeaf(normalizedExpected);
+        if (expectedSources.Count(source =>
+                string.Equals(GetSourceLeaf(source), leaf, StringComparison.OrdinalIgnoreCase)) != 1) {
+            return null;
+        }
+        CollectorSubscriptionSourceRuntimeStatus[] candidates = runtimeSources
+            .Where(source => string.Equals(
+                GetSourceLeaf(source.Address),
+                leaf,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (IsQualifiedSourceAddress(normalizedExpected)) {
+            candidates = candidates
+                .Where(static source => !IsQualifiedSourceAddress(source.Address))
+                .ToArray();
+            return candidates.Length == 1 ? candidates[0] : null;
+        }
+
+        string[] qualifiedCandidates = candidates
+            .Select(static source => NormalizeSourceAddress(source.Address))
+            .Where(IsQualifiedSourceAddress)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (qualifiedCandidates.Length > 1) {
+            return null;
+        }
+        if (qualifiedCandidates.Length == 1) {
+            return candidates.First(source => string.Equals(
+                NormalizeSourceAddress(source.Address),
+                qualifiedCandidates[0],
+                StringComparison.OrdinalIgnoreCase));
+        }
+        return candidates.Length == 1 ? candidates[0] : null;
+    }
+
+    private static string NormalizeSourceAddress(string source) =>
+        EventLogTarget.IsLocalMachine(source)
+            ? EventLogTarget.LocalMachineName
+            : source.Trim().TrimEnd('.');
+
+    private static string GetSourceLeaf(string source) {
+        string normalized = NormalizeSourceAddress(source);
+        int separator = normalized.IndexOf('.');
+        return separator < 0 ? normalized : normalized.Substring(0, separator);
+    }
+
+    private static bool IsQualifiedSourceAddress(string source) =>
+        NormalizeSourceAddress(source).IndexOf('.') >= 0;
 
     private static void AddCollectorBooleanCheck(
         List<EventReadinessCheckResult> checks,

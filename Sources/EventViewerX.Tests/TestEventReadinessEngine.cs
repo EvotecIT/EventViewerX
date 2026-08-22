@@ -99,6 +99,35 @@ public sealed class TestEventReadinessEngine {
         Assert.Contains(report.Checks, static check => check.Layer == EventReadinessLayer.Configuration);
     }
 
+    [Theory]
+    [InlineData(EventLogProbeStatus.Timeout, EventReadinessDiagnosticKind.Timeout)]
+    [InlineData(EventLogProbeStatus.Error, EventReadinessDiagnosticKind.Error)]
+    public void IndeterminateTransportFailuresRemainUnknown(
+        EventLogProbeStatus probeStatus,
+        EventReadinessDiagnosticKind diagnosticKind) {
+
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult(),
+            ProbeResult = CreateProbe(probeStatus, nativeQueryVerified: false),
+            AuditOutcomes = EventAuditOutcome.Success
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest { Types = new[] { EventType.ADUserLogonNTLMv1 } },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult transport = Assert.Single(report.Checks, static check =>
+            check.Layer == EventReadinessLayer.EventLogTransport &&
+            check.Check == "DirectSourceQuery");
+        Assert.Equal(EventReadinessStatus.Unknown, transport.Status);
+        Assert.Equal(EventReadinessEvidenceLevel.Unknown, transport.EvidenceLevel);
+        Assert.Equal(diagnosticKind, transport.DiagnosticKind);
+        Assert.Contains(transport, report.UnknownRequiredChecks);
+        Assert.DoesNotContain(transport, report.RequiredFailures);
+        Assert.False(report.IsComplete);
+    }
+
     [Fact]
     public void ScenarioAndExplicitTypesAreMutuallyExclusive() {
         var evidence = new FakeEvidenceProvider { TargetResult = LocalTargetResult() };
@@ -131,7 +160,7 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
-    public void UnexpectedProbeFailureBecomesEvidenceAndDoesNotAbortTheReport() {
+    public void UnexpectedProbeFailureBecomesUnknownEvidenceAndDoesNotAbortTheReport() {
         var evidence = new FakeEvidenceProvider {
             TargetResult = LocalTargetResult(),
             ProbeException = new InvalidOperationException("probe failed"),
@@ -143,8 +172,9 @@ public sealed class TestEventReadinessEngine {
             evidence,
             CancellationToken.None);
 
-        Assert.Contains(report.RequiredFailures, static check =>
+        Assert.Contains(report.UnknownRequiredChecks, static check =>
             check.Layer == EventReadinessLayer.EventLogTransport &&
+            check.DiagnosticKind == EventReadinessDiagnosticKind.Error &&
             check.Evidence.Contains("probe failed", StringComparison.Ordinal));
         Assert.Contains(report.Checks, static check =>
             check.Layer == EventReadinessLayer.AuditPolicy &&
@@ -468,6 +498,96 @@ public sealed class TestEventReadinessEngine {
             check.Target == EventLogTarget.LocalMachineName);
         Assert.Equal(EventReadinessStatus.Pass, runtime.Status);
         Assert.DoesNotContain(report.Checks, static check => string.IsNullOrWhiteSpace(check.Target));
+    }
+
+    [Fact]
+    public void ShortExpectedSourceMatchesOneQualifiedRuntimeSource() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "DC01" }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal("DC01", source.Target);
+        Assert.Equal(EventReadinessStatus.Pass, source.Status);
+    }
+
+    [Fact]
+    public void QualifiedExpectedSourceMatchesOneShortRuntimeSource() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "DC01",
+                Status = "Active",
+                LastErrorCode = 0
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal("dc01.example.com", source.Target);
+        Assert.Equal(EventReadinessStatus.Pass, source.Status);
+    }
+
+    [Fact]
+    public void AmbiguousShortRuntimeSourcesFailClosed() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0
+            },
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.trusted.example",
+                Status = "Active",
+                LastErrorCode = 0
+            }
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "DC01" }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal(EventReadinessStatus.Fail, source.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, source.DiagnosticKind);
+    }
+
+    [Fact]
+    public void DifferentQualifiedSourceWithSameLeafDoesNotMatch() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.trusted.example",
+                Status = "Active",
+                LastErrorCode = 0
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal(EventReadinessStatus.Fail, source.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, source.DiagnosticKind);
     }
 
     [Fact]
