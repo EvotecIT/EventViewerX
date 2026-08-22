@@ -67,6 +67,26 @@ public sealed class TestEventRequirementCatalog {
     }
 
     [Fact]
+    public void CertificateIssuanceDeclaresAuthorityAuditAndFilterRequirements() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(
+            EventType.CertificateIssued);
+
+        EventPrerequisite role = Assert.Single(
+            requirement.Prerequisites,
+            static item => item.Kind == EventRequirementKind.TargetRole);
+        Assert.Equal("target-role:certification-authority", role.Key);
+        EventPrerequisite audit = Assert.Single(
+            requirement.Prerequisites,
+            static item => item.Kind == EventRequirementKind.AuditPolicy);
+        Assert.Equal("audit:certification-services", audit.Key);
+        Assert.Equal(EventAuditOutcome.Success, audit.AuditOutcomes);
+        Assert.Equal(new Guid("0CCE9221-69AE-11D9-BED3-505054503030"), audit.AuditSubcategoryGuid);
+        Assert.Contains(
+            requirement.Prerequisites,
+            static item => item.Key == "configuration:certification-authority-audit-filter-requests");
+    }
+
+    [Fact]
     public void LdapDetailsExplainDiagnosticConfigurationWithoutMutatingIt() {
         EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.ADLdapBindingDetails);
         EventPrerequisite configuration = Assert.Single(

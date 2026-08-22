@@ -92,6 +92,18 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 StringComparison.OrdinalIgnoreCase)) {
             return ReadLocalDomainControllerRole();
         }
+        if (string.Equals(
+                requirementKey,
+                "target-role:certification-authority",
+                StringComparison.OrdinalIgnoreCase)) {
+            return ReadLocalCertificateAuthorityRole();
+        }
+        if (string.Equals(
+                requirementKey,
+                "configuration:certification-authority-audit-filter-requests",
+                StringComparison.OrdinalIgnoreCase)) {
+            return ReadLocalCertificateAuthorityAuditFilter();
+        }
         if (!string.Equals(
                 requirementKey,
                 "configuration:ntds-ldap-interface-events-2",
@@ -363,6 +375,86 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 EventReadinessStatus.Unknown,
                 "The local Windows product role could not be inspected: " + exception.Message,
                 "Confirm the source role manually or select domain controllers explicitly.",
+                EventReadinessDiagnosticKind.Error);
+        }
+    }
+
+    private static EventReadinessConfigurationEvidence ReadLocalCertificateAuthorityRole() {
+        try {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\CertSvc\Configuration",
+                writable: false);
+            string? activeAuthority = key?.GetValue("Active") as string;
+            return key != null && !string.IsNullOrWhiteSpace(activeAuthority)
+                ? new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Pass,
+                    $"The local Active Directory Certificate Services authority is '{activeAuthority}'.",
+                    string.Empty)
+                : new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "No active local Active Directory Certificate Services Certification Authority was found.",
+                    "Assess the Certification Authority that emits the selected certificate events.",
+                    EventReadinessDiagnosticKind.Missing);
+        } catch (UnauthorizedAccessException exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The current identity cannot inspect the local Certification Authority role: " + exception.Message,
+                "Run with an identity allowed to read the local CertSvc configuration registry key.",
+                EventReadinessDiagnosticKind.AccessDenied);
+        } catch (Exception exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The local Certification Authority role could not be inspected: " + exception.Message,
+                "Confirm the source role manually or assess the Certification Authority directly.",
+                EventReadinessDiagnosticKind.Error);
+        }
+    }
+
+    private static EventReadinessConfigurationEvidence ReadLocalCertificateAuthorityAuditFilter() {
+        const int IssueAndManageCertificateRequests = 4;
+        try {
+            using RegistryKey? configuration = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\CertSvc\Configuration",
+                writable: false);
+            string? activeAuthority = configuration?.GetValue("Active") as string;
+            if (string.IsNullOrWhiteSpace(activeAuthority)) {
+                return new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "No active local Certification Authority configuration was found.",
+                    "Assess the Certification Authority that emits the selected certificate events.",
+                    EventReadinessDiagnosticKind.Missing);
+            }
+            using RegistryKey? authority = configuration!.OpenSubKey(activeAuthority, writable: false);
+            object? value = authority?.GetValue("AuditFilter");
+            if (value == null) {
+                return new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    $"Certification Authority '{activeAuthority}' has no readable AuditFilter value.",
+                    "Enable 'Issue and manage certificate requests' in the Certification Authority auditing properties.",
+                    EventReadinessDiagnosticKind.Missing);
+            }
+            int filter = Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+            return (filter & IssueAndManageCertificateRequests) != 0
+                ? new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Pass,
+                    $"Certification Authority '{activeAuthority}' AuditFilter includes issue/manage certificate requests (value {filter}).",
+                    string.Empty)
+                : new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    $"Certification Authority '{activeAuthority}' AuditFilter value {filter} does not include issue/manage certificate requests (bit 4).",
+                    "Enable 'Issue and manage certificate requests' in the Certification Authority auditing properties.",
+                    EventReadinessDiagnosticKind.InvalidConfiguration);
+        } catch (UnauthorizedAccessException exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The current identity cannot inspect the Certification Authority audit filter: " + exception.Message,
+                "Run with an identity allowed to read the local CertSvc configuration registry key.",
+                EventReadinessDiagnosticKind.AccessDenied);
+        } catch (Exception exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The Certification Authority audit filter could not be inspected: " + exception.Message,
+                "Inspect the Certification Authority auditing properties manually.",
                 EventReadinessDiagnosticKind.Error);
         }
     }

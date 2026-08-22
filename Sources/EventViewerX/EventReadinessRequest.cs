@@ -47,7 +47,7 @@ public sealed class EventReadinessRequest {
         }
         string[] expectedSources = ExpectedSources
             .Where(static source => !string.IsNullOrWhiteSpace(source))
-            .Select(static source => source.Trim().TrimEnd('.'))
+            .Select(static source => NormalizeExpectedSource(source))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (expectedSources.Length > 0 && subscriptionName == null) {
@@ -74,4 +74,9 @@ public sealed class EventReadinessRequest {
             MaxEventsToScan = MaxEventsToScan
         };
     }
+
+    private static string NormalizeExpectedSource(string source) =>
+        EventLogTarget.IsLocalMachine(source)
+            ? EventLogTarget.LocalMachineName
+            : source.Trim().TrimEnd('.');
 }

@@ -36,6 +36,7 @@ public static class EventRequirementCatalog {
             [EventType.FirewallRuleChange] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },
             [EventType.ScheduledTaskCreated] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
             [EventType.ScheduledTaskDeleted] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
+            [EventType.CertificateIssued] = CertificateIssuance(),
             [EventType.ADGroupPolicyChanges] = DirectoryChanges(),
             [EventType.ADGroupPolicyEdits] = DirectoryChanges(),
             [EventType.ADGroupPolicyLinks] = DirectoryChanges(),
@@ -103,6 +104,13 @@ public static class EventRequirementCatalog {
         "The selected events are emitted by a domain controller, so querying another Windows role cannot prove coverage.",
         "Event source computer");
 
+    private static EventPrerequisite CertificateAuthorityRole() => new(
+        "target-role:certification-authority",
+        EventRequirementKind.TargetRole,
+        "Certification Authority source role",
+        "Certificate request and issuance events are emitted by an Active Directory Certificate Services Certification Authority.",
+        "Event source computer");
+
     private static EventPrerequisite Audit(
         string key,
         string name,
@@ -143,9 +151,27 @@ public static class EventRequirementCatalog {
             AuditBase + "audit-directory-service-changes")
     };
 
+    private static EventPrerequisite[] CertificateIssuance() => new[] {
+        CertificateAuthorityRole(),
+        Audit(
+            "certification-services",
+            "Audit Certification Services",
+            EventAuditOutcome.Success,
+            "Certification Authority servers",
+            "audit-certification-services",
+            EventRequirementVolume.Medium),
+        Configuration(
+            "certification-authority-audit-filter-requests",
+            "Certification Authority request audit filter",
+            "The Certification Authority audit filter must include 'Issue and manage certificate requests' (bit 4) for events 4886 and 4887.",
+            "Certification Authority servers",
+            "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/dn786422(v=ws.11)")
+    };
+
     private static Guid ResolveAuditSubcategoryGuid(string key) => key switch {
         "logon-success" or "logon-failure" => new Guid("0CCE9215-69AE-11D9-BED3-505054503030"),
         "special-logon" => new Guid("0CCE921B-69AE-11D9-BED3-505054503030"),
+        "certification-services" => new Guid("0CCE9221-69AE-11D9-BED3-505054503030"),
         "other-object-access" => new Guid("0CCE9227-69AE-11D9-BED3-505054503030"),
         "audit-policy-change" => new Guid("0CCE922F-69AE-11D9-BED3-505054503030"),
         "authentication-policy-change" => new Guid("0CCE9230-69AE-11D9-BED3-505054503030"),

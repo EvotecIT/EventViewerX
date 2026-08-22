@@ -518,7 +518,11 @@ public static partial class EventReadinessEngine {
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in requirements) {
                 EventReadinessConfigurationEvidence evidence;
-                if (target.Kind == EventTargetKind.DomainController) {
+                if (target.Kind == EventTargetKind.DomainController &&
+                    string.Equals(
+                        requirement.Key,
+                        "target-role:domain-controller",
+                        StringComparison.OrdinalIgnoreCase)) {
                     evidence = new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Pass,
                         "Active Directory discovery identified this target as a domain controller.",
@@ -528,8 +532,8 @@ public static partial class EventReadinessEngine {
                 } else {
                     evidence = new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Unknown,
-                        "The collector query does not prove the Windows role of each forwarding source.",
-                        "Confirm that the subscription contains the intended domain controllers and retain per-source runtime evidence.",
+                        $"The collector query does not prove the required source role '{requirement.Name}'.",
+                        "Confirm the required Windows role on each forwarding source and retain per-source runtime evidence.",
                         EventReadinessDiagnosticKind.NoEvidence);
                 }
                 checks.Add(new EventReadinessCheckResult(

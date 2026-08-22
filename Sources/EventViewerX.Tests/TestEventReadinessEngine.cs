@@ -390,6 +390,58 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void LocalExpectedSourceAliasesCanonicalizeForRuntimeEnrollment() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = EventLogTarget.LocalMachineName,
+                Status = "Active",
+                LastErrorCode = 0
+            }
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { ".", "localhost", EventLogTarget.LocalMachineName }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult runtime = Assert.Single(report.Checks, check =>
+            check.Check == "ExpectedSourceRuntime" &&
+            check.Target == EventLogTarget.LocalMachineName);
+        Assert.Equal(EventReadinessStatus.Pass, runtime.Status);
+        Assert.DoesNotContain(report.Checks, static check => string.IsNullOrWhiteSpace(check.Target));
+    }
+
+    [Fact]
+    public void DomainControllerDiscoveryDoesNotProveCertificateAuthorityRole() {
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = DomainControllerTargetResult(),
+            AuditOutcomes = EventAuditOutcome.Success,
+            ProbeResult = CreateProbe(EventLogProbeStatus.NoEvent, nativeQueryVerified: true)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.CertificateIssued },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult role = Assert.Single(report.Checks, static check =>
+            check.RequirementKey == "target-role:certification-authority");
+        Assert.Equal(EventReadinessStatus.Unknown, role.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, role.DiagnosticKind);
+    }
+
+    [Fact]
     public void ConfirmedWinRmServiceFailureSurvivesUnknownListenerEvidence() {
         var evidence = CreateCollectorEvidence();
         evidence.CollectorReadiness.WinRmServiceRunning = false;
