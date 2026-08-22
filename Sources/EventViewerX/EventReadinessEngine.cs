@@ -293,8 +293,11 @@ public static partial class EventReadinessEngine {
         List<EventReadinessCheckResult> checks) {
 
         foreach (EventTargetDomainResult domain in discovery.Domains) {
-            EventTargetDiscoveryFailure? firstFailure = domain.Failures.FirstOrDefault();
-            bool indeterminate = firstFailure != null && IsIndeterminateDiscoveryFailure(firstFailure.Kind);
+            EventTargetDiscoveryFailure? representativeFailure = SelectAggregateDiscoveryFailure(
+                domain.Failures,
+                discovery);
+            bool indeterminate = representativeFailure != null &&
+                IsIndeterminateDiscoveryFailure(representativeFailure, discovery);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 "DomainControllers",
@@ -312,14 +315,14 @@ public static partial class EventReadinessEngine {
                     ? string.Empty
                     : "Review the per-domain discovery failures, DNS, trust direction, and directory permissions.",
                 required: true,
-                diagnosticKind: firstFailure == null
+                diagnosticKind: representativeFailure == null
                     ? domain.Targets.Count == 0
                         ? EventReadinessDiagnosticKind.Missing
                         : EventReadinessDiagnosticKind.None
-                    : MapDiscoveryFailure(firstFailure.Kind)));
+                    : MapDiscoveryFailure(representativeFailure.Kind)));
         }
         foreach (EventTargetDiscoveryFailure failure in discovery.Failures) {
-            bool indeterminate = IsIndeterminateDiscoveryFailure(failure.Kind);
+            bool indeterminate = IsIndeterminateDiscoveryFailure(failure, discovery);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 failure.Stage,
@@ -332,24 +335,25 @@ public static partial class EventReadinessEngine {
                 diagnosticKind: MapDiscoveryFailure(failure.Kind)));
         }
         if (discovery.Targets.Count == 0) {
-            EventTargetDiscoveryFailure? firstFailure = discovery.Failures
-                .Concat(discovery.Domains.SelectMany(static domain => domain.Failures))
-                .FirstOrDefault();
-            bool indeterminate = firstFailure != null && IsIndeterminateDiscoveryFailure(firstFailure.Kind);
+            EventTargetDiscoveryFailure? representativeFailure = SelectAggregateDiscoveryFailure(
+                discovery.Failures.Concat(discovery.Domains.SelectMany(static domain => domain.Failures)),
+                discovery);
+            bool indeterminate = representativeFailure != null &&
+                IsIndeterminateDiscoveryFailure(representativeFailure, discovery);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 "ResolvedTargets",
                 discovery.RequestedName ?? discovery.Scope.ToString(),
                 indeterminate ? EventReadinessStatus.Unknown : EventReadinessStatus.Fail,
                 indeterminate ? EventReadinessEvidenceLevel.Unknown : EventReadinessEvidenceLevel.Inspected,
-                firstFailure == null
+                representativeFailure == null
                     ? "No event-log target was resolved."
-                    : "No event-log target was resolved because discovery did not complete: " + firstFailure.Message,
+                    : "No event-log target was resolved because discovery did not complete: " + representativeFailure.Message,
                 "Correct the explicit scope or use the default local-machine assessment.",
                 required: true,
-                diagnosticKind: firstFailure == null
+                diagnosticKind: representativeFailure == null
                     ? EventReadinessDiagnosticKind.Missing
-                    : MapDiscoveryFailure(firstFailure.Kind)));
+                    : MapDiscoveryFailure(representativeFailure.Kind)));
         } else if (discovery.Domains.Count == 0 && discovery.Failures.Count == 0) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
@@ -363,11 +367,37 @@ public static partial class EventReadinessEngine {
         }
     }
 
-    private static bool IsIndeterminateDiscoveryFailure(EventTargetDiscoveryFailureKind kind) => kind is
-        EventTargetDiscoveryFailureKind.AccessDenied or
-        EventTargetDiscoveryFailureKind.Timeout or
-        EventTargetDiscoveryFailureKind.LimitReached or
-        EventTargetDiscoveryFailureKind.Error;
+    private static EventTargetDiscoveryFailure? SelectAggregateDiscoveryFailure(
+        IEnumerable<EventTargetDiscoveryFailure> failures,
+        EventTargetDiscoveryResult discovery) {
+
+        EventTargetDiscoveryFailure[] snapshot = failures.ToArray();
+        return snapshot.FirstOrDefault(failure => IsIndeterminateDiscoveryFailure(failure, discovery)) ??
+            snapshot.FirstOrDefault();
+    }
+
+    private static bool IsIndeterminateDiscoveryFailure(
+        EventTargetDiscoveryFailure failure,
+        EventTargetDiscoveryResult discovery) {
+
+        if (failure.Kind is EventTargetDiscoveryFailureKind.AccessDenied or
+            EventTargetDiscoveryFailureKind.Timeout or
+            EventTargetDiscoveryFailureKind.LimitReached or
+            EventTargetDiscoveryFailureKind.Error) {
+            return true;
+        }
+        if (failure.Kind != EventTargetDiscoveryFailureKind.NotFound) {
+            return false;
+        }
+        string expectedStage = discovery.Scope switch {
+            EventTargetDiscoveryScope.Domain => "ResolveDomain",
+            EventTargetDiscoveryScope.Forest => "ResolveForest",
+            _ => string.Empty
+        };
+        return string.IsNullOrWhiteSpace(discovery.RequestedName) ||
+            !string.Equals(failure.Stage, expectedStage, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(failure.Scope, discovery.RequestedName, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static EventReadinessCheckResult CreateTransportCheck(
         EventTargetInfo target,

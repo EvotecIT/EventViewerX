@@ -577,6 +577,83 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void TrustedForestNotFoundRemainsUnknown() {
+        var failure = new EventTargetDiscoveryFailure(
+            "trusted.example.com",
+            "ResolveTrustedForest",
+            EventTargetDiscoveryFailureKind.NotFound,
+            "trusted forest unavailable");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.Forest,
+                "root.example.com",
+                Array.Empty<EventTargetInfo>(),
+                Array.Empty<EventTargetDomainResult>(),
+                new[] { failure },
+                "UNAVAILABLE",
+                TimeSpan.Zero)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Forest,
+                    Name = "root.example.com",
+                    IncludeTrustedForests = true
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult trust = Assert.Single(report.Checks, static check => check.Check == "ResolveTrustedForest");
+        Assert.Equal(EventReadinessStatus.Unknown, trust.Status);
+        Assert.Equal(EventReadinessEvidenceLevel.Unknown, trust.EvidenceLevel);
+        EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
+        Assert.Equal(EventReadinessStatus.Unknown, resolved.Status);
+    }
+
+    [Fact]
+    public void IndeterminateFailureDominatesAggregateRegardlessOfOrdering() {
+        var definitive = new EventTargetDiscoveryFailure(
+            "missing.example.com",
+            "ResolveDomain",
+            EventTargetDiscoveryFailureKind.NotFound,
+            "domain not found");
+        var timeout = new EventTargetDiscoveryFailure(
+            "trusted.example.com",
+            "ResolveTrustedForest",
+            EventTargetDiscoveryFailureKind.Timeout,
+            "trusted forest timed out");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.Domain,
+                "missing.example.com",
+                Array.Empty<EventTargetInfo>(),
+                Array.Empty<EventTargetDomainResult>(),
+                new[] { definitive, timeout },
+                "MIXED",
+                TimeSpan.Zero)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Domain,
+                    Name = "missing.example.com"
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
+        Assert.Equal(EventReadinessStatus.Unknown, resolved.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Timeout, resolved.DiagnosticKind);
+        Assert.DoesNotContain(resolved, report.RequiredFailures);
+    }
+
+    [Fact]
     public void BroadScenarioPartitionsNativeProbeFiltersInsteadOfExceedingXPathLimit() {
         var evidence = new FakeEvidenceProvider {
             TargetResult = LocalTargetResult(),
