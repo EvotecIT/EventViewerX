@@ -609,8 +609,11 @@ public sealed class TestEventReadinessEngine {
         EventReadinessCheckResult trust = Assert.Single(report.Checks, static check => check.Check == "ResolveTrustedForest");
         Assert.Equal(EventReadinessStatus.Unknown, trust.Status);
         Assert.Equal(EventReadinessEvidenceLevel.Unknown, trust.EvidenceLevel);
+        Assert.Equal(EventReadinessDiagnosticKind.Unavailable, trust.DiagnosticKind);
         EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
         Assert.Equal(EventReadinessStatus.Unknown, resolved.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Unavailable, resolved.DiagnosticKind);
+        Assert.False(report.IsComplete);
     }
 
     [Fact]

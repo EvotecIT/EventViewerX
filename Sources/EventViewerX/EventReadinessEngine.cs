@@ -319,7 +319,7 @@ public static partial class EventReadinessEngine {
                     ? domain.Targets.Count == 0
                         ? EventReadinessDiagnosticKind.Missing
                         : EventReadinessDiagnosticKind.None
-                    : MapDiscoveryFailure(representativeFailure.Kind)));
+                    : MapDiscoveryFailure(representativeFailure, discovery)));
         }
         foreach (EventTargetDiscoveryFailure failure in discovery.Failures) {
             bool indeterminate = IsIndeterminateDiscoveryFailure(failure, discovery);
@@ -332,7 +332,7 @@ public static partial class EventReadinessEngine {
                 failure.Message,
                 "Review directory membership, DNS, reachability, permissions, and the explicit discovery scope.",
                 required: true,
-                diagnosticKind: MapDiscoveryFailure(failure.Kind)));
+                diagnosticKind: MapDiscoveryFailure(failure, discovery)));
         }
         if (discovery.Targets.Count == 0) {
             EventTargetDiscoveryFailure? representativeFailure = SelectAggregateDiscoveryFailure(
@@ -353,7 +353,7 @@ public static partial class EventReadinessEngine {
                 required: true,
                 diagnosticKind: representativeFailure == null
                     ? EventReadinessDiagnosticKind.Missing
-                    : MapDiscoveryFailure(representativeFailure.Kind)));
+                    : MapDiscoveryFailure(representativeFailure, discovery)));
         } else if (discovery.Domains.Count == 0 && discovery.Failures.Count == 0) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
@@ -650,11 +650,15 @@ public static partial class EventReadinessEngine {
         }
     }
 
-    private static EventReadinessDiagnosticKind MapDiscoveryFailure(EventTargetDiscoveryFailureKind kind) => kind switch {
+    private static EventReadinessDiagnosticKind MapDiscoveryFailure(
+        EventTargetDiscoveryFailure failure,
+        EventTargetDiscoveryResult discovery) => failure.Kind switch {
         EventTargetDiscoveryFailureKind.AccessDenied => EventReadinessDiagnosticKind.AccessDenied,
         EventTargetDiscoveryFailureKind.Timeout => EventReadinessDiagnosticKind.Timeout,
         EventTargetDiscoveryFailureKind.LimitReached => EventReadinessDiagnosticKind.Truncated,
-        EventTargetDiscoveryFailureKind.NotFound => EventReadinessDiagnosticKind.Missing,
+        EventTargetDiscoveryFailureKind.NotFound => IsIndeterminateDiscoveryFailure(failure, discovery)
+            ? EventReadinessDiagnosticKind.Unavailable
+            : EventReadinessDiagnosticKind.Missing,
         EventTargetDiscoveryFailureKind.NotDomainJoined => EventReadinessDiagnosticKind.InvalidConfiguration,
         _ => EventReadinessDiagnosticKind.Error
     };
