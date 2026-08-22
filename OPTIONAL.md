@@ -447,10 +447,13 @@ This replaces growing collections of mutually exclusive nullable properties insi
 A stable consumer/query-profile identity identifies the scheduled job. It is
 derived from an explicit profile name or a canonical fingerprint of the event
 types/definition, typed predicate, source-selection semantics, and other
-record-eligibility semantics. Credentials, resolved target membership, moving
-relative execution windows, concurrency, and scan/page caps are excluded.
-Fixed absolute start/end bounds are included because changing them changes the
-eligible historical record set. When an explicit profile name is used, the store also retains the
+record-eligibility semantics. Credentials, resolved target membership,
+run-specific timestamps calculated from a relative window, concurrency, and
+scan/page caps are excluded. The canonical relative-window preset or duration
+itself is included, so changing `Last1Hour` to `Last24Hours` changes identity
+without making every scheduled run a new profile. Fixed absolute start/end
+bounds are also included because changing them changes the eligible historical
+record set. When an explicit profile name is used, the store also retains the
 canonical semantic fingerprint and rejects accidental reuse of that name for a
 different filter or fixed bound unless the operator performs an explicit
 checkpoint reset/migration that records the old and new fingerprints.
@@ -590,6 +593,13 @@ enrichment output. Definitions never overwrite source evidence.
 Event definitions cannot register or execute scripts, delegates, expressions with method calls, or process-local providers. EventViewerX owns the complete supported enrichment catalog and its stable output fields.
 
 Compiled third-party provider registration is also outside the adopted scope. It can be reconsidered later if a real reusable provider cannot be shipped in EventViewerX itself. Ordinary PowerShell pipeline post-processing remains possible because PowerShell objects are composable, but it is not an EventViewerX definition or enrichment feature and does not alter EventViewerX report schema.
+
+Existing projection-time directory calls—including the current GPO lookups in
+`ADGroupPolicyEdits` and `ADGroupPolicyLinks`—must be removed from record
+constructors. They route exclusively through the bounded `GroupPolicy`
+provider, after `LiveLookup`, credential, timeout, cache, and authorization
+policy are known. `LiveLookup Never` therefore performs no directory call with
+either the process identity or an implicit credential.
 
 ### Persistent historical context
 
@@ -942,16 +952,26 @@ real workflow defines whether it means an occurrence lifetime, two explicit
 datetime operands, or another interval, including aggregation and null rules.
 
 ```powershell
+$lockoutBatch = Get-EVXEvent `
+    -Type ADUserLockouts `
+    -ActiveDirectory CurrentForest `
+    -AsResult
+
 Measure-EVXEvent `
-    -InputObject $lockouts `
+    -InputResult $lockoutBatch `
     -GroupBy UserAffected `
     -Measure Count `
     -Top 10
 
+$failureBatch = Get-EVXEvent `
+    -Type ADUserLogonFailed `
+    -ActiveDirectory CurrentDomain `
+    -AsResult
+
 Measure-EVXEvent `
-    -InputObject $failures `
+    -InputResult $failureBatch `
     -GroupBy SourceComputer `
-    -Measure @{ Operation = 'DistinctCount'; Field = 'AccountIdentity'; Nulls = 'Exclude' }
+    -Measure @{ Operation = 'DistinctCount'; Field = 'ObjectAffected'; Nulls = 'Exclude' }
 
 Show-EVXEvent -FromStore C:\EVX\events.db `
     -Type ADUserLogonFailed `
@@ -969,23 +989,51 @@ type unless it selects one leaf explicitly or declares missing-value behavior.
 For example, two properties named `Who` cannot be aggregated together when
 one means an account identity and another means a workstation identity.
 
+Top-N ordering is total, not measure-only. Requested order and measure values
+are compared first; ties are broken by the canonical serialized group key using
+the declared ordinal Unicode/case policy, with null/unknown ordered by its
+explicit bucket token. This secondary order is mandatory even when the caller
+specifies only `-Top`, and providers must use the same key bytes.
+
+Time-bucket identity is the pair of UTC start/end instants produced from the
+requested local calendar boundary plus the display timezone/offset. During a
+fall-back overlap, the repeated local hour is represented by two distinct
+offset-qualified buckets. During a spring-forward gap, the nonexistent local
+hour produces no bucket. A local calendar day runs from one valid local
+midnight to the next; its `Rate` denominator is elapsed UTC duration and is
+therefore normally 24 hours but may be 23 or 25. Ambiguous/nonexistent boundary
+conversion uses the timezone's ordered offsets and next valid instant,
+respectively, and the chosen UTC boundaries are serialized in the result.
+
 ### Execution
 
 - In-memory reports use the shared managed aggregation engine.
 - Managed execution requires explicit `MaximumGroups` and
   `MaximumDistinctValues` bounds plus a total aggregation-state memory budget.
   Defaults are conservative and scenario-owned; callers may lower them, while
-  raising them is explicit. Reaching any bound stops accepting new state,
-  marks the result incomplete with the exact bound and observed counts, and
-  never presents top-N as complete merely because final output is small.
+  raising them is explicit. If a complete grouping would exceed any bound, the
+  initial engine fails closed with an incomplete diagnostic-only result and no
+  aggregate/top-N/`Other` rows. It does not keep the first groups encountered,
+  so input order cannot change a partial answer. A caller may rerun with a
+  larger explicit bound or a provider that can prove a bounded complete result.
 - The initial managed engine does not spill sensitive event-derived state to
   disk implicitly. A future explicit spill mode must use a caller-selected,
   protected store and preserve the same incomplete-result contract.
 - Storage providers may push supported group/bucket/measure operations into the database.
 - Pushdown must enforce equivalent group/cardinality/result bounds or reject
-  the request; a provider cannot bypass the managed safety contract.
+  the request. It may count cardinality within the same bounded query before
+  materializing rows; a provider cannot bypass the managed safety contract.
 - Unsupported provider operations fall back to the managed engine only when the bounded read is acceptable.
 - `Explain` reports which filters and aggregations were pushed down, which ran in managed code, and whether a cap made the result incomplete.
+
+Aggregation accepts an `EventQueryBatchResult` envelope containing rows,
+per-target coverage/failures, truncation, cancellation, and source-query
+identity. `Get-EVXEvent -AsResult` and store/report owners produce that envelope.
+Plain `-InputObject` rows have `InputCompleteness = Unknown` unless the caller
+explicitly supplies a validated completeness descriptor; `EventAggregationResult`
+then remains incomplete even when aggregation state itself is bounded. A
+failure or timeout on one source can never disappear merely because only the
+successful rows flowed through the PowerShell pipeline.
 
 Renderers consume `EventAggregationResult`. Excel and HTML do not independently decide how to group data. Chart type is a presentation choice applied to an already-computed result.
 
@@ -1008,7 +1056,8 @@ Renderers consume `EventAggregationResult`. Excel and HTML do not independently 
 - Account-lockout top-N is identical in PowerShell objects, CLI JSON, HTML, and Excel.
 - Unicode account names and case variants follow one documented grouping policy.
 - Time buckets handle UTC, timezone conversion, DST gaps, and overlaps deterministically.
-- Query and aggregation truncation are visible.
+- Query coverage plus aggregation truncation are preserved in every result and
+  renderer; a plain row array is never silently labeled complete.
 - High-cardinality group and distinct-count inputs stop at deterministic state
   bounds and cannot exhaust memory merely because `Top` is small.
 - SQLite pushdown and managed fallback produce the same result for the same bounded dataset.
