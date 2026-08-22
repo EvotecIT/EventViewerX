@@ -17,6 +17,7 @@ public static class EventRequirementCatalog {
             [EventType.ADGroupMembershipChange] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
             [EventType.ADGroupChange] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
             [EventType.ADGroupCreateDelete] = new[] { Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management") },
+            [EventType.ADGroupEnumeration] = new[] { Audit("user-account-management", "Audit User Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-user-account-management") },
             [EventType.ADComputerCreateChange] = new[] { Audit("computer-account-management", "Audit Computer Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-computer-account-management") },
             [EventType.ADComputerDeleted] = new[] { Audit("computer-account-management", "Audit Computer Account Management", EventAuditOutcome.Success, "Domain controllers", "audit-computer-account-management") },
             [EventType.KerberosTGTRequest] = new[] {

@@ -291,7 +291,7 @@ Grant only the scheduled-task identity and operators who need the reports
 access to these folders. Event history can contain account names, addresses,
 and changed directory values.
 
-### 2. Prove readiness as the task identity
+### 2. Run an interactive readiness preflight
 
 ```powershell
 $readiness = Test-EVXReadiness `
@@ -306,6 +306,12 @@ $readiness.Checks |
 $readiness.RequiredFailures
 $readiness.UnknownRequiredChecks
 ```
+
+This preflight runs under the current elevated identity. It validates the
+selected deployment before task registration, but it does not prove the
+permissions of Local System, a gMSA, or another scheduled principal. Step 7
+runs the same readiness assessment through the actual task principal and saves
+its typed result for inspection.
 
 Here `CurrentDomain` matches the Domain Controllers group SID used by the
 subscription ACL and supplies that domain's expected DC set. On a local
@@ -400,7 +406,7 @@ creating duplicate history.
 UTC calendar buckets in the retained store and includes partial boundary days
 when the rolling window crosses midnight.
 
-### 6. Register two non-interactive tasks
+### 6. Register the unattended tasks
 
 The following example uses Local System on the WEC computer so no password is
 stored in the task. If policy requires a gMSA or dedicated service account,
@@ -409,9 +415,12 @@ rights it needs. Task Scheduler runs such identities in a non-interactive
 session; do not use `-Open` or another UI-dependent action.
 
 ```powershell
+Install-Module -Name PSEventViewer -Scope AllUsers -Force
+
 $evx = 'C:\Program Files\EventViewerX\evx.exe'
 $store = 'C:\ProgramData\EventViewerX\events.db'
 $report = 'C:\Reports\EventViewerX\AD-Changes-Daily'
+$readinessOutput = 'C:\ProgramData\EventViewerX\readiness.json'
 
 $principal = New-ScheduledTaskPrincipal `
     -UserId 'SYSTEM' `
@@ -422,6 +431,39 @@ $settings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
     -StartWhenAvailable
+
+$readinessCommand = @'
+Import-Module PSEventViewer
+$readiness = Test-EVXReadiness `
+    -Type ActiveDirectoryChanges `
+    -Collector WEC01 `
+    -SubscriptionName EventViewerX-ADChanges `
+    -ActiveDirectory CurrentDomain
+$readiness |
+    ConvertTo-Json -Depth 8 |
+    Set-Content -LiteralPath C:\ProgramData\EventViewerX\readiness.json -Encoding UTF8
+$identityAccessFailures = $readiness.Checks | Where-Object {
+    $_.DiagnosticKind -eq [EventViewerX.EventReadinessDiagnosticKind]::AccessDenied
+}
+if ($identityAccessFailures) {
+    exit 5
+}
+'@
+$readinessEncoded = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($readinessCommand))
+$readinessAction = New-ScheduledTaskAction `
+    -Execute 'powershell.exe' `
+    -Argument "-NoProfile -NonInteractive -EncodedCommand $readinessEncoded"
+$readinessTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date).AddMinutes(5)
+
+Register-ScheduledTask `
+    -TaskName 'EventViewerX-Verify-Readiness' `
+    -Action $readinessAction `
+    -Trigger $readinessTrigger `
+    -Principal $principal `
+    -Settings $settings
 
 $collectAction = New-ScheduledTaskAction `
     -Execute $evx `
@@ -458,6 +500,27 @@ security impact in [Log on as a batch job](https://learn.microsoft.com/en-us/pre
 ### 7. Verify the unattended boundary
 
 ```powershell
+Remove-Item -LiteralPath $readinessOutput -ErrorAction SilentlyContinue
+Start-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness'
+$readinessDeadline = (Get-Date).AddMinutes(2)
+do {
+    Start-Sleep -Seconds 2
+    $readinessTask = Get-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness'
+    if ((Get-Date) -ge $readinessDeadline) {
+        throw 'The scheduled readiness assessment did not finish within two minutes.'
+    }
+} while ($readinessTask.State -eq 'Running')
+
+$readinessTaskInfo = Get-ScheduledTaskInfo -TaskName 'EventViewerX-Verify-Readiness'
+if ($readinessTaskInfo.LastTaskResult -ne 0) {
+    throw "The scheduled readiness assessment failed with task result $($readinessTaskInfo.LastTaskResult)."
+}
+$taskReadiness = Get-Content -LiteralPath $readinessOutput -Raw |
+    ConvertFrom-Json
+$taskReadiness.Checks |
+    Format-Table Layer, Status, DiagnosticKind, EvidenceLevel, Target, Check -AutoSize
+Unregister-ScheduledTask -TaskName 'EventViewerX-Verify-Readiness' -Confirm:$false
+
 Start-ScheduledTask -TaskName 'EventViewerX-Collect-ADChanges'
 Start-ScheduledTask -TaskName 'EventViewerX-Report-ADChanges'
 
@@ -469,6 +532,11 @@ Get-Item `
     C:\Reports\EventViewerX\AD-Changes-Daily.html, `
     C:\Reports\EventViewerX\AD-Changes-Daily.xlsx
 ```
+
+The one-time readiness task exits with code 5 when the scheduled identity sees
+an `AccessDenied` diagnostic. Other `Unknown` checks, such as effective policy
+that can only be inspected on a remote source, remain visible in the saved
+typed report and require separate evidence rather than being treated as pass.
 
 Also verify WEC runtime status and the source forwarding operational log. A
 successful task exit with an empty report can be correct when no matching

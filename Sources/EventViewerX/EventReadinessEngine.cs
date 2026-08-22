@@ -66,9 +66,10 @@ public static partial class EventReadinessEngine {
             AddTargetDiscoveryChecks(discovery, checks);
         }
 
-        IReadOnlyList<EventTargetInfo> sourceTargets = snapshot.Collector != null && discovery != null
-            ? discovery.Targets
-            : targets;
+        IReadOnlyList<EventTargetInfo> sourceTargets = ResolveSourceTargets(
+            snapshot,
+            discovery,
+            targets);
         AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks);
         EventType[] missingSourceTypes = EventTypeCatalog
             .Expand(snapshot.Types)
@@ -89,8 +90,9 @@ public static partial class EventReadinessEngine {
                 cancellationToken.ThrowIfCancellationRequested();
                 bool collector = target.Kind == EventTargetKind.Collector;
                 string targetLog = collector ? "ForwardedEvents" : source.LogName;
-                string? machineName = target.Kind == EventTargetKind.LocalMachine ? null : target.ComputerName;
-                NetworkCredential? credential = target.Kind == EventTargetKind.LocalMachine
+                bool localTarget = IsLocalSourceTarget(target);
+                string? machineName = localTarget ? null : target.ComputerName;
+                NetworkCredential? credential = localTarget
                     ? null
                     : snapshot.EventLogCredential;
                 EventLogProbeResult probe = collector
@@ -137,6 +139,31 @@ public static partial class EventReadinessEngine {
             ? EventLogTarget.LocalMachineName
             : collector.Trim().TrimEnd('.');
 
+    private static IReadOnlyList<EventTargetInfo> ResolveSourceTargets(
+        EventReadinessRequest request,
+        EventTargetDiscoveryResult? discovery,
+        IReadOnlyList<EventTargetInfo> transportTargets) {
+
+        if (request.Collector == null) {
+            return transportTargets;
+        }
+        if (discovery != null) {
+            return discovery.Targets;
+        }
+        if (request.ExpectedSources.Count == 0) {
+            return transportTargets;
+        }
+        return request.ExpectedSources
+            .Select(static source => EventLogTarget.IsLocalMachine(source)
+                ? new EventTargetInfo(EventLogTarget.LocalMachineName, EventTargetKind.LocalMachine)
+                : new EventTargetInfo(source, EventTargetKind.EventLogMachine))
+            .ToArray();
+    }
+
+    private static bool IsLocalSourceTarget(EventTargetInfo target) =>
+        target.Kind != EventTargetKind.Collector &&
+        EventLogTarget.IsLocalMachine(target.ComputerName);
+
     private static void AddChannelPolicyChecks(
         EventReadinessRequest request,
         EventTargetDiscoveryResult? discovery,
@@ -146,7 +173,9 @@ public static partial class EventReadinessEngine {
         List<EventReadinessCheckResult> checks,
         CancellationToken cancellationToken) {
 
-        if (request.Collector != null && discovery == null) {
+        if (request.Collector != null &&
+            discovery == null &&
+            request.ExpectedSources.Count == 0) {
             string collectorTarget = NormalizeCollectorTarget(request.Collector);
             foreach (EventSourceDefinition source in sources) {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -168,8 +197,9 @@ public static partial class EventReadinessEngine {
         foreach (EventTargetInfo target in sourceTargets) {
             foreach (EventSourceDefinition source in sources) {
                 cancellationToken.ThrowIfCancellationRequested();
-                string? machineName = target.Kind == EventTargetKind.LocalMachine ? null : target.ComputerName;
-                NetworkCredential? credential = target.Kind == EventTargetKind.LocalMachine
+                bool localTarget = IsLocalSourceTarget(target);
+                string? machineName = localTarget ? null : target.ComputerName;
+                NetworkCredential? credential = localTarget
                     ? null
                     : request.EventLogCredential;
                 try {
@@ -493,13 +523,14 @@ public static partial class EventReadinessEngine {
                         EventReadinessStatus.Pass,
                         "Active Directory discovery identified this target as a domain controller.",
                         string.Empty);
-                } else if (target.Kind == EventTargetKind.LocalMachine) {
+                } else if (IsLocalSourceTarget(target)) {
                     evidence = evidenceProvider.ReadLocalConfiguration(requirement.Key);
                 } else {
                     evidence = new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Unknown,
                         "The collector query does not prove the Windows role of each forwarding source.",
-                        "Confirm that the subscription contains the intended domain controllers and retain per-source runtime evidence.");
+                        "Confirm that the subscription contains the intended domain controllers and retain per-source runtime evidence.",
+                        EventReadinessDiagnosticKind.NoEvidence);
                 }
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.TargetDiscovery,
@@ -536,14 +567,14 @@ public static partial class EventReadinessEngine {
             .Select(static requirement => requirement.AuditSubcategoryGuid!.Value)
             .Distinct()
             .ToArray();
-        bool needsLocalPolicy = targets.Any(static target => target.Kind == EventTargetKind.LocalMachine);
+        bool needsLocalPolicy = targets.Any(IsLocalSourceTarget);
         IReadOnlyDictionary<Guid, EffectiveAuditPolicyResult> localPolicy = guids.Length == 0 || !needsLocalPolicy
             ? new Dictionary<Guid, EffectiveAuditPolicyResult>()
             : QueryAuditPolicySafely(evidenceProvider, guids);
 
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in auditRequirements) {
-                bool local = target.Kind == EventTargetKind.LocalMachine;
+                bool local = IsLocalSourceTarget(target);
                 if (!local || !requirement.AuditSubcategoryGuid.HasValue) {
                     checks.Add(new EventReadinessCheckResult(
                         EventReadinessLayer.AuditPolicy,
@@ -634,12 +665,13 @@ public static partial class EventReadinessEngine {
             .ToArray();
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in requirements) {
-                EventReadinessConfigurationEvidence evidence = target.Kind == EventTargetKind.LocalMachine
+                EventReadinessConfigurationEvidence evidence = IsLocalSourceTarget(target)
                     ? evidenceProvider.ReadLocalConfiguration(requirement.Key)
                     : new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Unknown,
                         "This provider-specific configuration was not read on the remote source.",
-                        "Inspect the documented setting on the source computer with an appropriately scoped identity.");
+                        "Inspect the documented setting on the source computer with an appropriately scoped identity.",
+                        EventReadinessDiagnosticKind.NoEvidence);
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.Configuration,
                     requirement.Name,

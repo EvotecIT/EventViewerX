@@ -29,17 +29,25 @@ public static partial class EventReadinessEngine {
                 AddCollectorBooleanCheck(
                     checks,
                     collector,
-                    "WinRM",
-                    readiness.WinRmDiagnosticKind == EventReadinessDiagnosticKind.None &&
-                    readiness.WinRmListenerDiagnosticKind == EventReadinessDiagnosticKind.None
-                        ? readiness.WinRmServiceRunning && readiness.WinRmListenerAvailable
+                    "WinRMService",
+                    readiness.WinRmDiagnosticKind == EventReadinessDiagnosticKind.None
+                        ? readiness.WinRmServiceRunning
                         : null,
-                    $"WinRM running={readiness.WinRmServiceRunning}; listener available={readiness.WinRmListenerAvailable}.",
+                    $"WinRM running={readiness.WinRmServiceRunning}.",
+                    "Install and start WinRM before configuring Windows Event Forwarding.",
+                    EventReadinessDiagnosticKind.Missing,
+                    readiness.WinRmDiagnosticKind);
+                AddCollectorBooleanCheck(
+                    checks,
+                    collector,
+                    "WinRMListener",
+                    readiness.WinRmListenerDiagnosticKind == EventReadinessDiagnosticKind.None
+                        ? readiness.WinRmListenerAvailable
+                        : null,
+                    $"WinRM listener available={readiness.WinRmListenerAvailable}.",
                     "Configure the required scoped WinRM listener and firewall policy for Windows Event Forwarding.",
                     EventReadinessDiagnosticKind.InvalidConfiguration,
-                    readiness.WinRmDiagnosticKind != EventReadinessDiagnosticKind.None
-                        ? readiness.WinRmDiagnosticKind
-                        : readiness.WinRmListenerDiagnosticKind);
+                    readiness.WinRmListenerDiagnosticKind);
                 AddCollectorBooleanCheck(
                     checks,
                     collector,

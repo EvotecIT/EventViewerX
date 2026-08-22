@@ -55,6 +55,18 @@ public sealed class TestEventRequirementCatalog {
     }
 
     [Fact]
+    public void GroupEnumerationDeclaresUserAccountManagementAuditing() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(
+            EventType.ADGroupEnumeration);
+
+        EventPrerequisite audit = Assert.Single(
+            requirement.Prerequisites,
+            static item => item.Kind == EventRequirementKind.AuditPolicy);
+        Assert.Equal("audit:user-account-management", audit.Key);
+        Assert.Equal(EventAuditOutcome.Success, audit.AuditOutcomes);
+    }
+
+    [Fact]
     public void LdapDetailsExplainDiagnosticConfigurationWithoutMutatingIt() {
         EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.ADLdapBindingDetails);
         EventPrerequisite configuration = Assert.Single(

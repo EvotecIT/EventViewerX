@@ -192,6 +192,88 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void DiscoveredLocalDomainControllerUsesLocalEvidencePaths() {
+        string local = EventLogTarget.LocalMachineName;
+        var target = new EventTargetInfo(
+            local,
+            EventTargetKind.DomainController,
+            "example.com",
+            "example.com");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.CurrentDomain,
+                null,
+                new[] { target },
+                new[] {
+                    new EventTargetDomainResult(
+                        "example.com",
+                        "example.com",
+                        new[] { target },
+                        Array.Empty<EventTargetDiscoveryFailure>())
+                },
+                Array.Empty<EventTargetDiscoveryFailure>(),
+                "LOCAL-DC",
+                TimeSpan.Zero),
+            AuditOutcomes = EventAuditOutcome.Success | EventAuditOutcome.Failure,
+            ProbeResult = CreateProbe(EventLogProbeStatus.Ok, nativeQueryVerified: true)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.GpoDeleted },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        Assert.Equal(1, evidence.AuditQueryCount);
+        Assert.Equal(1, evidence.ConfigurationReadCount);
+        Assert.All(evidence.ProbeCalls, static call => Assert.Null(call.MachineName));
+        Assert.Contains(report.Checks, check =>
+            check.Layer == EventReadinessLayer.AuditPolicy &&
+            check.Target == local &&
+            check.EvidenceLevel == EventReadinessEvidenceLevel.Effective);
+        Assert.Contains(report.Checks, check =>
+            check.Layer == EventReadinessLayer.Configuration &&
+            check.Target == local &&
+            check.Status == EventReadinessStatus.Pass);
+    }
+
+    [Fact]
+    public void ExplicitLocalComputerUsesLocalRoleInspection() {
+        string local = EventLogTarget.LocalMachineName;
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.LocalMachine,
+                local,
+                new[] { new EventTargetInfo(local, EventTargetKind.EventLogMachine) },
+                Array.Empty<EventTargetDomainResult>(),
+                Array.Empty<EventTargetDiscoveryFailure>(),
+                "LOCAL-COMPUTER",
+                TimeSpan.Zero),
+            AuditOutcomes = EventAuditOutcome.Success | EventAuditOutcome.Failure
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.KerberosServiceTicket },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.LocalMachine
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult role = Assert.Single(report.Checks, static check =>
+            check.RequirementKey == "target-role:domain-controller");
+        Assert.Equal(EventReadinessStatus.Pass, role.Status);
+        Assert.Equal(1, evidence.ConfigurationReadCount);
+        Assert.All(evidence.ProbeCalls, static call => Assert.Null(call.MachineName));
+    }
+
+    [Fact]
     public void LocalCollectorComparesRuntimeAgainstExplicitlyDiscoveredSources() {
         var evidence = new FakeEvidenceProvider {
             TargetResult = DomainControllerTargetResult(),
@@ -266,6 +348,65 @@ public sealed class TestEventReadinessEngine {
             check.Check == "ChannelPolicy" &&
             check.Target == EventLogTarget.LocalMachineName + "/Security");
         Assert.DoesNotContain(report.Checks, static check => check.Target.StartsWith("./", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExplicitExpectedSourcesOwnPrerequisiteChecksWithoutDirectoryDiscovery() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.GpoDeleted });
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.GpoDeleted },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc02.example.com" }
+            },
+            evidence,
+            CancellationToken.None);
+
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "ChannelPolicy" &&
+            check.Target == "dc02.example.com/Security");
+        Assert.Contains(report.Checks, static check =>
+            check.Layer == EventReadinessLayer.AuditPolicy &&
+            check.Target == "dc02.example.com" &&
+            check.Status == EventReadinessStatus.Unknown &&
+            check.DiagnosticKind == EventReadinessDiagnosticKind.NoEvidence);
+        Assert.Contains(report.Checks, static check =>
+            check.Layer == EventReadinessLayer.Configuration &&
+            check.Target == "dc02.example.com" &&
+            check.Status == EventReadinessStatus.Unknown &&
+            check.DiagnosticKind == EventReadinessDiagnosticKind.NoEvidence);
+        Assert.Contains(report.Checks, static check =>
+            check.RequirementKey == "target-role:domain-controller" &&
+            check.Target == "dc02.example.com" &&
+            check.Status == EventReadinessStatus.Unknown &&
+            check.DiagnosticKind == EventReadinessDiagnosticKind.NoEvidence);
+        Assert.DoesNotContain(report.Checks, check =>
+            check.Check == "ChannelPolicy" &&
+            check.Target.StartsWith(EventLogTarget.LocalMachineName + "/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ConfirmedWinRmServiceFailureSurvivesUnknownListenerEvidence() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorReadiness.WinRmServiceRunning = false;
+        evidence.CollectorReadiness.WinRmDiagnosticKind = EventReadinessDiagnosticKind.None;
+        evidence.CollectorReadiness.WinRmListenerAvailable = false;
+        evidence.CollectorReadiness.WinRmListenerDiagnosticKind = EventReadinessDiagnosticKind.Error;
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult service = Assert.Single(report.Checks, static check =>
+            check.Check == "WinRMService");
+        Assert.Equal(EventReadinessStatus.Fail, service.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, service.DiagnosticKind);
+        EventReadinessCheckResult listener = Assert.Single(report.Checks, static check =>
+            check.Check == "WinRMListener");
+        Assert.Equal(EventReadinessStatus.Unknown, listener.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Error, listener.DiagnosticKind);
     }
 
     [Fact]
