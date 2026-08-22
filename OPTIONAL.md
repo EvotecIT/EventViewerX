@@ -599,6 +599,16 @@ that, lookup order depends on `LiveLookup`:
 Newly proven context is persisted before the result is returned. An unresolved
 lookup returns the raw identifier plus a structured reason.
 
+Facts are reconciled by their effective event time, never by ingestion order.
+The store inserts or splits validity intervals so an older rename arriving late
+cannot overwrite a newer name, and a newest-first historical read produces the
+same timeline as an oldest-first read. Proven non-overlapping facts form
+ordered intervals. Conflicting facts whose time/provenance cannot establish an
+order remain side-by-side as `Ambiguous`; insertion order is not a tiebreaker.
+Event-derived deletion/rename evidence and targeted live evidence retain their
+separate timestamps and provenance, so a current lookup can close or extend an
+interval without rewriting the fact that applied at an earlier event time.
+
 For a deletion, historical context may supply the last known name while the event remains marked deleted. The output must distinguish `NameAtEventTime`, `LastKnownName`, and a current live name; it must not present stale context as a current directory fact.
 
 The context store is useful beyond GPOs: deleted users, groups, computers, renamed objects, SID/name history, certificate template identities, and provider metadata can use the same validity/provenance model when a concrete event type requires it.
@@ -650,6 +660,9 @@ Records retain original identifier fields. Enriched values use separate properti
 - Raw identifiers are always preserved.
 - Custom JSON cannot execute code.
 - A deleted GPO can resolve a last-known name from context without claiming that the GPO still exists.
+- The same timestamped fact set produces the same validity intervals when
+  ingested oldest-first, newest-first, or with late WEC arrivals; unresolved
+  same-time conflicts remain explicitly ambiguous.
 - Live lookups are targeted by event identity and never enumerate the AD or SYSVOL estate.
 - PowerShell 5.1, PowerShell 7, CLI, and C# consume the same provider pipeline.
 
@@ -941,7 +954,12 @@ Renderers consume `EventAggregationResult`. Excel and HTML do not independently 
 ### Presentation options
 
 - table, bar, line, stacked bar, or metric tiles;
-- top-N plus optional “Other” bucket;
+- top-N plus optional “Other” bucket. `Other` is a fresh aggregation over the
+  union of source or occurrence rows belonging to every discarded group; it is
+  never computed by summing discarded aggregate rows. Providers must preserve
+  enough state to recompute non-additive measures such as `DistinctCount`,
+  `FirstSeen`, and `LastSeen`, fall back to the bounded managed engine, or reject
+  `Other` for an unsupported pushdown;
 - UTC or declared report timezone;
 - stable case/Unicode comparison policy;
 - explicit unknown/empty bucket;
@@ -954,6 +972,8 @@ Renderers consume `EventAggregationResult`. Excel and HTML do not independently 
 - Time buckets handle UTC, timezone conversion, DST gaps, and overlaps deterministically.
 - Query and aggregation truncation are visible.
 - SQLite pushdown and managed fallback produce the same result for the same bounded dataset.
+- Top-N `Other` results for additive and non-additive measures equal a fresh
+  managed aggregation over the union of discarded source rows.
 
 ## 7. Notification policies and routing
 
@@ -1291,6 +1311,10 @@ The capabilities should be delivered in independently useful slices. Adoption of
 
 - Promote the enrichment pipeline and add consistent GPO resolution.
 - Add the persistent historical context contract and SQLite context store for deleted/renamed objects.
+- Add a SQLite store-first ingest operation that commits the deduplicated event
+  batch and its generation-aware per-profile target/channel checkpoint in one
+  transaction. The adopted scheduled workflow does not pipe a record-id
+  checkpoint ahead of downstream storage.
 - Add deterministic AD value normalizers.
 - Add semantic occurrence grouping without deleting source observations.
 - Leave general incidents and multi-event correlation deferred.
@@ -1371,7 +1395,7 @@ The first source audit separates missing operator experiences from missing event
 | NTLMv1 | `ADUserLogonNTLMv1` selects Security 4624 records whose `LmPackageName` is `NTLM V1`. | Keep the parser. Add a named authentication-health preset, requirements metadata, readiness evidence, aggregate by account/source/host, and a durable monitoring tutorial. |
 | Kerberos RC4/DES | 4768, 4769, and 4770 projections expose ticket encryption evidence. Standard 4771 and 4772 payloads do not carry `TicketEncryptionType` and are failure evidence, not proof that encryption was strong or weak. | Limit weak-encryption filters and totals to events that expose an encryption type. Keep 4771/4772 in authentication-failure views with `EncryptionEvidence = Unavailable`; never count their null projection as non-weak. Microsoft identifies 4768 and 4769 as the primary RC4-audit events and warns that 4769 success auditing is very high volume on domain controllers. |
 | LDAP signing | 2887 summary and 2889 detail definitions already exist. | Add requirements explaining diagnostic-level and volume differences, readiness classification, and a safe summary preset. Do not silently enable diagnostic logging. |
-| Durable monitoring | `Get-EVXEvent` has identity-bound persisted checkpoints; `Show-EVXEvent -StorePath` supports overlap plus provenance deduplication. The CLI watcher subscribes only to future events and recreates its JSONL file on start. | Define scheduled checkpoint/store ingestion as the first reliable multi-day workflow. A live watcher is a low-latency supplement, not durable evidence, until it can resume/store atomically across restart and disconnection. |
+| Durable monitoring | `Get-EVXEvent` has identity-bound persisted checkpoints; `Show-EVXEvent -StorePath` supports overlap plus provenance deduplication. Advancing `-RecordIdFile` before downstream storage is not crash-safe, and the CLI watcher subscribes only to future events and recreates its JSONL file on start. | The adopted reliable multi-day workflow is SQLite store-first ingestion: read an overlap, deduplicate by provenance, and atomically commit rows plus the generation-aware per-profile target/channel checkpoint. Do not pipe a separately advancing record-id checkpoint into the store. A live watcher remains a low-latency supplement until it can use the same atomic resume contract across restart and disconnection. |
 | Scheduled tasks | Security 4698 create and 4699 delete are typed. | Add 4700 enabled, 4701 disabled, and 4702 updated under one coherent task-lifecycle family. Preserve task XML and actor/process fields where the event version provides them. Microsoft places all five events under Audit Other Object Access Events. |
 | Windows Firewall rules | Only Security 4947 modified is typed. | Add 4946 added and 4948 deleted to the same lifecycle family. State clearly that these Security events describe local rule changes and do not prove Group Policy rule creation. |
 | Microsoft Defender Antivirus | No built-in Defender operational definition exists. | Add a focused first family for 1116 detection, 1117 action, and 5007 configuration change. Evaluate 1125/1126 network-protection audit/block as a related but separate higher-volume family. |
