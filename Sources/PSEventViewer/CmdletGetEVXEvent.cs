@@ -810,6 +810,8 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
                     ErrorCategory.OperationTimeout,
                 EventLogRemoteQueryFailureKind.HostUnavailable =>
                     ErrorCategory.ResourceUnavailable,
+                EventLogRemoteQueryFailureKind.LogNotFound =>
+                    ErrorCategory.ObjectNotFound,
                 _ => ErrorCategory.ReadError
             };
             string message =

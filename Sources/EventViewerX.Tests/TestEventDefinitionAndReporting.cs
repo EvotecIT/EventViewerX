@@ -628,6 +628,47 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void CompositeSubscriptionQueriesStayWithinTheNativeExpressionLimit() {
+        string queryXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.ActiveDirectoryChanges });
+        XDocument query = XDocument.Parse(queryXml);
+        XElement[] securitySelects = query
+            .Descendants("Select")
+            .Where(static select => string.Equals(
+                select.Attribute("Path")?.Value,
+                "Security",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.True(securitySelects.Length > 1);
+        Assert.All(securitySelects, static select =>
+            Assert.InRange(
+                select.Value.Split("EventID=", StringSplitOptions.None).Length - 1,
+                1,
+                EventFilterCompiler.MaximumXPathExpressions));
+
+        int[] actualIds = securitySelects
+            .SelectMany(static select => System.Text.RegularExpressions.Regex
+                .Matches(select.Value, @"EventID=(\d+)")
+                .Select(static match => int.Parse(
+                    match.Groups[1].Value,
+                    System.Globalization.CultureInfo.InvariantCulture)))
+            .Distinct()
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+        int[] expectedIds = EventTypeCatalog
+            .GetSources(new[] { EventType.ActiveDirectoryChanges })
+            .Single(static source => string.Equals(
+                source.LogName,
+                "Security",
+                StringComparison.OrdinalIgnoreCase))
+            .EventIds
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+        Assert.Equal(expectedIds, actualIds);
+    }
+
+    [Fact]
     public void CreateRowProducesAcyclicNormalizedWatcherPayload() {
         var source = new EventObject(new SyntheticEventRecord(), "WEC01", EventReadMode.StructuredDataAndMessage) {
             ContainerLog = "ForwardedEvents",
@@ -662,6 +703,124 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Single(report.Coverage);
         Assert.Equal("Offline", report.Coverage[0].MachineName);
         Assert.Equal(fixture, report.Coverage[0].LogName);
+    }
+
+    [Fact]
+    public async Task ReportRequestsApplyDurableRecordBoundariesToEveryQueryOwner() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string? genericMachine = null;
+        string? genericContainer = null;
+        EventReportRequest generic = EventReportRequest.ForFiles(fixture);
+        generic.MinimumRecordIdExclusiveResolver = (machine, container) => {
+            genericMachine = machine;
+            genericContainer = container;
+            return long.MaxValue;
+        };
+        EventReportRequest typed = EventReportRequest.ForTypes(EventType.OSStartup);
+        typed.Paths = new[] { fixture };
+        typed.MinimumRecordIdExclusiveResolver = (_, _) => long.MaxValue;
+        EventReportRequest custom = EventReportRequest.ForDefinition(CreateDefinition());
+        custom.Paths = new[] { fixture };
+        custom.MinimumRecordIdExclusiveResolver = (_, _) => long.MaxValue;
+
+        EventReport genericReport = await EventReportEngine.QueryAsync(generic);
+        EventReport typedReport = await EventReportEngine.QueryAsync(typed);
+        EventReport customReport = await EventReportEngine.QueryAsync(custom);
+
+        Assert.Empty(genericReport.Rows);
+        Assert.Empty(typedReport.Rows);
+        Assert.Empty(customReport.Rows);
+        Assert.Equal(fixture, genericMachine);
+        Assert.Equal(fixture, genericContainer);
+    }
+
+    [Fact]
+    public async Task GenericReportsResumeNativelyAfterADurableBookmark() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventObject first = Assert.IsType<EventObject>(EventLogEngine.ReadFile(
+            new EventLogFileQuery(fixture) {
+                Oldest = true,
+                MaxEvents = 1,
+                ReadMode = EventReadMode.Metadata,
+                IncludeBookmark = true
+            }).Single());
+        string bookmark = Assert.IsType<string>(first.BookmarkXml);
+        EventReportRequest request = EventReportRequest.ForFiles(fixture);
+        request.Oldest = true;
+        request.BookmarkXmlResolver = (_, _) => bookmark;
+        EventReportRequest completeRequest = EventReportRequest.ForFiles(fixture);
+        completeRequest.Oldest = true;
+
+        EventReport complete = await EventReportEngine.QueryAsync(completeRequest);
+        EventReport report = await EventReportEngine.QueryAsync(request);
+
+        Assert.Equal(complete.Rows.Count - 1, report.Rows.Count);
+        Assert.DoesNotContain(
+            report.Rows,
+            row => row.RecordId == first.RecordId);
+    }
+
+    [Fact]
+    public void CollectorQueriesSeekFromBookmarkBeforeManagedCandidateLimits() {
+        const string bookmark =
+            "<BookmarkList><Bookmark Channel='ForwardedEvents' RecordId='42' IsCurrent='true' /></BookmarkList>";
+        var typedQuery = new EventTypeQuery(new[] { EventType.ADUserLogon }) {
+            MachineNames = new[] { "WEC01" },
+            CollectorLogName = "ForwardedEvents",
+            MaxCandidates = 100,
+            BookmarkXmlResolver = (_, _) => bookmark
+        };
+        var eventInfo = new Dictionary<string, HashSet<int>>(
+            StringComparer.OrdinalIgnoreCase) {
+            ["Security"] = new HashSet<int> { 4624 }
+        };
+        EventLogBatchQuery typedBatch = EventTypeEngine.CreateCollectorBatch(
+            typedQuery,
+            eventInfo,
+            new EventTypeQueryExecutionInfo(),
+            startTime: null,
+            endTime: null);
+        EventDefinition definition = new() {
+            Name = "CustomLogon",
+            Sources = new[] {
+                new EventDefinitionSource {
+                    LogName = "Security",
+                    EventIds = new[] { 4624 }
+                }
+            },
+            Fields = new[] {
+                new EventDefinitionField {
+                    Name = "User",
+                    Source = EventFieldSource.Data,
+                    SourceName = "TargetUserName"
+                }
+            }
+        };
+        var customQuery = new EventDefinitionQuery(definition) {
+            MachineNames = new[] { "WEC01" },
+            CollectorLogName = "ForwardedEvents",
+            MaxCandidates = 100,
+            BookmarkXmlResolver = (_, _) => bookmark
+        };
+        EventLogBatchQuery customBatch = EventDefinitionEngine.CreateCollectorBatch(
+            customQuery,
+            new EventDefinitionQueryExecutionInfo(),
+            new[] { "WEC01" },
+            start: null,
+            end: null);
+
+        foreach (EventLogChannelQuery channel in new[] {
+                     Assert.Single(typedBatch.ChannelQueries),
+                     Assert.Single(customBatch.ChannelQueries)
+                 }) {
+            Assert.Equal("*", channel.XPath);
+            Assert.Equal(bookmark, channel.BookmarkXml);
+            Assert.Equal(1, channel.BookmarkOffset);
+            Assert.True(channel.StrictBookmark);
+            Assert.Equal(100, channel.ManagedMaxEventsScanned);
+        }
     }
 
     [Fact]

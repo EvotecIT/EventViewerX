@@ -26,13 +26,19 @@ public static class CollectorSubscriptionXml {
         try {
             using var reader = XmlReader.Create(new StringReader(xml), CreateReaderSettings());
             var document = XDocument.Load(reader, LoadOptions.None);
-            if (!TryReadDetails(document, out var description, out var queries, out error)) {
+            if (!TryReadDetails(
+                    document,
+                    out var description,
+                    out var destinationLog,
+                    out var queries,
+                    out error)) {
                 return false;
             }
 
             details = new CollectorSubscriptionXmlDetails {
                 NormalizedXml = NormalizeXml(document),
                 Description = description,
+                DestinationLog = destinationLog,
                 Queries = queries
             };
             return true;
@@ -63,9 +69,11 @@ public static class CollectorSubscriptionXml {
     private static bool TryReadDetails(
         XDocument document,
         out string? description,
+        out string? destinationLog,
         out IReadOnlyList<string> queries,
         out string? error) {
         description = null;
+        destinationLog = null;
         error = null;
 
         var root = document.Root;
@@ -78,6 +86,10 @@ public static class CollectorSubscriptionXml {
         description = NormalizeOptional(
             root.Elements()
                 .FirstOrDefault(static element => element.Name.LocalName.Equals("Description", StringComparison.OrdinalIgnoreCase))
+                ?.Value);
+        destinationLog = NormalizeOptional(
+            root.Elements()
+                .FirstOrDefault(static element => element.Name.LocalName.Equals("LogFile", StringComparison.OrdinalIgnoreCase))
                 ?.Value);
         var queryValues = new List<string>();
         queryValues.AddRange(root

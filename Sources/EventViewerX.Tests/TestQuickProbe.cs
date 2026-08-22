@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.ComponentModel;
+using System.Diagnostics.Eventing.Reader;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Reflection;
@@ -272,6 +274,36 @@ namespace EventViewerX.Tests {
             Assert.False(string.IsNullOrWhiteSpace(result.Machine));
             Assert.Equal(EventLogProbeStatus.LogNotFound, result.Status);
             Assert.False(result.NativeQueryVerified);
+        }
+
+        [Theory]
+        [InlineData(5, EventLogProbeStatus.AccessDenied)]
+        [InlineData(15007, EventLogProbeStatus.LogNotFound)]
+        [InlineData(15001, EventLogProbeStatus.InvalidQuery)]
+        public void SharedProbeClassificationPreservesNativeFailureKinds(
+            int nativeErrorCode,
+            EventLogProbeStatus expected) {
+
+            Assert.Equal(
+                expected,
+                EventLogProbe.ClassifyFailure(
+                    null,
+                    new Win32Exception(nativeErrorCode)));
+        }
+
+        [Fact]
+        public void RemoteMissingChannelPreservesItsTypedFailureKind() {
+            Assert.True(EventLogRemoteQueryFailureClassifier.TryClassify(
+                "remote.example.com",
+                new EventLogNotFoundException("ForwardedEvents was not found"),
+                out EventLogRemoteQueryFailureKind kind));
+            Assert.Equal(EventLogRemoteQueryFailureKind.LogNotFound, kind);
+            Assert.Equal(EventLogProbeStatus.LogNotFound, EventLogProbe.ClassifyFailure(
+                "remote.example.com",
+                new EventLogNotFoundException("Security was not found")));
+            Assert.Equal(
+                EventLogProbeStatus.LogNotFound,
+                EventReadinessEvidenceProvider.MapTargetFailure(kind));
         }
 
         [Fact]

@@ -13,6 +13,9 @@ public sealed class CollectorSubscriptionXmlDetails {
     /// <summary>Description extracted from the XML payload.</summary>
     public string? Description { get; set; }
 
+    /// <summary>Destination event-log channel extracted from the XML payload.</summary>
+    public string? DestinationLog { get; set; }
+
     /// <summary>Normalized event queries extracted from the XML payload.</summary>
     public IReadOnlyList<string> Queries { get; set; } = Array.Empty<string>();
 }

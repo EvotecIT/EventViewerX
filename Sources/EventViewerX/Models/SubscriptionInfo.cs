@@ -18,6 +18,8 @@ public sealed class SubscriptionInfo {
     public string? ContentFormat { get; set; }
     /// <summary>Delivery mode (Pull, Push, or Custom).</summary>
     public string? DeliveryMode { get; set; }
+    /// <summary>Destination event-log channel on the collector.</summary>
+    public string? DestinationLog { get; set; }
     /// <summary>Collector machine that hosts the subscription.</summary>
     public string? MachineName { get; set; }
     /// <summary>Raw XML definition as stored in the registry.</summary>
@@ -25,4 +27,3 @@ public sealed class SubscriptionInfo {
     /// <summary>Event queries included in the subscription.</summary>
     public IReadOnlyList<string> Queries { get; set; } = Array.Empty<string>();
 }
-

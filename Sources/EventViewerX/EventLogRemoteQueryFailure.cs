@@ -15,7 +15,9 @@ public enum EventLogRemoteQueryFailureKind {
     /// <summary>The remote host or Event Log service could not be reached.</summary>
     HostUnavailable,
     /// <summary>The remote Event Log API returned another target-specific failure.</summary>
-    EventLogError
+    EventLogError,
+    /// <summary>The requested event-log channel does not exist on the remote target.</summary>
+    LogNotFound
 }
 
 /// <summary>Provides a reusable boundary for expected per-target Event Log query failures.</summary>
@@ -36,6 +38,11 @@ public static class EventLogRemoteQueryFailureClassifier {
         if (EventLogTarget.IsLocalMachine(machineName) || exception is OperationCanceledException) {
             failureKind = EventLogRemoteQueryFailureKind.None;
             return false;
+        }
+
+        if (exception is EventLogNotFoundException) {
+            failureKind = EventLogRemoteQueryFailureKind.LogNotFound;
+            return true;
         }
 
         if (exception is EventLogSessionException sessionException) {
@@ -59,6 +66,7 @@ public static class EventLogRemoteQueryFailureClassifier {
         if (exception is Win32Exception win32Exception) {
             failureKind = win32Exception.NativeErrorCode switch {
                 15001 => EventLogRemoteQueryFailureKind.None,
+                15000 or 15007 => EventLogRemoteQueryFailureKind.LogNotFound,
                 5 => EventLogRemoteQueryFailureKind.AccessDenied,
                 121 or 1460 => EventLogRemoteQueryFailureKind.Timeout,
                 53 or 64 or 1231 or 1722 or 1726 or 1818 =>

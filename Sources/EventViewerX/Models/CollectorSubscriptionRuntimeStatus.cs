@@ -57,16 +57,24 @@ public sealed class CollectorReadinessStatus {
     public bool CollectorServiceInstalled { get; set; }
     /// <summary>Whether Wecsvc is running.</summary>
     public bool CollectorServiceRunning { get; set; }
+    /// <summary>Inspection diagnostic for Wecsvc state; None means the values were observed.</summary>
+    public EventReadinessDiagnosticKind CollectorServiceDiagnosticKind { get; set; }
     /// <summary>Configured Wecsvc start mode.</summary>
     public string CollectorServiceStartMode { get; set; } = string.Empty;
     /// <summary>Whether WinRM is running.</summary>
     public bool WinRmServiceRunning { get; set; }
+    /// <summary>Inspection diagnostic for WinRM service state; None means the value was observed.</summary>
+    public EventReadinessDiagnosticKind WinRmDiagnosticKind { get; set; }
     /// <summary>Whether an enabled HTTP or HTTPS WinRM listener is registered.</summary>
     public bool WinRmListenerAvailable { get; set; }
+    /// <summary>Inspection diagnostic for WinRM listener state; None means the value was observed.</summary>
+    public EventReadinessDiagnosticKind WinRmListenerDiagnosticKind { get; set; }
     /// <summary>Whether ForwardedEvents exists.</summary>
     public bool ForwardedEventsExists { get; set; }
     /// <summary>Whether ForwardedEvents is enabled.</summary>
     public bool ForwardedEventsEnabled { get; set; }
+    /// <summary>Inspection diagnostic for ForwardedEvents state; None means the values were observed.</summary>
+    public EventReadinessDiagnosticKind ForwardedEventsDiagnosticKind { get; set; }
     /// <summary>Actionable readiness findings.</summary>
     public IReadOnlyList<string> Issues { get; set; } = Array.Empty<string>();
     /// <summary>True when the collector prerequisites are ready for subscription activation.</summary>

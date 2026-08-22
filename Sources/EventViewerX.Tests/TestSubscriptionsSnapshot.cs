@@ -2,11 +2,9 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
-public class TestSubscriptionsSnapshot
-{
+public class TestSubscriptionsSnapshot {
     [Fact]
-    public void CollectorSubscriptionSnapshot_FromSubscriptionInfo_NormalizesFields()
-    {
+    public void CollectorSubscriptionSnapshot_FromSubscriptionInfo_NormalizesFields() {
         var info = new SubscriptionInfo {
             Name = " ForwardedEvents ",
             MachineName = " collector01.contoso.com ",
@@ -14,6 +12,7 @@ public class TestSubscriptionsSnapshot
             Enabled = true,
             ContentFormat = " RenderedText ",
             DeliveryMode = " Push ",
+            DestinationLog = " ForwardedEvents ",
             RawXml = " <Subscription /> ",
             Queries = new[] { " *[System[EventID=1]] ", string.Empty, "  " }
         };
@@ -25,6 +24,7 @@ public class TestSubscriptionsSnapshot
         Assert.Equal("Security feed", snapshot.Description);
         Assert.Equal("RenderedText", snapshot.ContentFormat);
         Assert.Equal("Push", snapshot.DeliveryMode);
+        Assert.Equal("ForwardedEvents", snapshot.DestinationLog);
         Assert.Equal("<Subscription />", snapshot.RawXml);
         Assert.True(snapshot.HasXml);
         Assert.Equal(1, snapshot.QueryCount);
