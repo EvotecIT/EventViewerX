@@ -41,12 +41,6 @@ public static partial class CollectorSubscriptionManager {
             collectorDiagnostic = ClassifyReadinessException(exception);
             issues.Add("Windows Event Collector service state could not be inspected: " + exception.Message);
         }
-        if (!installed) {
-            issues.Add("Windows Event Collector service (Wecsvc) is not installed.");
-        } else if (!running) {
-            issues.Add("Windows Event Collector service (Wecsvc) is not running.");
-        }
-
         bool winRmInstalled = false;
         bool winRmRunning = false;
         EventReadinessDiagnosticKind winRmDiagnostic = EventReadinessDiagnosticKind.None;
@@ -58,9 +52,6 @@ public static partial class CollectorSubscriptionManager {
             winRmDiagnostic = ClassifyReadinessException(exception);
             issues.Add("WinRM service state could not be inspected: " + exception.Message);
         }
-        if (!winRmInstalled || !winRmRunning) {
-            issues.Add("Windows Remote Management (WinRM) is not running.");
-        }
         bool listener = false;
         EventReadinessDiagnosticKind listenerDiagnostic = EventReadinessDiagnosticKind.None;
         try {
@@ -71,27 +62,30 @@ public static partial class CollectorSubscriptionManager {
             listenerDiagnostic = ClassifyReadinessException(exception);
             issues.Add("WinRM listener state could not be inspected: " + exception.Message);
         }
-        if (!listener) {
-            issues.Add("No enabled WinRM HTTP or HTTPS listener is available.");
+        (bool forwardedExists,
+            bool forwardedEnabled,
+            EventReadinessDiagnosticKind forwardedDiagnostic,
+            string forwardedError) = InspectForwardedEvents(
+                static () => {
+                    using var configuration =
+                        new System.Diagnostics.Eventing.Reader.EventLogConfiguration("ForwardedEvents");
+                    return (true, configuration.IsEnabled);
+                });
+        if (forwardedError.Length > 0) {
+            issues.Add($"ForwardedEvents readiness could not be read: {forwardedError}");
         }
-
-        bool forwardedExists = false;
-        bool forwardedEnabled = false;
-        EventReadinessDiagnosticKind forwardedDiagnostic = EventReadinessDiagnosticKind.None;
-        try {
-            using var configuration = new System.Diagnostics.Eventing.Reader.EventLogConfiguration("ForwardedEvents");
-            forwardedExists = true;
-            forwardedEnabled = configuration.IsEnabled;
-        } catch (System.Diagnostics.Eventing.Reader.EventLogNotFoundException) {
-        } catch (System.Diagnostics.Eventing.Reader.EventLogException exception) {
-            forwardedDiagnostic = ClassifyReadinessException(exception);
-            issues.Add($"ForwardedEvents readiness could not be read: {exception.Message}");
-        }
-        if (forwardedDiagnostic == EventReadinessDiagnosticKind.None && !forwardedExists) {
-            issues.Add("ForwardedEvents channel is not registered.");
-        } else if (!forwardedEnabled) {
-            issues.Add("ForwardedEvents channel is disabled.");
-        }
+        issues.AddRange(GetConfirmedReadinessIssues(
+            installed,
+            running,
+            collectorDiagnostic,
+            winRmInstalled,
+            winRmRunning,
+            winRmDiagnostic,
+            listener,
+            listenerDiagnostic,
+            forwardedExists,
+            forwardedEnabled,
+            forwardedDiagnostic));
 
         return new CollectorReadinessStatus {
             MachineName = Environment.MachineName,
@@ -109,6 +103,61 @@ public static partial class CollectorSubscriptionManager {
             ForwardedEventsDiagnosticKind = forwardedDiagnostic,
             Issues = issues
         };
+    }
+
+    internal static IReadOnlyList<string> GetConfirmedReadinessIssues(
+        bool collectorInstalled,
+        bool collectorRunning,
+        EventReadinessDiagnosticKind collectorDiagnostic,
+        bool winRmInstalled,
+        bool winRmRunning,
+        EventReadinessDiagnosticKind winRmDiagnostic,
+        bool listenerAvailable,
+        EventReadinessDiagnosticKind listenerDiagnostic,
+        bool forwardedEventsExists,
+        bool forwardedEventsEnabled,
+        EventReadinessDiagnosticKind forwardedEventsDiagnostic) {
+
+        var issues = new List<string>();
+        if (collectorDiagnostic == EventReadinessDiagnosticKind.None) {
+            if (!collectorInstalled) {
+                issues.Add("Windows Event Collector service (Wecsvc) is not installed.");
+            } else if (!collectorRunning) {
+                issues.Add("Windows Event Collector service (Wecsvc) is not running.");
+            }
+        }
+        if (winRmDiagnostic == EventReadinessDiagnosticKind.None &&
+            (!winRmInstalled || !winRmRunning)) {
+            issues.Add("Windows Remote Management (WinRM) is not running.");
+        }
+        if (listenerDiagnostic == EventReadinessDiagnosticKind.None && !listenerAvailable) {
+            issues.Add("No enabled WinRM HTTP or HTTPS listener is available.");
+        }
+        if (forwardedEventsDiagnostic == EventReadinessDiagnosticKind.None) {
+            if (!forwardedEventsExists) {
+                issues.Add("ForwardedEvents channel is not registered.");
+            } else if (!forwardedEventsEnabled) {
+                issues.Add("ForwardedEvents channel is disabled.");
+            }
+        }
+        return issues;
+    }
+
+    internal static (
+        bool Exists,
+        bool Enabled,
+        EventReadinessDiagnosticKind Diagnostic,
+        string Error) InspectForwardedEvents(
+            Func<(bool Exists, bool Enabled)> inspector) {
+
+        try {
+            (bool exists, bool enabled) = inspector();
+            return (exists, enabled, EventReadinessDiagnosticKind.None, string.Empty);
+        } catch (System.Diagnostics.Eventing.Reader.EventLogNotFoundException) {
+            return (false, false, EventReadinessDiagnosticKind.None, string.Empty);
+        } catch (Exception exception) {
+            return (false, false, ClassifyReadinessException(exception), exception.Message);
+        }
     }
 
     /// <summary>Runs the inbox WinRM and WEC quick configuration, then returns verified readiness.</summary>

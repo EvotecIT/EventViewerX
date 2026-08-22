@@ -5,6 +5,106 @@ namespace EventViewerX.Tests;
 
 public class TestCollectorSubscriptionDefinition {
     [Fact]
+    public void CollectorReadinessDoesNotInventStateFindingsAfterInspectionErrors() {
+        IReadOnlyList<string> issues =
+            CollectorSubscriptionManager.GetConfirmedReadinessIssues(
+                collectorInstalled: false,
+                collectorRunning: false,
+                collectorDiagnostic: EventReadinessDiagnosticKind.Error,
+                winRmInstalled: false,
+                winRmRunning: false,
+                winRmDiagnostic: EventReadinessDiagnosticKind.AccessDenied,
+                listenerAvailable: false,
+                listenerDiagnostic: EventReadinessDiagnosticKind.Timeout,
+                forwardedEventsExists: false,
+                forwardedEventsEnabled: false,
+                forwardedEventsDiagnostic: EventReadinessDiagnosticKind.Error);
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void CollectorReadinessReportsOnlyConfirmedMissingOrDisabledState() {
+        IReadOnlyList<string> issues =
+            CollectorSubscriptionManager.GetConfirmedReadinessIssues(
+                collectorInstalled: false,
+                collectorRunning: false,
+                collectorDiagnostic: EventReadinessDiagnosticKind.None,
+                winRmInstalled: true,
+                winRmRunning: false,
+                winRmDiagnostic: EventReadinessDiagnosticKind.None,
+                listenerAvailable: false,
+                listenerDiagnostic: EventReadinessDiagnosticKind.None,
+                forwardedEventsExists: true,
+                forwardedEventsEnabled: false,
+                forwardedEventsDiagnostic: EventReadinessDiagnosticKind.None);
+
+        Assert.Equal(
+            new[] {
+                "Windows Event Collector service (Wecsvc) is not installed.",
+                "Windows Remote Management (WinRM) is not running.",
+                "No enabled WinRM HTTP or HTTPS listener is available.",
+                "ForwardedEvents channel is disabled."
+            },
+            issues);
+    }
+
+    [Fact]
+    public void ForwardedEventsInspectionRetainsTypedAccessFailure() {
+        (bool exists,
+            bool enabled,
+            EventReadinessDiagnosticKind diagnostic,
+            string error) = CollectorSubscriptionManager.InspectForwardedEvents(
+                static () => throw new UnauthorizedAccessException("Access denied."));
+
+        Assert.False(exists);
+        Assert.False(enabled);
+        Assert.Equal(EventReadinessDiagnosticKind.AccessDenied, diagnostic);
+        Assert.Equal("Access denied.", error);
+        Assert.Empty(
+            CollectorSubscriptionManager.GetConfirmedReadinessIssues(
+                collectorInstalled: true,
+                collectorRunning: true,
+                collectorDiagnostic: EventReadinessDiagnosticKind.None,
+                winRmInstalled: true,
+                winRmRunning: true,
+                winRmDiagnostic: EventReadinessDiagnosticKind.None,
+                listenerAvailable: true,
+                listenerDiagnostic: EventReadinessDiagnosticKind.None,
+                forwardedEventsExists: exists,
+                forwardedEventsEnabled: enabled,
+                forwardedEventsDiagnostic: diagnostic));
+    }
+
+    [Fact]
+    public void ForwardedEventsInspectionTreatsConfirmedMissingChannelAsObserved() {
+        (bool exists,
+            bool enabled,
+            EventReadinessDiagnosticKind diagnostic,
+            string error) = CollectorSubscriptionManager.InspectForwardedEvents(
+                static () => throw new System.Diagnostics.Eventing.Reader.EventLogNotFoundException());
+
+        Assert.False(exists);
+        Assert.False(enabled);
+        Assert.Equal(EventReadinessDiagnosticKind.None, diagnostic);
+        Assert.Empty(error);
+        Assert.Equal(
+            new[] { "ForwardedEvents channel is not registered." },
+            CollectorSubscriptionManager.GetConfirmedReadinessIssues(
+                collectorInstalled: true,
+                collectorRunning: true,
+                collectorDiagnostic: EventReadinessDiagnosticKind.None,
+                winRmInstalled: true,
+                winRmRunning: true,
+                winRmDiagnostic: EventReadinessDiagnosticKind.None,
+                listenerAvailable: true,
+                listenerDiagnostic: EventReadinessDiagnosticKind.None,
+                forwardedEventsExists: exists,
+                forwardedEventsEnabled: enabled,
+                forwardedEventsDiagnostic: diagnostic));
+    }
+
+    [Fact]
     public void CollectorReadinessPropagatesCallerCancellation() {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
