@@ -425,7 +425,14 @@ Discovery diagnostics remain separate from `EventReportCoverage`. A domain can f
 
 This replaces growing collections of mutually exclusive nullable properties inside new code while preserving current public parameters for compatibility. Validation occurs once in the target-selection owner.
 
-Checkpoint identity must include the normalized discovery request and resolved target fingerprint. Adding or removing a DC must not accidentally reuse a checkpoint as if the source set had not changed.
+The normalized discovery request identifies the scheduled job, while durable
+progress is partitioned by each stable target/channel identity. The resolved
+target fingerprint is recorded as drift evidence, not placed in every
+checkpoint key. A newly discovered target starts without a high-water mark;
+an unchanged target reuses its own checkpoint even when another DC is added,
+removed, or temporarily unreachable. Retired target checkpoints remain
+available for a bounded retention period so a transient discovery failure does
+not force replay when the target returns.
 
 ### Failure and safety behavior
 
@@ -562,7 +569,13 @@ Records retain original identifier fields. Enriched values use separate properti
 
 ### Caching and failure behavior
 
-- cache keys include provider, normalized input, directory/forest context, and relevant configuration;
+- cache keys include provider, normalized input, directory/forest context,
+  relevant configuration, and a non-secret authorization-context identity;
+- authorization context uses an effective-principal/security-context
+  fingerprint or a request-isolated cache partition. It never stores a
+  password, token, or reversible credential value;
+- positive, negative, not-found, and access-denied entries are never reused
+  across authorization contexts;
 - positive and negative cache lifetimes are bounded independently;
 - persistent facts retain validity intervals and provenance rather than expiring solely by TTL;
 - caller cancellation stops queued work;
@@ -574,6 +587,9 @@ Records retain original identifier fields. Enriched values use separate properti
 
 - GPO display names are consistent across link, edit, detailed change, and audit records.
 - Repeated identifiers use the bounded shared cache.
+- A privileged lookup cannot populate a result later returned to a less
+  privileged caller, and a restricted caller cannot poison another caller's
+  negative cache.
 - Lookup timeout, access denied, not found, ambiguous, and provider failure are distinct outcomes.
 - Raw identifiers are always preserved.
 - Custom JSON cannot execute code.
@@ -728,7 +744,14 @@ An account-lockout policy may consider:
 - a narrow configurable event-time window;
 - DC/PDC relationship from target metadata.
 
-Time proximity alone is insufficient. Two real repeated lockouts must not be merged merely because they happened close together.
+These dimensions create candidates only. Final membership requires evidence
+that the source observations share one causal occurrence, such as a provider
+activity/correlation identifier or another event-specific value proven to be
+stable across the DC/PDC observations and distinct across repeated lockouts.
+Time proximity, account, caller, and DC/PDC role alone are insufficient. When
+Windows does not emit enough evidence to distinguish two repeated lockouts,
+the policy preserves the observations as separate or explicitly ambiguous;
+it does not guess and undercount them.
 
 ```powershell
 Show-EVXEvent -Type ADUserLockouts `
@@ -767,6 +790,9 @@ The representative should be deterministic:
 - Direct plus forwarded copies of one source event remain transport duplicates.
 - DC and PDC records for one captured lockout become one semantic set with two source members.
 - Repeated real lockouts outside or inside the window are not merged when their semantic keys differ.
+- Captures without a shared causal discriminator remain separate or
+  explicitly ambiguous even when every candidate dimension and timestamp
+  window matches.
 - Every source record remains inspectable and exportable.
 - Materialized occurrence membership can be deleted and rebuilt without changing source events.
 - Grouping behavior is stable across input ordering and PowerShell runtimes.
@@ -794,7 +820,14 @@ Operators can ask “which accounts lock out most often?”, “which IPs genera
 - optional typed predicate;
 - display metadata for renderers.
 
-Initial measures:
+Measures are typed descriptors rather than enum values alone. An
+`EventAggregationMeasure` contains the operation, optional semantic field
+operand, null policy, comparison/canonicalization policy, and output name.
+`Count` has no operand. `DistinctCount` requires an operand and declares
+whether null/unknown values participate. Time-based operations declare the
+timestamp semantic they use.
+
+Initial operations:
 
 - `Count`
 - `DistinctCount`
@@ -810,6 +843,11 @@ Measure-EVXEvent `
     -Measure Count `
     -Top 10
 
+Measure-EVXEvent `
+    -InputObject $failures `
+    -GroupBy SourceComputer `
+    -Measure @{ Operation = 'DistinctCount'; Field = 'AccountIdentity'; Nulls = 'Exclude' }
+
 Show-EVXEvent -FromStore C:\EVX\events.db `
     -Type ADUserLogonFailed `
     -GroupBy Who, IPAddress `
@@ -818,7 +856,13 @@ Show-EVXEvent -FromStore C:\EVX\events.db `
     -Top 20
 ```
 
-Fields are validated against typed definitions before execution. Composite types may use only fields common to all selected leaf types unless the aggregation explicitly selects one leaf type or declares missing-value behavior.
+Fields are validated against typed definitions before execution. Compatibility
+uses a stable semantic field identifier plus compatible value kind,
+canonicalization, and comparison semantics; matching property names are not
+enough. A composite may use only semantic fields common to every selected leaf
+type unless it selects one leaf explicitly or declares missing-value behavior.
+For example, two properties named `Who` cannot be aggregated together when
+one means an account identity and another means a workstation identity.
 
 ### Execution
 
@@ -1240,7 +1284,7 @@ The first source audit separates missing operator experiences from missing event
 | Area | Current capability | Gap and decision |
 | --- | --- | --- |
 | NTLMv1 | `ADUserLogonNTLMv1` selects Security 4624 records whose `LmPackageName` is `NTLM V1`. | Keep the parser. Add a named authentication-health preset, requirements metadata, readiness evidence, aggregate by account/source/host, and a durable monitoring tutorial. |
-| Kerberos RC4/DES | 4768, 4769/4770, and 4771/4772 projections parse ticket encryption and expose `WeakEncryptionAlgorithm`. | Keep the parsers. Add explicit weak-encryption filters, totals/trends, account/service/source grouping, and volume guidance. Microsoft identifies 4768 and 4769 as the primary RC4-audit events and warns that 4769 success auditing is very high volume on domain controllers. |
+| Kerberos RC4/DES | 4768, 4769, and 4770 projections expose ticket encryption evidence. Standard 4771 and 4772 payloads do not carry `TicketEncryptionType` and are failure evidence, not proof that encryption was strong or weak. | Limit weak-encryption filters and totals to events that expose an encryption type. Keep 4771/4772 in authentication-failure views with `EncryptionEvidence = Unavailable`; never count their null projection as non-weak. Microsoft identifies 4768 and 4769 as the primary RC4-audit events and warns that 4769 success auditing is very high volume on domain controllers. |
 | LDAP signing | 2887 summary and 2889 detail definitions already exist. | Add requirements explaining diagnostic-level and volume differences, readiness classification, and a safe summary preset. Do not silently enable diagnostic logging. |
 | Durable monitoring | `Get-EVXEvent` has identity-bound persisted checkpoints; `Show-EVXEvent -StorePath` supports overlap plus provenance deduplication. The CLI watcher subscribes only to future events and recreates its JSONL file on start. | Define scheduled checkpoint/store ingestion as the first reliable multi-day workflow. A live watcher is a low-latency supplement, not durable evidence, until it can resume/store atomically across restart and disconnection. |
 | Scheduled tasks | Security 4698 create and 4699 delete are typed. | Add 4700 enabled, 4701 disabled, and 4702 updated under one coherent task-lifecycle family. Preserve task XML and actor/process fields where the event version provides them. Microsoft places all five events under Audit Other Object Access Events. |
