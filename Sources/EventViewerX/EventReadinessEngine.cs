@@ -44,12 +44,13 @@ public static partial class EventReadinessEngine {
         EventTargetDiscoveryResult? discovery = null;
         IReadOnlyList<EventTargetInfo> targets;
         if (snapshot.Collector != null) {
-            targets = new[] { new EventTargetInfo(snapshot.Collector, EventTargetKind.Collector) };
+            string collectorTarget = NormalizeCollectorTarget(snapshot.Collector);
+            targets = new[] { new EventTargetInfo(collectorTarget, EventTargetKind.Collector) };
             if (snapshot.TargetDiscovery.Scope == EventTargetDiscoveryScope.LocalMachine) {
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.TargetDiscovery,
                     "ExplicitCollector",
-                    snapshot.Collector,
+                    collectorTarget,
                     EventReadinessStatus.Pass,
                     EventReadinessEvidenceLevel.Inspected,
                     "A collector was explicitly selected; no Active Directory discovery was performed.",
@@ -131,6 +132,11 @@ public static partial class EventReadinessEngine {
             stopwatch.Elapsed);
     }
 
+    private static string NormalizeCollectorTarget(string collector) =>
+        EventLogTarget.IsLocalMachine(collector)
+            ? EventLogTarget.LocalMachineName
+            : collector.Trim().TrimEnd('.');
+
     private static void AddChannelPolicyChecks(
         EventReadinessRequest request,
         EventTargetDiscoveryResult? discovery,
@@ -141,12 +147,13 @@ public static partial class EventReadinessEngine {
         CancellationToken cancellationToken) {
 
         if (request.Collector != null && discovery == null) {
+            string collectorTarget = NormalizeCollectorTarget(request.Collector);
             foreach (EventSourceDefinition source in sources) {
                 cancellationToken.ThrowIfCancellationRequested();
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.EventLogTransport,
                     "ChannelPolicy",
-                    request.Collector + "/" + source.LogName,
+                    collectorTarget + "/" + source.LogName,
                     EventReadinessStatus.Unknown,
                     EventReadinessEvidenceLevel.Unknown,
                     "A collector was selected without an explicit source scope, so the source channel policy was not inspected.",

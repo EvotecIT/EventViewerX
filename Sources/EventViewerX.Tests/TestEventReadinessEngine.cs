@@ -245,6 +245,27 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void LocalCollectorAliasIsCanonicalizedAcrossDefaultScopeChecks() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = "."
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventTargetInfo target = Assert.Single(report.Targets);
+        Assert.Equal(EventTargetKind.Collector, target.Kind);
+        Assert.Equal(EventLogTarget.LocalMachineName, target.ComputerName);
+        Assert.Contains(report.Checks, check =>
+            check.Check == "ChannelPolicy" &&
+            check.Target == EventLogTarget.LocalMachineName + "/Security");
+        Assert.DoesNotContain(report.Checks, static check => check.Target.StartsWith("./", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void UnknownSubscriptionEnabledStateRemainsUnknown() {
         var evidence = CreateCollectorEvidence();
         evidence.Subscription!.IsEnabled = null;

@@ -10,7 +10,7 @@ public static partial class EventReadinessEngine {
         List<EventReadinessCheckResult> checks,
         CancellationToken cancellationToken) {
 
-        string collector = request.Collector!;
+        string collector = NormalizeCollectorTarget(request.Collector!);
         bool localCollector = EventLogTarget.IsLocalMachine(collector);
         if (localCollector) {
             try {

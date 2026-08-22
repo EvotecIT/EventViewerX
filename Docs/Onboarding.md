@@ -112,8 +112,9 @@ target cap stopped expansion. Review the resolved domain controllers and
 fingerprint before using dynamic discovery for a scheduled direct-collection
 job; a later topology change is then visible in retained job evidence.
 
-`-Timeout` is a total discovery budget. Domains completed before that budget
-remain in the result beside a typed timeout failure. Windows directory APIs do
+`-TimeoutMs` is the total discovery budget in milliseconds and defaults to
+30,000 ms. Domains completed before that budget remain in the result beside a
+typed timeout failure. Windows directory APIs do
 not offer safe interruption for every native call, so one call already in
 progress may finish in the background; EventViewerX cancels further domain and
 trust expansion as soon as control returns from it.
@@ -199,7 +200,7 @@ $targets = Get-EVXTarget -ActiveDirectory CurrentDomain
 $computers = $targets.Targets.ComputerName
 
 Test-EVXReadiness `
-    -Scenario DailyActiveDirectoryReport `
+    -Type ActiveDirectoryChanges `
     -ActiveDirectory CurrentDomain
 
 Show-EVXEvent `
@@ -248,7 +249,7 @@ $domainControllersSid = (Get-ADGroup 'Domain Controllers').SID.Value
 
 $definition = New-EVXCollectorSubscription `
     -Name EventViewerX-ADChanges `
-    -Type ActiveDirectoryChanges, ActiveDirectoryAuthentication `
+    -Type ActiveDirectoryChanges `
     -SubscriptionType SourceInitiated `
     -CollectorHostName WEC01.contoso.com `
     -AllowedSourceSid $domainControllersSid
@@ -258,7 +259,7 @@ $definition | Set-EVXCollectorSubscription
 
 Get-EVXCollectorSubscription -Name EventViewerX-ADChanges
 Test-EVXReadiness `
-    -Scenario DailyActiveDirectoryReport `
+    -Type ActiveDirectoryChanges `
     -Collector WEC01 `
     -SubscriptionName EventViewerX-ADChanges `
     -ActiveDirectory CurrentForest
@@ -294,7 +295,7 @@ and changed directory values.
 
 ```powershell
 $readiness = Test-EVXReadiness `
-    -Scenario DailyActiveDirectoryReport `
+    -Type ActiveDirectoryChanges `
     -Collector WEC01 `
     -SubscriptionName EventViewerX-ADChanges `
     -ActiveDirectory CurrentForest
@@ -316,10 +317,59 @@ presence. It does not prove each remote source's effective audit policy, so
 those checks remain `Unknown`; inspect effective policy on the source computers
 before accepting the deployment.
 
-### 3. Test one overlapping collection run
+### 3. Install and verify the compiled CLI
+
+The PowerShell Gallery module does not install `evx.exe`. Download the CLI ZIP
+and `EventViewerX.Cli-SHA256SUMS.txt` from the matching
+[EventViewerX release](https://github.com/EvotecIT/EventViewerX/releases) before
+registering a task. Choose `win-x64` for Intel/AMD Windows or `win-arm64` for
+Windows on Arm. Choose `FrameworkDependent` when the .NET 10 runtime is
+installed; choose `PortableCompat` when the task host needs the bundled
+runtime.
+
+After downloading exactly one matching CLI ZIP, verify and extract it from the
+same elevated PowerShell session:
 
 ```powershell
-& 'C:\Program Files\EventViewerX\evx.exe' query `
+$download = Join-Path $env:USERPROFILE 'Downloads'
+$archives = @(Get-ChildItem -LiteralPath $download -Filter 'EventViewerX.Cli-*.zip')
+if ($archives.Count -ne 1) {
+    throw 'Keep exactly one selected EventViewerX CLI ZIP in the download folder.'
+}
+
+$archive = $archives[0]
+$checksums = Join-Path $download 'EventViewerX.Cli-SHA256SUMS.txt'
+$checksumLine = @(Select-String `
+    -LiteralPath $checksums `
+    -Pattern ([regex]::Escape($archive.Name) + '$'))
+if ($checksumLine.Count -ne 1) {
+    throw "No unique checksum was found for $($archive.Name)."
+}
+
+$expectedHash = ($checksumLine[0].Line -split '\s+')[0]
+$actualHash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash
+if ($actualHash -ne $expectedHash) {
+    throw "Checksum verification failed for $($archive.Name)."
+}
+
+$cliRoot = 'C:\Program Files\EventViewerX'
+New-Item -ItemType Directory -Path $cliRoot -Force | Out-Null
+Expand-Archive -LiteralPath $archive.FullName -DestinationPath $cliRoot -Force
+
+$evx = Join-Path $cliRoot 'evx.exe'
+if (-not (Test-Path -LiteralPath $evx -PathType Leaf)) {
+    throw 'The verified CLI archive did not contain evx.exe at its release root.'
+}
+& $evx help
+```
+
+Keep the ZIP and checksum file together with the deployment record. Repeat the
+verification when upgrading the scheduled host.
+
+### 4. Test one overlapping collection run
+
+```powershell
+& $evx query `
     --type ActiveDirectoryChanges `
     --collector WEC01 `
     --since 00:20:00 `
@@ -330,10 +380,10 @@ The command prints inserted and duplicate counts to the task history stream.
 Run it twice to confirm that the second run reports duplicates instead of
 creating duplicate history.
 
-### 4. Test the rolling daily report
+### 5. Test the rolling daily report
 
 ```powershell
-& 'C:\Program Files\EventViewerX\evx.exe' report `
+& $evx report `
     --store C:\ProgramData\EventViewerX\events.db `
     --type ActiveDirectoryChanges `
     --since 1.00:00:00 `
@@ -347,7 +397,7 @@ creating duplicate history.
 UTC calendar buckets in the retained store and includes partial boundary days
 when the rolling window crosses midnight.
 
-### 5. Register two non-interactive tasks
+### 6. Register two non-interactive tasks
 
 The following example uses Local System on the WEC computer so no password is
 stored in the task. If policy requires a gMSA or dedicated service account,
@@ -402,7 +452,7 @@ Windows grants and applies **Log on as a batch job** according to the task
 principal and local/domain policy. Microsoft documents the right and its
 security impact in [Log on as a batch job](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/log-on-as-a-batch-job).
 
-### 6. Verify the unattended boundary
+### 7. Verify the unattended boundary
 
 ```powershell
 Start-ScheduledTask -TaskName 'EventViewerX-Collect-ADChanges'

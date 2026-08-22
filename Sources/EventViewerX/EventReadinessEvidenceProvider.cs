@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.Net;
+using EventViewerX.Native;
 using Microsoft.Win32;
 
 namespace EventViewerX;
@@ -255,27 +256,16 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        Task<T> operationTask = Task.Factory.StartNew(
+        int timeoutMilliseconds = timeout.TotalMilliseconds >= int.MaxValue
+            ? int.MaxValue
+            : Math.Max(1, (int)Math.Ceiling(timeout.TotalMilliseconds));
+        string timeoutMessage =
+            $"Remote subscription registry inspection timed out after {timeout.TotalMilliseconds:F0} ms.";
+        return BoundedNativeOperation.Execute(
             operation,
-            CancellationToken.None,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-        Task timeoutTask = Task.Delay(timeout, cancellationToken);
-        Task completed = Task.WhenAny(operationTask, timeoutTask).GetAwaiter().GetResult();
-        if (completed == operationTask) {
-            return operationTask.GetAwaiter().GetResult();
-        }
-        ObserveAbandonedFault(operationTask);
-        cancellationToken.ThrowIfCancellationRequested();
-        throw new TimeoutException($"Remote subscription registry inspection timed out after {timeout.TotalMilliseconds:F0} ms.");
-    }
-
-    private static void ObserveAbandonedFault(Task task) {
-        _ = task.ContinueWith(
-            static completed => _ = completed.Exception,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
-            TaskScheduler.Default);
+            timeoutMilliseconds,
+            timeoutMessage,
+            cancellationToken);
     }
 
     public CollectorReadinessStatus ReadLocalCollectorReadiness(CancellationToken cancellationToken) =>
