@@ -15,6 +15,16 @@ public static partial class EventReadinessEngine {
     internal static EventReadinessReport Evaluate(
         EventReadinessRequest request,
         IEventReadinessEvidenceProvider evidenceProvider,
+        CancellationToken cancellationToken) => Evaluate(
+            request,
+            evidenceProvider,
+            EventTypeCatalog.GetSources,
+            cancellationToken);
+
+    internal static EventReadinessReport Evaluate(
+        EventReadinessRequest request,
+        IEventReadinessEvidenceProvider evidenceProvider,
+        Func<IEnumerable<EventType>, IReadOnlyList<EventSourceDefinition>> sourceResolver,
         CancellationToken cancellationToken) {
 
         if (request == null) {
@@ -22,6 +32,9 @@ public static partial class EventReadinessEngine {
         }
         if (evidenceProvider == null) {
             throw new ArgumentNullException(nameof(evidenceProvider));
+        }
+        if (sourceResolver == null) {
+            throw new ArgumentNullException(nameof(sourceResolver));
         }
         EventReadinessRequest snapshot = request.Snapshot();
         var stopwatch = Stopwatch.StartNew();
@@ -56,8 +69,20 @@ public static partial class EventReadinessEngine {
             ? discovery.Targets
             : targets;
         AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks);
-        IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(snapshot.Types);
-        AddChannelPolicyChecks(snapshot, discovery, sourceTargets, sources, evidenceProvider, checks);
+        EventType[] missingSourceTypes = EventTypeCatalog
+            .Expand(snapshot.Types)
+            .Where(type => sourceResolver(new[] { type }).Count == 0)
+            .ToArray();
+        AddRuleCatalogChecks(missingSourceTypes, checks);
+        IReadOnlyList<EventSourceDefinition> sources = sourceResolver(snapshot.Types);
+        AddChannelPolicyChecks(
+            snapshot,
+            discovery,
+            sourceTargets,
+            sources,
+            evidenceProvider,
+            checks,
+            cancellationToken);
         foreach (EventTargetInfo target in targets) {
             foreach (EventSourceDefinition source in sources) {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -93,7 +118,7 @@ public static partial class EventReadinessEngine {
         }
 
         if (snapshot.Collector != null) {
-            AddCollectorChecks(snapshot, discovery, evidenceProvider, checks, cancellationToken);
+            AddCollectorChecks(snapshot, discovery, sources, evidenceProvider, checks, cancellationToken);
         }
         AddAuditPolicyChecks(snapshot, sourceTargets, evidenceProvider, checks);
         AddConfigurationChecks(snapshot, sourceTargets, evidenceProvider, checks);
@@ -112,10 +137,12 @@ public static partial class EventReadinessEngine {
         IReadOnlyList<EventTargetInfo> sourceTargets,
         IReadOnlyList<EventSourceDefinition> sources,
         IEventReadinessEvidenceProvider evidenceProvider,
-        List<EventReadinessCheckResult> checks) {
+        List<EventReadinessCheckResult> checks,
+        CancellationToken cancellationToken) {
 
         if (request.Collector != null && discovery == null) {
             foreach (EventSourceDefinition source in sources) {
+                cancellationToken.ThrowIfCancellationRequested();
                 checks.Add(new EventReadinessCheckResult(
                     EventReadinessLayer.EventLogTransport,
                     "ChannelPolicy",
@@ -133,6 +160,7 @@ public static partial class EventReadinessEngine {
 
         foreach (EventTargetInfo target in sourceTargets) {
             foreach (EventSourceDefinition source in sources) {
+                cancellationToken.ThrowIfCancellationRequested();
                 string? machineName = target.Kind == EventTargetKind.LocalMachine ? null : target.ComputerName;
                 NetworkCredential? credential = target.Kind == EventTargetKind.LocalMachine
                     ? null
@@ -143,7 +171,8 @@ public static partial class EventReadinessEngine {
                         machineName,
                         request.ProbeTimeout,
                         credential,
-                        request.Authentication);
+                        request.Authentication,
+                        cancellationToken);
                     if (policy == null) {
                         checks.Add(CreateChannelPolicyCheck(
                             target.ComputerName,
@@ -172,6 +201,8 @@ public static partial class EventReadinessEngine {
                             policy.IsEnabled.Value ? string.Empty : "Enable the required event channel before relying on its events.",
                             policy.IsEnabled.Value ? EventReadinessDiagnosticKind.None : EventReadinessDiagnosticKind.InvalidConfiguration));
                     }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
                 } catch (Exception exception) {
                     EventReadinessDiagnosticKind kind = ClassifyInspectionException(exception);
                     bool missing = kind == EventReadinessDiagnosticKind.Missing;
@@ -187,6 +218,25 @@ public static partial class EventReadinessEngine {
                         kind));
                 }
             }
+        }
+    }
+
+    private static void AddRuleCatalogChecks(
+        IEnumerable<EventType> missingSourceTypes,
+        ICollection<EventReadinessCheckResult> checks) {
+
+        foreach (EventType type in missingSourceTypes) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.Configuration,
+                "RuleCatalog",
+                type.ToString(),
+                EventReadinessStatus.Fail,
+                EventReadinessEvidenceLevel.Inspected,
+                $"No active event rule/source registration exists for requested type '{type}'.",
+                "Register the requested rule before catalog initialization or use a discovery mode that includes it.",
+                required: true,
+                requirementKey: "rule-catalog:" + type.ToString().ToUpperInvariant(),
+                diagnosticKind: EventReadinessDiagnosticKind.InvalidConfiguration));
         }
     }
 
@@ -244,17 +294,17 @@ public static partial class EventReadinessEngine {
 
         foreach (EventTargetDomainResult domain in discovery.Domains) {
             EventTargetDiscoveryFailure? firstFailure = domain.Failures.FirstOrDefault();
-            bool accessDenied = firstFailure?.Kind == EventTargetDiscoveryFailureKind.AccessDenied;
+            bool indeterminate = firstFailure != null && IsIndeterminateDiscoveryFailure(firstFailure.Kind);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 "DomainControllers",
                 domain.DomainName,
                 domain.Succeeded && domain.Targets.Count > 0
                     ? EventReadinessStatus.Pass
-                    : accessDenied
+                    : indeterminate
                         ? EventReadinessStatus.Unknown
                         : EventReadinessStatus.Fail,
-                accessDenied ? EventReadinessEvidenceLevel.Unknown : EventReadinessEvidenceLevel.Inspected,
+                indeterminate ? EventReadinessEvidenceLevel.Unknown : EventReadinessEvidenceLevel.Inspected,
                 domain.Succeeded
                     ? $"Discovered {domain.Targets.Count} domain controller(s)."
                     : $"Discovered {domain.Targets.Count} domain controller(s) with {domain.Failures.Count} failure(s).",
@@ -269,14 +319,13 @@ public static partial class EventReadinessEngine {
                     : MapDiscoveryFailure(firstFailure.Kind)));
         }
         foreach (EventTargetDiscoveryFailure failure in discovery.Failures) {
+            bool indeterminate = IsIndeterminateDiscoveryFailure(failure.Kind);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.TargetDiscovery,
                 failure.Stage,
                 failure.Scope,
-                failure.Kind == EventTargetDiscoveryFailureKind.AccessDenied
-                    ? EventReadinessStatus.Unknown
-                    : EventReadinessStatus.Fail,
-                EventReadinessEvidenceLevel.Unknown,
+                indeterminate ? EventReadinessStatus.Unknown : EventReadinessStatus.Fail,
+                indeterminate ? EventReadinessEvidenceLevel.Unknown : EventReadinessEvidenceLevel.Inspected,
                 failure.Message,
                 "Review directory membership, DNS, reachability, permissions, and the explicit discovery scope.",
                 required: true,

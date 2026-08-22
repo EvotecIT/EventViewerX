@@ -35,7 +35,8 @@ internal interface IEventReadinessEvidenceProvider {
         string? machineName,
         TimeSpan timeout,
         NetworkCredential? credential,
-        EventLogAuthentication authentication);
+        EventLogAuthentication authentication,
+        CancellationToken cancellationToken);
 
     EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey);
 

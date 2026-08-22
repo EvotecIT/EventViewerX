@@ -5,6 +5,7 @@ public static partial class EventReadinessEngine {
     private static void AddCollectorChecks(
         EventReadinessRequest request,
         EventTargetDiscoveryResult? discovery,
+        IReadOnlyList<EventSourceDefinition> sources,
         IEventReadinessEvidenceProvider evidenceProvider,
         List<EventReadinessCheckResult> checks,
         CancellationToken cancellationToken) {
@@ -169,7 +170,7 @@ public static partial class EventReadinessEngine {
                 EventReadinessDiagnosticKind.Missing);
             CollectorSubscriptionCoverageResult coverage = CollectorSubscriptionCoverageEvaluator.Evaluate(
                 subscription,
-                EventTypeCatalog.GetSources(request.Types));
+                sources);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "SubscriptionCoverage",

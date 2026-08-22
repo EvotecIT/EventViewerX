@@ -54,14 +54,16 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         string? machineName,
         TimeSpan timeout,
         NetworkCredential? credential,
-        EventLogAuthentication authentication) => EventLogChannelPolicyService.Get(
+        EventLogAuthentication authentication,
+        CancellationToken cancellationToken) => EventLogChannelPolicyService.Get(
             logName,
             new EventLogCatalogQuery {
                 MachineName = machineName,
                 Credential = credential,
                 Authentication = authentication,
                 ConnectionTimeoutMilliseconds = checked((int)Math.Ceiling(timeout.TotalMilliseconds))
-            });
+            },
+            cancellationToken);
 
     public EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey) {
         if (string.Equals(

@@ -23,7 +23,15 @@ public static partial class EventLogChannelPolicyService {
     /// </summary>
     public static ChannelPolicy? Get(
         string logName,
-        EventLogCatalogQuery query) {
+        EventLogCatalogQuery query) => Get(
+            logName,
+            query,
+            CancellationToken.None);
+
+    internal static ChannelPolicy? Get(
+        string logName,
+        EventLogCatalogQuery query,
+        CancellationToken cancellationToken) {
 
         if (string.IsNullOrWhiteSpace(logName)) {
             throw new ArgumentException("logName cannot be null or empty", nameof(logName));
@@ -41,7 +49,8 @@ public static partial class EventLogChannelPolicyService {
                 logName,
                 query.ConnectionTimeoutMilliseconds,
                 query.Credential,
-                query.Authentication);
+                query.Authentication,
+                cancellationToken);
         using var sessionLifetime =
             new RetainedDisposable<EventLogSession>(
                 session);
@@ -64,6 +73,7 @@ public static partial class EventLogChannelPolicyService {
             },
             query.ConnectionTimeoutMilliseconds,
             $"Timed out reading channel policy for '{logName}' on '{target}' after {query.ConnectionTimeoutMilliseconds} ms.",
+            cancellationToken,
             operationLease:
                 sessionLifetime.Retain());
     }

@@ -396,6 +396,41 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void MissingActiveRuleSourceCannotReportReady() {
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult()
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest { Types = new[] { EventType.OSStartup } },
+            evidence,
+            static _ => Array.Empty<EventSourceDefinition>(),
+            CancellationToken.None);
+
+        EventReadinessCheckResult catalog = Assert.Single(report.Checks, static check => check.Check == "RuleCatalog");
+        Assert.Equal(EventReadinessStatus.Fail, catalog.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, catalog.DiagnosticKind);
+        Assert.Contains(catalog, report.RequiredFailures);
+        Assert.False(report.IsReady);
+    }
+
+    [Fact]
+    public void ChannelPolicyInspectionObservesCallerCancellation() {
+        using var cancellation = new CancellationTokenSource();
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult(),
+            ChannelPolicyReadAction = _ => cancellation.Cancel()
+        };
+
+        Assert.Throws<OperationCanceledException>(() => EventReadinessEngine.Evaluate(
+            new EventReadinessRequest { Types = new[] { EventType.OSStartup } },
+            evidence,
+            cancellation.Token));
+
+        Assert.Equal(1, evidence.ChannelPolicyReadCount);
+    }
+
+    [Fact]
     public void BoundedRemoteInspectionReturnsWhileNativeCallRemainsBlocked() {
         using var release = new ManualResetEventSlim(false);
         var stopwatch = Stopwatch.StartNew();
@@ -460,6 +495,50 @@ public sealed class TestEventReadinessEngine {
         EventReadinessCheckResult resolved = Assert.Single(report.Checks, static check => check.Check == "ResolvedTargets");
         Assert.Equal(EventReadinessStatus.Unknown, resolved.Status);
         Assert.Equal(EventReadinessDiagnosticKind.Error, resolved.DiagnosticKind);
+        EventReadinessCheckResult discovery = Assert.Single(report.Checks, static check => check.Check == "ResolveDomain");
+        Assert.Equal(EventReadinessStatus.Unknown, discovery.Status);
+        Assert.DoesNotContain(discovery, report.RequiredFailures);
+    }
+
+    [Fact]
+    public void DomainDiscoveryTimeoutKeepsDomainReadinessUnknown() {
+        var failure = new EventTargetDiscoveryFailure(
+            "example.com",
+            "EnumerateDomainControllers",
+            EventTargetDiscoveryFailureKind.Timeout,
+            "directory query timed out");
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = new EventTargetDiscoveryResult(
+                EventTargetDiscoveryScope.Domain,
+                "example.com",
+                Array.Empty<EventTargetInfo>(),
+                new[] {
+                    new EventTargetDomainResult(
+                        "example.com",
+                        "example.com",
+                        Array.Empty<EventTargetInfo>(),
+                        new[] { failure })
+                },
+                Array.Empty<EventTargetDiscoveryFailure>(),
+                "TIMEOUT",
+                TimeSpan.Zero)
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Domain,
+                    Name = "example.com"
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult domain = Assert.Single(report.Checks, static check => check.Check == "DomainControllers");
+        Assert.Equal(EventReadinessStatus.Unknown, domain.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Timeout, domain.DiagnosticKind);
+        Assert.DoesNotContain(domain, report.RequiredFailures);
     }
 
     [Fact]
@@ -627,6 +706,8 @@ public sealed class TestEventReadinessEngine {
         internal CollectorSubscriptionRuntimeStatus CollectorRuntime { get; set; } = new();
         internal ChannelPolicy? ChannelPolicy { get; set; } = new() { IsEnabled = true };
         internal Exception? ChannelPolicyException { get; set; }
+        internal Action<CancellationToken>? ChannelPolicyReadAction { get; set; }
+        internal int ChannelPolicyReadCount { get; private set; }
         internal Exception? SubscriptionException { get; set; }
         internal int RuntimeReadCount { get; private set; }
         internal List<(string LogName, string XPath, string? MachineName, NetworkCredential? Credential)> ProbeCalls { get; } = new();
@@ -705,8 +786,12 @@ public sealed class TestEventReadinessEngine {
             string? machineName,
             TimeSpan timeout,
             NetworkCredential? credential,
-            EventLogAuthentication authentication) {
+            EventLogAuthentication authentication,
+            CancellationToken cancellationToken) {
 
+            ChannelPolicyReadCount++;
+            ChannelPolicyReadAction?.Invoke(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (ChannelPolicyException != null) {
                 throw ChannelPolicyException;
             }
