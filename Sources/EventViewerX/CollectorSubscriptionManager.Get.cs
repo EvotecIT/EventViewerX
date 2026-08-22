@@ -102,6 +102,7 @@ public static partial class CollectorSubscriptionManager {
                 info.ContentFormat = subKey.GetValue("ContentFormat") as string;
                 info.DeliveryMode = subKey.GetValue("DeliveryMode") as string;
                 info.Description = subKey.GetValue("Description") as string;
+                info.DestinationLog = subKey.GetValue("LogFile") as string;
 
                 string? queryXml = subKey.GetValue("Query") as string;
                 if (!string.IsNullOrWhiteSpace(queryXml)) {
@@ -120,6 +121,7 @@ public static partial class CollectorSubscriptionManager {
                     if (CollectorSubscriptionXml.TryNormalize(xml, out var details, out var parseError)
                         && details != null) {
                         info.Description = details.Description;
+                        info.DestinationLog = details.DestinationLog;
                         info.Queries = details.Queries;
                     } else {
                         Settings._logger.WriteWarning($"Failed to parse subscription '{name}' XML on '{ResolveCollectorTargetMachineName(machineName)}': {parseError}");

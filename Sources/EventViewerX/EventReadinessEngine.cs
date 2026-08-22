@@ -70,7 +70,7 @@ public static partial class EventReadinessEngine {
             snapshot,
             discovery,
             targets);
-        AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks);
+        AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks, cancellationToken);
         EventType[] missingSourceTypes = EventTypeCatalog
             .Expand(snapshot.Types)
             .Where(type => sourceResolver(new[] { type }).Count == 0)
@@ -124,7 +124,7 @@ public static partial class EventReadinessEngine {
             AddCollectorChecks(snapshot, discovery, sources, evidenceProvider, checks, cancellationToken);
         }
         AddAuditPolicyChecks(snapshot, sourceTargets, evidenceProvider, checks);
-        AddConfigurationChecks(snapshot, sourceTargets, evidenceProvider, checks);
+        AddConfigurationChecks(snapshot, sourceTargets, evidenceProvider, checks, cancellationToken);
         return new EventReadinessReport(
             snapshot.Scenario,
             snapshot.Types,
@@ -514,7 +514,8 @@ public static partial class EventReadinessEngine {
         EventReadinessRequest request,
         IReadOnlyList<EventTargetInfo> targets,
         IEventReadinessEvidenceProvider evidenceProvider,
-        List<EventReadinessCheckResult> checks) {
+        List<EventReadinessCheckResult> checks,
+        CancellationToken cancellationToken) {
 
         EventPrerequisite[] requirements = request.Types
             .Select(EventRequirementCatalog.GetRequirement)
@@ -536,7 +537,7 @@ public static partial class EventReadinessEngine {
                         "Active Directory discovery identified this target as a domain controller.",
                         string.Empty);
                 } else if (IsLocalSourceTarget(target)) {
-                    evidence = evidenceProvider.ReadLocalConfiguration(requirement.Key);
+                    evidence = evidenceProvider.ReadLocalConfiguration(requirement.Key, cancellationToken);
                 } else {
                     evidence = new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Unknown,
@@ -666,7 +667,8 @@ public static partial class EventReadinessEngine {
         EventReadinessRequest request,
         IReadOnlyList<EventTargetInfo> targets,
         IEventReadinessEvidenceProvider evidenceProvider,
-        List<EventReadinessCheckResult> checks) {
+        List<EventReadinessCheckResult> checks,
+        CancellationToken cancellationToken) {
 
         EventPrerequisite[] requirements = request.Types
             .Select(EventRequirementCatalog.GetRequirement)
@@ -678,7 +680,7 @@ public static partial class EventReadinessEngine {
         foreach (EventTargetInfo target in targets) {
             foreach (EventPrerequisite requirement in requirements) {
                 EventReadinessConfigurationEvidence evidence = IsLocalSourceTarget(target)
-                    ? evidenceProvider.ReadLocalConfiguration(requirement.Key)
+                    ? evidenceProvider.ReadLocalConfiguration(requirement.Key, cancellationToken)
                     : new EventReadinessConfigurationEvidence(
                         EventReadinessStatus.Unknown,
                         "This provider-specific configuration was not read on the remote source.",
@@ -704,15 +706,15 @@ public static partial class EventReadinessEngine {
     private static EventReadinessDiagnosticKind MapDiscoveryFailure(
         EventTargetDiscoveryFailure failure,
         EventTargetDiscoveryResult discovery) => failure.Kind switch {
-        EventTargetDiscoveryFailureKind.AccessDenied => EventReadinessDiagnosticKind.AccessDenied,
-        EventTargetDiscoveryFailureKind.Timeout => EventReadinessDiagnosticKind.Timeout,
-        EventTargetDiscoveryFailureKind.LimitReached => EventReadinessDiagnosticKind.Truncated,
-        EventTargetDiscoveryFailureKind.NotFound => IsIndeterminateDiscoveryFailure(failure, discovery)
-            ? EventReadinessDiagnosticKind.Unavailable
-            : EventReadinessDiagnosticKind.Missing,
-        EventTargetDiscoveryFailureKind.NotDomainJoined => EventReadinessDiagnosticKind.InvalidConfiguration,
-        _ => EventReadinessDiagnosticKind.Error
-    };
+            EventTargetDiscoveryFailureKind.AccessDenied => EventReadinessDiagnosticKind.AccessDenied,
+            EventTargetDiscoveryFailureKind.Timeout => EventReadinessDiagnosticKind.Timeout,
+            EventTargetDiscoveryFailureKind.LimitReached => EventReadinessDiagnosticKind.Truncated,
+            EventTargetDiscoveryFailureKind.NotFound => IsIndeterminateDiscoveryFailure(failure, discovery)
+                ? EventReadinessDiagnosticKind.Unavailable
+                : EventReadinessDiagnosticKind.Missing,
+            EventTargetDiscoveryFailureKind.NotDomainJoined => EventReadinessDiagnosticKind.InvalidConfiguration,
+            _ => EventReadinessDiagnosticKind.Error
+        };
 
     private static EventReadinessDiagnosticKind MapProbeStatus(EventLogProbeStatus status) => status switch {
         EventLogProbeStatus.AccessDenied => EventReadinessDiagnosticKind.AccessDenied,

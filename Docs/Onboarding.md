@@ -154,9 +154,10 @@ The applicable advanced audit-policy subcategories are:
 | --- | --- | --- |
 | Audit Logon | Success and Failure | Computers whose logons are reported |
 | Audit Special Logon | Success | Computers whose privileged logons are reported |
-| Audit User Account Management | Success | Domain controllers |
+| Audit User Account Management | Success and Failure | Domain controllers |
 | Audit Computer Account Management | Success | Domain controllers |
 | Audit Security Group Management | Success | Domain controllers |
+| Audit Distribution Group Management | Success | Domain controllers |
 | Audit Authorization Policy Change | Success | Computers whose user-rights assignments are reported |
 | Audit Authentication Policy Change | Success | Domain controllers |
 | Audit Directory Service Changes | Success | Domain controllers |

@@ -26,6 +26,9 @@ public sealed record CollectorSubscriptionSnapshot {
     /// <summary>Delivery mode (Pull, Push, or Custom).</summary>
     public string? DeliveryMode { get; set; }
 
+    /// <summary>Destination event-log channel on the collector.</summary>
+    public string? DestinationLog { get; set; }
+
     /// <summary>Raw XML definition as stored or requested.</summary>
     public string? RawXml { get; set; }
 
@@ -61,6 +64,7 @@ public sealed record CollectorSubscriptionSnapshot {
             IsEnabled = subscription.Enabled,
             ContentFormat = NormalizeOptional(subscription.ContentFormat),
             DeliveryMode = NormalizeOptional(subscription.DeliveryMode),
+            DestinationLog = NormalizeOptional(subscription.DestinationLog),
             RawXml = NormalizeOptional(subscription.RawXml),
             HasXml = !string.IsNullOrWhiteSpace(subscription.RawXml) || queries.Length > 0,
             QueryCount = queries.Length,

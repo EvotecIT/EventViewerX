@@ -48,7 +48,9 @@ internal interface IEventReadinessEvidenceProvider {
         EventLogAuthentication authentication,
         CancellationToken cancellationToken);
 
-    EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey);
+    EventReadinessConfigurationEvidence ReadLocalConfiguration(
+        string requirementKey,
+        CancellationToken cancellationToken);
 
     CollectorSubscriptionSnapshot? ReadCollectorSubscription(
         string name,

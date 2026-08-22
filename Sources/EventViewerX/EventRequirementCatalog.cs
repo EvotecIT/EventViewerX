@@ -191,8 +191,8 @@ public static class EventRequirementCatalog {
     };
 
     private static EventPrerequisite[] GroupManagement() => new[] {
-        Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-security-group-management"),
-        Audit("distribution-group-management", "Audit Distribution Group Management", EventAuditOutcome.Success, "Domain controllers", "audit-distribution-group-management")
+        Audit("security-group-management", "Audit Security Group Management", EventAuditOutcome.Success, "Target computer", "audit-security-group-management"),
+        Audit("distribution-group-management", "Audit Distribution Group Management", EventAuditOutcome.Success, "Target computer", "audit-distribution-group-management")
     };
 
     private static EventPrerequisite[] Smb1Auditing() => new[] {
@@ -231,7 +231,6 @@ public static class EventRequirementCatalog {
 
     private static EventPrerequisite[] BitLockerKeyAuditing() => new[] {
         Audit("sensitive-privilege-use", "Audit Sensitive Privilege Use", EventAuditOutcome.Success | EventAuditOutcome.Failure, "Target computer", "audit-sensitive-privilege-use"),
-        Audit("non-sensitive-privilege-use", "Audit Non-Sensitive Privilege Use", EventAuditOutcome.Success | EventAuditOutcome.Failure, "Target computer", "audit-non-sensitive-privilege-use"),
         Audit("dpapi-activity", "Audit DPAPI Activity", EventAuditOutcome.Success | EventAuditOutcome.Failure, "Target computer", "audit-dpapi-activity")
     };
 

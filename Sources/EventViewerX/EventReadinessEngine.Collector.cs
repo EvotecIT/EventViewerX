@@ -177,6 +177,19 @@ public static partial class EventReadinessEngine {
                 $"Subscription XML present={subscription.HasXml}; query count={subscription.QueryCount}.",
                 "Apply a typed EventViewerX subscription definition containing the selected event sources.",
                 EventReadinessDiagnosticKind.Missing);
+            AddCollectorBooleanCheck(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                "SubscriptionDestination",
+                string.IsNullOrWhiteSpace(subscription.DestinationLog)
+                    ? null
+                    : string.Equals(
+                        subscription.DestinationLog,
+                        "ForwardedEvents",
+                        StringComparison.OrdinalIgnoreCase),
+                $"Subscription destination={subscription.DestinationLog ?? "Unknown"}.",
+                "Configure the subscription LogFile as ForwardedEvents so readiness probes and scheduled collection read the delivered events.",
+                EventReadinessDiagnosticKind.InvalidConfiguration);
             CollectorSubscriptionCoverageResult coverage = CollectorSubscriptionCoverageEvaluator.Evaluate(
                 subscription,
                 sources);

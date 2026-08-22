@@ -314,6 +314,7 @@ public sealed class TestEventReadinessEngine {
                 IsEnabled = true,
                 HasXml = true,
                 QueryCount = 1,
+                DestinationLog = "ForwardedEvents",
                 RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ADUserLogonNTLMv1 })
             },
             CollectorReadiness = new CollectorReadinessStatus {
@@ -357,6 +358,50 @@ public sealed class TestEventReadinessEngine {
             check.Check == "ExpectedSourceRuntime" &&
             check.Target == "dc01.example.com" &&
             check.Status == EventReadinessStatus.Pass);
+    }
+
+    [Fact]
+    public void CollectorSubscriptionMustDeliverToForwardedEvents() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.DestinationLog = "Custom-ForwardedEvents";
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult destination = Assert.Single(
+            report.Checks,
+            static check => check.Check == "SubscriptionDestination");
+        Assert.Equal(EventReadinessStatus.Fail, destination.Status);
+        Assert.Equal(
+            EventReadinessDiagnosticKind.InvalidConfiguration,
+            destination.DiagnosticKind);
+        Assert.Contains(destination, report.RequiredFailures);
+    }
+
+    [Theory]
+    [InlineData(false, false, EventReadinessStatus.Fail, EventReadinessDiagnosticKind.Missing)]
+    [InlineData(true, false, EventReadinessStatus.Fail, EventReadinessDiagnosticKind.InvalidConfiguration)]
+    [InlineData(true, true, EventReadinessStatus.Pass, EventReadinessDiagnosticKind.None)]
+    public void NetworkPolicyServerRoleRequiresRunningService(
+        bool installed,
+        bool running,
+        EventReadinessStatus expectedStatus,
+        EventReadinessDiagnosticKind expectedDiagnostic) {
+
+        EventReadinessConfigurationEvidence evidence =
+            EventReadinessEvidenceProvider.CreateNetworkPolicyServerRoleEvidence(
+                installed,
+                running);
+
+        Assert.Equal(expectedStatus, evidence.Status);
+        Assert.Equal(expectedDiagnostic, evidence.DiagnosticKind);
     }
 
     [Fact]
@@ -1278,6 +1323,7 @@ public sealed class TestEventReadinessEngine {
             IsEnabled = true,
             HasXml = true,
             QueryCount = 1,
+            DestinationLog = "ForwardedEvents",
             RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ADUserLogonNTLMv1 })
         },
         CollectorReadiness = new CollectorReadinessStatus {
@@ -1495,7 +1541,11 @@ public sealed class TestEventReadinessEngine {
             };
         }
 
-        public EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey) {
+        public EventReadinessConfigurationEvidence ReadLocalConfiguration(
+            string requirementKey,
+            CancellationToken cancellationToken) {
+
+            cancellationToken.ThrowIfCancellationRequested();
             ConfigurationReadCount++;
             return new EventReadinessConfigurationEvidence(
                 EventReadinessStatus.Pass,

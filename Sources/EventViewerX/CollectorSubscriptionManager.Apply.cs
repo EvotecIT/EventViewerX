@@ -103,6 +103,7 @@ public static partial class CollectorSubscriptionManager {
             snapshot.RawXml = details!.NormalizedXml;
             snapshot.HasXml = true;
             snapshot.Description = details.Description;
+            snapshot.DestinationLog = details.DestinationLog;
             snapshot.Queries = details.Queries;
             snapshot.QueryCount = details.Queries.Count;
         }

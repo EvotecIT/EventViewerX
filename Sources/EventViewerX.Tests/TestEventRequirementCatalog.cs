@@ -115,6 +115,11 @@ public sealed class TestEventRequirementCatalog {
         Assert.Contains(requirement.Prerequisites, static item =>
             item.Key == "audit:distribution-group-management" &&
             item.AuditOutcomes == EventAuditOutcome.Success);
+        Assert.All(
+            requirement.Prerequisites.Where(static item => item.Kind == EventRequirementKind.AuditPolicy),
+            static item => Assert.Equal("Target computer", item.AppliesTo));
+        Assert.DoesNotContain(requirement.Prerequisites, static item =>
+            item.Key == "target-role:domain-controller");
     }
 
     [Fact]
@@ -187,7 +192,6 @@ public sealed class TestEventRequirementCatalog {
         Assert.Equal(
             new[] {
                 "audit:dpapi-activity",
-                "audit:non-sensitive-privilege-use",
                 "audit:sensitive-privilege-use"
             },
             keys);

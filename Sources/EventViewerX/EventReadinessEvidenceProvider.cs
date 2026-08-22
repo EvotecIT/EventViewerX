@@ -85,7 +85,11 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             },
             cancellationToken);
 
-    public EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey) {
+    public EventReadinessConfigurationEvidence ReadLocalConfiguration(
+        string requirementKey,
+        CancellationToken cancellationToken) {
+
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.Equals(
                 requirementKey,
                 "target-role:domain-controller",
@@ -102,7 +106,7 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 requirementKey,
                 "target-role:network-policy-server",
                 StringComparison.OrdinalIgnoreCase)) {
-            return ReadLocalNetworkPolicyServerRole();
+            return ReadLocalNetworkPolicyServerRole(cancellationToken);
         }
         if (string.Equals(
                 requirementKey,
@@ -424,26 +428,22 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         }
     }
 
-    private static EventReadinessConfigurationEvidence ReadLocalNetworkPolicyServerRole() {
+    private static EventReadinessConfigurationEvidence ReadLocalNetworkPolicyServerRole(
+        CancellationToken cancellationToken) {
+
         try {
-            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Services\IAS",
-                writable: false);
-            return key != null
-                ? new EventReadinessConfigurationEvidence(
-                    EventReadinessStatus.Pass,
-                    "The local Network Policy Server service is installed.",
-                    string.Empty)
-                : new EventReadinessConfigurationEvidence(
-                    EventReadinessStatus.Fail,
-                    "The local Network Policy Server service is not installed.",
-                    "Assess the Network Policy Server that emits the selected access events.",
-                    EventReadinessDiagnosticKind.Missing);
+            (bool installed, bool running) =
+                CollectorSubscriptionManager.ReadServiceState(
+                    "IAS",
+                    cancellationToken);
+            return CreateNetworkPolicyServerRoleEvidence(installed, running);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch (UnauthorizedAccessException exception) {
             return new EventReadinessConfigurationEvidence(
                 EventReadinessStatus.Unknown,
                 "The current identity cannot inspect the local Network Policy Server role: " + exception.Message,
-                "Run with an identity allowed to read the local IAS service registry key.",
+                "Run with an identity allowed to inspect the local IAS service state.",
                 EventReadinessDiagnosticKind.AccessDenied);
         } catch (Exception exception) {
             return new EventReadinessConfigurationEvidence(
@@ -452,6 +452,29 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 "Confirm the source role manually or assess the Network Policy Server directly.",
                 EventReadinessDiagnosticKind.Error);
         }
+    }
+
+    internal static EventReadinessConfigurationEvidence CreateNetworkPolicyServerRoleEvidence(
+        bool installed,
+        bool running) {
+
+        if (!installed) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Fail,
+                "The local Network Policy Server service is not installed.",
+                "Assess the Network Policy Server that emits the selected access events.",
+                EventReadinessDiagnosticKind.Missing);
+        }
+        return running
+            ? new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Pass,
+                "The local Network Policy Server service is installed and running.",
+                string.Empty)
+            : new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Fail,
+                "The local Network Policy Server service is installed but not running.",
+                "Start the IAS service on the Network Policy Server before monitoring access decisions.",
+                EventReadinessDiagnosticKind.InvalidConfiguration);
     }
 
     private static EventReadinessConfigurationEvidence ReadLocalSmb1AccessAuditing() {

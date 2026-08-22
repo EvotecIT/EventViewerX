@@ -260,7 +260,7 @@ public static partial class CollectorSubscriptionManager {
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
-    private static (bool Installed, bool Running) ReadServiceState(
+    internal static (bool Installed, bool Running) ReadServiceState(
         string serviceName,
         CancellationToken cancellationToken) {
 
