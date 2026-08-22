@@ -1,0 +1,313 @@
+namespace EventViewerX;
+
+/// <summary>Windows Event Collector readiness composition.</summary>
+public static partial class EventReadinessEngine {
+    private static void AddCollectorChecks(
+        EventReadinessRequest request,
+        EventTargetDiscoveryResult? discovery,
+        IEventReadinessEvidenceProvider evidenceProvider,
+        List<EventReadinessCheckResult> checks,
+        CancellationToken cancellationToken) {
+
+        string collector = request.Collector!;
+        bool localCollector = EventLogTarget.IsLocalMachine(collector);
+        if (localCollector) {
+            try {
+                CollectorReadinessStatus readiness = evidenceProvider.ReadLocalCollectorReadiness(cancellationToken);
+                AddCollectorBooleanCheck(
+                    checks,
+                    collector,
+                    "CollectorService",
+                    readiness.CollectorServiceInstalled && readiness.CollectorServiceRunning,
+                    $"Wecsvc installed={readiness.CollectorServiceInstalled}; running={readiness.CollectorServiceRunning}; start mode={readiness.CollectorServiceStartMode}.",
+                    "Install and start the Windows Event Collector service before scheduling collection.",
+                    EventReadinessDiagnosticKind.Missing);
+                AddCollectorBooleanCheck(
+                    checks,
+                    collector,
+                    "WinRM",
+                    readiness.WinRmServiceRunning && readiness.WinRmListenerAvailable,
+                    $"WinRM running={readiness.WinRmServiceRunning}; listener available={readiness.WinRmListenerAvailable}.",
+                    "Configure the required scoped WinRM listener and firewall policy for Windows Event Forwarding.",
+                    EventReadinessDiagnosticKind.InvalidConfiguration);
+                AddCollectorBooleanCheck(
+                    checks,
+                    collector,
+                    "ForwardedEvents",
+                    readiness.ForwardedEventsExists && readiness.ForwardedEventsEnabled,
+                    $"ForwardedEvents exists={readiness.ForwardedEventsExists}; enabled={readiness.ForwardedEventsEnabled}.",
+                    "Register and enable ForwardedEvents before scheduling collection.",
+                    readiness.ForwardedEventsExists
+                        ? EventReadinessDiagnosticKind.InvalidConfiguration
+                        : EventReadinessDiagnosticKind.Missing);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (UnauthorizedAccessException exception) {
+                checks.Add(new EventReadinessCheckResult(
+                    EventReadinessLayer.WindowsEventCollector,
+                    "CollectorHostReadiness",
+                    collector,
+                    EventReadinessStatus.Unknown,
+                    EventReadinessEvidenceLevel.Unknown,
+                    exception.Message,
+                    "Run the read-only assessment with an identity permitted to inspect local services, WinRM, and ForwardedEvents.",
+                    required: true,
+                    diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
+            } catch (Exception exception) {
+                checks.Add(new EventReadinessCheckResult(
+                    EventReadinessLayer.WindowsEventCollector,
+                    "CollectorHostReadiness",
+                    collector,
+                    EventReadinessStatus.Unknown,
+                    EventReadinessEvidenceLevel.Unknown,
+                    exception.Message,
+                    "Inspect Wecsvc, WinRM, its listener, and ForwardedEvents on the collector.",
+                    required: true,
+                    diagnosticKind: EventReadinessDiagnosticKind.Error));
+            }
+        } else {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "CollectorHostReadiness",
+                collector,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                "Local service and WinRM state cannot be inspected through Event Log RPC on a remote collector.",
+                "Run Test-EVXReadiness locally on the collector or use an explicitly authorized remote execution boundary.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+        }
+
+        if (request.SubscriptionName == null) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionSelection",
+                collector,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                "No WEC subscription name was supplied, so configuration and source enrollment cannot be assessed.",
+                "Supply -SubscriptionName and either explicit -ExpectedSource values or opt-in Active Directory discovery.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            return;
+        }
+
+        CollectorSubscriptionSnapshot? subscription;
+        try {
+            subscription = evidenceProvider.ReadCollectorSubscription(
+                request.SubscriptionName,
+                localCollector ? null : collector);
+        } catch (UnauthorizedAccessException exception) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionConfiguration",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                exception.Message,
+                "Grant read access to the collector subscription registry or run the assessment locally on the collector.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
+            return;
+        } catch (Exception exception) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionConfiguration",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                exception.Message,
+                "Inspect the named subscription locally on the collector.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.Error));
+            return;
+        }
+        if (subscription == null) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionConfiguration",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                "The named subscription was not returned; it may be missing or inaccessible.",
+                "Confirm the exact subscription name and read it locally when remote registry access is restricted.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            return;
+        }
+        AddCollectorBooleanCheck(
+            checks,
+            collector + "/" + request.SubscriptionName,
+            "SubscriptionEnabled",
+            subscription.IsEnabled,
+            $"Subscription enabled={subscription.IsEnabled?.ToString() ?? "Unknown"}.",
+            "Enable the subscription after validating its source ACL and query definition.",
+            EventReadinessDiagnosticKind.InvalidConfiguration);
+        AddCollectorBooleanCheck(
+            checks,
+            collector + "/" + request.SubscriptionName,
+            "SubscriptionDefinition",
+            subscription.HasXml && subscription.QueryCount > 0,
+            $"Subscription XML present={subscription.HasXml}; query count={subscription.QueryCount}.",
+            "Apply a typed EventViewerX subscription definition containing the selected event sources.",
+            EventReadinessDiagnosticKind.Missing);
+
+        string[] expectedSources = request.ExpectedSources
+            .Concat(discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>())
+            .Select(static source => source.Trim().TrimEnd('.'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static source => source, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (expectedSources.Length == 0) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceSet",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                "No expected source set was supplied or discovered; runtime output cannot reveal a source that never enrolled.",
+                "Supply -ExpectedSource or explicitly opt in with -ActiveDirectory CurrentDomain, CurrentForest, Domain, or Forest.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            return;
+        }
+        if (!localCollector) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceRuntime",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                $"{expectedSources.Length} expected source(s) are known, but wecutil runtime status is local-only.",
+                "Run the same readiness command locally on the collector to compare expected sources with runtime enrollment.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            return;
+        }
+
+        CollectorSubscriptionRuntimeStatus runtime;
+        try {
+            runtime = evidenceProvider.ReadLocalCollectorRuntime(request.SubscriptionName, cancellationToken);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (UnauthorizedAccessException exception) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionRuntime",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                exception.Message,
+                "Run the assessment with an identity permitted to read local WEC runtime status.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
+            return;
+        } catch (Exception exception) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "SubscriptionRuntime",
+                collector + "/" + request.SubscriptionName,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                exception.Message,
+                "Run 'wecutil gr' or Get-EVXCollectorSubscription -IncludeRuntimeStatus locally and inspect the Windows error.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.Error));
+            return;
+        }
+        bool runtimeEvidenceAvailable =
+            !string.IsNullOrWhiteSpace(runtime.Status) ||
+            !string.IsNullOrWhiteSpace(runtime.RawStatus) ||
+            runtime.LastErrorCode.HasValue ||
+            runtime.Sources.Count > 0;
+        AddCollectorBooleanCheck(
+            checks,
+            collector + "/" + request.SubscriptionName,
+            "SubscriptionRuntime",
+            runtimeEvidenceAvailable ? runtime.IsHealthy : null,
+            $"Runtime status={runtime.Status}; events processed={runtime.EventsProcessed}; last error={runtime.LastErrorCode}.",
+            runtimeEvidenceAvailable
+                ? "Inspect the subscription and each source runtime error before accepting collection coverage."
+                : "Run 'wecutil gr' locally and confirm that Windows returned runtime evidence for the subscription.",
+            EventReadinessDiagnosticKind.InvalidConfiguration);
+        if (!runtimeEvidenceAvailable) {
+            return;
+        }
+        var runtimeBySource = runtime.Sources
+            .Where(static source => !string.IsNullOrWhiteSpace(source.Address))
+            .GroupBy(static source => source.Address.Trim().TrimEnd('.'), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (string expectedSource in expectedSources) {
+            if (!runtimeBySource.TryGetValue(expectedSource, out CollectorSubscriptionSourceRuntimeStatus? source)) {
+                checks.Add(new EventReadinessCheckResult(
+                    EventReadinessLayer.WindowsEventCollector,
+                    "ExpectedSourceRuntime",
+                    expectedSource,
+                    EventReadinessStatus.Fail,
+                    EventReadinessEvidenceLevel.Inspected,
+                    "The expected source is absent from the subscription runtime source set.",
+                    "Verify source policy, subscription ACL, WinRM reachability, and forwarding-client operational logs.",
+                    required: true,
+                    diagnosticKind: EventReadinessDiagnosticKind.Missing));
+                continue;
+            }
+            bool sourceEvidenceAvailable =
+                !string.IsNullOrWhiteSpace(source.Status) ||
+                source.LastErrorCode.HasValue ||
+                !string.IsNullOrWhiteSpace(source.ErrorMessage) ||
+                source.EventsProcessed.HasValue ||
+                source.LastHeartbeatTime.HasValue;
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceRuntime",
+                expectedSource,
+                !sourceEvidenceAvailable
+                    ? EventReadinessStatus.Unknown
+                    : source.IsHealthy
+                        ? EventReadinessStatus.Pass
+                        : EventReadinessStatus.Fail,
+                sourceEvidenceAvailable
+                    ? EventReadinessEvidenceLevel.Inspected
+                    : EventReadinessEvidenceLevel.Unknown,
+                $"Runtime status={source.Status}; events processed={source.EventsProcessed}; last heartbeat={source.LastHeartbeatTime:O}; last error={source.LastErrorCode}.",
+                sourceEvidenceAvailable && source.IsHealthy
+                    ? string.Empty
+                    : "Inspect this source's WEF operational log, WinRM path, and subscription authorization.",
+                required: true,
+                diagnosticKind: !sourceEvidenceAvailable
+                    ? EventReadinessDiagnosticKind.NoEvidence
+                    : source.IsHealthy
+                        ? EventReadinessDiagnosticKind.None
+                        : EventReadinessDiagnosticKind.InvalidConfiguration));
+        }
+    }
+
+    private static void AddCollectorBooleanCheck(
+        List<EventReadinessCheckResult> checks,
+        string target,
+        string check,
+        bool? succeeded,
+        string evidence,
+        string remediation,
+        EventReadinessDiagnosticKind failureKind) => checks.Add(new EventReadinessCheckResult(
+            EventReadinessLayer.WindowsEventCollector,
+            check,
+            target,
+            succeeded.HasValue
+                ? succeeded.Value
+                    ? EventReadinessStatus.Pass
+                    : EventReadinessStatus.Fail
+                : EventReadinessStatus.Unknown,
+            succeeded.HasValue
+                ? EventReadinessEvidenceLevel.Inspected
+                : EventReadinessEvidenceLevel.Unknown,
+            evidence,
+            succeeded == true ? string.Empty : remediation,
+            required: true,
+            diagnosticKind: succeeded.HasValue
+                ? succeeded.Value
+                    ? EventReadinessDiagnosticKind.None
+                    : failureKind
+                : EventReadinessDiagnosticKind.NoEvidence));
+
+}

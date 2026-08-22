@@ -80,6 +80,10 @@ targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
 
 ## Documentation
 
+- [Onboarding and prerequisites](Docs/Onboarding.md): local-first readiness,
+  explicit Active Directory discovery, direct versus WEC collection, audit
+  policy, permissions, firewall, and a complete scheduled daily AD-change
+  report.
 - [PowerShell guide](Docs/PowerShell-Guide.md): local, remote, offline, large
   logs, export, checkpoints, watchers, administration, WEC, script recovery,
   and writes.
