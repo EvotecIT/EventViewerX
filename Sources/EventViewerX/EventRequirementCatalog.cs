@@ -54,7 +54,8 @@ public static class EventRequirementCatalog {
                     "Event 2889 requires the domain controller registry value '16 LDAP Interface Events' at level 2. Readiness reports this setting but does not change it.",
                     "Domain controllers",
                     "https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/enable-ldap-signing-in-windows-server")
-            }
+            },
+            [EventType.ADLdapBindingSummary] = new[] { DomainControllerRole() }
         };
 
     /// <summary>Returns requirements for all built-in event types.</summary>

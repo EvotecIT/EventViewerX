@@ -65,7 +65,7 @@ public static partial class EventReadinessEngine {
             AddTargetDiscoveryChecks(discovery, checks);
         }
 
-        IReadOnlyList<EventTargetInfo> sourceTargets = discovery?.Targets.Count > 0
+        IReadOnlyList<EventTargetInfo> sourceTargets = snapshot.Collector != null && discovery != null
             ? discovery.Targets
             : targets;
         AddTargetRoleChecks(snapshot, sourceTargets, evidenceProvider, checks);

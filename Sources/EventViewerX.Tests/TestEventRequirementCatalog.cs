@@ -65,9 +65,11 @@ public sealed class TestEventRequirementCatalog {
         Assert.Contains("does not change", configuration.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void DomainControllerEventsDeclareTheirRequiredSourceRole() {
-        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.KerberosServiceTicket);
+    [Theory]
+    [InlineData(EventType.KerberosServiceTicket)]
+    [InlineData(EventType.ADLdapBindingSummary)]
+    public void DomainControllerEventsDeclareTheirRequiredSourceRole(EventType type) {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
 
         EventPrerequisite role = Assert.Single(
             requirement.Prerequisites,

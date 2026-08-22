@@ -151,6 +151,7 @@ public static partial class EventReadinessEngine {
                 "Create the subscription or correct the supplied subscription name.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.Missing));
+            return;
         } else if (subscription != null) {
             AddCollectorBooleanCheck(
                 checks,
@@ -247,21 +248,24 @@ public static partial class EventReadinessEngine {
                 diagnosticKind: EventReadinessDiagnosticKind.Error));
             return;
         }
-        bool runtimeEvidenceAvailable =
-            !string.IsNullOrWhiteSpace(runtime.Status) ||
-            runtime.LastErrorCode.HasValue ||
-            runtime.Sources.Count > 0;
+        bool runtimeHasDefinitiveError =
+            runtime.LastErrorCode.HasValue && runtime.LastErrorCode.Value != 0 ||
+            !string.IsNullOrWhiteSpace(runtime.ErrorMessage);
+        bool runtimeStateConclusive = !string.IsNullOrWhiteSpace(runtime.Status) || runtimeHasDefinitiveError;
+        bool runtimeIsHealthy =
+            string.Equals(runtime.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+            !runtimeHasDefinitiveError;
         AddCollectorBooleanCheck(
             checks,
             collector + "/" + request.SubscriptionName,
             "SubscriptionRuntime",
-            runtimeEvidenceAvailable ? runtime.IsHealthy : null,
+            runtimeStateConclusive ? runtimeIsHealthy : null,
             $"Runtime status={runtime.Status}; events processed={runtime.EventsProcessed}; last error={runtime.LastErrorCode}.",
-            runtimeEvidenceAvailable
+            runtimeStateConclusive
                 ? "Inspect the subscription and each source runtime error before accepting collection coverage."
                 : "Run 'wecutil gr' locally and confirm that Windows returned runtime evidence for the subscription.",
             EventReadinessDiagnosticKind.InvalidConfiguration);
-        if (!runtimeEvidenceAvailable || expectedSources.Length == 0) {
+        if ((!runtimeStateConclusive && runtime.Sources.Count == 0) || expectedSources.Length == 0) {
             return;
         }
         var runtimeBySource = runtime.Sources
@@ -282,32 +286,33 @@ public static partial class EventReadinessEngine {
                     diagnosticKind: EventReadinessDiagnosticKind.Missing));
                 continue;
             }
-            bool sourceEvidenceAvailable =
-                !string.IsNullOrWhiteSpace(source.Status) ||
-                source.LastErrorCode.HasValue ||
-                !string.IsNullOrWhiteSpace(source.ErrorMessage) ||
-                source.EventsProcessed.HasValue ||
-                source.LastHeartbeatTime.HasValue;
+            bool sourceHasDefinitiveError =
+                source.LastErrorCode.HasValue && source.LastErrorCode.Value != 0 ||
+                !string.IsNullOrWhiteSpace(source.ErrorMessage);
+            bool sourceStateConclusive = !string.IsNullOrWhiteSpace(source.Status) || sourceHasDefinitiveError;
+            bool sourceIsHealthy =
+                string.Equals(source.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                !sourceHasDefinitiveError;
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "ExpectedSourceRuntime",
                 expectedSource,
-                !sourceEvidenceAvailable
+                !sourceStateConclusive
                     ? EventReadinessStatus.Unknown
-                    : source.IsHealthy
+                    : sourceIsHealthy
                         ? EventReadinessStatus.Pass
                         : EventReadinessStatus.Fail,
-                sourceEvidenceAvailable
+                sourceStateConclusive
                     ? EventReadinessEvidenceLevel.Inspected
                     : EventReadinessEvidenceLevel.Unknown,
                 $"Runtime status={source.Status}; events processed={source.EventsProcessed}; last heartbeat={source.LastHeartbeatTime:O}; last error={source.LastErrorCode}.",
-                sourceEvidenceAvailable && source.IsHealthy
+                sourceStateConclusive && sourceIsHealthy
                     ? string.Empty
                     : "Inspect this source's WEF operational log, WinRM path, and subscription authorization.",
                 required: true,
-                diagnosticKind: !sourceEvidenceAvailable
+                diagnosticKind: !sourceStateConclusive
                     ? EventReadinessDiagnosticKind.NoEvidence
-                    : source.IsHealthy
+                    : sourceIsHealthy
                         ? EventReadinessDiagnosticKind.None
                         : EventReadinessDiagnosticKind.InvalidConfiguration));
         }

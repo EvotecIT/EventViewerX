@@ -276,6 +276,90 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void PartialSubscriptionRuntimeKeepsOverallStateUnknownButStillEvaluatesSources() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime = new CollectorSubscriptionRuntimeStatus {
+            SubscriptionName = "EventViewerX-AD",
+            LastErrorCode = 0,
+            EventsProcessed = 12,
+            Sources = new[] {
+                new CollectorSubscriptionSourceRuntimeStatus {
+                    Address = "dc01.example.com",
+                    Status = "Active",
+                    LastErrorCode = 0
+                }
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult runtime = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionRuntime");
+        Assert.Equal(EventReadinessStatus.Unknown, runtime.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, runtime.DiagnosticKind);
+        Assert.Contains(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime" &&
+            check.Status == EventReadinessStatus.Pass);
+    }
+
+    [Fact]
+    public void PartialSourceRuntimeKeepsSourceStateUnknown() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                LastErrorCode = 0,
+                EventsProcessed = 12,
+                LastHeartbeatTime = DateTimeOffset.UtcNow
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult runtime = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionRuntime");
+        Assert.Equal(EventReadinessStatus.Pass, runtime.Status);
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal(EventReadinessStatus.Unknown, source.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, source.DiagnosticKind);
+    }
+
+    [Fact]
+    public void ActiveSubscriptionWithNoRuntimeSourcesFailsExpectedSourceEnrollment() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = Array.Empty<CollectorSubscriptionSourceRuntimeStatus>();
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult runtime = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionRuntime");
+        Assert.Equal(EventReadinessStatus.Pass, runtime.Status);
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal(EventReadinessStatus.Fail, source.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, source.DiagnosticKind);
+    }
+
+    [Fact]
+    public void SourceRuntimeErrorWithoutStatusIsAConclusiveFailure() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                ErrorMessage = "Access is denied."
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult source = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceRuntime");
+        Assert.Equal(EventReadinessStatus.Fail, source.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, source.DiagnosticKind);
+    }
+
+    [Fact]
     public void NonEmptySubscriptionThatDoesNotCoverSelectedEventsFailsCoverage() {
         var evidence = CreateCollectorEvidence();
         evidence.Subscription!.RawXml = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.ScheduledTaskCreated });
@@ -320,6 +404,11 @@ public sealed class TestEventReadinessEngine {
         Assert.Equal(EventReadinessStatus.Fail, configuration.Status);
         Assert.Equal(EventReadinessDiagnosticKind.Missing, configuration.DiagnosticKind);
         Assert.Contains(configuration, report.RequiredFailures);
+        Assert.Equal(0, evidence.RuntimeReadCount);
+        Assert.DoesNotContain(report.Checks, static check =>
+            check.Check == "SubscriptionRuntime" ||
+            check.Check == "ExpectedSourceSet" ||
+            check.Check == "ExpectedSourceRuntime");
     }
 
     [Fact]
@@ -498,6 +587,45 @@ public sealed class TestEventReadinessEngine {
         EventReadinessCheckResult discovery = Assert.Single(report.Checks, static check => check.Check == "ResolveDomain");
         Assert.Equal(EventReadinessStatus.Unknown, discovery.Status);
         Assert.DoesNotContain(discovery, report.RequiredFailures);
+    }
+
+    [Fact]
+    public void CollectorRemainsTransportTargetWhenExplicitSourceDiscoveryReturnsNoTargets() {
+        var failure = new EventTargetDiscoveryFailure(
+            "example.com",
+            "ResolveDomain",
+            EventTargetDiscoveryFailureKind.Error,
+            "directory unavailable");
+        var evidence = CreateCollectorEvidence();
+        evidence.TargetResult = new EventTargetDiscoveryResult(
+            EventTargetDiscoveryScope.Domain,
+            "example.com",
+            Array.Empty<EventTargetInfo>(),
+            Array.Empty<EventTargetDomainResult>(),
+            new[] { failure },
+            "FAILED",
+            TimeSpan.Zero);
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADLdapBindingSummary },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.Domain,
+                    Name = "example.com"
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        Assert.Equal(0, evidence.ChannelPolicyReadCount);
+        Assert.Equal(0, evidence.AuditQueryCount);
+        Assert.Equal(0, evidence.ConfigurationReadCount);
+        Assert.DoesNotContain(report.Checks, static check =>
+            check.RequirementKey == "target-role:domain-controller");
+        Assert.Equal(EventTargetKind.Collector, Assert.Single(report.Targets).Kind);
+        Assert.Contains(evidence.ProbeCalls, static call => call.LogName == "ForwardedEvents");
     }
 
     [Fact]
