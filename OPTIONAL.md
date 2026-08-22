@@ -82,9 +82,11 @@ AD target discovery ---------> readiness ---------> direct/WEC tutorials
          |                         |
          +-------------------------+-------> queries and reports
 
-typed enrichment -----------> normalization ------> semantic duplicate groups
-                                                         |
-                                                         +--> aggregations
+identity canonicalization --> typed enrichment --> value normalization
+             |                                         |
+             +-----------------------------------------+--> semantic duplicate groups
+                                                               |
+                                                               +--> aggregations
 
 occurrence groups + aggregations -----> notification policies -----> transports
                    |                              |
@@ -294,7 +296,13 @@ The requirements matrix should be generated from `EventRequirementDescriptor`. T
 
 ### Options and tradeoffs
 
-- `-Strict` can treat required `Unknown` results as a failed readiness gate. Default interactive output should show them prominently without claiming readiness.
+- `IsReady` remains false whenever a required result is `Fail` or `Unknown`.
+  `-Strict` adds an observable automation boundary: after composing the complete
+  report, PowerShell raises the terminating error ID
+  `EventViewerX.ReadinessIncomplete` and the CLI exits with code 2 when any
+  required result is `Unknown`. Without `-Strict`, the report is returned for
+  interactive assessment without claiming readiness; required `Fail` results
+  retain the command's normal failed-gate behavior in both modes.
 - `-Check` and `-SkipCheck` allow focused diagnosis, but the report must state that it is partial.
 - Remote effective audit-policy inspection provides stronger proof but requires a separate execution channel and broader permissions.
 - A task-registration helper improves onboarding but introduces a mutating Windows boundary; it should follow the diagnostic work, not be bundled into it.
@@ -373,7 +381,7 @@ Get-EVXEvent -Type ActiveDirectoryChanges -TargetSet $targetSet
 - `Domain`, requiring `-DomainName`
 - `Forest`, requiring `-ForestName`
 
-Trust traversal is a separate concept because the current forest already contains all of its child domains. `-IncludeTrust` should accept `Forest`, `External`, or `All`; it defaults to none. `-TrustDirection` should accept `Inbound`, `Outbound`, `Bidirectional`, or `Any` and default to `Any` after trust traversal has been explicitly enabled. Trust direction names are easy to misread from opposite sides of a relationship, so the result must report the discovered direction and prove Event Log access separately instead of predicting access from direction alone.
+Trust traversal is a separate concept because the current forest already contains all of its child domains. `-IncludeTrust` should accept `Forest`, `External`, or `All`; it defaults to none. `-TrustDirection` should accept `Inbound`, `Outbound`, `Bidirectional`, or `Any` and default to `Any` after trust traversal has been explicitly enabled. Every trust edge is normalized as `FromScope -> ToPartner`, where `FromScope` is the domain or forest whose trust API was enumerated. Direction is always interpreted from that `FromScope`: `Outbound` means the enumerated source trusts the partner, and `Inbound` means the partner trusts the enumerated source. Filtering occurs only after that orientation is recorded, including at deeper traversal levels, so enumeration order cannot reverse the meaning. The result reports both endpoints, the normalized direction, and the trust path, and proves Event Log access separately instead of predicting access from direction alone.
 
 Target filtering should use orthogonal parameters:
 
@@ -440,10 +448,12 @@ A stable consumer/query-profile identity identifies the scheduled job. It is
 derived from an explicit profile name or a canonical fingerprint of the event
 types/definition, typed predicate, source-selection semantics, and other
 record-eligibility semantics. Credentials, resolved target membership, moving
-absolute/relative execution windows, concurrency, and scan/page caps are
-excluded. When an explicit profile name is used, the store also retains the
+relative execution windows, concurrency, and scan/page caps are excluded.
+Fixed absolute start/end bounds are included because changing them changes the
+eligible historical record set. When an explicit profile name is used, the store also retains the
 canonical semantic fingerprint and rejects accidental reuse of that name for a
-different filter unless the operator performs an explicit checkpoint migration.
+different filter or fixed bound unless the operator performs an explicit
+checkpoint reset/migration that records the old and new fingerprints.
 Beneath that identity, durable progress is partitioned by the
 normalized discovery request plus each stable target/channel identity. Two
 jobs that happen to discover the same DCs can therefore never advance one
@@ -521,6 +531,15 @@ public interface IEventEnrichmentProvider {
 ```
 
 The context owns bounded lookup services, cache, credentials, target metadata, and diagnostics. Providers do not open their own unbounded directory clients or hide failures in console output.
+
+Before provider selection or cache lookup, a shared identity-canonicalization
+stage parses SID, GUID, distinguished-name, DNS/IP, and other provider-key
+representations into stable typed identities while retaining the raw value.
+Enrichment providers consume only those canonical identities and never carry
+their own competing normalization. Capability 4 then performs the broader
+display/value normalization of event fields and enriched values. Thus identity
+canonicalization precedes enrichment even though user-facing value
+normalization follows it.
 
 Initial built-in providers should be:
 
@@ -788,7 +807,13 @@ If incidents are adopted later, their separate acceptance gate must cover preser
 
 ### What this gives us
 
-One logical lockout reported by a DC and the PDC can appear as one occurrence group while retaining both audit observations. This removes noisy report rows without weakening forensic evidence or exact storage identity. It is deliberately narrower than the deferred incident/correlation design.
+When Windows or a provider supplies a shared causal discriminator, one logical
+event observed by multiple sources can appear as one occurrence group while
+retaining every audit observation. Where that discriminator is absent—as with
+ordinary 4740 DC/PDC lockout records—the observations remain separate or are
+shown as an explicitly ambiguous candidate set. This avoids noisy rows only
+when the evidence supports it, without weakening forensic identity. It is
+deliberately narrower than the deferred incident/correlation design.
 
 ### Identity levels
 
@@ -857,7 +882,9 @@ The representative should be deterministic:
 ### Acceptance gate
 
 - Direct plus forwarded copies of one source event remain transport duplicates.
-- DC and PDC records for one captured lockout become one semantic set with two source members.
+- DC and PDC records become one semantic set only when captured evidence
+  contains a validated shared causal discriminator; ordinary 4740 records
+  without one remain separate or explicitly ambiguous.
 - Repeated real lockouts outside or inside the window are not merged when their semantic keys differ.
 - Captures without a shared causal discriminator remain separate or
   explicitly ambiguous even when every candidate dimension and timestamp
@@ -945,7 +972,18 @@ one means an account identity and another means a workstation identity.
 ### Execution
 
 - In-memory reports use the shared managed aggregation engine.
+- Managed execution requires explicit `MaximumGroups` and
+  `MaximumDistinctValues` bounds plus a total aggregation-state memory budget.
+  Defaults are conservative and scenario-owned; callers may lower them, while
+  raising them is explicit. Reaching any bound stops accepting new state,
+  marks the result incomplete with the exact bound and observed counts, and
+  never presents top-N as complete merely because final output is small.
+- The initial managed engine does not spill sensitive event-derived state to
+  disk implicitly. A future explicit spill mode must use a caller-selected,
+  protected store and preserve the same incomplete-result contract.
 - Storage providers may push supported group/bucket/measure operations into the database.
+- Pushdown must enforce equivalent group/cardinality/result bounds or reject
+  the request; a provider cannot bypass the managed safety contract.
 - Unsupported provider operations fall back to the managed engine only when the bounded read is acceptable.
 - `Explain` reports which filters and aggregations were pushed down, which ran in managed code, and whether a cap made the result incomplete.
 
@@ -971,6 +1009,8 @@ Renderers consume `EventAggregationResult`. Excel and HTML do not independently 
 - Unicode account names and case variants follow one documented grouping policy.
 - Time buckets handle UTC, timezone conversion, DST gaps, and overlaps deterministically.
 - Query and aggregation truncation are visible.
+- High-cardinality group and distinct-count inputs stop at deterministic state
+  bounds and cannot exhaust memory merely because `Top` is small.
 - SQLite pushdown and managed fallback produce the same result for the same bounded dataset.
 - Top-N `Other` results for additive and non-additive measures equal a fresh
   managed aggregation over the union of discarded source rows.
@@ -1366,7 +1406,9 @@ The capabilities should be delivered in independently useful slices. Adoption of
 1. Which remote mechanism, if any, should prove effective audit policy when the current identity has permission? The result must still distinguish configured, effective, observed, and unknown evidence.
 2. Which event-derived facts belong in the first persistent context schema beyond GPO identity/history?
 3. Which narrowly scoped compiled evidence-import contract should TestimoX use, if any, to share GPO history without coupling EventViewerX to TestimoX scanning?
-4. What evidence makes two lockout observations one occurrence without merging two genuine repeated lockouts?
+4. Do any supported event/provider versions expose a causal discriminator that
+   safely joins DC/PDC lockout observations? Until proven by real fixtures,
+   ordinary 4740 observations remain separate or explicitly ambiguous.
 5. Which normalized fields are stable enough for the first aggregation presets and charts?
 
 ## Gap audit beyond inherited PSWinReporting issues
@@ -1400,7 +1442,7 @@ The first source audit separates missing operator experiences from missing event
 | Windows Firewall rules | Only Security 4947 modified is typed. | Add 4946 added and 4948 deleted to the same lifecycle family. State clearly that these Security events describe local rule changes and do not prove Group Policy rule creation. |
 | Microsoft Defender Antivirus | No built-in Defender operational definition exists. | Add a focused first family for 1116 detection, 1117 action, and 5007 configuration change. Evaluate 1125/1126 network-protection audit/block as a related but separate higher-volume family. |
 | Service installation | 7045 is inspected only by the narrow Npcap/NPF/network-monitor rule. | Evaluate a general service-install definition using Security 4697 and System 7045, preserving source semantics rather than treating the two observations as exact duplicates. Do not add it until real event-version fixtures and audit requirements are proven. |
-| PowerShell logging | No typed operational family exists. | Defer a 4103/4104 family until data-volume, sensitive-content, WEC rendering, truncation, and redaction contracts are designed. Script-block content must not become a default broad collection target. |
+| PowerShell logging | `Get-EVXPowerShellScript` and `PowerShellEventEngine` already own 4103/4104 fragment reassembly, scan/output/cache bounds, cancellation, and explicit incomplete-result tracking; no typed operational family integrates that owner with the general event/report catalog. | Defer a typed 4103/4104 family until data-volume, sensitive-content, WEC rendering, truncation, and redaction contracts are designed. Any future typed family must reuse `PowerShellEventEngine` rather than duplicate its reassembly or safety logic. Script-block content must not become a default broad collection target. |
 | GPO identity after deletion | Event rules expose GPO identifiers, but live lookup after deletion can no longer recover a reliable current name. | Implement the historical context store and resolve by event time. EventViewerX may accept narrowly scoped, versioned evidence exported by TestimoX; it must not absorb TestimoX directory/SYSVOL estate scanning. |
 
 Authoritative references for the first security-coverage slice:
