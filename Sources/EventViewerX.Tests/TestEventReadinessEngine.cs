@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.Net;
 using Xunit;
@@ -287,6 +288,41 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void SeparateQueryCanRestoreAnEventSuppressedByAnotherQuery() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml = """
+            <QueryList>
+              <Query Id="0" Path="Security">
+                <Select Path="Security">*[System[EventID=4624]]</Select>
+                <Suppress Path="Security">*[System[EventID=4624]]</Suppress>
+              </Query>
+              <Query Id="1" Path="Security">
+                <Select Path="Security">*[System[EventID=4624]]</Select>
+              </Query>
+            </QueryList>
+            """;
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check => check.Check == "SubscriptionCoverage");
+        Assert.Equal(EventReadinessStatus.Pass, coverage.Status);
+    }
+
+    [Fact]
+    public void ConfirmedMissingSubscriptionIsARequiredFailure() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription = null;
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult configuration = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionConfiguration");
+        Assert.Equal(EventReadinessStatus.Fail, configuration.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, configuration.DiagnosticKind);
+        Assert.Contains(configuration, report.RequiredFailures);
+    }
+
+    [Fact]
     public void SubscriptionAccessFailureDoesNotSuppressIndependentRuntimeEvidence() {
         var evidence = CreateCollectorEvidence();
         evidence.SubscriptionException = new InvalidOperationException(
@@ -338,6 +374,45 @@ public sealed class TestEventReadinessEngine {
         Assert.Equal(EventReadinessStatus.Fail, policy.Status);
         Assert.Equal("channel:SECURITY", policy.RequirementKey);
         Assert.Contains("1048576", policy.Evidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingChannelExceptionIsARequiredFailure() {
+        var evidence = new FakeEvidenceProvider {
+            TargetResult = LocalTargetResult(),
+            AuditOutcomes = EventAuditOutcome.Success,
+            ChannelPolicyException = new EventLogNotFoundException("Security was not found")
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest { Types = new[] { EventType.ADUserLogonNTLMv1 } },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult policy = Assert.Single(report.Checks, static check => check.Check == "ChannelPolicy");
+        Assert.Equal(EventReadinessStatus.Fail, policy.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, policy.DiagnosticKind);
+        Assert.Contains(policy, report.RequiredFailures);
+    }
+
+    [Fact]
+    public void BoundedRemoteInspectionReturnsWhileNativeCallRemainsBlocked() {
+        using var release = new ManualResetEventSlim(false);
+        var stopwatch = Stopwatch.StartNew();
+        try {
+            Assert.Throws<TimeoutException>(() =>
+                EventReadinessEvidenceProvider.RunBoundedRemoteInspection(
+                    () => {
+                        release.Wait();
+                        return true;
+                    },
+                    TimeSpan.FromMilliseconds(50),
+                    CancellationToken.None));
+        } finally {
+            release.Set();
+        }
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -551,6 +626,7 @@ public sealed class TestEventReadinessEngine {
         internal CollectorReadinessStatus CollectorReadiness { get; set; } = new();
         internal CollectorSubscriptionRuntimeStatus CollectorRuntime { get; set; } = new();
         internal ChannelPolicy? ChannelPolicy { get; set; } = new() { IsEnabled = true };
+        internal Exception? ChannelPolicyException { get; set; }
         internal Exception? SubscriptionException { get; set; }
         internal int RuntimeReadCount { get; private set; }
         internal List<(string LogName, string XPath, string? MachineName, NetworkCredential? Credential)> ProbeCalls { get; } = new();
@@ -631,6 +707,9 @@ public sealed class TestEventReadinessEngine {
             NetworkCredential? credential,
             EventLogAuthentication authentication) {
 
+            if (ChannelPolicyException != null) {
+                throw ChannelPolicyException;
+            }
             if (ChannelPolicy == null) {
                 return null;
             }
@@ -651,7 +730,13 @@ public sealed class TestEventReadinessEngine {
                 string.Empty);
         }
 
-        public CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName) {
+        public CollectorSubscriptionSnapshot? ReadCollectorSubscription(
+            string name,
+            string? machineName,
+            TimeSpan timeout,
+            CancellationToken cancellationToken) {
+
+            cancellationToken.ThrowIfCancellationRequested();
             if (SubscriptionException != null) {
                 throw SubscriptionException;
             }

@@ -225,8 +225,56 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         }
     }
 
-    public CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName) =>
-        CollectorSubscriptionManager.GetCollectorSubscriptionSnapshot(name, machineName);
+    public CollectorSubscriptionSnapshot? ReadCollectorSubscription(
+        string name,
+        string? machineName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken) {
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(machineName) || EventLogTarget.IsLocalMachine(machineName)) {
+            return CollectorSubscriptionManager.GetCollectorSubscriptionSnapshot(name, machineName);
+        }
+        return RunBoundedRemoteInspection(
+            () => CollectorSubscriptionManager.GetCollectorSubscriptionSnapshot(name, machineName),
+            timeout,
+            cancellationToken);
+    }
+
+    internal static T RunBoundedRemoteInspection<T>(
+        Func<T> operation,
+        TimeSpan timeout,
+        CancellationToken cancellationToken) {
+
+        if (operation == null) {
+            throw new ArgumentNullException(nameof(operation));
+        }
+        if (timeout <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        Task<T> operationTask = Task.Factory.StartNew(
+            operation,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        Task timeoutTask = Task.Delay(timeout, cancellationToken);
+        Task completed = Task.WhenAny(operationTask, timeoutTask).GetAwaiter().GetResult();
+        if (completed == operationTask) {
+            return operationTask.GetAwaiter().GetResult();
+        }
+        ObserveAbandonedFault(operationTask);
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new TimeoutException($"Remote subscription registry inspection timed out after {timeout.TotalMilliseconds:F0} ms.");
+    }
+
+    private static void ObserveAbandonedFault(Task task) {
+        _ = task.ContinueWith(
+            static completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
 
     public CollectorReadinessStatus ReadLocalCollectorReadiness(CancellationToken cancellationToken) =>
         CollectorSubscriptionManager.GetCollectorReadiness(cancellationToken);

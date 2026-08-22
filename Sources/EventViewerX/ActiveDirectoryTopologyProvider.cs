@@ -126,6 +126,9 @@ internal sealed class ActiveDirectoryTopologyProvider : IActiveDirectoryTopology
         if (!request.IncludeTrustedForests) {
             return;
         }
+        if (TryReportReachedLimit(request, domains, failures, forest.Name)) {
+            return;
+        }
 
         TrustRelationshipInformationCollection trusts;
         try {
@@ -140,12 +143,7 @@ internal sealed class ActiveDirectoryTopologyProvider : IActiveDirectoryTopology
         }
         foreach (TrustRelationshipInformation trust in trusts) {
             cancellationToken.ThrowIfCancellationRequested();
-            if (domains.Count >= request.MaximumDomainCount) {
-                AddLimitFailure(
-                    failures,
-                    forest.Name,
-                    "MaximumDomainCount",
-                    $"Discovery stopped after {request.MaximumDomainCount} domain(s).");
+            if (TryReportReachedLimit(request, domains, failures, forest.Name)) {
                 break;
             }
             string targetName = trust.TargetName?.Trim().TrimEnd('.') ?? string.Empty;
@@ -289,6 +287,31 @@ internal sealed class ActiveDirectoryTopologyProvider : IActiveDirectoryTopology
 
     private static int CountTargets(IEnumerable<EventTargetDomainResult> domains) =>
         domains.Sum(static domain => domain.Targets.Count);
+
+    private static bool TryReportReachedLimit(
+        EventTargetDiscoveryRequest request,
+        IReadOnlyCollection<EventTargetDomainResult> domains,
+        ICollection<EventTargetDiscoveryFailure> failures,
+        string scope) {
+
+        if (domains.Count >= request.MaximumDomainCount) {
+            AddLimitFailure(
+                failures,
+                scope,
+                "MaximumDomainCount",
+                $"Discovery stopped after {request.MaximumDomainCount} domain(s).");
+            return true;
+        }
+        if (CountTargets(domains) >= request.MaximumTargetCount) {
+            AddLimitFailure(
+                failures,
+                scope,
+                "MaximumTargetCount",
+                $"Discovery stopped after {request.MaximumTargetCount} target(s).");
+            return true;
+        }
+        return false;
+    }
 
     private static void AddLimitFailure(
         ICollection<EventTargetDiscoveryFailure> failures,

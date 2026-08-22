@@ -77,51 +77,79 @@ internal static class CollectorSubscriptionCoverageEvaluator {
     }
 
     private static SourceCoverage EvaluateSource(XDocument queryList, EventSourceDefinition source) {
-        XElement[] selects = queryList
+        XElement[] queries = queryList
             .Descendants()
-            .Where(static element => string.Equals(element.Name.LocalName, "Select", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))
+            .Where(static element => string.Equals(element.Name.LocalName, "Query", StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        if (selects.Length == 0) {
+        if (queries.Length == 0) {
             return SourceCoverage.Missing;
         }
 
-        bool selectsAll = false;
-        bool uncertainSelect = false;
-        var selectedIds = new HashSet<int>();
-        foreach (XElement select in selects) {
+        bool uncertain = false;
+        foreach (int eventId in source.EventIds) {
+            SourceCoverage eventCoverage = SourceCoverage.Missing;
+            foreach (XElement query in queries) {
+                SourceCoverage queryCoverage = EvaluateQuery(query, source.LogName, eventId);
+                if (queryCoverage == SourceCoverage.Covered) {
+                    eventCoverage = SourceCoverage.Covered;
+                    break;
+                }
+                if (queryCoverage == SourceCoverage.Unknown) {
+                    eventCoverage = SourceCoverage.Unknown;
+                }
+            }
+            if (eventCoverage == SourceCoverage.Missing) {
+                return SourceCoverage.Missing;
+            }
+            uncertain |= eventCoverage == SourceCoverage.Unknown;
+        }
+        return uncertain ? SourceCoverage.Unknown : SourceCoverage.Covered;
+    }
+
+    private static SourceCoverage EvaluateQuery(XElement query, string logName, int eventId) {
+        bool selected = false;
+        bool uncertainSelection = false;
+        foreach (XElement select in query
+            .Descendants()
+            .Where(static element => string.Equals(element.Name.LocalName, "Select", StringComparison.OrdinalIgnoreCase))
+            .Where(element => string.Equals(ResolvePath(element), logName, StringComparison.OrdinalIgnoreCase))) {
+
             string expression = select.Value.Trim();
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
-                selectsAll = true;
+                selected = true;
                 continue;
             }
-            if (!TryReadEventIds(expression, selectedIds)) {
-                uncertainSelect = true;
+            var selectedIds = new HashSet<int>();
+            if (TryReadEventIds(expression, selectedIds)) {
+                selected |= selectedIds.Contains(eventId);
+            } else {
+                uncertainSelection = true;
             }
         }
-        if (!selectsAll && source.EventIds.Any(id => !selectedIds.Contains(id))) {
-            return uncertainSelect ? SourceCoverage.Unknown : SourceCoverage.Missing;
+        if (!selected) {
+            return uncertainSelection ? SourceCoverage.Unknown : SourceCoverage.Missing;
         }
 
-        XElement[] suppressions = queryList
+        bool uncertainSuppression = false;
+        foreach (XElement suppression in query
             .Descendants()
             .Where(static element => string.Equals(element.Name.LocalName, "Suppress", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        foreach (XElement suppression in suppressions) {
+            .Where(element => string.Equals(ResolvePath(element), logName, StringComparison.OrdinalIgnoreCase))) {
+
             string expression = suppression.Value.Trim();
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
                 return SourceCoverage.Missing;
             }
             var suppressedIds = new HashSet<int>();
             if (!TryReadEventIds(expression, suppressedIds)) {
-                return SourceCoverage.Unknown;
+                uncertainSuppression = true;
+                continue;
             }
-            if (source.EventIds.Any(suppressedIds.Contains)) {
+            if (suppressedIds.Contains(eventId)) {
                 return SourceCoverage.Missing;
             }
         }
-        return SourceCoverage.Covered;
+        return uncertainSuppression ? SourceCoverage.Unknown : SourceCoverage.Covered;
     }
 
     private static bool TryReadQueryList(

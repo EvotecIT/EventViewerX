@@ -248,7 +248,7 @@ $domainControllersSid = (Get-ADGroup 'Domain Controllers').SID.Value
 
 $definition = New-EVXCollectorSubscription `
     -Name EventViewerX-ADChanges `
-    -Type ActiveDirectoryChanges `
+    -Type ActiveDirectoryChanges, ActiveDirectoryAuthentication `
     -SubscriptionType SourceInitiated `
     -CollectorHostName WEC01.contoso.com `
     -AllowedSourceSid $domainControllersSid

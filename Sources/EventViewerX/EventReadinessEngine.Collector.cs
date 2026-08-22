@@ -105,10 +105,16 @@ public static partial class EventReadinessEngine {
         }
 
         CollectorSubscriptionSnapshot? subscription = null;
+        bool subscriptionInspected = false;
         try {
             subscription = evidenceProvider.ReadCollectorSubscription(
                 request.SubscriptionName,
-                localCollector ? null : collector);
+                localCollector ? null : collector,
+                request.ProbeTimeout,
+                cancellationToken);
+            subscriptionInspected = true;
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch (Exception exception) when (IsAccessDeniedException(exception)) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
@@ -121,6 +127,7 @@ public static partial class EventReadinessEngine {
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
         } catch (Exception exception) {
+            EventReadinessDiagnosticKind diagnosticKind = ClassifyInspectionException(exception);
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "SubscriptionConfiguration",
@@ -130,20 +137,20 @@ public static partial class EventReadinessEngine {
                 exception.Message,
                 "Inspect the named subscription locally on the collector.",
                 required: true,
-                diagnosticKind: EventReadinessDiagnosticKind.Error));
+                diagnosticKind: diagnosticKind));
         }
-        if (subscription == null) {
+        if (subscriptionInspected && subscription == null) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
                 "SubscriptionConfiguration",
                 collector + "/" + request.SubscriptionName,
-                EventReadinessStatus.Unknown,
-                EventReadinessEvidenceLevel.Unknown,
-                "The named subscription was not returned; it may be missing or inaccessible.",
-                "Confirm the exact subscription name and read it locally when remote registry access is restricted.",
+                EventReadinessStatus.Fail,
+                EventReadinessEvidenceLevel.Inspected,
+                "The named subscription was not found.",
+                "Create the subscription or correct the supplied subscription name.",
                 required: true,
-                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
-        } else {
+                diagnosticKind: EventReadinessDiagnosticKind.Missing));
+        } else if (subscription != null) {
             AddCollectorBooleanCheck(
                 checks,
                 collector + "/" + request.SubscriptionName,

@@ -39,7 +39,11 @@ internal interface IEventReadinessEvidenceProvider {
 
     EventReadinessConfigurationEvidence ReadLocalConfiguration(string requirementKey);
 
-    CollectorSubscriptionSnapshot? ReadCollectorSubscription(string name, string? machineName);
+    CollectorSubscriptionSnapshot? ReadCollectorSubscription(
+        string name,
+        string? machineName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken);
 
     CollectorReadinessStatus ReadLocalCollectorReadiness(CancellationToken cancellationToken);
 

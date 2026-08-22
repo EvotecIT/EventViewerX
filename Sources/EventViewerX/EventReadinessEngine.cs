@@ -174,13 +174,16 @@ public static partial class EventReadinessEngine {
                     }
                 } catch (Exception exception) {
                     EventReadinessDiagnosticKind kind = ClassifyInspectionException(exception);
+                    bool missing = kind == EventReadinessDiagnosticKind.Missing;
                     checks.Add(CreateChannelPolicyCheck(
                         target.ComputerName,
                         source,
-                        EventReadinessStatus.Unknown,
-                        EventReadinessEvidenceLevel.Unknown,
-                        exception.Message,
-                        "Inspect the channel policy locally or grant read access to the selected source.",
+                        missing ? EventReadinessStatus.Fail : EventReadinessStatus.Unknown,
+                        missing ? EventReadinessEvidenceLevel.Inspected : EventReadinessEvidenceLevel.Unknown,
+                        missing ? "The event channel was not found: " + exception.Message : exception.Message,
+                        missing
+                            ? "Register the required channel or remove event types that depend on it."
+                            : "Inspect the channel policy locally or grant read access to the selected source.",
                         kind));
                 }
             }
@@ -208,6 +211,9 @@ public static partial class EventReadinessEngine {
 
     private static EventReadinessDiagnosticKind ClassifyInspectionException(Exception exception) {
         for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is System.Diagnostics.Eventing.Reader.EventLogNotFoundException) {
+                return EventReadinessDiagnosticKind.Missing;
+            }
             if (current is UnauthorizedAccessException || current is System.Security.SecurityException) {
                 return EventReadinessDiagnosticKind.AccessDenied;
             }
