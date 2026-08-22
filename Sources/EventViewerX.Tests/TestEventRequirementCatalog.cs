@@ -86,6 +86,114 @@ public sealed class TestEventRequirementCatalog {
             static item => item.Key == "configuration:certification-authority-audit-filter-requests");
     }
 
+    [Theory]
+    [InlineData(EventType.ADGroupMembershipChange)]
+    [InlineData(EventType.ADGroupChange)]
+    [InlineData(EventType.ADGroupCreateDelete)]
+    public void GroupManagementCoversSecurityAndDistributionGroups(EventType type) {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
+
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "audit:security-group-management" &&
+            item.AuditOutcomes == EventAuditOutcome.Success);
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "audit:distribution-group-management" &&
+            item.AuditOutcomes == EventAuditOutcome.Success);
+    }
+
+    [Fact]
+    public void UserStatusCoversFailedPasswordChangeAttempts() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.ADUserStatus);
+        EventPrerequisite audit = Assert.Single(
+            requirement.Prerequisites,
+            static item => item.Kind == EventRequirementKind.AuditPolicy);
+
+        Assert.Equal(EventAuditOutcome.Success | EventAuditOutcome.Failure, audit.AuditOutcomes);
+    }
+
+    [Fact]
+    public void NetworkPolicyEventsDeclareRoleAndBothAuditOutcomes() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(
+            EventType.NetworkAccessAuthenticationPolicy);
+
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "target-role:network-policy-server");
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "audit:network-policy-server" &&
+            item.AuditOutcomes == (EventAuditOutcome.Success | EventAuditOutcome.Failure));
+    }
+
+    [Theory]
+    [InlineData(EventType.DeviceRecognized)]
+    [InlineData(EventType.DeviceDisabled)]
+    public void DeviceEventsDeclarePnpActivityAuditing(EventType type) {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
+
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "audit:pnp-activity" &&
+            item.AuditOutcomes == EventAuditOutcome.Success);
+    }
+
+    [Fact]
+    public void Smb1AndObjectDeletionDeclareConfigurationEvidence() {
+        EventTypeRequirement smb = EventRequirementCatalog.GetRequirement(EventType.ADSMBServerAuditV1);
+        Assert.Contains(smb.Prerequisites, static item =>
+            item.Key == "configuration:smb1-access-auditing");
+
+        EventTypeRequirement deletion = EventRequirementCatalog.GetRequirement(EventType.ObjectDeletion);
+        Assert.Contains(deletion.Prerequisites, static item =>
+            item.Key == "configuration:object-deletion-audit-subcategory");
+        Assert.Contains(deletion.Prerequisites, static item =>
+            item.Key == "configuration:object-deletion-sacl");
+    }
+
+    [Theory]
+    [InlineData(EventType.OSStartupSecurity)]
+    [InlineData(EventType.OSCrashOnAuditFailRecovery)]
+    public void SecurityLifecycleEventsDeclareSecurityStateChangeAuditing(EventType type) {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
+
+        Assert.Contains(requirement.Prerequisites, static item =>
+            item.Key == "audit:security-state-change" &&
+            item.AuditOutcomes == EventAuditOutcome.Success);
+    }
+
+    [Fact]
+    public void BitLockerKeyEventsCoverPrivilegeAndDpapiAuditSources() {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(
+            EventType.BitLockerKeyChange);
+        string[] keys = requirement.Prerequisites
+            .Where(static item => item.Kind == EventRequirementKind.AuditPolicy)
+            .Select(static item => item.Key)
+            .OrderBy(static key => key, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[] {
+                "audit:dpapi-activity",
+                "audit:non-sensitive-privilege-use",
+                "audit:sensitive-privilege-use"
+            },
+            keys);
+        Assert.All(
+            requirement.Prerequisites.Where(static item => item.Kind == EventRequirementKind.AuditPolicy),
+            static item => Assert.Equal(
+                EventAuditOutcome.Success | EventAuditOutcome.Failure,
+                item.AuditOutcomes));
+    }
+
+    [Theory]
+    [InlineData(EventType.LogsClearedSecurity)]
+    [InlineData(EventType.LogsFullSecurity)]
+    [InlineData(EventType.OSTimeChange)]
+    public void PolicyIndependentSecurityEventsNeedOnlyTheirChannel(EventType type) {
+        EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(type);
+
+        Assert.All(
+            requirement.Prerequisites,
+            static item => Assert.Equal(EventRequirementKind.EventChannel, item.Kind));
+    }
+
     [Fact]
     public void LdapDetailsExplainDiagnosticConfigurationWithoutMutatingIt() {
         EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(EventType.ADLdapBindingDetails);

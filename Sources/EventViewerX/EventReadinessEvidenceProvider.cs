@@ -100,6 +100,18 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         }
         if (string.Equals(
                 requirementKey,
+                "target-role:network-policy-server",
+                StringComparison.OrdinalIgnoreCase)) {
+            return ReadLocalNetworkPolicyServerRole();
+        }
+        if (string.Equals(
+                requirementKey,
+                "configuration:smb1-access-auditing",
+                StringComparison.OrdinalIgnoreCase)) {
+            return ReadLocalSmb1AccessAuditing();
+        }
+        if (string.Equals(
+                requirementKey,
                 "configuration:certification-authority-audit-filter-requests",
                 StringComparison.OrdinalIgnoreCase)) {
             return ReadLocalCertificateAuthorityAuditFilter();
@@ -406,6 +418,75 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 EventReadinessStatus.Unknown,
                 "The local Certification Authority role could not be inspected: " + exception.Message,
                 "Confirm the source role manually or assess the Certification Authority directly.",
+                EventReadinessDiagnosticKind.Error);
+        }
+    }
+
+    private static EventReadinessConfigurationEvidence ReadLocalNetworkPolicyServerRole() {
+        try {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\IAS",
+                writable: false);
+            return key != null
+                ? new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Pass,
+                    "The local Network Policy Server service is installed.",
+                    string.Empty)
+                : new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "The local Network Policy Server service is not installed.",
+                    "Assess the Network Policy Server that emits the selected access events.",
+                    EventReadinessDiagnosticKind.Missing);
+        } catch (UnauthorizedAccessException exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The current identity cannot inspect the local Network Policy Server role: " + exception.Message,
+                "Run with an identity allowed to read the local IAS service registry key.",
+                EventReadinessDiagnosticKind.AccessDenied);
+        } catch (Exception exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The local Network Policy Server role could not be inspected: " + exception.Message,
+                "Confirm the source role manually or assess the Network Policy Server directly.",
+                EventReadinessDiagnosticKind.Error);
+        }
+    }
+
+    private static EventReadinessConfigurationEvidence ReadLocalSmb1AccessAuditing() {
+        try {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters",
+                writable: false);
+            object? value = key?.GetValue("AuditSmb1Access");
+            if (value == null) {
+                return new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "SMB1 access auditing is not enabled in the local SMB server configuration.",
+                    "Run Set-SmbServerConfiguration -AuditSmb1Access $true after reviewing the expected audit volume.",
+                    EventReadinessDiagnosticKind.Missing);
+            }
+            int enabled = Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+            return enabled != 0
+                ? new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Pass,
+                    "The local SMB server configuration enables SMB1 access auditing.",
+                    string.Empty)
+                : new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "The local SMB server configuration disables SMB1 access auditing.",
+                    "Run Set-SmbServerConfiguration -AuditSmb1Access $true after reviewing the expected audit volume.",
+                    EventReadinessDiagnosticKind.InvalidConfiguration);
+        } catch (UnauthorizedAccessException exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The current identity cannot inspect SMB1 access auditing: " + exception.Message,
+                "Run with an identity allowed to read the local SMB server configuration.",
+                EventReadinessDiagnosticKind.AccessDenied);
+        } catch (Exception exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "SMB1 access auditing could not be inspected: " + exception.Message,
+                "Run Get-SmbServerConfiguration and inspect AuditSmb1Access manually.",
                 EventReadinessDiagnosticKind.Error);
         }
     }
