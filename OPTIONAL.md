@@ -127,7 +127,8 @@ Test-EVXReadiness `
 Test-EVXReadiness `
     -Scenario ForwardedActiveDirectoryReport `
     -Collector WEC01 `
-    -SubscriptionName 'EventViewerX-AD'
+    -SubscriptionName 'EventViewerX-AD' `
+    -ExpectedSource DC01, DC02
 ```
 
 ```text
@@ -168,6 +169,9 @@ Each check result should include:
 - target, domain, forest, collector, or local host identity;
 - layer and check name;
 - `Pass`, `Warning`, `Fail`, `Unknown`, or `Skipped` status;
+- a separate structured classification such as `AccessDenied`, `Timeout`,
+  `Unavailable`, `Missing`, `InvalidConfiguration`, or `NoEvidence` when the
+  status alone does not explain why evidence is unavailable;
 - whether the check is required for the selected workflow;
 - a short evidence statement;
 - an actionable remediation statement;
@@ -176,7 +180,7 @@ Each check result should include:
 
 `Unknown` must remain distinct from `Pass`. For example, reading a recent 5136 event proves that auditing produced at least one event; it does not prove the current effective audit policy on every DC.
 
-The engine should attempt every safe check that the current identity can perform. Missing privileges narrow the evidence and produce an actionable `Unknown` or `AccessDenied`; they do not stop unrelated checks. A remediation view may show the exact policy, permission, firewall, or service change an administrator could apply, but readiness does not apply it.
+The engine should attempt every safe check that the current identity can perform. Missing privileges narrow the evidence and produce `Unknown` with an `AccessDenied` classification; `AccessDenied` is not a sixth status. Permission failures do not stop unrelated checks. A remediation view may show the exact policy, permission, firewall, or service change an administrator could apply, but readiness does not apply it.
 
 ### Checks
 
@@ -229,10 +233,12 @@ Audit checks should report success/failure settings separately because some even
 - `ForwardedEvents` existence and enablement
 - subscription existence, enabled state, query definition, delivery mode, content format, heartbeat interval, and source list
 - per-source runtime state, last heartbeat, processed events, and Windows error code
+- an explicit or discovered expected-source set compared with the runtime
+  source/heartbeat set, including sources that never enrolled
 - whether the selected EventViewerX types are covered by the subscription query
 - whether forwarded payloads retain the fields required by typed projection
 
-The existing collector readiness and runtime models remain the owners for Windows state. The new report adds scenario-aware interpretation.
+The existing collector readiness and runtime models remain the owners for Windows state. The new report adds scenario-aware interpretation. A source-initiated subscription's SDDL says who may enroll; it is not evidence that every expected DC actually enrolled. Collector-only readiness therefore requires `-ExpectedSource`, a pre-resolved target set, or explicit AD discovery when source completeness matters. Without one of those inputs, source coverage is `Unknown` even when every returned runtime source is healthy.
 
 #### Scheduling
 
@@ -376,6 +382,11 @@ Target filtering should use orthogonal parameters:
 - `-SiteName <string[]>`
 - `-DomainName <string[]>`
 - `-ForestName <string[]>`
+- `-DiscoveryTimeout <TimeSpan>` for the whole target-resolution operation
+- `-DomainTimeout <TimeSpan>` for one directory/domain operation
+- `-MaximumDomainCount <int>`
+- `-MaximumTargetCount <int>`
+- `-MaximumTrustDepth <int>` when trust expansion is enabled
 
 Additional FSMO roles can be added to the role enum if a real event-reporting workflow requires them. They should not become separate switches.
 
@@ -442,6 +453,9 @@ not force replay when the target returns.
 - One failed domain does not discard successful domains unless `-RequireCompleteDiscovery` is selected.
 - `-RequireCompleteDiscovery` terminates before event querying if any required discovery scope failed.
 - Default discovery is bounded by per-domain timeout and maximum concurrency.
+- Every discovery also has an overall deadline plus maximum domain, target,
+  and trust-depth limits. Reaching any limit stops expansion, retains completed
+  domains, and reports the exact truncation reason and unvisited frontier.
 - A target is deduplicated by normalized host identity even when discovered through several trust paths.
 - Discovery reports the identity/context used without exposing credentials.
 
@@ -450,6 +464,8 @@ not force replay when the target returns.
 - Current-domain, multidomain current-forest, named-domain, and named-forest scopes produce deterministic target sets.
 - Site, PDC, global catalog, writable, and RODC filters compose predictably.
 - Trust traversal detects loops and duplicate paths.
+- Large trust graphs stop deterministically at the declared overall deadline,
+  domain/target limits, or trust-depth limit and return partial/truncated data.
 - Per-domain timeout and access failures remain visible beside successful targets.
 - `Get-EVXEvent`, `Show-EVXEvent`, readiness, and CLI use one core resolver.
 - PowerShell 5.1 and PowerShell 7 return the same target/result shapes.
@@ -519,7 +535,10 @@ Portable custom definitions may reference registered provider names and destinat
 }
 ```
 
-Unknown providers make definition validation fail before querying.
+Unknown providers make definition validation fail before querying. Output
+names are validated case-insensitively before querying and cannot collide with
+raw source fields, common EventViewerX fields, normalized fields, or another
+enrichment output. Definitions never overwrite source evidence.
 
 ### Custom code boundary
 
@@ -540,13 +559,19 @@ The enrichment engine should accept an `IEventContextStore` with an in-memory im
 - provider/schema version and confidence reason;
 - current, historical, deleted, ambiguous, or unknown state.
 
-Resolution order should be:
+Resolution always prefers sufficient data already present in the event. After
+that, lookup order depends on `LiveLookup`:
 
-1. use sufficient data already present in the event;
-2. use historical context valid at the event time;
-3. perform a narrowly targeted live lookup by identifier when allowed;
-4. persist newly proven context for later events;
-5. return the raw identifier with an explicit unresolved reason.
+- `Never` uses authorized historical context valid at the event time and does
+  not contact the directory;
+- `WhenMissing` uses authorized historical context first and performs a
+  narrowly targeted live lookup only when context is insufficient;
+- `Always` performs the narrowly targeted live lookup before accepting stored
+  context, while retaining the historical value separately so a current rename
+  cannot rewrite what was true at the event time.
+
+Newly proven context is persisted before the result is returned. An unresolved
+lookup returns the raw identifier plus a structured reason.
 
 For a deletion, historical context may supply the last known name while the event remains marked deleted. The output must distinguish `NameAtEventTime`, `LastKnownName`, and a current live name; it must not present stale context as a current directory fact.
 
@@ -578,6 +603,11 @@ Records retain original identifier fields. Enriched values use separate properti
   across authorization contexts;
 - positive and negative cache lifetimes are bounded independently;
 - persistent facts retain validity intervals and provenance rather than expiring solely by TTL;
+- lookup-derived persistent facts carry the same non-secret authorization-
+  context partition or security label as the lookup that proved them. They are
+  never returned to another context merely because both callers share a store
+  path. Facts proven directly by an event payload or explicitly imported as
+  shareable evidence retain their own provenance and disclosure policy;
 - caller cancellation stops queued work;
 - result ordering remains event ordering even when lookups overlap;
 - `BestEffort` records enrichment failures without removing events;
@@ -825,7 +855,12 @@ Measures are typed descriptors rather than enum values alone. An
 operand, null policy, comparison/canonicalization policy, and output name.
 `Count` has no operand. `DistinctCount` requires an operand and declares
 whether null/unknown values participate. Time-based operations declare the
-timestamp semantic they use.
+timestamp semantic they use. `Rate` also requires a unit and a deterministic
+interval source: either the declared time bucket or the explicit query window.
+Its denominator is the full normalized interval duration, not the elapsed time
+between the first and last matching event. A zero-length interval is rejected;
+an empty non-zero interval produces a zero rate. Bucket boundaries use the
+report timezone and the same documented DST gap/overlap rules as grouping.
 
 Initial operations:
 
@@ -1107,7 +1142,10 @@ This avoids making SQL Server consumers pull SQLite native assets or making the 
 - schema initialization and version inspection;
 - event writes with exact/transport identity;
 - query and explain plan;
-- checkpoint read/write;
+- checkpoint inspection and one transactional ingest operation that writes an
+  event batch and compare-and-advances its stable target/channel checkpoint in
+  the same commit. A provider cannot expose successful checkpoint advancement
+  before the corresponding rows are durable;
 - incident and duplicate-group persistence;
 - summary/aggregation execution where supported;
 - retention/pruning;
@@ -1115,6 +1153,12 @@ This avoids making SQL Server consumers pull SQLite native assets or making the 
 - health/readiness probe.
 
 Provider-specific configuration remains outside query models.
+
+Concurrent ingestors supply the checkpoint version/high-water mark they read.
+The store either commits the deduplicated batch and new checkpoint atomically
+or reports a conflict without partial advancement. The provider contract suite
+must inject failures before and after each persistence step and prove that a
+restart can neither skip a batch nor expose a checkpoint ahead of durable rows.
 
 ### Public experience
 
