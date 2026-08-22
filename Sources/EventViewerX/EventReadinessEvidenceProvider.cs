@@ -47,6 +47,25 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             authentication,
             cancellationToken).GetAwaiter().GetResult();
 
+    public EventLogProbeResult ProbeTypedDirectSource(
+        IReadOnlyList<EventType> types,
+        EventSourceDefinition source,
+        string? machineName,
+        TimeSpan timeout,
+        int maxEventsToScan,
+        NetworkCredential? credential,
+        EventLogAuthentication authentication,
+        CancellationToken cancellationToken) => ProbeTypedSourceAsync(
+            types,
+            source,
+            machineName,
+            collector: false,
+            timeout,
+            maxEventsToScan,
+            credential,
+            authentication,
+            cancellationToken).GetAwaiter().GetResult();
+
     public IReadOnlyList<EffectiveAuditPolicyResult> QueryAuditPolicy(
         IReadOnlyList<Guid> subcategoryGuids) => AuditPolicyReader.Query(subcategoryGuids);
 
@@ -129,6 +148,26 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         int maxEventsToScan,
         NetworkCredential? credential,
         EventLogAuthentication authentication,
+        CancellationToken cancellationToken) => await ProbeTypedSourceAsync(
+            types,
+            source,
+            collector,
+            collector: true,
+            timeout,
+            maxEventsToScan,
+            credential,
+            authentication,
+            cancellationToken).ConfigureAwait(false);
+
+    private static async Task<EventLogProbeResult> ProbeTypedSourceAsync(
+        IReadOnlyList<EventType> types,
+        EventSourceDefinition source,
+        string? target,
+        bool collector,
+        TimeSpan timeout,
+        int maxEventsToScan,
+        NetworkCredential? credential,
+        EventLogAuthentication authentication,
         CancellationToken cancellationToken) {
 
         var stopwatch = Stopwatch.StartNew();
@@ -136,14 +175,15 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         timeoutCancellation.CancelAfter(timeout);
         var executionInfo = new EventTypeQueryExecutionInfo();
         var query = new EventTypeQuery(types) {
-            MachineNames = new[] { collector },
-            CollectorLogName = "ForwardedEvents",
+            MachineNames = new[] { target },
+            CollectorLogName = collector ? "ForwardedEvents" : null,
             SourceLogName = source.LogName,
             SourceEventIds = source.EventIds,
-            MaxEvents = 1,
+            MaxEvents = 0,
             MaxCandidates = maxEventsToScan,
-            Credential = EventLogTarget.IsLocalMachine(collector) ? null : credential,
+            Credential = EventLogTarget.IsLocalMachine(target) ? null : credential,
             Authentication = authentication,
+            ContinueOnRemoteFailure = false,
             RemoteConnectionTimeoutMilliseconds = checked((int)Math.Ceiling(timeout.TotalMilliseconds)),
             RemoteReadTimeoutMilliseconds = checked((int)Math.Ceiling(timeout.TotalMilliseconds))
         };
@@ -151,7 +191,15 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             await using IAsyncEnumerator<EventTypeRecord> enumerator = EventTypeEngine
                 .ReadAsync(query, executionInfo, timeoutCancellation.Token)
                 .GetAsyncEnumerator(timeoutCancellation.Token);
-            bool found = await enumerator.MoveNextAsync().ConfigureAwait(false);
+            bool typedMatchFound = false;
+            DateTime? eventTimeUtc = null;
+            while (await enumerator.MoveNextAsync().ConfigureAwait(false)) {
+                typedMatchFound = true;
+                if (enumerator.Current.TimeCreated != DateTime.MinValue) {
+                    eventTimeUtc = enumerator.Current.TimeCreated.ToUniversalTime();
+                    break;
+                }
+            }
             EventLogQueryTargetFailure? failure = executionInfo.TargetFailures.FirstOrDefault();
             if (failure != null) {
                 EventLogProbeStatus failureStatus = failure.Kind switch {
@@ -161,8 +209,8 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                     _ => EventLogProbeStatus.Error
                 };
                 return new EventLogProbeResult(
-                    "ForwardedEvents",
-                    collector,
+                    collector ? "ForwardedEvents" : source.LogName,
+                    target ?? EventLogTarget.LocalMachineName,
                     null,
                     failureStatus,
                     failure.Message,
@@ -171,21 +219,26 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                     stopwatch.Elapsed,
                     nativeQueryVerified: false);
             }
-            EventLogProbeStatus status = found
-                ? EventLogProbeStatus.Ok
-                : executionInfo.ScanLimitReached
-                    ? EventLogProbeStatus.LimitReached
-                    : EventLogProbeStatus.NoEvent;
+            EventLogProbeStatus status = ClassifyTypedProbe(
+                eventTimeUtc,
+                typedMatchFound,
+                executionInfo.ScanLimitReached);
             return new EventLogProbeResult(
-                "ForwardedEvents",
-                collector,
-                found ? enumerator.Current.TimeCreated.ToUniversalTime() : null,
+                collector ? "ForwardedEvents" : source.LogName,
+                target ?? EventLogTarget.LocalMachineName,
+                eventTimeUtc,
                 status,
-                found
-                    ? "A matching typed ForwardedEvents record was observed through the managed-safe collector path."
+                eventTimeUtc.HasValue
+                    ? collector
+                        ? "A matching typed ForwardedEvents record was observed through the managed-safe collector path."
+                        : "A matching typed source record was observed through the managed projection path."
                     : executionInfo.ScanLimitReached
-                        ? $"The first {executionInfo.EventsScanned} ForwardedEvents candidates did not match this source requirement."
-                        : "No matching typed ForwardedEvents record was observed.",
+                        ? typedMatchFound
+                            ? $"The first {executionInfo.EventsScanned} candidates included typed matches but none had a usable timestamp, and additional candidates remain."
+                            : $"The first {executionInfo.EventsScanned} {(collector ? "ForwardedEvents" : source.LogName)} candidates did not match this source requirement."
+                        : typedMatchFound
+                            ? $"All {executionInfo.EventsScanned} candidates were scanned; typed matches were found, but none had a usable timestamp."
+                            : $"No matching typed {(collector ? "ForwardedEvents" : source.LogName)} record was observed.",
                 checked((int)executionInfo.EventsScanned),
                 null,
                 stopwatch.Elapsed,
@@ -194,8 +247,8 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             throw;
         } catch (OperationCanceledException) {
             return new EventLogProbeResult(
-                "ForwardedEvents",
-                collector,
+                collector ? "ForwardedEvents" : source.LogName,
+                target ?? EventLogTarget.LocalMachineName,
                 null,
                 EventLogProbeStatus.Timeout,
                 $"Timed out after {timeout.TotalMilliseconds:F0} ms.",
@@ -203,23 +256,12 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 null,
                 stopwatch.Elapsed,
                 nativeQueryVerified: false);
-        } catch (UnauthorizedAccessException exception) {
-            return new EventLogProbeResult(
-                "ForwardedEvents",
-                collector,
-                null,
-                EventLogProbeStatus.AccessDenied,
-                exception.Message,
-                checked((int)executionInfo.EventsScanned),
-                null,
-                stopwatch.Elapsed,
-                nativeQueryVerified: false);
         } catch (Exception exception) {
             return new EventLogProbeResult(
-                "ForwardedEvents",
-                collector,
+                collector ? "ForwardedEvents" : source.LogName,
+                target ?? EventLogTarget.LocalMachineName,
                 null,
-                EventLogProbeStatus.Error,
+                EventLogProbe.ClassifyFailure(target, exception),
                 exception.Message,
                 checked((int)executionInfo.EventsScanned),
                 null,
@@ -227,6 +269,17 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 nativeQueryVerified: false);
         }
     }
+
+    internal static EventLogProbeStatus ClassifyTypedProbe(
+        DateTime? eventTimeUtc,
+        bool typedMatchFound,
+        bool scanLimitReached) => eventTimeUtc.HasValue
+            ? EventLogProbeStatus.Ok
+            : scanLimitReached
+                ? EventLogProbeStatus.LimitReached
+                : typedMatchFound
+                    ? EventLogProbeStatus.NoUsableTimestamp
+                    : EventLogProbeStatus.NoEvent;
 
     public CollectorSubscriptionSnapshot? ReadCollectorSubscription(
         string name,

@@ -29,6 +29,9 @@ public sealed class TestEventReadinessEngine {
             check.RequirementKey == "audit:logon-success" &&
             check.Status == EventReadinessStatus.Pass &&
             check.EvidenceLevel == EventReadinessEvidenceLevel.Effective);
+        Assert.Contains(evidence.ProbeCalls, static call =>
+            call.LogName == "Security" &&
+            call.XPath == "<managed-typed-direct>");
         Assert.Equal(1, evidence.AuditQueryCount);
     }
 
@@ -411,6 +414,66 @@ public sealed class TestEventReadinessEngine {
 
         EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check => check.Check == "SubscriptionCoverage");
         Assert.Equal(EventReadinessStatus.Pass, coverage.Status);
+    }
+
+    [Fact]
+    public void CompilerGeneratedParenthesizedMultiIdQueryPassesCoverage() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.ActiveDirectoryChanges });
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ActiveDirectoryChanges },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionCoverage");
+        Assert.Equal(EventReadinessStatus.Pass, coverage.Status);
+    }
+
+    [Fact]
+    public void ParenthesizedEventIdValueCannotEscapeSuppressionCoverage() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription!.RawXml = """
+            <QueryList>
+              <Query Id="0" Path="Security">
+                <Select Path="Security">*</Select>
+                <Suppress Path="Security">*[System[(EventID=(4624) or EventID=9999)]]</Suppress>
+              </Query>
+            </QueryList>
+            """;
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult coverage = Assert.Single(report.Checks, static check =>
+            check.Check == "SubscriptionCoverage");
+        Assert.Equal(EventReadinessStatus.Fail, coverage.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.Missing, coverage.DiagnosticKind);
+    }
+
+    [Theory]
+    [InlineData(false, false, EventLogProbeStatus.NoEvent)]
+    [InlineData(true, false, EventLogProbeStatus.NoUsableTimestamp)]
+    [InlineData(true, true, EventLogProbeStatus.LimitReached)]
+    public void TypedProbeWithoutTimestampCannotReportObserved(
+        bool typedMatchFound,
+        bool scanLimitReached,
+        EventLogProbeStatus expected) {
+
+        Assert.Equal(
+            expected,
+            EventReadinessEvidenceProvider.ClassifyTypedProbe(
+                eventTimeUtc: null,
+                typedMatchFound,
+                scanLimitReached));
     }
 
     [Fact]
@@ -806,7 +869,7 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
-    public void BroadScenarioPartitionsNativeProbeFiltersInsteadOfExceedingXPathLimit() {
+    public void BroadScenarioRoutesDirectProbesThroughTheTypedEngine() {
         var evidence = new FakeEvidenceProvider {
             TargetResult = LocalTargetResult(),
             ProbeResult = CreateProbe(EventLogProbeStatus.NoEvent, nativeQueryVerified: true),
@@ -822,9 +885,13 @@ public sealed class TestEventReadinessEngine {
             CancellationToken.None);
 
         Assert.NotEmpty(report.Checks);
-        Assert.True(evidence.ProbeCalls.Count > EventTypeCatalog
-            .GetSources(EventReadinessScenarioCatalog.GetTypes(EventReadinessScenario.DailyActiveDirectoryReport))
-            .Count);
+        Assert.Equal(
+            EventTypeCatalog
+                .GetSources(EventReadinessScenarioCatalog.GetTypes(EventReadinessScenario.DailyActiveDirectoryReport))
+                .Count,
+            evidence.ProbeCalls.Count);
+        Assert.All(evidence.ProbeCalls, static call =>
+            Assert.Equal("<managed-typed-direct>", call.XPath));
     }
 
     private static EventTargetDiscoveryResult LocalTargetResult() => new(
@@ -988,6 +1055,32 @@ public sealed class TestEventReadinessEngine {
             return new EventLogProbeResult(
                 "ForwardedEvents",
                 collector,
+                ProbeResult.EventTimeUtc,
+                ProbeResult.Status,
+                ProbeResult.Message,
+                ProbeResult.EventsScanned,
+                ProbeResult.RecordCount,
+                ProbeResult.Duration,
+                ProbeResult.NativeQueryVerified);
+        }
+
+        public EventLogProbeResult ProbeTypedDirectSource(
+            IReadOnlyList<EventType> types,
+            EventSourceDefinition source,
+            string? machineName,
+            TimeSpan timeout,
+            int maxEventsToScan,
+            NetworkCredential? credential,
+            EventLogAuthentication authentication,
+            CancellationToken cancellationToken) {
+
+            ProbeCalls.Add((source.LogName, "<managed-typed-direct>", machineName, credential));
+            if (ProbeException != null) {
+                throw ProbeException;
+            }
+            return new EventLogProbeResult(
+                source.LogName,
+                machineName ?? EventLogTarget.LocalMachineName,
                 ProbeResult.EventTimeUtc,
                 ProbeResult.Status,
                 ProbeResult.Message,

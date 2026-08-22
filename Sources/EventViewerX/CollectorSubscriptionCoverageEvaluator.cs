@@ -26,7 +26,7 @@ internal sealed class CollectorSubscriptionCoverageResult {
 
 internal static class CollectorSubscriptionCoverageEvaluator {
     private static readonly Regex EventIdOnlyExpression = new(
-        @"^\s*\*\s*\[\s*System\s*\[\s*\(?\s*EventID\s*=\s*\d+\s*(?:or\s+EventID\s*=\s*\d+\s*)*\)?\s*\]\s*\]\s*$",
+        @"^\*\[System\[EventID=\d+(?:orEventID=\d+)*\]\]$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex EventIdValue = new(
         @"EventID\s*=\s*(\d+)",
@@ -199,11 +199,12 @@ internal static class CollectorSubscriptionCoverageEvaluator {
     }
 
     private static bool TryReadEventIds(string expression, HashSet<int> ids) {
-        if (!EventIdOnlyExpression.IsMatch(expression)) {
+        string normalized = Regex.Replace(expression, @"[\s()]", string.Empty);
+        if (!EventIdOnlyExpression.IsMatch(normalized)) {
             return false;
         }
         var parsedIds = new List<int>();
-        foreach (Match match in EventIdValue.Matches(expression)) {
+        foreach (Match match in EventIdValue.Matches(normalized)) {
             if (!int.TryParse(
                     match.Groups[1].Value,
                     NumberStyles.None,

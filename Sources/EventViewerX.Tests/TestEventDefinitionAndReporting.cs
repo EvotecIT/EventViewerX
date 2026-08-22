@@ -628,6 +628,47 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void CompositeSubscriptionQueriesStayWithinTheNativeExpressionLimit() {
+        string queryXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.ActiveDirectoryChanges });
+        XDocument query = XDocument.Parse(queryXml);
+        XElement[] securitySelects = query
+            .Descendants("Select")
+            .Where(static select => string.Equals(
+                select.Attribute("Path")?.Value,
+                "Security",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.True(securitySelects.Length > 1);
+        Assert.All(securitySelects, static select =>
+            Assert.InRange(
+                select.Value.Split("EventID=", StringSplitOptions.None).Length - 1,
+                1,
+                EventFilterCompiler.MaximumXPathExpressions));
+
+        int[] actualIds = securitySelects
+            .SelectMany(static select => System.Text.RegularExpressions.Regex
+                .Matches(select.Value, @"EventID=(\d+)")
+                .Select(static match => int.Parse(
+                    match.Groups[1].Value,
+                    System.Globalization.CultureInfo.InvariantCulture)))
+            .Distinct()
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+        int[] expectedIds = EventTypeCatalog
+            .GetSources(new[] { EventType.ActiveDirectoryChanges })
+            .Single(static source => string.Equals(
+                source.LogName,
+                "Security",
+                StringComparison.OrdinalIgnoreCase))
+            .EventIds
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+        Assert.Equal(expectedIds, actualIds);
+    }
+
+    [Fact]
     public void CreateRowProducesAcyclicNormalizedWatcherPayload() {
         var source = new EventObject(new SyntheticEventRecord(), "WEC01", EventReadMode.StructuredDataAndMessage) {
             ContainerLog = "ForwardedEvents",

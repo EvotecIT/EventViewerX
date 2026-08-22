@@ -47,11 +47,18 @@ public static class EventDefinitionCompiler {
         var root = new XElement("QueryList");
         int id = 0;
         foreach (var source in sources) {
-            string xpath = BuildSourceXPath(source.LogName, source.EventIds, source.ProviderNames);
+            IReadOnlyList<EventFilter> partitions = EventFilterPartitioner.Partition(new EventFilter {
+                EventIds = source.EventIds.Distinct().OrderBy(static eventId => eventId).ToArray(),
+                ProviderNames = source.ProviderNames.Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static provider => provider, StringComparer.OrdinalIgnoreCase).ToArray()
+            });
             root.Add(new XElement("Query",
                 new XAttribute("Id", id++),
                 new XAttribute("Path", source.LogName),
-                new XElement("Select", new XAttribute("Path", source.LogName), xpath)));
+                partitions.Select(partition => new XElement(
+                    "Select",
+                    new XAttribute("Path", source.LogName),
+                    EventFilterCompiler.BuildXPath(partition)))));
         }
         if (id == 0) {
             throw new ArgumentException("At least one event source is required.", nameof(sources));

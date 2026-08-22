@@ -18,6 +18,16 @@ internal interface IEventReadinessEvidenceProvider {
         EventLogAuthentication authentication,
         CancellationToken cancellationToken);
 
+    EventLogProbeResult ProbeTypedDirectSource(
+        IReadOnlyList<EventType> types,
+        EventSourceDefinition source,
+        string? machineName,
+        TimeSpan timeout,
+        int maxEventsToScan,
+        NetworkCredential? credential,
+        EventLogAuthentication authentication,
+        CancellationToken cancellationToken);
+
     EventLogProbeResult ProbeTypedCollectorSource(
         IReadOnlyList<EventType> types,
         EventSourceDefinition source,

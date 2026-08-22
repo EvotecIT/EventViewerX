@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Reflection;
@@ -272,6 +273,21 @@ namespace EventViewerX.Tests {
             Assert.False(string.IsNullOrWhiteSpace(result.Machine));
             Assert.Equal(EventLogProbeStatus.LogNotFound, result.Status);
             Assert.False(result.NativeQueryVerified);
+        }
+
+        [Theory]
+        [InlineData(5, EventLogProbeStatus.AccessDenied)]
+        [InlineData(15007, EventLogProbeStatus.LogNotFound)]
+        [InlineData(15001, EventLogProbeStatus.InvalidQuery)]
+        public void SharedProbeClassificationPreservesNativeFailureKinds(
+            int nativeErrorCode,
+            EventLogProbeStatus expected) {
+
+            Assert.Equal(
+                expected,
+                EventLogProbe.ClassifyFailure(
+                    null,
+                    new Win32Exception(nativeErrorCode)));
         }
 
         [Fact]

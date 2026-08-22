@@ -368,7 +368,7 @@ public static class EventLogProbe {
                 remaining.TotalMilliseconds)));
     }
 
-    private static EventLogProbeStatus ClassifyFailure(
+    internal static EventLogProbeStatus ClassifyFailure(
         string? machineName,
         Exception exception) {
 
@@ -405,6 +405,11 @@ public static class EventLogProbe {
             };
         }
         return exception switch {
+            EventLogNotFoundException =>
+                EventLogProbeStatus.LogNotFound,
+            EventLogException eventLogException
+                when Reports.QueryHelpers.QueryFailureHelpers.IsInvalidEventQuery(eventLogException) =>
+                EventLogProbeStatus.InvalidQuery,
             UnauthorizedAccessException =>
                 EventLogProbeStatus.AccessDenied,
             TimeoutException =>

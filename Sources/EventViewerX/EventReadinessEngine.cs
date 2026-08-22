@@ -105,8 +105,8 @@ public static partial class EventReadinessEngine {
                         cancellationToken)
                     : ProbeSourceSafely(
                         evidenceProvider,
+                        snapshot.Types,
                         source,
-                        collector: false,
                         targetLog,
                         machineName,
                         snapshot.ProbeTimeout,

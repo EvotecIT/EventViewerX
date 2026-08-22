@@ -262,7 +262,7 @@ Test-EVXReadiness `
     -Type ActiveDirectoryChanges `
     -Collector WEC01 `
     -SubscriptionName EventViewerX-ADChanges `
-    -ActiveDirectory CurrentForest
+    -ActiveDirectory CurrentDomain
 ```
 
 Review `Get-Help New-EVXCollectorSubscription -Full` for the exact source ACL
@@ -298,7 +298,7 @@ $readiness = Test-EVXReadiness `
     -Type ActiveDirectoryChanges `
     -Collector WEC01 `
     -SubscriptionName EventViewerX-ADChanges `
-    -ActiveDirectory CurrentForest
+    -ActiveDirectory CurrentDomain
 
 $readiness.Checks |
     Format-Table Layer, Status, DiagnosticKind, EvidenceLevel, Target, Check -AutoSize
@@ -307,10 +307,13 @@ $readiness.RequiredFailures
 $readiness.UnknownRequiredChecks
 ```
 
-Here `CurrentForest` is explicit opt-in and supplies the expected DC set. On a
-local collector, readiness compares that set with WEC runtime enrollment, so a
-DC that never enrolled is visible instead of disappearing from the status. Use
-`-ExpectedSource` instead when the intended sources are not the current forest.
+Here `CurrentDomain` matches the Domain Controllers group SID used by the
+subscription ACL and supplies that domain's expected DC set. On a local
+collector, readiness compares the set with WEC runtime enrollment, so a DC that
+never enrolled is visible instead of disappearing from the status. For a
+multi-domain forest, build the allowed-source ACL from each intended domain's
+Domain Controllers SID before assessing `CurrentForest`; use `-ExpectedSource`
+when the intended sources do not match a directory discovery scope.
 
 A successful original-channel query proves collector transport and event
 presence. It does not prove each remote source's effective audit policy, so
