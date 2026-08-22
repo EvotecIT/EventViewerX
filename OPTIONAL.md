@@ -487,7 +487,10 @@ and summary output.
 - `CurrentDomain` and `CurrentForest` are never defaults, even for AD composite event types.
 - Trusts are never traversed without `-IncludeTrust`.
 - One failed domain does not discard successful domains unless `-RequireCompleteDiscovery` is selected.
-- `-RequireCompleteDiscovery` terminates before event querying if any required discovery scope failed.
+- `-RequireCompleteDiscovery` terminates before event querying if any required
+  discovery scope failed, discovery was cancelled, or a deadline, domain,
+  target, or trust-depth limit truncated the requested scope. A non-empty
+  partial target set never satisfies this automation guarantee.
 - Default discovery is bounded by per-domain timeout and maximum concurrency.
 - Every discovery also has an overall deadline plus maximum domain, target,
   and trust-depth limits. Reaching any limit stops expansion, retains completed
@@ -583,10 +586,15 @@ Portable custom definitions may reference registered provider names and destinat
 }
 ```
 
-Unknown providers make definition validation fail before querying. Output
-names are validated case-insensitively before querying and cannot collide with
-raw source fields, common EventViewerX fields, normalized fields, or another
-enrichment output. Definitions never overwrite source evidence.
+Unknown providers make definition validation fail before querying. Every
+`sourceField` must exist on every selected leaf type to which the enrichment
+applies and must declare a semantic identity/value kind accepted by that
+provider (for example, a Group Policy GUID or distinguished name for the
+`GroupPolicy` provider). Misspelled, ambiguous, or provider-incompatible source
+fields are definition errors rather than unresolved lookups after event reads.
+Output names are validated case-insensitively before querying and cannot
+collide with raw source fields, common EventViewerX fields, normalized fields,
+or another enrichment output. Definitions never overwrite source evidence.
 
 ### Custom code boundary
 
@@ -921,7 +929,7 @@ Operators can ask “which accounts lock out most often?”, “which IPs genera
 - group-by fields;
 - optional time bucket and timezone;
 - measures;
-- ordering and top-N limit;
+- ordering, top-N limit, and top-N ranking scope when time buckets are present;
 - null/unknown handling;
 - optional typed predicate;
 - display metadata for renderers.
@@ -938,6 +946,12 @@ Its denominator is the full normalized interval duration, not the elapsed time
 between the first and last matching event. A zero-length interval is rejected;
 an empty non-zero interval produces a zero rate. Bucket boundaries use the
 report timezone and the same documented DST gap/overlap rules as grouping.
+
+Measure output names are unique case-insensitively and are validated before
+execution against every group-key output, time-bucket field, normalized/common
+event field, and reserved `EventAggregationResult` metadata property. Managed
+dictionaries and provider aliases therefore cannot overwrite or expose two
+different values under the same logical name.
 
 Initial operations:
 
@@ -994,6 +1008,16 @@ are compared first; ties are broken by the canonical serialized group key using
 the declared ordinal Unicode/case policy, with null/unknown ordered by its
 explicit bucket token. This secondary order is mandatory even when the caller
 specifies only `-Top`, and providers must use the same key bytes.
+
+When `Top` and `Bucket` are combined, `TopScope` is part of the aggregation
+definition. `GlobalGroup` (the default) ranks each canonical group using the
+selected ranking measure over the complete normalized query window, then emits
+the retained groups across every time bucket; each bucket's `Other` row is
+recomputed from rows belonging to the globally discarded groups. `PerBucket`
+ranks groups independently inside each bucket and recomputes that bucket's
+`Other` from its discarded groups. Renderers and providers cannot choose the
+scope implicitly, and the scope plus ranking measure are serialized in the
+result.
 
 Time-bucket identity is the pair of UTC start/end instants produced from the
 requested local calendar boundary plus the display timezone/offset. During a
@@ -1306,6 +1330,18 @@ from the prior generation. The provider contract suite must inject failures
 before and after each persistence step and prove that a restart can neither
 skip a batch nor expose a checkpoint ahead of durable rows. It must also prove
 query-profile isolation and clear/replacement generation recovery.
+
+Checkpoint advancement additionally requires a proven complete ordered prefix.
+Source paging starts immediately after the prior checkpoint and reads
+oldest-first under the same source generation/boundary identity. The query
+result carries an explicit `CompleteThrough` cursor only when it proves that no
+eligible record up to that cursor was skipped. A timeout, cancellation,
+unordered result, scan limit, or other incomplete coverage may still persist
+deduplicated observations, but the transactional ingest advances only through
+the last proven complete prefix; when no such prefix exists it retains the
+prior checkpoint. Provider contract tests cover partial pages, `MaxEvents`,
+scan limits, timeouts, and out-of-order delivery so newer returned records can
+never hide older unseen records.
 
 ### Public experience
 
