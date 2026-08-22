@@ -436,14 +436,37 @@ Discovery diagnostics remain separate from `EventReportCoverage`. A domain can f
 
 This replaces growing collections of mutually exclusive nullable properties inside new code while preserving current public parameters for compatibility. Validation occurs once in the target-selection owner.
 
-The normalized discovery request identifies the scheduled job, while durable
-progress is partitioned by each stable target/channel identity. The resolved
-target fingerprint is recorded as drift evidence, not placed in every
-checkpoint key. A newly discovered target starts without a high-water mark;
-an unchanged target reuses its own checkpoint even when another DC is added,
-removed, or temporarily unreachable. Retired target checkpoints remain
+A stable consumer/query-profile identity identifies the scheduled job. It is
+derived from an explicit profile name or a canonical fingerprint of the event
+types/definition, typed predicate, source-selection semantics, and other
+record-eligibility semantics. Credentials, resolved target membership, moving
+absolute/relative execution windows, concurrency, and scan/page caps are
+excluded. When an explicit profile name is used, the store also retains the
+canonical semantic fingerprint and rejects accidental reuse of that name for a
+different filter unless the operator performs an explicit checkpoint migration.
+Beneath that identity, durable progress is partitioned by the
+normalized discovery request plus each stable target/channel identity. Two
+jobs that happen to discover the same DCs can therefore never advance one
+another's checkpoints.
+
+The resolved target fingerprint is recorded as drift evidence, not placed in
+every checkpoint key. A newly discovered target starts without a high-water
+mark; an unchanged target reuses its own checkpoint even when another DC is
+added, removed, or temporarily unreachable. Retired target checkpoints remain
 available for a bounded retention period so a transient discovery failure does
 not force replay when the target returns.
+
+Long-running watchers use a bounded `TargetRefreshInterval` rather than treating
+AD discovery as a permanent startup snapshot. Each refresh publishes the old
+and new fingerprints plus added, retained, removed, and failed targets. New
+targets attach from their retained per-profile checkpoint or the watcher's
+explicit initial window. Removed targets stop accepting new work only after
+their in-flight read is drained; their checkpoints are retained. A partial
+rediscovery does not silently remove previously healthy targets: they remain
+active but stale until a complete refresh confirms removal. Operators may set
+`-RequireCompleteDiscovery` to stop the watcher instead. Refresh deadlines,
+limits, failures, and reconciliation actions are observable in watcher health
+and summary output.
 
 ### Failure and safety behavior
 
@@ -469,6 +492,9 @@ not force replay when the target returns.
 - Per-domain timeout and access failures remain visible beside successful targets.
 - `Get-EVXEvent`, `Show-EVXEvent`, readiness, and CLI use one core resolver.
 - PowerShell 5.1 and PowerShell 7 return the same target/result shapes.
+- Long-running watcher refresh adds and removes targets deterministically,
+  preserves per-profile progress, and never treats a failed refresh as proof
+  that a previously healthy target was removed.
 
 ## 3. Typed enrichment and GPO resolution
 
@@ -854,8 +880,9 @@ Measures are typed descriptors rather than enum values alone. An
 `EventAggregationMeasure` contains the operation, optional semantic field
 operand, null policy, comparison/canonicalization policy, and output name.
 `Count` has no operand. `DistinctCount` requires an operand and declares
-whether null/unknown values participate. Time-based operations declare the
-timestamp semantic they use. `Rate` also requires a unit and a deterministic
+whether null/unknown values participate. `FirstSeen` and `LastSeen` require one
+datetime semantic operand and return the minimum or maximum non-null instant;
+an empty group is not emitted. `Rate` requires a unit and a deterministic
 interval source: either the declared time bucket or the explicit query window.
 Its denominator is the full normalized interval duration, not the elapsed time
 between the first and last matching event. A zero-length interval is rejected;
@@ -868,8 +895,11 @@ Initial operations:
 - `DistinctCount`
 - `FirstSeen`
 - `LastSeen`
-- `Duration`
 - `Rate`
+
+`Duration` is deliberately not an initial operation. It is deferred until a
+real workflow defines whether it means an occurrence lifetime, two explicit
+datetime operands, or another interval, including aggregation and null rules.
 
 ```powershell
 Measure-EVXEvent `
@@ -1143,9 +1173,12 @@ This avoids making SQL Server consumers pull SQLite native assets or making the 
 - event writes with exact/transport identity;
 - query and explain plan;
 - checkpoint inspection and one transactional ingest operation that writes an
-  event batch and compare-and-advances its stable target/channel checkpoint in
-  the same commit. A provider cannot expose successful checkpoint advancement
-  before the corresponding rows are durable;
+  event batch and compare-and-advances its consumer/query-profile plus stable
+  target/channel checkpoint in the same commit. The checkpoint snapshot carries
+  the source log generation/boundary identity used by the existing
+  `EventCheckpointStore`, not only a record-ID high-water mark. A provider
+  cannot expose successful checkpoint advancement before the corresponding
+  rows are durable;
 - incident and duplicate-group persistence;
 - summary/aggregation execution where supported;
 - retention/pruning;
@@ -1154,11 +1187,16 @@ This avoids making SQL Server consumers pull SQLite native assets or making the 
 
 Provider-specific configuration remains outside query models.
 
-Concurrent ingestors supply the checkpoint version/high-water mark they read.
-The store either commits the deduplicated batch and new checkpoint atomically
-or reports a conflict without partial advancement. The provider contract suite
-must inject failures before and after each persistence step and prove that a
-restart can neither skip a batch nor expose a checkpoint ahead of durable rows.
+Concurrent ingestors supply the checkpoint version, source-generation/boundary
+identity, and high-water mark they read. The store either commits the
+deduplicated batch and new checkpoint atomically or reports a conflict without
+partial advancement. A cleared/replaced log starts a reconciled new generation
+according to the same strict/non-strict boundary policy as the existing
+checkpoint engine; it never keeps filtering against an unreachable record ID
+from the prior generation. The provider contract suite must inject failures
+before and after each persistence step and prove that a restart can neither
+skip a batch nor expose a checkpoint ahead of durable rows. It must also prove
+query-profile isolation and clear/replacement generation recovery.
 
 ### Public experience
 
@@ -1218,6 +1256,9 @@ An `Explain` result must state whether a central query would require downloading
 
 - SQLite behavior and packed PowerShell artifact remain backward compatible.
 - SQLite and SQL Server pass the same provider contract suite for writes, reads, checkpoints, exact identity, transport deduplication, retention, and summaries.
+- Two different query profiles over one target/channel cannot advance one
+  another, and log clear/replacement cannot strand ingestion behind the prior
+  generation's record ID.
 - SQL credentials and secrets never appear in logs, exceptions, JSON profiles, or reports.
 - Concurrent ingestion is proven with transaction and retry behavior.
 - Migration failure is recoverable and leaves a verifiable schema state.
