@@ -126,9 +126,6 @@ internal sealed class ActiveDirectoryTopologyProvider : IActiveDirectoryTopology
         if (!request.IncludeTrustedForests) {
             return;
         }
-        if (TryReportReachedLimit(request, domains, failures, forest.Name)) {
-            return;
-        }
 
         TrustRelationshipInformationCollection trusts;
         try {
@@ -143,13 +140,14 @@ internal sealed class ActiveDirectoryTopologyProvider : IActiveDirectoryTopology
         }
         foreach (TrustRelationshipInformation trust in trusts) {
             cancellationToken.ThrowIfCancellationRequested();
+            string targetName = trust.TargetName?.Trim().TrimEnd('.') ?? string.Empty;
+            if (targetName.Length == 0 || forestNames.Contains(targetName)) {
+                continue;
+            }
             if (TryReportReachedLimit(request, domains, failures, forest.Name)) {
                 break;
             }
-            string targetName = trust.TargetName?.Trim().TrimEnd('.') ?? string.Empty;
-            if (targetName.Length == 0 || !forestNames.Add(targetName)) {
-                continue;
-            }
+            forestNames.Add(targetName);
             try {
                 using Forest trustedForest = Forest.GetForest(
                     CreateContext(DirectoryContextType.Forest, targetName, request.Credential));

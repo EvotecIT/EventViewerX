@@ -736,6 +736,94 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public async Task GenericReportsResumeNativelyAfterADurableBookmark() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventObject first = Assert.IsType<EventObject>(EventLogEngine.ReadFile(
+            new EventLogFileQuery(fixture) {
+                Oldest = true,
+                MaxEvents = 1,
+                ReadMode = EventReadMode.Metadata,
+                IncludeBookmark = true
+            }).Single());
+        string bookmark = Assert.IsType<string>(first.BookmarkXml);
+        EventReportRequest request = EventReportRequest.ForFiles(fixture);
+        request.Oldest = true;
+        request.BookmarkXmlResolver = (_, _) => bookmark;
+        EventReportRequest completeRequest = EventReportRequest.ForFiles(fixture);
+        completeRequest.Oldest = true;
+
+        EventReport complete = await EventReportEngine.QueryAsync(completeRequest);
+        EventReport report = await EventReportEngine.QueryAsync(request);
+
+        Assert.Equal(complete.Rows.Count - 1, report.Rows.Count);
+        Assert.DoesNotContain(
+            report.Rows,
+            row => row.RecordId == first.RecordId);
+    }
+
+    [Fact]
+    public void CollectorQueriesSeekFromBookmarkBeforeManagedCandidateLimits() {
+        const string bookmark =
+            "<BookmarkList><Bookmark Channel='ForwardedEvents' RecordId='42' IsCurrent='true' /></BookmarkList>";
+        var typedQuery = new EventTypeQuery(new[] { EventType.ADUserLogon }) {
+            MachineNames = new[] { "WEC01" },
+            CollectorLogName = "ForwardedEvents",
+            MaxCandidates = 100,
+            BookmarkXmlResolver = (_, _) => bookmark
+        };
+        var eventInfo = new Dictionary<string, HashSet<int>>(
+            StringComparer.OrdinalIgnoreCase) {
+            ["Security"] = new HashSet<int> { 4624 }
+        };
+        EventLogBatchQuery typedBatch = EventTypeEngine.CreateCollectorBatch(
+            typedQuery,
+            eventInfo,
+            new EventTypeQueryExecutionInfo(),
+            startTime: null,
+            endTime: null);
+        EventDefinition definition = new() {
+            Name = "CustomLogon",
+            Sources = new[] {
+                new EventDefinitionSource {
+                    LogName = "Security",
+                    EventIds = new[] { 4624 }
+                }
+            },
+            Fields = new[] {
+                new EventDefinitionField {
+                    Name = "User",
+                    Source = EventFieldSource.Data,
+                    SourceName = "TargetUserName"
+                }
+            }
+        };
+        var customQuery = new EventDefinitionQuery(definition) {
+            MachineNames = new[] { "WEC01" },
+            CollectorLogName = "ForwardedEvents",
+            MaxCandidates = 100,
+            BookmarkXmlResolver = (_, _) => bookmark
+        };
+        EventLogBatchQuery customBatch = EventDefinitionEngine.CreateCollectorBatch(
+            customQuery,
+            new EventDefinitionQueryExecutionInfo(),
+            new[] { "WEC01" },
+            start: null,
+            end: null);
+
+        foreach (EventLogChannelQuery channel in new[] {
+                     Assert.Single(typedBatch.ChannelQueries),
+                     Assert.Single(customBatch.ChannelQueries)
+                 }) {
+            Assert.Equal("*", channel.XPath);
+            Assert.Equal(bookmark, channel.BookmarkXml);
+            Assert.Equal(1, channel.BookmarkOffset);
+            Assert.True(channel.StrictBookmark);
+            Assert.Equal(100, channel.ManagedMaxEventsScanned);
+        }
+    }
+
+    [Fact]
     public async Task CustomDefinitionOwnsSemanticsWhenReadingOfflineFiles() {
         string fixture = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));

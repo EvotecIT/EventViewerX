@@ -142,7 +142,7 @@ public static class EventDefinitionEngine {
         return EventLogBatchConsolidator.Consolidate(EventLogBatchQuery.ForChannels(sources));
     }
 
-    private static EventLogBatchQuery CreateCollectorBatch(
+    internal static EventLogBatchQuery CreateCollectorBatch(
         EventDefinitionQuery query,
         EventDefinitionQueryExecutionInfo executionInfo,
         IReadOnlyList<string?> targets,
@@ -188,6 +188,12 @@ public static class EventDefinitionEngine {
                 Oldest = query.Oldest,
                 ReadMode = query.ReadMode,
                 IncludeBookmark = query.IncludeBookmark,
+                BookmarkXml = ResolveBookmark(
+                    query,
+                    target,
+                    collectorLogName),
+                BookmarkOffset = query.BookmarkOffset,
+                StrictBookmark = query.StrictBookmark,
                 MessageCulture = query.MessageCulture,
                 FallbackMessageCulture = query.FallbackMessageCulture,
                 RemoteConnectionTimeoutMilliseconds =

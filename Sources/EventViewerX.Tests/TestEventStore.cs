@@ -94,6 +94,85 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task CheckpointCompareAndSwapRejectsARegressingConcurrentWriter() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            EventReport initialReport = CreateReport((
+                new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc),
+                100,
+                "initial"));
+            await store.WriteAsync(initialReport, new EventStoreCheckpoint {
+                Consumer = "collector",
+                Computer = "WEC01",
+                Container = "ForwardedEvents",
+                RecordId = 100,
+                BookmarkXml = "<Bookmark RecordId='100'/>"
+            }, expectedCheckpoint: null);
+            EventStoreCheckpoint observed = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetCheckpointAsync(
+                    "collector",
+                    "WEC01",
+                    "ForwardedEvents"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteAsync(
+                CreateReport((
+                    new DateTime(2026, 8, 1, 1, 15, 0, DateTimeKind.Utc),
+                    125,
+                    "late-first-writer")),
+                new EventStoreCheckpoint {
+                    Consumer = "collector",
+                    Computer = "WEC01",
+                    Container = "ForwardedEvents",
+                    RecordId = 125,
+                    BookmarkXml = "<Bookmark RecordId='125'/>"
+                },
+                expectedCheckpoint: null));
+            await store.WriteAsync(
+                CreateReport((
+                    new DateTime(2026, 8, 1, 2, 0, 0, DateTimeKind.Utc),
+                    200,
+                    "newer")),
+                new EventStoreCheckpoint {
+                    Consumer = "collector",
+                    Computer = "WEC01",
+                    Container = "ForwardedEvents",
+                    RecordId = 200,
+                    BookmarkXml = "<Bookmark RecordId='200'/>"
+                },
+                observed);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.WriteAsync(
+                CreateReport((
+                    new DateTime(2026, 8, 1, 1, 30, 0, DateTimeKind.Utc),
+                    150,
+                    "stale")),
+                new EventStoreCheckpoint {
+                    Consumer = "collector",
+                    Computer = "WEC01",
+                    Container = "ForwardedEvents",
+                    RecordId = 150,
+                    BookmarkXml = "<Bookmark RecordId='150'/>"
+                },
+                observed));
+            EventStoreCheckpoint current = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetCheckpointAsync(
+                    "collector",
+                    "WEC01",
+                    "ForwardedEvents"));
+            EventReport rows = await store.ReadReportAsync(new EventStoreQuery());
+
+            Assert.Equal(200, current.RecordId);
+            Assert.Equal("<Bookmark RecordId='200'/>", current.BookmarkXml);
+            Assert.DoesNotContain(
+                rows.Rows,
+                row => Equals(row.Values["User"], "late-first-writer"));
+            Assert.DoesNotContain(rows.Rows, row => Equals(row.Values["User"], "stale"));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task CheckpointIdentityUsesOrdinalIgnoreCaseForUnicodeDimensions() {
         string path = CreateStorePath();
         try {

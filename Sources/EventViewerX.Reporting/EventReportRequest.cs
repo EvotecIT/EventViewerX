@@ -76,6 +76,12 @@ public sealed class EventReportRequest {
     /// </summary>
     public Func<string?, string, long?>? MinimumRecordIdExclusiveResolver { get; set; }
 
+    /// <summary>
+    /// Optional per-target and per-container native bookmark checkpoint used
+    /// by durable collection hosts.
+    /// </summary>
+    public Func<string?, string, string?>? BookmarkXmlResolver { get; set; }
+
     /// <summary>Resolves IP addresses through DnsClientX after typed projection.</summary>
     public bool ResolveDns { get; set; }
 

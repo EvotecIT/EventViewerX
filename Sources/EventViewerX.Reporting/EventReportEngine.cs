@@ -46,7 +46,8 @@ public static class EventReportEngine {
                 ContinueOnRemoteFailure = request.ContinueOnRemoteFailure,
                 Predicate = request.Predicate?.Clone(),
                 MinimumRecordIdExclusiveResolver =
-                    request.MinimumRecordIdExclusiveResolver
+                    request.MinimumRecordIdExclusiveResolver,
+                BookmarkXmlResolver = request.BookmarkXmlResolver
             };
             await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(query, info, cancellationToken)) {
                 projections.Add(EventReportProjectionFactory.Create(record));
@@ -398,7 +399,8 @@ public static class EventReportEngine {
             Enrichment = request.ResolveDns ? new EventEnrichmentOptions { ResolveDns = true } : null,
             Predicate = request.Predicate?.Clone(),
             MinimumRecordIdExclusiveResolver =
-                request.MinimumRecordIdExclusiveResolver
+                request.MinimumRecordIdExclusiveResolver,
+            BookmarkXmlResolver = request.BookmarkXmlResolver
         };
     }
 
@@ -421,7 +423,10 @@ public static class EventReportEngine {
                 return new EventLogFileQuery(fullPath) {
                     XPath = EventFilterCompiler.BuildXPath(pathFilter),
                     Oldest = request.Oldest,
-                    ReadMode = EventReadMode.StructuredDataAndMessage
+                    ReadMode = EventReadMode.StructuredDataAndMessage,
+                    BookmarkXml = request.BookmarkXmlResolver?.Invoke(
+                        fullPath,
+                        fullPath)
                 };
             }).ToArray();
             EventLogBatchQuery fileBatch = EventLogBatchQuery.ForFiles(files);
@@ -455,7 +460,10 @@ public static class EventReportEngine {
                 Authentication = request.Authentication,
                 XPath = EventFilterCompiler.BuildXPath(targetFilter),
                 Oldest = request.Oldest,
-                ReadMode = EventReadMode.StructuredDataAndMessage
+                ReadMode = EventReadMode.StructuredDataAndMessage,
+                BookmarkXml = request.BookmarkXmlResolver?.Invoke(
+                    target,
+                    request.LogName!)
             };
         }).ToArray();
         EventLogBatchQuery batch = EventLogBatchQuery.ForChannels(channels);

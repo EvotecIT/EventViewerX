@@ -7,15 +7,46 @@ namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
     /// <summary>Stores one normalized report and optional checkpoint in a single transaction.</summary>
-    public async Task<EventStoreWriteResult> WriteAsync(
+    public Task<EventStoreWriteResult> WriteAsync(
         EventReport report,
         EventStoreCheckpoint? checkpoint = null,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(
+            report,
+            checkpoint,
+            expectedCheckpoint: null,
+            compareExpectedCheckpoint: false,
+            cancellationToken);
+
+    /// <summary>
+    /// Stores one normalized report and advances a checkpoint only when its
+    /// current durable value still equals the value observed before querying.
+    /// </summary>
+    public Task<EventStoreWriteResult> WriteAsync(
+        EventReport report,
+        EventStoreCheckpoint checkpoint,
+        EventStoreCheckpoint? expectedCheckpoint,
+        CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(
+            report,
+            checkpoint,
+            expectedCheckpoint,
+            compareExpectedCheckpoint: true,
+            cancellationToken);
+
+    private async Task<EventStoreWriteResult> WriteCoreAsync(
+        EventReport report,
+        EventStoreCheckpoint? checkpoint,
+        EventStoreCheckpoint? expectedCheckpoint,
+        bool compareExpectedCheckpoint,
+        CancellationToken cancellationToken) {
 
         if (report == null) {
             throw new ArgumentNullException(nameof(report));
         }
         EventStoreCheckpoint? checkpointSnapshot = SnapshotCheckpoint(checkpoint);
+        EventStoreCheckpoint? expectedCheckpointSnapshot =
+            SnapshotCheckpoint(expectedCheckpoint);
         EventReportRow[] rows = report.Rows.ToArray();
         if (rows.Any(static row => string.Equals(
                 row.Type,
@@ -121,6 +152,8 @@ public sealed partial class EventStore {
                 EventStoreCheckpoint storedCheckpoint = await ResolveCheckpointIdentityAsync(
                     transaction,
                     checkpointSnapshot,
+                    expectedCheckpointSnapshot,
+                    compareExpectedCheckpoint,
                     token).ConfigureAwait(false);
                 await transaction.ExecuteNonQueryAsync(
                     UpsertCheckpointSql,

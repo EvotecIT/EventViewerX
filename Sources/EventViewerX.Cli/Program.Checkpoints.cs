@@ -54,10 +54,18 @@ internal static partial class Program {
         if (saved != null) {
             request.StartTime = null;
             request.TimePeriod = null;
-            if (saved.RecordId.HasValue) {
-                long recordId = saved.RecordId.Value;
-                request.MinimumRecordIdExclusiveResolver =
-                    (_, _) => recordId;
+            string? bookmarkXml = saved.BookmarkXml;
+            if (string.IsNullOrWhiteSpace(bookmarkXml) &&
+                saved.RecordId.HasValue) {
+                bookmarkXml = ReadCheckpointBookmark(
+                    target,
+                    container,
+                    saved.RecordId.Value);
+            }
+            if (!string.IsNullOrWhiteSpace(bookmarkXml)) {
+                string resolvedBookmarkXml = bookmarkXml!;
+                request.BookmarkXmlResolver =
+                    (_, _) => resolvedBookmarkXml;
             }
         } else if (!request.StartTime.HasValue && !request.TimePeriod.HasValue) {
             throw new ArgumentException(
@@ -71,7 +79,8 @@ internal static partial class Program {
                 Consumer = consumer.Trim(),
                 Computer = computer,
                 Container = container,
-                RecordId = range.NewestRecordId
+                RecordId = range.NewestRecordId,
+                BookmarkXml = range.NewestBookmarkXml
             },
             saved,
             target,
@@ -82,27 +91,33 @@ internal static partial class Program {
         string? machineName,
         string logName) {
 
-        long? oldest = ReadBoundaryRecordId(
+        EventObject? oldest = ReadBoundaryEvent(
             machineName,
             logName,
             oldest: true);
-        long? newest = ReadBoundaryRecordId(
+        EventObject? newest = ReadBoundaryEvent(
             machineName,
             logName,
             oldest: false);
-        if (oldest.HasValue != newest.HasValue) {
+        if ((oldest == null) != (newest == null)) {
             throw new InvalidDataException(
                 $"The retained record range for '{logName}' on '{NormalizeCheckpointComputer(machineName)}' changed while it was inspected; retry collection before advancing the checkpoint.");
         }
-        if (oldest.HasValue &&
-            (oldest.Value < 0 || newest!.Value < oldest.Value)) {
+        if (oldest != null &&
+            (!oldest.RecordId.HasValue || !newest!.RecordId.HasValue ||
+             oldest.RecordId.Value < 0 ||
+             newest.RecordId.Value < oldest.RecordId.Value ||
+             string.IsNullOrWhiteSpace(newest.BookmarkXml))) {
             throw new InvalidDataException(
-                $"The retained record range for '{logName}' on '{NormalizeCheckpointComputer(machineName)}' is inconsistent ({oldest}..{newest}); retry collection before advancing the checkpoint.");
+                $"The retained record range for '{logName}' on '{NormalizeCheckpointComputer(machineName)}' is inconsistent; retry collection before advancing the checkpoint.");
         }
-        return new EventLogRecordRange(oldest, newest);
+        return new EventLogRecordRange(
+            oldest?.RecordId,
+            newest?.RecordId,
+            newest?.BookmarkXml);
     }
 
-    private static long? ReadBoundaryRecordId(
+    private static EventObject? ReadBoundaryEvent(
         string? machineName,
         string logName,
         bool oldest) {
@@ -114,10 +129,35 @@ internal static partial class Program {
                 Oldest = oldest,
                 MaxEvents = 1,
                 ReadMode = EventReadMode.Metadata,
+                IncludeBookmark = true,
                 RemoteConnectionTimeoutMilliseconds = 5000,
                 RemoteReadTimeoutMilliseconds = 5000
             }).FirstOrDefault();
-        return boundary?.RecordId;
+        return boundary;
+    }
+
+    private static string ReadCheckpointBookmark(
+        string? machineName,
+        string logName,
+        long recordId) {
+
+        EventObject? boundary = EventLogEngine.ReadChannel(
+            new EventLogChannelQuery(logName) {
+                MachineName = machineName,
+                XPath = $"*[System[EventRecordID={recordId}]]",
+                Oldest = true,
+                MaxEvents = 1,
+                ReadMode = EventReadMode.Metadata,
+                IncludeBookmark = true,
+                RemoteConnectionTimeoutMilliseconds = 5000,
+                RemoteReadTimeoutMilliseconds = 5000
+            }).FirstOrDefault();
+        if (boundary?.RecordId != recordId ||
+            string.IsNullOrWhiteSpace(boundary.BookmarkXml)) {
+            throw new InvalidDataException(
+                $"Checkpoint {recordId} for '{logName}' on '{NormalizeCheckpointComputer(machineName)}' cannot be converted to a native bookmark; no events or checkpoint were committed.");
+        }
+        return boundary.BookmarkXml!;
     }
 
     private static string NormalizeCheckpointComputer(string? machineName) =>
@@ -171,7 +211,10 @@ internal static partial class Program {
         }
 
         EventStoreWriteResult result = await context.Store
-            .WriteAsync(report, context.NextCheckpoint)
+            .WriteAsync(
+                report,
+                context.NextCheckpoint,
+                context.SavedCheckpoint)
             .ConfigureAwait(false);
         Console.Error.WriteLine(
             $"Stored {result.Inserted} new rows; skipped {result.Duplicates} duplicates and committed checkpoint '{context.NextCheckpoint.Consumer}' at record {context.NextCheckpoint.RecordId?.ToString() ?? "<empty>"} in {Path.GetFullPath(context.Store.Path)}.");
@@ -202,13 +245,16 @@ internal static partial class Program {
     private readonly struct EventLogRecordRange {
         internal EventLogRecordRange(
             long? oldestRecordId,
-            long? newestRecordId) {
+            long? newestRecordId,
+            string? newestBookmarkXml) {
 
             OldestRecordId = oldestRecordId;
             NewestRecordId = newestRecordId;
+            NewestBookmarkXml = newestBookmarkXml;
         }
 
         internal long? OldestRecordId { get; }
         internal long? NewestRecordId { get; }
+        internal string? NewestBookmarkXml { get; }
     }
 }

@@ -161,7 +161,7 @@ internal static partial class Program {
             bool removed = await new EventStore(options.Require("path"))
                 .DeleteCheckpointAsync(
                     options.Require("consumer"),
-                    options.Require("computer"),
+                    NormalizeCheckpointComputer(options.Require("computer")),
                     options.Require("container"))
                 .ConfigureAwait(false);
             return WriteJson(new { Removed = removed });

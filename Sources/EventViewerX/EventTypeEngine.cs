@@ -295,7 +295,7 @@ public static partial class EventTypeEngine {
             batch);
     }
 
-    private static EventLogBatchQuery CreateCollectorBatch(
+    internal static EventLogBatchQuery CreateCollectorBatch(
         EventTypeQuery query,
         IReadOnlyDictionary<string, HashSet<int>> eventInfo,
         EventTypeQueryExecutionInfo executionInfo,
@@ -333,6 +333,12 @@ public static partial class EventTypeEngine {
                 Oldest = query.Oldest,
                 ReadMode = query.ReadMode,
                 IncludeBookmark = query.IncludeBookmark,
+                BookmarkXml = ResolveBookmark(
+                    query,
+                    target,
+                    collectorLogName),
+                BookmarkOffset = query.BookmarkOffset,
+                StrictBookmark = query.StrictBookmark,
                 MessageCulture = query.MessageCulture,
                 FallbackMessageCulture = query.FallbackMessageCulture,
                 RemoteConnectionTimeoutMilliseconds =

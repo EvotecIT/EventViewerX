@@ -1,3 +1,4 @@
+using System.Globalization;
 using DBAClientX;
 
 namespace EventViewerX.Storage;
@@ -87,6 +88,8 @@ public sealed partial class EventStore {
     private static async Task<EventStoreCheckpoint> ResolveCheckpointIdentityAsync(
         SQLiteAsyncSession session,
         EventStoreCheckpoint requested,
+        EventStoreCheckpoint? expected,
+        bool compareExpected,
         CancellationToken cancellationToken) {
 
         await session.ExecuteNonQueryAsync(
@@ -101,6 +104,10 @@ public sealed partial class EventStore {
             requested.Consumer,
             requested.Computer,
             requested.Container)).OrderBy(static row => row.RowId).ToArray();
+        if (compareExpected && !MatchesExpectedCheckpoint(matches, expected)) {
+            throw new InvalidOperationException(
+                $"Checkpoint '{requested.Consumer}' for {requested.Computer}/{requested.Container} changed after collection started; no events or checkpoint were committed.");
+        }
         if (matches.Length == 0) {
             return requested;
         }
@@ -119,6 +126,34 @@ public sealed partial class EventStore {
             BookmarkXml = requested.BookmarkXml,
             UpdatedAtUtc = requested.UpdatedAtUtc
         };
+    }
+
+    private static bool MatchesExpectedCheckpoint(
+        IReadOnlyList<StoredCheckpointRow> current,
+        EventStoreCheckpoint? expected) {
+
+        if (expected == null) {
+            return current.Count == 0;
+        }
+        if (current.Count != 1) {
+            return false;
+        }
+        StoredCheckpointRow value = current[0];
+        return MatchesCheckpointIdentity(
+                   value,
+                   expected.Consumer,
+                   expected.Computer,
+                   expected.Container) &&
+               value.RecordId == expected.RecordId &&
+               string.Equals(
+                   value.BookmarkXml,
+                   expected.BookmarkXml,
+                   StringComparison.Ordinal) &&
+               DateTime.Parse(
+                   value.UpdatedUtc,
+                   CultureInfo.InvariantCulture,
+                   DateTimeStyles.RoundtripKind).ToUniversalTime() ==
+               expected.UpdatedAtUtc.ToUniversalTime();
     }
 
     private static StoredCheckpointRow MapStoredCheckpoint(System.Data.IDataRecord record) => new(
