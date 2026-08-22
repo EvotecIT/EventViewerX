@@ -376,19 +376,49 @@ if (-not (Test-Path -LiteralPath $evx -PathType Leaf)) {
 Keep the ZIP and checksum file together with the deployment record. Repeat the
 verification when upgrading the scheduled host.
 
-### 4. Test one overlapping collection run
+### 4. Test one checkpointed collection run
 
 ```powershell
 & $evx query `
     --type ActiveDirectoryChanges `
     --collector WEC01 `
     --since 00:20:00 `
-    --write-store C:\ProgramData\EventViewerX\events.db
+    --write-store C:\ProgramData\EventViewerX\events.db `
+    --checkpoint EventViewerX-ADChanges
 ```
 
-The command prints inserted and duplicate counts to the task history stream.
-Run it twice to confirm that the second run reports duplicates instead of
-creating duplicate history.
+`--since` declares only the intentional first-run backfill window. The named
+checkpoint is committed in the same SQLite transaction as the normalized
+events. Later runs resume after the last successfully inspected
+`ForwardedEvents` record, regardless of how long the scheduled task was
+offline. EventViewerX probes the oldest and newest retained collector records
+before and after each query and refuses to advance when a channel clear,
+replacement, or retention gap makes completeness unknowable.
+
+Treat the checkpoint name, collector spelling, collector channel, and event-type
+selection as one stable collection identity. Use a new checkpoint name when
+that identity changes, or reset the existing checkpoint intentionally after
+reviewing the resulting backfill boundary.
+
+If retention was exhausted, preserve the diagnostic evidence and decide what
+period can be recovered before resetting only the collection checkpoint. This
+does not delete retained EventViewerX rows:
+
+```powershell
+& $evx store reset-checkpoint `
+    --path C:\ProgramData\EventViewerX\events.db `
+    --consumer EventViewerX-ADChanges `
+    --computer WEC01 `
+    --container ForwardedEvents
+```
+
+The next run after a reset again uses `--since` as its declared initial
+boundary. A reset cannot recreate events that have already aged out of
+`ForwardedEvents`; treat that interval as incomplete.
+
+The command prints inserted and duplicate counts plus the committed record
+boundary to the task history stream. Run it twice to confirm that the second
+run resumes at that boundary and does not create duplicate history.
 
 ### 5. Test the rolling daily report
 
@@ -488,7 +518,7 @@ Register-ScheduledTask `
 
 $collectAction = New-ScheduledTaskAction `
     -Execute $evx `
-    -Argument "query --type ActiveDirectoryChanges --collector WEC01 --since 00:20:00 --write-store `"$store`""
+    -Argument "query --type ActiveDirectoryChanges --collector WEC01 --since 00:20:00 --write-store `"$store`" --checkpoint EventViewerX-ADChanges"
 Register-ScheduledTask `
     -TaskName 'EventViewerX-Collect-ADChanges' `
     -Action $collectAction `
@@ -640,10 +670,13 @@ and require the separate source-side verification described above; they are not
 permissions owned by the collector task identity.
 
 The recurring tasks receive triggers only after that verification succeeds.
-The daily report task starts or joins a collection run, waits for its successful
-completion, and then reports the closed previous UTC day with explicit start and
-end boundaries. This avoids a rolling-window race and prevents report reads from
-overlapping the collection commit they depend on.
+The collection task advances a durable collector-record checkpoint only in the
+same transaction that stores a complete query result. The daily report task
+starts or joins a collection run, waits for its successful completion, and then
+reports the closed previous UTC day with explicit start and end boundaries.
+This recovers retained backlog after task outages, avoids a rolling-window race,
+and prevents report reads from overlapping the collection commit they depend
+on.
 
 The first scheduled report is complete only after collection has covered the
 entire reported UTC day. Treat an earlier first report as onboarding proof, not

@@ -70,6 +70,12 @@ public sealed class EventReportRequest {
     /// <summary>Reads the oldest matching events first.</summary>
     public bool Oldest { get; set; }
 
+    /// <summary>
+    /// Optional per-target and per-container exclusive record checkpoint used
+    /// by durable collection hosts.
+    /// </summary>
+    public Func<string?, string, long?>? MinimumRecordIdExclusiveResolver { get; set; }
+
     /// <summary>Resolves IP addresses through DnsClientX after typed projection.</summary>
     public bool ResolveDns { get; set; }
 

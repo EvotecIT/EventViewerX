@@ -3,6 +3,47 @@ using DBAClientX;
 namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
+    /// <summary>Deletes one durable consumer checkpoint without removing stored events.</summary>
+    public async Task<bool> DeleteCheckpointAsync(
+        string consumer,
+        string computer,
+        string container,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(consumer) ||
+            string.IsNullOrWhiteSpace(computer) ||
+            string.IsNullOrWhiteSpace(container)) {
+            throw new ArgumentException(
+                "Consumer, computer, and container are required.");
+        }
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        return await session.RunInTransactionAsync(async (transaction, token) => {
+            await transaction.ExecuteNonQueryAsync(
+                ReserveWriterSql,
+                cancellationToken: token).ConfigureAwait(false);
+            IReadOnlyList<StoredCheckpointRow> rows = await transaction.QueryAsListAsync(
+                SelectStoredCheckpointsSql,
+                MapStoredCheckpoint,
+                cancellationToken: token).ConfigureAwait(false);
+            StoredCheckpointRow[] matches = rows.Where(row => MatchesCheckpointIdentity(
+                row,
+                consumer.Trim(),
+                computer.Trim(),
+                container.Trim())).ToArray();
+            foreach (StoredCheckpointRow match in matches) {
+                await transaction.ExecuteNonQueryAsync(
+                    "DELETE FROM evx_checkpoints WHERE rowid = $rowId;",
+                    new Dictionary<string, object?> { ["$rowId"] = match.RowId },
+                    token).ConfigureAwait(false);
+            }
+            return matches.Length > 0;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     private static EventStoreCheckpoint? SnapshotCheckpoint(EventStoreCheckpoint? checkpoint) {
         ValidateCheckpoint(checkpoint);
         return checkpoint == null

@@ -706,6 +706,36 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public async Task ReportRequestsApplyDurableRecordBoundariesToEveryQueryOwner() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string? genericMachine = null;
+        string? genericContainer = null;
+        EventReportRequest generic = EventReportRequest.ForFiles(fixture);
+        generic.MinimumRecordIdExclusiveResolver = (machine, container) => {
+            genericMachine = machine;
+            genericContainer = container;
+            return long.MaxValue;
+        };
+        EventReportRequest typed = EventReportRequest.ForTypes(EventType.OSStartup);
+        typed.Paths = new[] { fixture };
+        typed.MinimumRecordIdExclusiveResolver = (_, _) => long.MaxValue;
+        EventReportRequest custom = EventReportRequest.ForDefinition(CreateDefinition());
+        custom.Paths = new[] { fixture };
+        custom.MinimumRecordIdExclusiveResolver = (_, _) => long.MaxValue;
+
+        EventReport genericReport = await EventReportEngine.QueryAsync(generic);
+        EventReport typedReport = await EventReportEngine.QueryAsync(typed);
+        EventReport customReport = await EventReportEngine.QueryAsync(custom);
+
+        Assert.Empty(genericReport.Rows);
+        Assert.Empty(typedReport.Rows);
+        Assert.Empty(customReport.Rows);
+        Assert.Equal(fixture, genericMachine);
+        Assert.Equal(fixture, genericContainer);
+    }
+
+    [Fact]
     public async Task CustomDefinitionOwnsSemanticsWhenReadingOfflineFiles() {
         string fixture = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));

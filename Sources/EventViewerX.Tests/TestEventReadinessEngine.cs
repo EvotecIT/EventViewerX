@@ -404,6 +404,29 @@ public sealed class TestEventReadinessEngine {
         Assert.Equal(expectedDiagnostic, evidence.DiagnosticKind);
     }
 
+    [Theory]
+    [InlineData(false, false, false, EventReadinessStatus.Fail, EventReadinessDiagnosticKind.Missing)]
+    [InlineData(true, false, false, EventReadinessStatus.Fail, EventReadinessDiagnosticKind.Missing)]
+    [InlineData(true, true, false, EventReadinessStatus.Fail, EventReadinessDiagnosticKind.InvalidConfiguration)]
+    [InlineData(true, true, true, EventReadinessStatus.Pass, EventReadinessDiagnosticKind.None)]
+    public void CertificateAuthorityRoleRequiresConfiguredRunningService(
+        bool configured,
+        bool installed,
+        bool running,
+        EventReadinessStatus expectedStatus,
+        EventReadinessDiagnosticKind expectedDiagnostic) {
+
+        EventReadinessConfigurationEvidence evidence =
+            EventReadinessEvidenceProvider.CreateCertificateAuthorityRoleEvidence(
+                configured,
+                configured ? "EVOTEC-CA" : null,
+                installed,
+                running);
+
+        Assert.Equal(expectedStatus, evidence.Status);
+        Assert.Equal(expectedDiagnostic, evidence.DiagnosticKind);
+    }
+
     [Fact]
     public void LocalCollectorAliasIsCanonicalizedAcrossDefaultScopeChecks() {
         var evidence = CreateCollectorEvidence();
@@ -936,6 +959,24 @@ public sealed class TestEventReadinessEngine {
         EventReadinessCheckResult service = Assert.Single(report.Checks, static check => check.Check == "CollectorService");
         Assert.Equal(EventReadinessStatus.Unknown, service.Status);
         Assert.Equal(EventReadinessDiagnosticKind.AccessDenied, service.DiagnosticKind);
+    }
+
+    [Fact]
+    public void DisabledCollectorServiceStartModeFailsReadiness() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorReadiness.CollectorServiceInstalled = true;
+        evidence.CollectorReadiness.CollectorServiceRunning = true;
+        evidence.CollectorReadiness.CollectorServiceStartMode = "Disabled";
+
+        EventReadinessReport report = EvaluateCollector(evidence);
+
+        EventReadinessCheckResult service = Assert.Single(
+            report.Checks,
+            static check => check.Check == "CollectorService");
+        Assert.Equal(EventReadinessStatus.Fail, service.Status);
+        Assert.Equal(
+            EventReadinessDiagnosticKind.InvalidConfiguration,
+            service.DiagnosticKind);
     }
 
     [Fact]

@@ -330,6 +330,11 @@ public sealed partial class EventStore {
             string.IsNullOrWhiteSpace(checkpoint.Container)) {
             throw new ArgumentException("Checkpoint consumer, computer, and container are required.", nameof(checkpoint));
         }
+        if (checkpoint.RecordId < 0) {
+            throw new ArgumentOutOfRangeException(
+                nameof(checkpoint),
+                "Checkpoint record ID must be greater than or equal to zero.");
+        }
     }
 
     private const string UpsertDefinitionSql = @"

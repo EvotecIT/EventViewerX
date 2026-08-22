@@ -100,7 +100,7 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 requirementKey,
                 "target-role:certification-authority",
                 StringComparison.OrdinalIgnoreCase)) {
-            return ReadLocalCertificateAuthorityRole();
+            return ReadLocalCertificateAuthorityRole(cancellationToken);
         }
         if (string.Equals(
                 requirementKey,
@@ -397,22 +397,25 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
         }
     }
 
-    private static EventReadinessConfigurationEvidence ReadLocalCertificateAuthorityRole() {
+    private static EventReadinessConfigurationEvidence ReadLocalCertificateAuthorityRole(
+        CancellationToken cancellationToken) {
+
         try {
             using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
                 @"SYSTEM\CurrentControlSet\Services\CertSvc\Configuration",
                 writable: false);
             string? activeAuthority = key?.GetValue("Active") as string;
-            return key != null && !string.IsNullOrWhiteSpace(activeAuthority)
-                ? new EventReadinessConfigurationEvidence(
-                    EventReadinessStatus.Pass,
-                    $"The local Active Directory Certificate Services authority is '{activeAuthority}'.",
-                    string.Empty)
-                : new EventReadinessConfigurationEvidence(
-                    EventReadinessStatus.Fail,
-                    "No active local Active Directory Certificate Services Certification Authority was found.",
-                    "Assess the Certification Authority that emits the selected certificate events.",
-                    EventReadinessDiagnosticKind.Missing);
+            (bool installed, bool running) =
+                CollectorSubscriptionManager.ReadServiceState(
+                    "CertSvc",
+                    cancellationToken);
+            return CreateCertificateAuthorityRoleEvidence(
+                key != null && !string.IsNullOrWhiteSpace(activeAuthority),
+                activeAuthority,
+                installed,
+                running);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch (UnauthorizedAccessException exception) {
             return new EventReadinessConfigurationEvidence(
                 EventReadinessStatus.Unknown,
@@ -426,6 +429,31 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 "Confirm the source role manually or assess the Certification Authority directly.",
                 EventReadinessDiagnosticKind.Error);
         }
+    }
+
+    internal static EventReadinessConfigurationEvidence CreateCertificateAuthorityRoleEvidence(
+        bool configured,
+        string? activeAuthority,
+        bool serviceInstalled,
+        bool serviceRunning) {
+
+        if (!configured || !serviceInstalled) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Fail,
+                "No installed and active local Active Directory Certificate Services Certification Authority was found.",
+                "Assess the Certification Authority that emits the selected certificate events.",
+                EventReadinessDiagnosticKind.Missing);
+        }
+        return serviceRunning
+            ? new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Pass,
+                $"The local Active Directory Certificate Services authority '{activeAuthority}' is installed and running.",
+                string.Empty)
+            : new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Fail,
+                $"The local Active Directory Certificate Services authority '{activeAuthority}' is configured but CertSvc is not running.",
+                "Start CertSvc on the Certification Authority before monitoring certificate requests.",
+                EventReadinessDiagnosticKind.InvalidConfiguration);
     }
 
     private static EventReadinessConfigurationEvidence ReadLocalNetworkPolicyServerRole(

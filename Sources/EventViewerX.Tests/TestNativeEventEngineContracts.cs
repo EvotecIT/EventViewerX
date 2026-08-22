@@ -6,6 +6,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
+[Collection("NativeOperationLifetime")]
 public sealed class TestNativeEventEngineContracts {
     [Fact]
     public void CatalogEnumerationRetainsSessionUntilTimedOutWorkFinishes() {

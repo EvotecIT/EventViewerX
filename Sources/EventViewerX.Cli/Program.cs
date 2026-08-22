@@ -61,6 +61,9 @@ internal static partial class Program {
             return WriteRows(stored);
         }
         EventReportRequest request = CreateRequest(options);
+        CollectionCheckpointContext? checkpoint =
+            await PrepareCollectionCheckpointAsync(request, options)
+                .ConfigureAwait(false);
         if (options.Has("explain")) {
             EventPredicate predicate = request.Predicate ??
                 throw new ArgumentException("--explain requires --where.");
@@ -82,7 +85,12 @@ internal static partial class Program {
             return WriteJson(plan);
         }
         EventReport report = await EventReportEngine.QueryAsync(request).ConfigureAwait(false);
-        await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
+        if (checkpoint != null) {
+            await WriteCheckpointedStoreAsync(report, checkpoint)
+                .ConfigureAwait(false);
+        } else {
+            await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
+        }
         return WriteRows(report);
     }
 
@@ -149,8 +157,18 @@ internal static partial class Program {
     }
 
     private static async Task<int> StoreAsync(CliArguments options) {
+        if (options.Subcommand == "reset-checkpoint") {
+            bool removed = await new EventStore(options.Require("path"))
+                .DeleteCheckpointAsync(
+                    options.Require("consumer"),
+                    options.Require("computer"),
+                    options.Require("container"))
+                .ConfigureAwait(false);
+            return WriteJson(new { Removed = removed });
+        }
         if (options.Subcommand != "prune") {
-            throw new ArgumentException("store supports prune. Use query/report --store for reading and --write-store for ingestion.");
+            throw new ArgumentException(
+                "store supports prune and reset-checkpoint. Use query/report --store for reading and --write-store for ingestion.");
         }
         DateTime before = ParseDate(options.Require("before"))!.Value;
         int deleted = await new EventStore(options.Require("path"))
@@ -238,6 +256,10 @@ internal static partial class Program {
         }
         if (stored && options.Get("write-store") != null) {
             throw new ArgumentException("--write-store is only valid for live or offline event-log ingestion.");
+        }
+        if (stored && options.Get("checkpoint") != null) {
+            throw new ArgumentException(
+                "--checkpoint is only valid for live collector ingestion with --write-store.");
         }
         if (stored && (options.Has("resolve-dns") || options.Has("concurrency"))) {
             throw new ArgumentException(
@@ -502,7 +524,7 @@ internal static partial class Program {
                     "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "resolve-dns", "title", "where", "explain",
-                    "store", "write-store");
+                    "store", "write-store", "checkpoint");
                 break;
             case "report":
                 options.ValidateAllowed(
@@ -546,6 +568,9 @@ internal static partial class Program {
             case "store" when options.Subcommand == "prune":
                 options.ValidateAllowed("path", "before", "definition-name");
                 break;
+            case "store" when options.Subcommand == "reset-checkpoint":
+                options.ValidateAllowed("path", "consumer", "computer", "container");
+                break;
             case "types":
                 options.ValidateAllowed("type", "definition");
                 break;
@@ -560,7 +585,7 @@ internal static partial class Program {
     private static int Help() {
         Console.WriteLine("EventViewerX 4.0\n\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
@@ -569,6 +594,7 @@ internal static partial class Program {
             "  evx collector initialize [--skip-winrm]\n" +
             "  evx collector remove --name NAME\n" +
             "  evx store prune --path FILE.db --before TIMESTAMP [--definition-name NAME]\n" +
+            "  evx store reset-checkpoint --path FILE.db --consumer NAME --computer HOST --container LOG\n" +
             "  evx provider build --definition FILE --output FILE.evxprovider\n" +
             "  evx provider install --package FILE.evxprovider\n" +
             "  evx provider uninstall --name PROVIDER [--remove-files]");

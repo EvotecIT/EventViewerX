@@ -44,7 +44,9 @@ public static class EventReportEngine {
                 Credential = request.Credential,
                 Authentication = request.Authentication,
                 ContinueOnRemoteFailure = request.ContinueOnRemoteFailure,
-                Predicate = request.Predicate?.Clone()
+                Predicate = request.Predicate?.Clone(),
+                MinimumRecordIdExclusiveResolver =
+                    request.MinimumRecordIdExclusiveResolver
             };
             await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(query, info, cancellationToken)) {
                 projections.Add(EventReportProjectionFactory.Create(record));
@@ -394,7 +396,9 @@ public static class EventReportEngine {
             Authentication = request.Authentication,
             ContinueOnRemoteFailure = request.ContinueOnRemoteFailure,
             Enrichment = request.ResolveDns ? new EventEnrichmentOptions { ResolveDns = true } : null,
-            Predicate = request.Predicate?.Clone()
+            Predicate = request.Predicate?.Clone(),
+            MinimumRecordIdExclusiveResolver =
+                request.MinimumRecordIdExclusiveResolver
         };
     }
 
@@ -408,10 +412,17 @@ public static class EventReportEngine {
             EndTime = endTime
         };
         if (request.Paths != null && request.Paths.Count > 0) {
-            EventLogFileQuery[] files = request.Paths.Select(path => new EventLogFileQuery(Path.GetFullPath(path)) {
-                XPath = EventFilterCompiler.BuildXPath(filter),
-                Oldest = request.Oldest,
-                ReadMode = EventReadMode.StructuredDataAndMessage
+            EventLogFileQuery[] files = request.Paths.Select(path => {
+                string fullPath = Path.GetFullPath(path);
+                EventFilter pathFilter = filter.WithMinimumRecordIdExclusive(
+                    request.MinimumRecordIdExclusiveResolver?.Invoke(
+                        fullPath,
+                        fullPath));
+                return new EventLogFileQuery(fullPath) {
+                    XPath = EventFilterCompiler.BuildXPath(pathFilter),
+                    Oldest = request.Oldest,
+                    ReadMode = EventReadMode.StructuredDataAndMessage
+                };
             }).ToArray();
             EventLogBatchQuery fileBatch = EventLogBatchQuery.ForFiles(files);
             fileBatch.MaxEvents = request.MaxEvents;
@@ -433,13 +444,19 @@ public static class EventReportEngine {
             ? new string?[] { null }
             : request.MachineNames.ToArray();
         var failures = new List<EventLogQueryFailure>();
-        EventLogChannelQuery[] channels = targets.Select(target => new EventLogChannelQuery(request.LogName!) {
-            MachineName = target,
-            Credential = string.IsNullOrWhiteSpace(target) ? null : request.Credential,
-            Authentication = request.Authentication,
-            XPath = EventFilterCompiler.BuildXPath(filter),
-            Oldest = request.Oldest,
-            ReadMode = EventReadMode.StructuredDataAndMessage
+        EventLogChannelQuery[] channels = targets.Select(target => {
+            EventFilter targetFilter = filter.WithMinimumRecordIdExclusive(
+                request.MinimumRecordIdExclusiveResolver?.Invoke(
+                    target,
+                    request.LogName!));
+            return new EventLogChannelQuery(request.LogName!) {
+                MachineName = target,
+                Credential = string.IsNullOrWhiteSpace(target) ? null : request.Credential,
+                Authentication = request.Authentication,
+                XPath = EventFilterCompiler.BuildXPath(targetFilter),
+                Oldest = request.Oldest,
+                ReadMode = EventReadMode.StructuredDataAndMessage
+            };
         }).ToArray();
         EventLogBatchQuery batch = EventLogBatchQuery.ForChannels(channels);
         batch.MaxEvents = request.MaxEvents;

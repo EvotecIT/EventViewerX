@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 
 namespace EventViewerX.Tests;
 
+[Collection("NativeOperationLifetime")]
 public sealed class TestRemoteConnectionBudget {
     [Fact]
     public void RpcProbeHonorsCallerCancellation() {

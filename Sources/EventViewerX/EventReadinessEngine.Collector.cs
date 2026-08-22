@@ -20,11 +20,18 @@ public static partial class EventReadinessEngine {
                     collector,
                     "CollectorService",
                     readiness.CollectorServiceDiagnosticKind == EventReadinessDiagnosticKind.None
-                        ? readiness.CollectorServiceInstalled && readiness.CollectorServiceRunning
+                        ? readiness.CollectorServiceInstalled &&
+                          readiness.CollectorServiceRunning &&
+                          !string.Equals(
+                              readiness.CollectorServiceStartMode,
+                              "Disabled",
+                              StringComparison.OrdinalIgnoreCase)
                         : null,
                     $"Wecsvc installed={readiness.CollectorServiceInstalled}; running={readiness.CollectorServiceRunning}; start mode={readiness.CollectorServiceStartMode}.",
-                    "Install and start the Windows Event Collector service before scheduling collection.",
-                    EventReadinessDiagnosticKind.Missing,
+                    "Install Wecsvc, configure a non-disabled start mode, and start the service before scheduling collection.",
+                    readiness.CollectorServiceInstalled
+                        ? EventReadinessDiagnosticKind.InvalidConfiguration
+                        : EventReadinessDiagnosticKind.Missing,
                     readiness.CollectorServiceDiagnosticKind);
                 AddCollectorBooleanCheck(
                     checks,

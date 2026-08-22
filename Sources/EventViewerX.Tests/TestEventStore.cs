@@ -128,6 +128,75 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task DeleteCheckpointKeepsStoredEventsAndUsesCanonicalIdentity() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(
+                CreateReport((
+                    new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc),
+                    42,
+                    "alice")),
+                new EventStoreCheckpoint {
+                    Consumer = "Überwachung",
+                    Computer = "München-DC",
+                    Container = "ForwardedEvents",
+                    RecordId = 42
+                });
+
+            bool deleted = await store.DeleteCheckpointAsync(
+                "überwachung",
+                "münchen-dc",
+                "forwardedevents");
+            EventReport remaining = await store.ReadReportAsync(
+                new EventStoreQuery());
+
+            Assert.True(deleted);
+            Assert.Null(await store.GetCheckpointAsync(
+                "Überwachung",
+                "München-DC",
+                "ForwardedEvents"));
+            Assert.Single(remaining.Rows);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(100, 101, 200)]
+    [InlineData(100, 100, 100)]
+    [InlineData(100, 50, 200)]
+    public void CheckpointAcceptsContiguousRetainedRanges(
+        long checkpoint,
+        long oldest,
+        long newest) {
+
+        new EventStoreCheckpoint { RecordId = checkpoint }
+            .ValidateAvailableRange(oldest, newest);
+    }
+
+    [Theory]
+    [InlineData(100L, 102L, 200L)]
+    [InlineData(200L, 1L, 199L)]
+    [InlineData(100L, 200L, 100L)]
+    public void CheckpointRejectsClearedOrIncompleteRetainedRanges(
+        long checkpoint,
+        long oldest,
+        long newest) {
+
+        Assert.Throws<InvalidDataException>(() =>
+            new EventStoreCheckpoint { RecordId = checkpoint }
+                .ValidateAvailableRange(oldest, newest));
+    }
+
+    [Fact]
+    public void CheckpointRejectsAnEmptyRetainedRange() {
+        Assert.Throws<InvalidDataException>(() =>
+            new EventStoreCheckpoint { RecordId = 100 }
+                .ValidateAvailableRange(null, null));
+    }
+
+    [Fact]
     public async Task ExistingUnicodeCheckpointDuplicatesCoalesceDuringInitialization() {
         string path = CreateStorePath();
         try {
