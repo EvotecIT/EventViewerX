@@ -42,7 +42,16 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
                 EventNormalizationOutcome.Malformed,
                 warnings: new[] { $"FILETIME value '{raw}' is not a signed 64-bit integer." });
         }
-        if (fileTime == 0 || fileTime == long.MaxValue || fileTime == 0x7FFFFFFFFFFFFFFF) {
+        if (fileTime == 0 && IsPasswordLastSet(context)) {
+            return EventValueNormalizer.Create(
+                context,
+                "PasswordChangeRequired",
+                "Must change password at next logon",
+                EventNormalizedValueKind.DirectorySentinel,
+                Name,
+                Version);
+        }
+        if (fileTime == 0 || fileTime == long.MaxValue) {
             return EventValueNormalizer.Create(
                 context,
                 null,
@@ -80,6 +89,21 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
         return TrySibling(context.Values, "AttributeName", out string attribute) ||
                TrySibling(context.Values, "AttributeLDAPDisplayName", out attribute)
             ? FieldNames.Contains(attribute)
+            : false;
+    }
+
+    private static bool IsPasswordLastSet(EventValueContext context) {
+        if (string.Equals(context.FieldName, "PasswordLastSet", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(context.FieldName, "PwdLastSet", StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+        if (!string.Equals(context.FieldName, "AttributeValue", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+        return TrySibling(context.Values, "AttributeName", out string attribute) ||
+               TrySibling(context.Values, "AttributeLDAPDisplayName", out attribute)
+            ? string.Equals(attribute, "pwdLastSet", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(attribute, "PasswordLastSet", StringComparison.OrdinalIgnoreCase)
             : false;
     }
 

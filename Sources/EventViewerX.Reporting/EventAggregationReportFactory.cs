@@ -8,6 +8,12 @@ public static class EventAggregationReportFactory {
             throw new ArgumentNullException(nameof(result));
         }
         var columns = new List<EventReportColumnSchema> {
+            Column("ResultKind", "Result kind", typeof(string)),
+            Column("InputCompleteness", "Input completeness", typeof(string)),
+            Column("AggregationComplete", "Aggregation complete", typeof(bool)),
+            Column("Diagnostic", "Diagnostic", typeof(string)),
+            Column("ExecutionMode", "Execution mode", typeof(string)),
+            Column("InputRows", "Input rows", typeof(long)),
             Column("BucketStartUtc", "Bucket start", typeof(DateTime?)),
             Column("BucketEndUtc", "Bucket end", typeof(DateTime?)),
             Column("BucketLabel", "Bucket", typeof(string))
@@ -31,6 +37,12 @@ public static class EventAggregationReportFactory {
         };
         EventReportRow[] rows = result.Rows.Select(row => {
             var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+                ["ResultKind"] = "AggregationRow",
+                ["InputCompleteness"] = result.InputCompleteness.ToString(),
+                ["AggregationComplete"] = result.AggregationComplete,
+                ["Diagnostic"] = result.Diagnostic,
+                ["ExecutionMode"] = result.ExecutionMode.ToString(),
+                ["InputRows"] = result.InputRows,
                 ["BucketStartUtc"] = row.BucketStartUtc,
                 ["BucketEndUtc"] = row.BucketEndUtc,
                 ["BucketLabel"] = row.BucketLabel
@@ -48,6 +60,21 @@ public static class EventAggregationReportFactory {
                 Values = values
             };
         }).ToArray();
+        if (rows.Length == 0) {
+            rows = new[] {
+                new EventReportRow {
+                    Type = "EventAggregation",
+                    Values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+                        ["ResultKind"] = "ResultMetadata",
+                        ["InputCompleteness"] = result.InputCompleteness.ToString(),
+                        ["AggregationComplete"] = result.AggregationComplete,
+                        ["Diagnostic"] = result.Diagnostic,
+                        ["ExecutionMode"] = result.ExecutionMode.ToString(),
+                        ["InputRows"] = result.InputRows
+                    }
+                }
+            };
+        }
         return EventReportEngine.CreateStored(
             rows,
             new[] { schema },

@@ -70,6 +70,8 @@ Computes bounded event counts, distinct values, first/last observations, rates, 
 
 Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.
 
+A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.
+
 ### [New-EVXCollectorSubscription](New-EVXCollectorSubscription.md)
 Creates a typed collector- or source-initiated WEC subscription definition.
 

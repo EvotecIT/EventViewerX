@@ -6,6 +6,37 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task SqliteTopRankingSupportsFirstAndLastSeenMeasures() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(
+                (new DateTime(2026, 8, 22, 10, 0, 0, DateTimeKind.Utc), 1, "Alice"),
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 2, "Bob"));
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition {
+                GroupBy = new[] { "RecordId" },
+                Measures = new[] {
+                    new EventAggregationMeasure {
+                        Operation = EventAggregationOperation.LastSeen,
+                        Field = "TimeCreated",
+                        OutputName = "Latest"
+                    }
+                },
+                Top = 1,
+                RankingMeasure = "Latest"
+            };
+
+            EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Equal(2L, Assert.Single(pushed.Rows).Group["RecordId"]);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task SqliteAggregationMatchesManagedCaseInsensitiveDistinctContract() {
         string path = CreateStorePath();
         try {

@@ -14,6 +14,8 @@ public enum EventNormalizedValueKind {
     FlagSet,
     /// <summary>UTC date and time.</summary>
     DateTime,
+    /// <summary>Active Directory sentinel state that is not a point in time.</summary>
+    DirectorySentinel,
     /// <summary>Windows security identifier.</summary>
     SecurityIdentifier,
     /// <summary>Globally unique identifier.</summary>

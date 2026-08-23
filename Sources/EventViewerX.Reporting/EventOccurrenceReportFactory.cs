@@ -4,6 +4,15 @@ namespace EventViewerX.Reporting;
 public static class EventOccurrenceReportFactory {
     /// <summary>Creates a report with one row per logical occurrence while the source result retains all observations.</summary>
     public static EventReport Create(EventOccurrenceResult result, string? title = null) {
+        return Create(result, sourceReport: null, title);
+    }
+
+    /// <summary>Creates an occurrence report while retaining the source query completeness envelope.</summary>
+    public static EventReport Create(
+        EventOccurrenceResult result,
+        EventReport? sourceReport,
+        string? title = null) {
+
         if (result == null) {
             throw new ArgumentNullException(nameof(result));
         }
@@ -50,8 +59,49 @@ public static class EventOccurrenceReportFactory {
             rows,
             new[] { schema },
             string.IsNullOrWhiteSpace(title) ? "EventViewerX occurrences" : title,
-            eventsScanned: result.Groups.Sum(static group => (long)group.ObservationCount),
-            scanLimitReached: !result.IsComplete);
+            coverage: sourceReport?.Coverage,
+            generatedAt: sourceReport?.GeneratedAt,
+            eventsScanned: sourceReport?.EventsScanned ??
+                result.Groups.Sum(static group => (long)group.ObservationCount),
+            scanLimitReached: !result.IsComplete || sourceReport?.ScanLimitReached == true);
+    }
+
+    /// <summary>
+    /// Creates a report containing one original representative row per occurrence while retaining
+    /// the source schemas and completeness envelope. This is the aggregation input contract.
+    /// </summary>
+    public static EventReport CreateRepresentatives(
+        EventOccurrenceResult result,
+        EventReport sourceReport,
+        string? title = null) {
+
+        if (result == null) {
+            throw new ArgumentNullException(nameof(result));
+        }
+        if (sourceReport == null) {
+            throw new ArgumentNullException(nameof(sourceReport));
+        }
+        EventReportSectionSchema[] schemas = sourceReport.Sections.Select(static section =>
+            new EventReportSectionSchema {
+                Name = section.Name,
+                DisplayName = section.DisplayName,
+                Description = section.Description,
+                Kind = section.Kind,
+                Columns = section.Columns.Select(static column => new EventReportColumnSchema {
+                    Name = column.Name,
+                    DisplayName = column.DisplayName,
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(column.ValueType),
+                    Aliases = column.Aliases.ToArray()
+                }).ToArray()
+            }).ToArray();
+        return EventReportEngine.CreateStored(
+            result.Groups.Select(static group => group.Representative),
+            schemas,
+            string.IsNullOrWhiteSpace(title) ? sourceReport.Title : title,
+            sourceReport.Coverage,
+            sourceReport.GeneratedAt,
+            sourceReport.EventsScanned,
+            !result.IsComplete || sourceReport.ScanLimitReached);
     }
 
     private static EventReportColumnSchema Column(string name, string displayName, Type type) => new() {

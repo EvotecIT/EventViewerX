@@ -53,4 +53,20 @@ Describe 'Event analysis PowerShell surface' {
         $Result.Groups[0].Observations.Count | Should -Be 1
         $Result.Groups[0].Representative.RecordId | Should -Be $Event.RecordId
     }
+
+    It 'accepts report rows directly and keeps pipeline completeness unknown' {
+        $Row = [EventViewerX.Reporting.EventReportRow]::new()
+        $Row.Type = 'Generic'
+        $Row.TimeCreated = [datetime]::UtcNow
+        $Row.Provider = 'Provider'
+        $Row.SourceLog = 'Security'
+        $Row.SourceComputer = 'DC1'
+
+        $Result = $Row | Measure-EVXEvent -GroupBy ProviderName
+
+        $Result.InputCompleteness | Should -Be ([EventViewerX.Reporting.EventAggregationInputCompleteness]::Unknown)
+        $Result.IsComplete | Should -BeFalse
+        $Result.Rows.Count | Should -Be 1
+        $Result.Rows[0].Group['ProviderName'] | Should -Be 'Provider'
+    }
 }

@@ -10,6 +10,8 @@ Computes bounded event counts, distinct values, first/last observations, rates, 
 
 Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.
 
+A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.
+
 ## SYNTAX
 ### Input (Default)
 ```powershell
@@ -25,6 +27,8 @@ Measure-EVXEvent -FromStore <string> [-Type <EventType[]>] [-DefinitionName <str
 Computes bounded event counts, distinct values, first/last observations, rates, and time trends.
 
 Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.
+
+A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.
 
 ## EXAMPLES
 
@@ -148,7 +152,7 @@ Accept wildcard characters: False
 ```
 
 ### -InputObject
-Event rows, typed EventViewerX records, or one EventReport to aggregate.
+Event rows, typed EventViewerX records, or one EventReport to aggregate. Supply an EventReport alone to preserve its completeness envelope.
 
 ```yaml
 Type: Object

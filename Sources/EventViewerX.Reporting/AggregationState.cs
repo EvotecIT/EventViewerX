@@ -25,6 +25,8 @@ internal sealed class AggregationState {
     internal AggregationBucketRange Bucket { get; }
     internal long EstimatedBytes { get; }
 
+    internal void MergeGroupDisplay(AggregationGroup candidate) => Group.MergeDisplay(candidate);
+
     internal long Add(
         EventReportRow row,
         IReadOnlyDictionary<string, object?> values,

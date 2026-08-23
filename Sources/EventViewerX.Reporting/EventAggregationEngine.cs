@@ -36,6 +36,9 @@ public static partial class EventAggregationEngine {
         try {
             var states = new Dictionary<string, AggregationState>(StringComparer.Ordinal);
             var rankingStates = new Dictionary<string, AggregationState>(StringComparer.Ordinal);
+            bool requiresGlobalRanking = snapshot.Top > 0 &&
+                snapshot.Bucket != EventAggregationBucket.None &&
+                snapshot.TopScope == EventAggregationTopScope.GlobalGroup;
             long stateBytes = 0;
             foreach (EventReportRow row in source) {
                 IReadOnlyDictionary<string, object?> values = row.ToNormalizedDictionary();
@@ -52,14 +55,16 @@ public static partial class EventAggregationEngine {
                     snapshot,
                     ref stateBytes);
                 stateBytes += state.Add(row, values, snapshot.MaximumDistinctValues);
-                AggregationState ranking = GetOrCreate(
-                    rankingStates,
-                    group.Identity,
-                    group,
-                    AggregationBucketRange.None,
-                    snapshot,
-                    ref stateBytes);
-                stateBytes += ranking.Add(row, values, snapshot.MaximumDistinctValues);
+                if (requiresGlobalRanking) {
+                    AggregationState ranking = GetOrCreate(
+                        rankingStates,
+                        group.Identity,
+                        group,
+                        AggregationBucketRange.None,
+                        snapshot,
+                        ref stateBytes);
+                    stateBytes += ranking.Add(row, values, snapshot.MaximumDistinctValues);
+                }
                 if (stateBytes > snapshot.MaximumStateBytes) {
                     throw new AggregationBoundException(
                         $"Aggregation state exceeded MaximumStateBytes {snapshot.MaximumStateBytes:N0}.");
@@ -107,6 +112,7 @@ public static partial class EventAggregationEngine {
         ref long stateBytes) {
 
         if (states.TryGetValue(key, out AggregationState? state)) {
+            state.MergeGroupDisplay(group);
             return state;
         }
         if (states.Count >= definition.MaximumGroups) {
@@ -129,8 +135,14 @@ public static partial class EventAggregationEngine {
             return values;
         }
         string rankingName = definition.RankingMeasure!;
-        if (definition.Bucket == EventAggregationBucket.None ||
-            definition.TopScope == EventAggregationTopScope.GlobalGroup) {
+        if (definition.Bucket == EventAggregationBucket.None) {
+            return values
+                .OrderByDescending(state => state.GetRankingValue(rankingName, definition), AggregationValueComparer.Instance)
+                .ThenBy(static state => state.Group.Identity, StringComparer.Ordinal)
+                .Take(definition.Top)
+                .ToArray();
+        }
+        if (definition.TopScope == EventAggregationTopScope.GlobalGroup) {
             HashSet<string> retained = rankingStates.Values
                 .OrderByDescending(state => state.GetRankingValue(rankingName, definition), AggregationValueComparer.Instance)
                 .ThenBy(static state => state.Group.Identity, StringComparer.Ordinal)
@@ -176,6 +188,8 @@ public static partial class EventAggregationEngine {
                 Convert.ToString(y, CultureInfo.InvariantCulture));
         }
     }
+
+    internal static IComparer<object?> ValueComparer => AggregationValueComparer.Instance;
 }
 
 internal sealed class AggregationBoundException : Exception {

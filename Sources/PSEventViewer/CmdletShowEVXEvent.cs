@@ -430,7 +430,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
                 MaximumObservations = MaximumOccurrenceObservations,
                 MaximumGroups = MaximumOccurrenceGroups
             });
-            report = EventOccurrenceReportFactory.Create(occurrences, Title);
+            report = EventOccurrenceReportFactory.Create(occurrences, report, Title);
         }
 
         bool hasDestination = !string.IsNullOrWhiteSpace(HtmlPath) ||

@@ -9197,11 +9197,13 @@ This cannot be combined with EventLogPath.</maml:para>
       <maml:description>
         <maml:para>Computes bounded event counts, distinct values, first/last observations, rates, and time trends.</maml:para>
         <maml:para>Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.</maml:para>
+        <maml:para>A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.</maml:para>
       </maml:description>
     </command:details>
     <maml:description>
       <maml:para>Computes bounded event counts, distinct values, first/last observations, rates, and time trends.</maml:para>
       <maml:para>Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.</maml:para>
+      <maml:para>A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.</maml:para>
     </maml:description>
     <command:syntax>
       <command:syntaxItem parameterSetName="Input">
@@ -9240,7 +9242,7 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
           <maml:name>InputObject</maml:name>
           <maml:description>
-            <maml:para>Event rows, typed EventViewerX records, or one EventReport to aggregate.</maml:para>
+            <maml:para>Event rows, typed EventViewerX records, or one EventReport to aggregate. Supply an EventReport alone to preserve its completeness envelope.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
           <dev:type>
@@ -9805,7 +9807,7 @@ This cannot be combined with EventLogPath.</maml:para>
       <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
         <maml:name>InputObject</maml:name>
         <maml:description>
-          <maml:para>Event rows, typed EventViewerX records, or one EventReport to aggregate.</maml:para>
+          <maml:para>Event rows, typed EventViewerX records, or one EventReport to aggregate. Supply an EventReport alone to preserve its completeness envelope.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
         <dev:type>

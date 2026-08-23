@@ -19,16 +19,21 @@ internal static class EventAggregationChartProjection {
             return null;
         }
         var grouped = result.Rows
-            .GroupBy(row => CreateSeriesLabel(row, result.Definition.GroupBy), StringComparer.Ordinal)
+            .GroupBy(row => CreateSeriesIdentity(row, result.Definition.GroupBy), StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
+        var labels = new Dictionary<string, int>(StringComparer.Ordinal);
         EventAggregationChartSeries[] series = grouped.Take(maximumSeries).Select(group => {
             Dictionary<string, double> values = group.ToDictionary(
                 static row => row.BucketLabel ?? row.BucketStartUtc!.Value.ToString("O", CultureInfo.InvariantCulture),
                 row => Convert.ToDouble(row.Measures[measure.OutputName!], CultureInfo.InvariantCulture),
                 StringComparer.Ordinal);
+            string label = CreateSeriesLabel(group.First(), result.Definition.GroupBy);
+            labels.TryGetValue(label, out int used);
+            labels[label] = used + 1;
+            string uniqueLabel = used == 0 ? label : label + " · #" + (used + 1).ToString(CultureInfo.InvariantCulture);
             return new EventAggregationChartSeries(
-                group.Key,
+                uniqueLabel,
                 categories.Select(category => values.TryGetValue(category, out double value) ? (double?)value : null).ToArray());
         }).ToArray();
         return new EventAggregationChartData(
@@ -45,6 +50,12 @@ internal static class EventAggregationChartProjection {
         return string.Join(" · ", dimensions.Select(dimension =>
             dimension + "=" + (Convert.ToString(row.Group[dimension], CultureInfo.InvariantCulture) ?? "(null)")));
     }
+
+    private static string CreateSeriesIdentity(EventAggregationRow row, IReadOnlyList<string> dimensions) =>
+        dimensions.Count == 0
+            ? "all"
+            : string.Join("|", dimensions.Select(dimension =>
+                EventAggregationEngine.Canonicalize(row.Group[dimension])));
 }
 
 internal sealed class EventAggregationChartData {

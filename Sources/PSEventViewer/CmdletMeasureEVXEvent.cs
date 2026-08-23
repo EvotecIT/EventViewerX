@@ -5,6 +5,7 @@ namespace PSEventViewer;
 /// <summary>
 /// <para type="synopsis">Computes bounded event counts, distinct values, first/last observations, rates, and time trends.</para>
 /// <para type="description">Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.</para>
+/// <para type="description">A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.</para>
 /// </summary>
 /// <example>
 ///   <summary>Count failed logons by account</summary>
@@ -27,7 +28,7 @@ namespace PSEventViewer;
 public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
     private readonly List<object> _input = new();
 
-    /// <summary>Event rows, typed EventViewerX records, or one EventReport to aggregate.</summary>
+    /// <summary>Event rows, typed EventViewerX records, or one EventReport to aggregate. Supply an EventReport alone to preserve its completeness envelope.</summary>
     [Parameter(Mandatory = true, ValueFromPipeline = true, ParameterSetName = "Input")]
     public object? InputObject { get; set; }
 
@@ -152,8 +153,19 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
         if (_input.Count == 1 && _input[0] is EventReport existingReport) {
             result = EventAggregationEngine.Aggregate(existingReport, definition);
         } else {
-            EventReport projectedReport = EventReportEngine.Create(_input);
-            result = EventAggregationEngine.Aggregate(projectedReport, definition);
+            if (_input.Any(static item => item is EventReport)) {
+                throw new PSArgumentException(
+                    "An EventReport must be supplied as the only pipeline input.",
+                    nameof(InputObject));
+            }
+            EventReportRow[] rows = _input.Select(static item => item is EventReportRow row
+                    ? row
+                    : EventReportEngine.CreateRow(item))
+                .ToArray();
+            result = EventAggregationEngine.Aggregate(
+                rows,
+                definition,
+                EventAggregationInputCompleteness.Unknown);
         }
         WriteObject(result);
     }

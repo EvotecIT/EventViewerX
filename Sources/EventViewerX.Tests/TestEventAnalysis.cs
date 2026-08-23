@@ -79,6 +79,23 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void PasswordLastSetZeroRetainsPasswordChangeRequiredState() {
+        var row = CreateRow(1, new Dictionary<string, object?> {
+            ["PwdLastSet"] = "0",
+            ["AccountExpires"] = "0"
+        });
+
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(row);
+
+        Assert.Equal("PasswordChangeRequired", normalized["PwdLastSet"].Value);
+        Assert.Equal("Must change password at next logon", normalized["PwdLastSet"].DisplayValue);
+        Assert.Equal(EventNormalizedValueKind.DirectorySentinel, normalized["PwdLastSet"].Kind);
+        Assert.Null(normalized["AccountExpires"].Value);
+        Assert.Equal("Never", normalized["AccountExpires"].DisplayValue);
+    }
+
+    [Fact]
     public void ActiveDirectoryGeneralizedTimeValidatesOffsetsAndReportsFractionLoss() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["WhenCreated"] = "20260823101530.123456789Z",
@@ -189,6 +206,51 @@ public sealed class TestEventAnalysis {
             row.Group["Who"]?.ToString(), "Alice", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(2L, alice.Measures["Events"]);
         Assert.Equal(2L, alice.Measures["Sources"]);
+    }
+
+    [Fact]
+    public void ManagedAggregationDisplayValuesAreIndependentOfInputOrder() {
+        EventReportRow upper = CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice" });
+        EventReportRow lower = CreateRow(2, new Dictionary<string, object?> { ["Who"] = "alice" });
+        var definition = new EventAggregationDefinition { GroupBy = new[] { "Who" } };
+
+        object? forward = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { lower, upper }, definition).Rows).Group["Who"];
+        object? reverse = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { upper, lower }, definition).Rows).Group["Who"];
+
+        Assert.Equal("Alice", forward);
+        Assert.Equal(forward, reverse);
+    }
+
+    [Fact]
+    public void PerBucketAggregationDoesNotAllocateHiddenGlobalDistinctState() {
+        DateTime firstDay = new(2026, 8, 22, 0, 0, 0, DateTimeKind.Utc);
+        EventReportRow[] rows = Enumerable.Range(0, 120).Select(index => CreateRow(
+            index + 1,
+            new Dictionary<string, object?> {
+                ["Who"] = "Alice",
+                ["Value"] = "value-" + index
+            },
+            firstDay.AddDays(index / 60).AddMinutes(index % 60))).ToArray();
+        var definition = new EventAggregationDefinition {
+            GroupBy = new[] { "Who" },
+            Bucket = EventAggregationBucket.Day,
+            Measures = new[] {
+                new EventAggregationMeasure {
+                    Operation = EventAggregationOperation.DistinctCount,
+                    Field = "Value",
+                    OutputName = "Values"
+                }
+            },
+            MaximumDistinctValues = 100
+        };
+
+        EventAggregationResult result = EventAggregationEngine.Aggregate(rows, definition);
+
+        Assert.True(result.AggregationComplete);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.All(result.Rows, static row => Assert.Equal(60L, row.Measures["Values"]));
     }
 
     [Fact]
@@ -385,6 +447,89 @@ public sealed class TestEventAnalysis {
         EventReportRow row = Assert.Single(report.Rows);
         Assert.Equal(2, row.Values["ObservationCount"]);
         Assert.Contains("17", Assert.IsType<string>(row.Values["RecordIds"]));
+    }
+
+    [Fact]
+    public void OccurrenceReportsAndRepresentativesRetainSourceCompletenessAndDomainFields() {
+        EventReportRow row = CreateRow(17, new Dictionary<string, object?> { ["Who"] = "Alice" });
+        var schema = new EventReportSectionSchema {
+            Name = row.Type,
+            Kind = EventReportSectionKind.Custom,
+            Columns = new[] {
+                new EventReportColumnSchema {
+                    Name = "Who",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                }
+            }
+        };
+        EventReport source = EventReportEngine.CreateStored(
+            new[] { row },
+            new[] { schema },
+            coverage: new[] {
+                new EventReportCoverage {
+                    MachineName = "dc2.ad.evotec.xyz",
+                    LogName = "Security",
+                    Succeeded = false,
+                    Status = "AccessDenied"
+                }
+            },
+            eventsScanned: 25,
+            scanLimitReached: true);
+        EventOccurrenceResult occurrences = EventOccurrenceEngine.Group(
+            source.Rows,
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport });
+
+        EventReport summary = EventOccurrenceReportFactory.Create(occurrences, source);
+        EventReport representatives = EventOccurrenceReportFactory.CreateRepresentatives(occurrences, source);
+        EventAggregationResult aggregation = EventAggregationEngine.Aggregate(
+            representatives,
+            new EventAggregationDefinition { GroupBy = new[] { "Who" } });
+
+        Assert.True(summary.ScanLimitReached);
+        Assert.Equal(25, summary.EventsScanned);
+        Assert.False(Assert.Single(summary.Coverage).Succeeded);
+        Assert.True(representatives.ScanLimitReached);
+        Assert.Equal("Alice", Assert.Single(aggregation.Rows).Group["Who"]);
+        Assert.Equal(EventAggregationInputCompleteness.Incomplete, aggregation.InputCompleteness);
+    }
+
+    [Fact]
+    public void AggregationChartsKeepNullAndLiteralNullSeriesDistinct() {
+        DateTime day = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        EventReportRow missing = CreateRow(1, new Dictionary<string, object?> { ["Who"] = null }, day);
+        EventReportRow literal = CreateRow(2, new Dictionary<string, object?> { ["Who"] = "(null)" }, day);
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            new[] { missing, literal },
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Who" },
+                GroupNulls = EventAggregationNullPolicy.Include,
+                Bucket = EventAggregationBucket.Day
+            });
+
+        EventAggregationChartData chart = Assert.IsType<EventAggregationChartData>(
+            EventAggregationChartProjection.Create(result));
+
+        Assert.Equal(2, chart.Series.Count);
+        Assert.Equal(2, chart.Series.Select(static series => series.Name).Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains("EventViewerX aggregation", EventAggregationHtmlRenderer.Render(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EmptyAggregationReportEmitsCompletenessMetadataRow() {
+        EventAggregationResult bounded = EventAggregationEngine.Aggregate(
+            new[] {
+                CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice" }),
+                CreateRow(2, new Dictionary<string, object?> { ["Who"] = "Bob" })
+            },
+            new EventAggregationDefinition { GroupBy = new[] { "Who" }, MaximumGroups = 1 });
+
+        EventReport report = EventAggregationReportFactory.Create(bounded);
+        EventReportRow metadata = Assert.Single(report.Rows);
+
+        Assert.Equal("ResultMetadata", metadata.Values["ResultKind"]);
+        Assert.Equal(false, metadata.Values["AggregationComplete"]);
+        Assert.Equal(bounded.Diagnostic, metadata.Values["Diagnostic"]);
+        Assert.Equal(bounded.InputRows, metadata.Values["InputRows"]);
     }
 
     [Fact]

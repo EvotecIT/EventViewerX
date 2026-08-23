@@ -154,7 +154,25 @@ internal sealed class AggregationGroup {
     }
 
     internal string Identity { get; }
-    internal IReadOnlyDictionary<string, object?> Dimensions { get; }
+    internal IReadOnlyDictionary<string, object?> Dimensions { get; private set; }
+
+    internal void MergeDisplay(AggregationGroup candidate) {
+        var merged = Dimensions.ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, object?> item in candidate.Dimensions) {
+            if (!merged.TryGetValue(item.Key, out object? current) ||
+                CompareDisplay(item.Value, current) < 0) {
+                merged[item.Key] = item.Value;
+            }
+        }
+        Dimensions = merged;
+    }
+
+    private static int CompareDisplay(object? left, object? right) => string.CompareOrdinal(
+        Convert.ToString(left, CultureInfo.InvariantCulture) ?? string.Empty,
+        Convert.ToString(right, CultureInfo.InvariantCulture) ?? string.Empty);
 }
 
 internal sealed class AggregationBucketRange {

@@ -196,6 +196,26 @@ Describe 'evx portable host' {
         $Result.ExecutionMode | Should -Be 'Managed'
         $Result.InputRows | Should -Be 4
         $Result.Rows[0].Measures.Count | Should -Be 4
+        $Result.Rows[0].Group.Type | Should -Be 'Generic'
+    }
+
+    It 'writes aggregation completeness evidence into a plain CSV' {
+        $CsvPath = Join-Path $TestDrive 'bounded-aggregation.csv'
+
+        $null = & $script:CliPath measure `
+            --path $script:FixturePath `
+            --max 4 `
+            --group-by RecordId `
+            --maximum-groups 1 `
+            --csv $CsvPath
+        $Rows = @(Import-Csv -LiteralPath $CsvPath)
+
+        $LASTEXITCODE | Should -Be 0
+        $Rows | Should -HaveCount 1
+        $Rows[0].'Result kind' | Should -Be 'ResultMetadata'
+        $Rows[0].'Aggregation complete' | Should -Be 'False'
+        $Rows[0].Diagnostic | Should -Match 'MaximumGroups'
+        $Rows[0].'Input rows' | Should -Be '4'
     }
 
     It 'rejects occurrence grouping over already-derived stored summaries' {

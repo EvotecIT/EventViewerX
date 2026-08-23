@@ -25,8 +25,7 @@ internal static partial class Program {
                 EventReport stored = await new EventStore(storePath)
                     .ReadReportAsync(query, options.Get("title"))
                     .ConfigureAwait(false);
-                stored = ApplyOccurrenceGrouping(stored, options);
-                result = EventAggregationEngine.Aggregate(stored, definition);
+                result = AggregateOccurrences(stored, definition, options);
             } else if (options.Has("explain")) {
                 return WriteJson(EventStore.PlanAggregation(query, definition));
             } else {
@@ -41,8 +40,12 @@ internal static partial class Program {
             EventReport report = options.Get("context-store") != null
                 ? await QueryGroupPolicyReportAsync(options).ConfigureAwait(false)
                 : await EventReportEngine.QueryAsync(CreateRequest(options)).ConfigureAwait(false);
-            report = ApplyOccurrenceGrouping(report, options);
-            result = EventAggregationEngine.Aggregate(report, definition);
+            result = ParseEnum(
+                options.Get("duplicates"),
+                EventDuplicateMode.None,
+                "--duplicates") == EventDuplicateMode.None
+                ? EventAggregationEngine.Aggregate(report, definition)
+                : AggregateOccurrences(report, definition, options);
         }
         bool written = false;
         if (options.Get("html") is string html) {
@@ -89,7 +92,29 @@ internal static partial class Program {
         if (mode == EventDuplicateMode.None) {
             return report;
         }
-        EventOccurrenceResult result = EventOccurrenceEngine.Group(report.Rows, new EventOccurrenceOptions {
+        EventOccurrenceResult result = GroupOccurrences(report, options);
+        return EventOccurrenceReportFactory.Create(result, report, options.Get("title"));
+    }
+
+    private static EventAggregationResult AggregateOccurrences(
+        EventReport report,
+        EventAggregationDefinition definition,
+        CliArguments options) {
+
+        EventOccurrenceResult occurrences = GroupOccurrences(report, options);
+        EventReport representatives = EventOccurrenceReportFactory.CreateRepresentatives(
+            occurrences,
+            report,
+            options.Get("title"));
+        return EventAggregationEngine.Aggregate(representatives, definition);
+    }
+
+    private static EventOccurrenceResult GroupOccurrences(EventReport report, CliArguments options) {
+        EventDuplicateMode mode = ParseEnum(
+            options.Get("duplicates"),
+            EventDuplicateMode.None,
+            "--duplicates");
+        return EventOccurrenceEngine.Group(report.Rows, new EventOccurrenceOptions {
             Mode = mode,
             Window = options.Get("occurrence-window") is string window
                 ? TimeSpan.Parse(window, CultureInfo.InvariantCulture)
@@ -97,7 +122,6 @@ internal static partial class Program {
             MaximumObservations = options.GetInt("maximum-occurrence-observations", 100000),
             MaximumGroups = options.GetInt("maximum-occurrence-groups", 25000)
         });
-        return EventOccurrenceReportFactory.Create(result, options.Get("title"));
     }
 
     private static EventAggregationDefinition CreateAggregationDefinition(CliArguments options) {

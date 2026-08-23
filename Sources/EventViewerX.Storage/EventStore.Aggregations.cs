@@ -361,9 +361,9 @@ public sealed partial class EventStore {
     private static IOrderedEnumerable<EventAggregationRow> RankStored(
         IEnumerable<EventAggregationRow> rows,
         EventAggregationDefinition definition) => rows
-        .OrderByDescending(row => Convert.ToDouble(
-            row.Measures[definition.RankingMeasure!],
-            CultureInfo.InvariantCulture))
+        .OrderByDescending(
+            row => row.Measures[definition.RankingMeasure!],
+            EventAggregationEngine.ValueComparer)
         .ThenBy(row => string.Join("\u001f", definition.GroupBy.Select(field =>
             EventAggregationEngine.Canonicalize(row.Group[field]))), StringComparer.Ordinal);
 
