@@ -174,6 +174,26 @@ Describe 'evx portable host' {
         Test-Path -LiteralPath $ContextPath | Should -BeFalse
     }
 
+    It 'rejects mixed direct and collector targets before opening persistent context' {
+        $ContextPath = Join-Path $TestDrive 'context-mixed-targets-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --machine source01.ad.evotec.xyz `
+                --collector collector01.ad.evotec.xyz 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--machine and --collector are mutually exclusive'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'rejects live-only controls for stored queries before opening history' {
         $StorePath = Join-Path $TestDrive 'stored-live-options-rejected.db'
         $PreviousErrorActionPreference = $ErrorActionPreference

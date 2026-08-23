@@ -59,12 +59,35 @@ public static class EventAggregationHtmlRenderer {
         EventAggregationChartData? chart = EventAggregationChartProjection.Create(result);
         if (chart != null) {
             foreach (EventAggregationChartSeries series in chart.Series) {
-                page.Panel("Trend · " + series.Name, panel => panel
-                    .Subtitle(chart.Measure + (chart.IsTruncated ? " · first 12 deterministic series" : string.Empty))
-                    .Content(new MonitoringLineChart()
-                        .Settings(settings => settings.AccessibleLabel($"{chart.Measure} trend for {series.Name}").End())
-                        .Label(series.Name)
-                        .Points(series.Points.Select(static value => value ?? 0d).ToArray())));
+                page.Panel("Trend · " + series.Name, panel => {
+                    string truncation = chart.IsTruncated ? " · first 12 deterministic series" : string.Empty;
+                    if (series.Points.All(static value => value.HasValue)) {
+                        panel.Subtitle(chart.Measure + truncation)
+                            .Content(new MonitoringLineChart()
+                                .Settings(settings => settings.AccessibleLabel($"{chart.Measure} trend for {series.Name}").End())
+                                .Label(series.Name)
+                                .Points(series.Points.Select(static value => value!.Value).ToArray()));
+                        return;
+                    }
+                    var gaps = new MonitoringDetailList()
+                        .Settings(settings => settings
+                            .AccessibleLabel($"{chart.Measure} trend values and gaps for {series.Name}")
+                            .End());
+                    for (int index = 0; index < chart.Categories.Count; index++) {
+                        double? point = series.Points[index];
+                        gaps.AddItem(
+                            chart.Categories[index],
+                            point.HasValue
+                                ? point.Value.ToString("0.################", CultureInfo.InvariantCulture)
+                                : "Omitted",
+                            point.HasValue ? MonitoringHealthState.Healthy : MonitoringHealthState.Warning,
+                            point.HasValue
+                                ? null
+                                : "No aggregation row exists for this bucket; the value is a gap, not zero.");
+                    }
+                    panel.Subtitle(chart.Measure + " · gaps shown explicitly" + truncation)
+                        .Content(gaps);
+                });
             }
         }
 
@@ -101,8 +124,8 @@ public static class EventAggregationHtmlRenderer {
                 row.BucketLabel ?? "Aggregate", record => {
                     record.Cell(bucketColumn, row.BucketLabel ?? "All events");
                     foreach (KeyValuePair<string, string> binding in groupColumns) {
-                        record.Cell(binding.Value, Convert.ToString(
-                            row.Group[binding.Key], CultureInfo.InvariantCulture) ?? string.Empty);
+                        record.Cell(binding.Value, EventAggregationChartProjection.FormatDimensionValue(
+                            row.Group[binding.Key]));
                     }
                     foreach (KeyValuePair<EventAggregationMeasure, string> binding in measureColumns) {
                         record.Cell(binding.Value, Convert.ToString(

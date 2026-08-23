@@ -298,6 +298,31 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void UnkeyedOccurrenceFingerprintsRetainShadowedDomainFieldsAcrossInputOrder() {
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> { ["Message"] = "domain-a" });
+        EventReportRow second = CreateRow(2, new Dictionary<string, object?> { ["Message"] = "domain-b" });
+        first.RecordId = null;
+        second.RecordId = null;
+        first.Message = "shared-native-message";
+        second.Message = "shared-native-message";
+
+        EventOccurrenceResult forward = EventOccurrenceEngine.Group(
+            new[] { first, second },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport });
+        EventOccurrenceResult reverse = EventOccurrenceEngine.Group(
+            new[] { second, first },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport });
+
+        Assert.Equal(
+            forward.Groups.Single(group => ReferenceEquals(group.Representative, first)).Identity,
+            reverse.Groups.Single(group => ReferenceEquals(group.Representative, first)).Identity);
+        Assert.Equal(
+            forward.Groups.Single(group => ReferenceEquals(group.Representative, second)).Identity,
+            reverse.Groups.Single(group => ReferenceEquals(group.Representative, second)).Identity);
+        Assert.NotEqual(forward.Groups[0].Identity, forward.Groups[1].Identity);
+    }
+
+    [Fact]
     public void ManagedAggregationUsesCanonicalKeysAndTypedMeasures() {
         EventReportRow[] rows = {
             CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice", ["IpAddress"] = "10.0.0.1" }),
@@ -750,6 +775,60 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, chart.Series.Count);
         Assert.Equal(2, chart.Series.Select(static series => series.Name).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains("EventViewerX aggregation", EventAggregationHtmlRenderer.Render(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PerBucketTopChartsExposeOmittedGroupsAsGapsRatherThanZero() {
+        DateTime day = new(2026, 8, 22, 10, 0, 0, DateTimeKind.Utc);
+        EventReportRow[] rows = {
+            CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice" }, day),
+            CreateRow(2, new Dictionary<string, object?> { ["Who"] = "Alice" }, day.AddMinutes(1)),
+            CreateRow(3, new Dictionary<string, object?> { ["Who"] = "Bob" }, day.AddMinutes(2)),
+            CreateRow(4, new Dictionary<string, object?> { ["Who"] = "Alice" }, day.AddDays(1)),
+            CreateRow(5, new Dictionary<string, object?> { ["Who"] = "Bob" }, day.AddDays(1).AddMinutes(1)),
+            CreateRow(6, new Dictionary<string, object?> { ["Who"] = "Bob" }, day.AddDays(1).AddMinutes(2))
+        };
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            rows,
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Who" },
+                Bucket = EventAggregationBucket.Day,
+                Top = 1,
+                TopScope = EventAggregationTopScope.PerBucket
+            });
+
+        EventAggregationChartData chart = Assert.IsType<EventAggregationChartData>(
+            EventAggregationChartProjection.Create(result));
+        string html = EventAggregationHtmlRenderer.Render(result);
+
+        Assert.Equal(2, chart.Series.Count);
+        Assert.All(chart.Series, static series => Assert.Contains(series.Points, static point => !point.HasValue));
+        Assert.Contains("gaps shown explicitly", html, StringComparison.Ordinal);
+        Assert.Contains("the value is a gap, not zero", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AggregationChartsAndExplorerFormatCanonicalMultiValueDimensions() {
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            new[] {
+                CreateRow(1, new Dictionary<string, object?> {
+                    ["Privileges"] = new[] { "SeBackupPrivilege", "SeRestorePrivilege" }
+                })
+            },
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Privileges" },
+                Bucket = EventAggregationBucket.Day
+            });
+
+        EventAggregationChartData chart = Assert.IsType<EventAggregationChartData>(
+            EventAggregationChartProjection.Create(result));
+        string html = EventAggregationHtmlRenderer.Render(result);
+
+        Assert.Contains("SeBackupPrivilege", Assert.Single(chart.Series).Name, StringComparison.Ordinal);
+        Assert.Contains("SeRestorePrivilege", chart.Series[0].Name, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.String[]", chart.Series[0].Name, StringComparison.Ordinal);
+        Assert.Contains("SeBackupPrivilege, SeRestorePrivilege", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.String[]", html, StringComparison.Ordinal);
     }
 
     [Fact]

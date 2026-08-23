@@ -248,6 +248,9 @@ internal static partial class Program {
 
     private static void ValidateQuerySource(CliArguments options, bool allowSummary) {
         bool stored = options.Get("store") != null;
+        if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
+            throw new ArgumentException("--machine and --collector are mutually exclusive target modes.");
+        }
         if (options.Has("explain") && options.Get("write-store") != null) {
             throw new ArgumentException(
                 "--explain cannot be combined with --write-store because explanation does not read or persist events.");

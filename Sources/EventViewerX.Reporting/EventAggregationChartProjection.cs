@@ -48,7 +48,12 @@ internal static class EventAggregationChartProjection {
             return "All events";
         }
         return string.Join(" · ", dimensions.Select(dimension =>
-            dimension + "=" + (Convert.ToString(row.Group[dimension], CultureInfo.InvariantCulture) ?? "(null)")));
+            dimension + "=" + FormatDimensionValue(row.Group[dimension])));
+    }
+
+    internal static string FormatDimensionValue(object? value) {
+        string formatted = EventReportPresentationProjection.FormatValue(value);
+        return value == null ? "(null)" : formatted;
     }
 
     private static string CreateSeriesIdentity(EventAggregationRow row, IReadOnlyList<string> dimensions) =>

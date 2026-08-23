@@ -235,11 +235,29 @@ public static class EventOccurrenceEngine {
     }
 
     private static string CreateObservationFingerprint(EventReportRow observation) {
-        string input = string.Join("\n", observation.ToDictionary()
-            .OrderBy(static value => value.Key, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(static value => value.Key, StringComparer.Ordinal)
-            .Select(static value => value.Key.ToUpperInvariant() + "\0" +
-                                    CanonicalizeExact(value.Value)));
+        IEnumerable<KeyValuePair<string, object?>> common = new[] {
+            new KeyValuePair<string, object?>(nameof(EventReportRow.TimeCreated), observation.TimeCreated),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.Type), observation.Type),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.EventId), observation.EventId),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.RecordId), observation.RecordId),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.Provider), observation.Provider),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.SourceLog), observation.SourceLog),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.ContainerLog), observation.ContainerLog),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.SourceKind), observation.SourceKind),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.SourceComputer), observation.SourceComputer),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.CollectorComputer), observation.CollectorComputer),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.Level), observation.Level),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.LevelValue), observation.LevelValue),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.Message), observation.Message)
+        };
+        string input = string.Join("\n", common
+            .Select(static value => new { Namespace = "common", Value = value })
+            .Concat(observation.Values.Select(static value => new { Namespace = "domain", Value = value }))
+            .OrderBy(static value => value.Namespace, StringComparer.Ordinal)
+            .ThenBy(static value => value.Value.Key, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static value => value.Value.Key, StringComparer.Ordinal)
+            .Select(static value => value.Namespace + "\0" + value.Value.Key.ToUpperInvariant() + "\0" +
+                                    CanonicalizeExact(value.Value.Value)));
         return Hash(input);
     }
 
