@@ -159,8 +159,13 @@ public static class EventReportCsvRenderer {
         EventReportColumn[] rawColumns = section.Columns.Where(column => section.Rows.Any(row =>
             row.NormalizedValues.TryGetValue(column.Name, out EventNormalizedValue? value) &&
             value.Outcome != EventNormalizationOutcome.Unchanged)).ToArray();
+        var usedHeaders = new HashSet<string>(displayNames.Values, StringComparer.OrdinalIgnoreCase);
+        IReadOnlyDictionary<string, string> rawHeaders = rawColumns.ToDictionary(
+            static column => column.Name,
+            column => CreateUniqueHeader(displayNames[column.Name] + " Raw", usedHeaders),
+            StringComparer.OrdinalIgnoreCase);
         string[] headers = section.Columns.Select(column => displayNames[column.Name])
-            .Concat(rawColumns.Select(column => displayNames[column.Name] + " Raw"))
+            .Concat(rawColumns.Select(column => rawHeaders[column.Name]))
             .ToArray();
         writer.WriteRows(headers, rows.Select((row, index) =>
             section.Columns.Select(column => row.TryGetValue(column.Name, out object? value) ? value : null)
@@ -168,6 +173,16 @@ public static class EventReportCsvRenderer {
                     column.Name,
                     out object? raw) ? raw : null))
                 .ToArray()));
+    }
+
+    private static string CreateUniqueHeader(string requested, ISet<string> usedHeaders) {
+        string candidate = requested;
+        int suffix = 2;
+        while (!usedHeaders.Add(candidate)) {
+            candidate = requested + " (" + suffix.ToString(CultureInfo.InvariantCulture) + ")";
+            suffix++;
+        }
+        return candidate;
     }
 
     private static void WriteDictionaries(

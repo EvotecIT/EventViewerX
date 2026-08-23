@@ -16,12 +16,25 @@ public static class EventOccurrenceReportFactory {
         if (result == null) {
             throw new ArgumentNullException(nameof(result));
         }
+        bool sourceComplete = sourceReport == null ||
+            !sourceReport.ScanLimitReached &&
+            sourceReport.Coverage.All(static coverage => coverage.Succeeded);
+        bool isComplete = result.IsComplete && sourceComplete;
+        string? diagnostic = EventCompletenessDiagnostic.Compose(
+            result.Diagnostic,
+            sourceReport?.CompletenessDiagnostic,
+            sourceComplete
+                ? null
+                : "The source query was incomplete; occurrence output cannot be treated as exhaustive.");
         var schema = new EventReportSectionSchema {
             Name = "EventOccurrence",
             DisplayName = "Event occurrences",
             Description = result.Diagnostic ?? "Non-destructive logical occurrence groups.",
             Kind = EventReportSectionKind.Custom,
             Columns = new[] {
+                Column("ResultKind", "Result kind", typeof(string)),
+                Column("IsComplete", "Complete", typeof(bool)),
+                Column("Diagnostic", "Diagnostic", typeof(string)),
                 Column("OccurrenceId", "Occurrence ID", typeof(string)),
                 Column("RepresentativeType", "Type", typeof(string)),
                 Column("ObservationCount", "Observations", typeof(int)),
@@ -46,6 +59,9 @@ public static class EventOccurrenceReportFactory {
             LevelValue = group.Representative.LevelValue,
             Message = group.Representative.Message,
             Values = new Dictionary<string, object?> {
+                ["ResultKind"] = "Occurrence",
+                ["IsComplete"] = isComplete,
+                ["Diagnostic"] = diagnostic,
                 ["OccurrenceId"] = group.Identity,
                 ["RepresentativeType"] = group.Representative.Type,
                 ["ObservationCount"] = group.ObservationCount,
@@ -55,6 +71,18 @@ public static class EventOccurrenceReportFactory {
                 ["MatchReason"] = group.MatchReason
             }
         }).ToArray();
+        if (rows.Length == 0 && !isComplete) {
+            rows = new[] {
+                new EventReportRow {
+                    Type = "EventOccurrence",
+                    Values = new Dictionary<string, object?> {
+                        ["ResultKind"] = "ResultMetadata",
+                        ["IsComplete"] = false,
+                        ["Diagnostic"] = diagnostic
+                    }
+                }
+            };
+        }
         return EventReportEngine.CreateStored(
             rows,
             new[] { schema },
@@ -63,7 +91,8 @@ public static class EventOccurrenceReportFactory {
             generatedAt: sourceReport?.GeneratedAt,
             eventsScanned: sourceReport?.EventsScanned ??
                 result.Groups.Sum(static group => (long)group.ObservationCount),
-            scanLimitReached: !result.IsComplete || sourceReport?.ScanLimitReached == true);
+            scanLimitReached: !isComplete,
+            completenessDiagnostic: diagnostic);
     }
 
     /// <summary>
@@ -94,6 +123,14 @@ public static class EventOccurrenceReportFactory {
                     Aliases = column.Aliases.ToArray()
                 }).ToArray()
             }).ToArray();
+        bool sourceComplete = !sourceReport.ScanLimitReached &&
+            sourceReport.Coverage.All(static coverage => coverage.Succeeded);
+        string? diagnostic = EventCompletenessDiagnostic.Compose(
+            result.Diagnostic,
+            sourceReport.CompletenessDiagnostic,
+            sourceComplete
+                ? null
+                : "The source query was incomplete; occurrence output cannot be treated as exhaustive.");
         return EventReportEngine.CreateStored(
             result.Groups.Select(static group => group.Representative),
             schemas,
@@ -101,7 +138,8 @@ public static class EventOccurrenceReportFactory {
             sourceReport.Coverage,
             sourceReport.GeneratedAt,
             sourceReport.EventsScanned,
-            !result.IsComplete || sourceReport.ScanLimitReached);
+            !result.IsComplete || !sourceComplete,
+            diagnostic);
     }
 
     private static EventReportColumnSchema Column(string name, string displayName, Type type) => new() {

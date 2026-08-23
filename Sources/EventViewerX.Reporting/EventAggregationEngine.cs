@@ -13,7 +13,7 @@ public static partial class EventAggregationEngine {
             report.Coverage.Any(static coverage => !coverage.Succeeded)
                 ? EventAggregationInputCompleteness.Incomplete
                 : EventAggregationInputCompleteness.Complete;
-        return Aggregate(report.Rows, definition, completeness);
+        return AggregateCore(report.Rows, definition, completeness, report.CompletenessDiagnostic);
     }
 
     /// <summary>Aggregates source rows. Plain row collections are incomplete unless evidence says otherwise.</summary>
@@ -21,6 +21,15 @@ public static partial class EventAggregationEngine {
         IEnumerable<EventReportRow> rows,
         EventAggregationDefinition definition,
         EventAggregationInputCompleteness inputCompleteness = EventAggregationInputCompleteness.Unknown) {
+
+        return AggregateCore(rows, definition, inputCompleteness, inputDiagnostic: null);
+    }
+
+    private static EventAggregationResult AggregateCore(
+        IEnumerable<EventReportRow> rows,
+        EventAggregationDefinition definition,
+        EventAggregationInputCompleteness inputCompleteness,
+        string? inputDiagnostic) {
 
         if (rows == null) {
             throw new ArgumentNullException(nameof(rows));
@@ -39,6 +48,12 @@ public static partial class EventAggregationEngine {
             bool requiresGlobalRanking = snapshot.Top > 0 &&
                 snapshot.Bucket != EventAggregationBucket.None &&
                 snapshot.TopScope == EventAggregationTopScope.GlobalGroup;
+            EventAggregationMeasure[] rankingMeasures = requiresGlobalRanking
+                ? snapshot.Measures.Where(measure => string.Equals(
+                    measure.OutputName,
+                    snapshot.RankingMeasure,
+                    StringComparison.OrdinalIgnoreCase)).ToArray()
+                : Array.Empty<EventAggregationMeasure>();
             long stateBytes = 0;
             foreach (EventReportRow row in source) {
                 IReadOnlyDictionary<string, object?> values = row.ToNormalizedDictionary();
@@ -62,7 +77,8 @@ public static partial class EventAggregationEngine {
                         group,
                         AggregationBucketRange.None,
                         snapshot,
-                        ref stateBytes);
+                        ref stateBytes,
+                        rankingMeasures);
                     stateBytes += ranking.Add(row, values, snapshot.MaximumDistinctValues);
                 }
                 if (stateBytes > snapshot.MaximumStateBytes) {
@@ -76,13 +92,16 @@ public static partial class EventAggregationEngine {
                 .ThenBy(static state => state.Group.Identity, StringComparer.Ordinal)
                 .Select(state => state.CreateRow(snapshot))
                 .ToArray();
-            string? diagnostic = inputCompleteness switch {
+            string? completenessDiagnostic = inputCompleteness switch {
                 EventAggregationInputCompleteness.Unknown =>
                     "Aggregation is exhaustive for supplied rows, but source-query completeness is unknown.",
                 EventAggregationInputCompleteness.Incomplete =>
                     "Aggregation is exhaustive for supplied rows, but at least one source query was incomplete.",
                 _ => null
             };
+            string? diagnostic = EventCompletenessDiagnostic.Compose(
+                inputDiagnostic,
+                completenessDiagnostic);
             return new EventAggregationResult(
                 snapshot,
                 resultRows,
@@ -97,7 +116,7 @@ public static partial class EventAggregationEngine {
                 Array.Empty<EventAggregationRow>(),
                 inputCompleteness,
                 aggregationComplete: false,
-                exception.Message,
+                EventCompletenessDiagnostic.Compose(exception.Message, inputDiagnostic),
                 EventAggregationExecutionMode.Managed,
                 source.LongLength);
         }
@@ -109,7 +128,8 @@ public static partial class EventAggregationEngine {
         AggregationGroup group,
         AggregationBucketRange bucket,
         EventAggregationDefinition definition,
-        ref long stateBytes) {
+        ref long stateBytes,
+        IReadOnlyList<EventAggregationMeasure>? measures = null) {
 
         if (states.TryGetValue(key, out AggregationState? state)) {
             state.MergeGroupDisplay(group);
@@ -119,7 +139,7 @@ public static partial class EventAggregationEngine {
             throw new AggregationBoundException(
                 $"Aggregation group count exceeds MaximumGroups {definition.MaximumGroups:N0}.");
         }
-        state = new AggregationState(group, bucket, definition.Measures);
+        state = new AggregationState(group, bucket, measures ?? definition.Measures);
         states.Add(key, state);
         stateBytes += state.EstimatedBytes;
         return state;

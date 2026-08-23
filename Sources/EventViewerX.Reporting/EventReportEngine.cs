@@ -115,7 +115,8 @@ public static class EventReportEngine {
         IEnumerable<EventReportCoverage>? coverage = null,
         DateTime? generatedAt = null,
         long? eventsScanned = null,
-        bool scanLimitReached = false) {
+        bool scanLimitReached = false,
+        string? completenessDiagnostic = null) {
 
         if (rows == null) {
             throw new ArgumentNullException(nameof(rows));
@@ -207,7 +208,8 @@ public static class EventReportEngine {
             sections,
             coverageSnapshot,
             eventsScanned ?? rowSnapshot.LongLength,
-            scanLimitReached);
+            scanLimitReached,
+            completenessDiagnostic);
     }
 
     /// <summary>Normalizes one generic, built-in typed, or custom event without querying the event log.</summary>

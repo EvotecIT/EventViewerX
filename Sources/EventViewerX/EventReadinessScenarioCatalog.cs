@@ -17,7 +17,9 @@ public static class EventReadinessScenarioCatalog {
             EventType.GroupPolicyActivity
         },
         EventReadinessScenario.AuthenticationMonitoring => new[] {
-            EventType.AuthenticationHealth
+            EventType.ActiveDirectoryAuthentication,
+            EventType.ADLdapBindingSummary,
+            EventType.ADLdapBindingDetails
         },
         EventReadinessScenario.SecurityMonitoring => new[] {
             EventType.ScheduledTaskActivity,

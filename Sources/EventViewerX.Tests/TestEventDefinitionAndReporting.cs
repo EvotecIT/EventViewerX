@@ -604,6 +604,48 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void CsvRawCompanionHeadersCannotCollideWithDeclaredHeaders() {
+        var row = new EventReportRow {
+            Type = "HeaderCollision",
+            Values = new Dictionary<string, object?> {
+                ["OperationType"] = "%%14674",
+                ["ExistingRaw"] = "domain value"
+            }
+        };
+        EventValueNormalizationEngine.Populate(row);
+        var schema = new EventReportSectionSchema {
+            Name = "HeaderCollision",
+            DisplayName = "Header collision",
+            Kind = EventReportSectionKind.Custom,
+            Columns = new[] {
+                new EventReportColumnSchema {
+                    Name = "OperationType",
+                    DisplayName = "Status",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                },
+                new EventReportColumnSchema {
+                    Name = "ExistingRaw",
+                    DisplayName = "Status Raw",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                }
+            }
+        };
+        EventReport report = EventReportEngine.CreateStored(new[] { row }, new[] { schema });
+        string path = Path.Combine(Path.GetTempPath(), $"evx-csv-header-{Guid.NewGuid():N}.csv");
+
+        try {
+            EventReportCsvRenderer.Save(report, path);
+            string header = File.ReadLines(path).First();
+
+            Assert.Equal(3, header.Split(',').Length);
+            Assert.Contains("Status Raw", header, StringComparison.Ordinal);
+            Assert.Contains("Status Raw (2)", header, StringComparison.Ordinal);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void DefinitionSnapshotFreezesMutableSourcesFieldsAndRecordIds() {
         EventDefinition definition = CreateDefinition();
         var query = new EventDefinitionQuery(definition) {

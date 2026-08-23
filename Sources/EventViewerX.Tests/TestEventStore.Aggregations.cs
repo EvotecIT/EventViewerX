@@ -37,7 +37,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task SqliteAggregationMatchesManagedCaseInsensitiveDistinctContract() {
+    public async Task StoredDistinctAggregationFallsBackToManagedBounds() {
         string path = CreateStorePath();
         try {
             EventReport report = CreateReport(
@@ -60,9 +60,86 @@ public sealed partial class TestEventStore {
             EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
             EventAggregationResult managed = EventAggregationEngine.Aggregate(report, definition);
 
-            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, plan.ExecutionMode);
-            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Equal(EventAggregationExecutionMode.Managed, plan.ExecutionMode);
+            Assert.Contains("MaximumStateBytes", plan.Reason, StringComparison.Ordinal);
+            Assert.Equal(EventAggregationExecutionMode.Managed, pushed.ExecutionMode);
             Assert.Equal(managed.Rows.Single().Measures["Sources"], pushed.Rows.Single().Measures["Sources"]);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+
+    [Fact]
+    public async Task SqliteEmptyInputMatchesManagedZeroRowShape() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice")));
+            var query = new EventStoreQuery { StartTime = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc) };
+            var definition = new EventAggregationDefinition();
+
+            EventAggregationResult pushed = await store.AggregateAsync(query, definition);
+            EventReport emptyReport = await store.ReadReportAsync(query);
+            EventAggregationResult managed = EventAggregationEngine.Aggregate(emptyReport, definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Empty(pushed.Rows);
+            Assert.Equal(0, pushed.InputRows);
+            Assert.Equal(managed.Rows.Count, pushed.Rows.Count);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteStateBudgetUsesTheManagedGroupIdentityCost() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice"));
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition {
+                GroupBy = new[] { "Provider" },
+                MaximumStateBytes = 100
+            };
+
+            EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
+            EventAggregationResult managed = EventAggregationEngine.Aggregate(report, definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.False(pushed.AggregationComplete);
+            Assert.Empty(pushed.Rows);
+            Assert.Equal(managed.InputRows, pushed.InputRows);
+            Assert.Equal(managed.AggregationComplete, pushed.AggregationComplete);
+            Assert.Contains("MaximumStateBytes", pushed.Diagnostic, StringComparison.Ordinal);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteGroupBoundFailureRetainsEvaluatedInputRows() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice"),
+                (new DateTime(2026, 8, 23, 10, 1, 0, DateTimeKind.Utc), 2, "Bob"));
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition {
+                GroupBy = new[] { "RecordId" },
+                MaximumGroups = 1
+            };
+
+            EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.False(pushed.AggregationComplete);
+            Assert.Equal(2, pushed.InputRows);
+            Assert.Contains("MaximumGroups", pushed.Diagnostic, StringComparison.Ordinal);
         } finally {
             DeleteStore(path);
         }

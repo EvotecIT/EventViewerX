@@ -18,11 +18,27 @@ public static class EventAggregationReportFactory {
             Column("BucketEndUtc", "Bucket end", typeof(DateTime?)),
             Column("BucketLabel", "Bucket", typeof(string))
         };
-        columns.AddRange(result.Definition.GroupBy.Select(field => Column(field, field, typeof(object))));
-        columns.AddRange(result.Definition.Measures.Select(measure => Column(
-            measure.OutputName!,
-            measure.OutputName!,
-            measure.Operation switch {
+        var usedColumnNames = new HashSet<string>(
+            columns.Select(static column => column.Name),
+            StringComparer.OrdinalIgnoreCase);
+        KeyValuePair<string, string>[] groupColumns = result.Definition.GroupBy
+            .Select(field => new KeyValuePair<string, string>(
+                field,
+                CreateUniqueDataColumnName(field, "Group", usedColumnNames)))
+            .ToArray();
+        (EventAggregationMeasure Measure, string Name)[] measureColumns = result.Definition.Measures
+            .Select(measure => (
+                measure,
+                CreateUniqueDataColumnName(measure.OutputName!, "Measure", usedColumnNames)))
+            .ToArray();
+        columns.AddRange(groupColumns.Select(binding => Column(
+            binding.Value,
+            binding.Key,
+            typeof(object))));
+        columns.AddRange(measureColumns.Select(binding => Column(
+            binding.Name,
+            binding.Measure.OutputName!,
+            binding.Measure.Operation switch {
                 EventAggregationOperation.Count or EventAggregationOperation.DistinctCount => typeof(long),
                 EventAggregationOperation.Rate => typeof(double),
                 EventAggregationOperation.FirstSeen or EventAggregationOperation.LastSeen => typeof(DateTime?),
@@ -47,11 +63,11 @@ public static class EventAggregationReportFactory {
                 ["BucketEndUtc"] = row.BucketEndUtc,
                 ["BucketLabel"] = row.BucketLabel
             };
-            foreach (KeyValuePair<string, object?> value in row.Group) {
-                values[value.Key] = value.Value;
+            foreach (KeyValuePair<string, string> binding in groupColumns) {
+                values[binding.Value] = row.Group[binding.Key];
             }
-            foreach (KeyValuePair<string, object?> value in row.Measures) {
-                values[value.Key] = value.Value;
+            foreach ((EventAggregationMeasure measure, string name) in measureColumns) {
+                values[name] = row.Measures[measure.OutputName!];
             }
             return new EventReportRow {
                 TimeCreated = row.BucketStartUtc ?? result.Definition.WindowStart ??
@@ -88,4 +104,22 @@ public static class EventAggregationReportFactory {
         DisplayName = displayName,
         ValueTypeName = EventReportColumnSchema.GetStableTypeName(type)
     };
+
+    private static string CreateUniqueDataColumnName(
+        string requested,
+        string prefix,
+        ISet<string> usedNames) {
+
+        if (usedNames.Add(requested)) {
+            return requested;
+        }
+        string root = prefix + "." + requested;
+        string candidate = root;
+        int suffix = 2;
+        while (!usedNames.Add(candidate)) {
+            candidate = root + "." + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            suffix++;
+        }
+        return candidate;
+    }
 }

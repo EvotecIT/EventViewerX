@@ -63,7 +63,7 @@ All formats consume the same normalized rows and source-coverage evidence. A fai
 
 ## Understand normalization
 
-Known directory and audit values expose a canonical typed value and readable display text while retaining the provider's raw value, normalizer/version, outcome, warnings, and lossless status. Unknown or malformed values are not silently replaced. Active Directory sentinel values remain states rather than invented timestamps: for example, `pwdLastSet = 0` means that a password change is required at next logon, while non-password FILETIME sentinel values retain their own never/not-set meaning.
+Known directory and audit values expose a canonical typed value and readable display text while retaining the provider's raw value, normalizer/version, outcome, warnings, and lossless status. Unknown or malformed values are not silently replaced. Unknown `userAccountControl` bits remain explicit canonical flag tokens, so distinct masks cannot collapse into one normalized identity. Active Directory sentinel values remain states rather than invented timestamps: for example, `pwdLastSet = 0` means that a password change is required at next logon, while non-password FILETIME sentinel values retain their own never/not-set meaning.
 
 CSV adds a raw companion field when canonical output differs. PowerShell and .NET callers can inspect `EventReportRow.Values` for raw evidence and `NormalizedValues` for canonical values.
 
@@ -95,7 +95,7 @@ $trend | Show-EVXEvent `
     -CsvPath .\Authentication-Trend.csv
 ```
 
-For stored history, use `Measure-EVXEvent -FromStore`. EventViewerX selects SQLite pushdown only when it can preserve the exact managed semantics; otherwise it falls back automatically. A single `EventReport` piped to `Measure-EVXEvent` preserves its coverage evidence. Individual `EventReportRow` or typed-event pipeline inputs are accepted, but their completeness is `Unknown` because a loose pipeline cannot prove that it represents a complete source query. Inspect `ExecutionMode`, `InputCompleteness`, `AggregationComplete`, and `Diagnostic` before treating a result as exhaustive. CSV output carries these fields on every aggregation row and emits a metadata row when an incomplete or bounded aggregation has no data rows.
+For stored history, use `Measure-EVXEvent -FromStore`. EventViewerX selects SQLite pushdown only when it can preserve the exact managed semantics and bounds; bounded `DistinctCount` state therefore uses the managed engine. A single `EventReport` piped to `Measure-EVXEvent` preserves its coverage evidence. Individual `EventReportRow` or typed-event pipeline inputs are accepted, but their completeness is `Unknown` because a loose pipeline cannot prove that it represents a complete source query. Inspect `ExecutionMode`, `InputCompleteness`, `AggregationComplete`, and `Diagnostic` before treating a result as exhaustive. CSV output carries these fields on every aggregation row and emits a metadata row when an incomplete or bounded aggregation has no data rows.
 
 ## Preserve Group Policy names across deletion and rename
 

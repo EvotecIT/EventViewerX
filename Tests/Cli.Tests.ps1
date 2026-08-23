@@ -199,6 +199,20 @@ Describe 'evx portable host' {
         $Result.Rows[0].Group.Type | Should -Be 'Generic'
     }
 
+    It 'emits an explicit metadata record when occurrence bounds fail closed' {
+        $Result = & $script:CliPath query `
+            --path $script:FixturePath `
+            --oldest `
+            --max 4 `
+            --duplicates Transport `
+            --maximum-occurrence-observations 1 | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Result.ResultKind | Should -Be 'ResultMetadata'
+        $Result.IsComplete | Should -BeFalse
+        $Result.Diagnostic | Should -Match 'MaximumObservations'
+    }
+
     It 'writes aggregation completeness evidence into a plain CSV' {
         $CsvPath = Join-Path $TestDrive 'bounded-aggregation.csv'
 

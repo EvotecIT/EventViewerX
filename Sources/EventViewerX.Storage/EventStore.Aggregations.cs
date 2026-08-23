@@ -67,6 +67,22 @@ public sealed partial class EventStore {
             return EventAggregationEngine.Aggregate(report, aggregation);
         }
 
+        object? inputValue = await session.ExecuteScalarAsync(
+            BuildCountSql(filter),
+            filter.Parameters,
+            cancellationToken).ConfigureAwait(false);
+        long inputRows = Convert.ToInt64(inputValue, CultureInfo.InvariantCulture);
+        if (inputRows == 0) {
+            return new EventAggregationResult(
+                aggregation,
+                Array.Empty<EventAggregationRow>(),
+                EventAggregationInputCompleteness.Complete,
+                aggregationComplete: true,
+                diagnostic: null,
+                EventAggregationExecutionMode.SqlitePushdown,
+                inputRows: 0);
+        }
+
         SqlAggregationCommand command = BuildAggregationCommand(filter, aggregation);
         IReadOnlyList<EventAggregationRow> pushedRows = await session.QueryAsListAsync(
             command.Sql,
@@ -81,7 +97,7 @@ public sealed partial class EventStore {
                 aggregationComplete: false,
                 $"Aggregation state exceeded MaximumGroups {aggregation.MaximumGroups:N0}.",
                 EventAggregationExecutionMode.SqlitePushdown,
-                inputRows: 0);
+                inputRows);
         }
         if (pushedRows.Any(row => aggregation.Measures.Any(measure =>
                 measure.Operation == EventAggregationOperation.DistinctCount &&
@@ -94,9 +110,9 @@ public sealed partial class EventStore {
                 aggregationComplete: false,
                 $"A distinct measure exceeded MaximumDistinctValues {aggregation.MaximumDistinctValues:N0}.",
                 EventAggregationExecutionMode.SqlitePushdown,
-                inputRows: 0);
+                inputRows);
         }
-        long stateBytes = EstimateAggregationStateBytes(pushedRows);
+        long stateBytes = EstimateAggregationStateBytes(pushedRows, aggregation);
         if (stateBytes > aggregation.MaximumStateBytes) {
             return new EventAggregationResult(
                 aggregation,
@@ -105,13 +121,8 @@ public sealed partial class EventStore {
                 aggregationComplete: false,
                 $"Aggregation state exceeded MaximumStateBytes {aggregation.MaximumStateBytes:N0}.",
                 EventAggregationExecutionMode.SqlitePushdown,
-                inputRows: 0);
+                inputRows);
         }
-        object? inputValue = await session.ExecuteScalarAsync(
-            BuildCountSql(filter),
-            filter.Parameters,
-            cancellationToken).ConfigureAwait(false);
-        long inputRows = Convert.ToInt64(inputValue, CultureInfo.InvariantCulture);
         EventAggregationRow[] selected = ApplyStoredTop(pushedRows, aggregation);
         return new EventAggregationResult(
             aggregation,
@@ -135,6 +146,10 @@ public sealed partial class EventStore {
         }
         if (!string.Equals(definition.TimeZoneId, "UTC", StringComparison.OrdinalIgnoreCase)) {
             return "Non-UTC calendar buckets use the shared timezone and DST-aware managed engine.";
+        }
+        if (definition.Measures.Any(static measure =>
+                measure.Operation == EventAggregationOperation.DistinctCount)) {
+            return "DistinctCount uses the managed engine so MaximumDistinctValues and MaximumStateBytes are enforced before unbounded distinct state is accumulated.";
         }
         IEnumerable<string> fields = definition.GroupBy.Concat(
             definition.Measures.Where(static measure => measure.Field != null)
@@ -336,24 +351,21 @@ public sealed partial class EventStore {
             .ToArray();
     }
 
-    private static long EstimateAggregationStateBytes(IEnumerable<EventAggregationRow> rows) {
+    private static long EstimateAggregationStateBytes(
+        IEnumerable<EventAggregationRow> rows,
+        EventAggregationDefinition definition) {
+
         long bytes = 0;
         foreach (EventAggregationRow row in rows) {
-            bytes = AddEstimatedValues(bytes, row.Group.Values);
-            bytes = AddEstimatedValues(bytes, row.Measures.Values);
-            bytes = checked(bytes + 64L);
-        }
-        return bytes;
-    }
-
-    private static long AddEstimatedValues(long current, IEnumerable<object?> values) {
-        long bytes = current;
-        foreach (object? value in values) {
-            bytes = checked(bytes + (value switch {
-                null => 1L,
-                string text => 24L + text.Length * 2L,
-                _ => 24L
-            }));
+            string groupIdentity = string.Concat(definition.GroupBy.Select(field =>
+                EventAggregationEngine.Canonicalize(row.Group[field])));
+            DateTime? start = row.BucketStartUtc ?? definition.WindowStart;
+            DateTime? end = row.BucketEndUtc ?? definition.WindowEnd;
+            string bucketIdentity = start.HasValue && end.HasValue
+                ? start.Value.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture) + "/" +
+                  end.Value.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture)
+                : string.Empty;
+            bytes = checked(bytes + 256L + groupIdentity.Length * 2L + bucketIdentity.Length * 2L);
         }
         return bytes;
     }

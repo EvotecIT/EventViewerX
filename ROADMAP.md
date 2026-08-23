@@ -67,7 +67,7 @@ Occurrence grouping is opt-in and returns groups containing every source observa
 - `Transport` groups only exact source-event identity duplicated through direct/WEC transport.
 - `Semantic` uses compiled causal identifiers such as operation, application, activity, transaction, or batch IDs within an explicit window.
 
-Time proximity, actor, target, or message similarity alone never proves one occurrence. Bounds fail closed with an incomplete result; they do not silently merge or drop events. Occurrence summaries retain the source coverage envelope, while later aggregation uses the original deterministic representative of each group rather than summary fields. Incident reconstruction remains a separate deferred decision.
+Time proximity, actor, target, or message similarity alone never proves one occurrence. Bounds fail closed with an explicit metadata result; they do not silently merge, drop events, or look like a valid empty query. Occurrence summaries retain the source coverage envelope, while later aggregation uses the original deterministic representative of each group rather than summary fields. Incident reconstruction remains a separate deferred decision.
 
 ### 3. Shared aggregations, trends, and charts
 
@@ -87,7 +87,7 @@ evx measure --store C:\ProgramData\EventViewerX\events.db \
   --measure Count::Events --top 10 --html Authentication-Trend.html
 ```
 
-SQLite pushdown is used only when stored selectors, text semantics, timezone, ranking, and measure fields have exact parity with the managed engine. Normalized/custom fields, Unicode-sensitive comparison, predicates, non-UTC/DST buckets, and incompatible ranking fall back automatically. Both modes return execution ownership and completeness evidence. A complete `EventReport` preserves its coverage through `Measure-EVXEvent`; loose pipeline rows are deliberately marked `Unknown`. CSV exports include the same completeness envelope, including a metadata row when a bounded or failed aggregation has no data rows.
+SQLite pushdown is used only when stored selectors, text semantics, timezone, ranking, bounds, and measure fields have exact parity with the managed engine. Normalized/custom fields, Unicode-sensitive comparison, predicates, non-UTC/DST buckets, incompatible ranking, and bounded distinct state fall back automatically. Both modes return execution ownership and completeness evidence. A complete `EventReport` preserves its coverage through `Measure-EVXEvent`; loose pipeline rows are deliberately marked `Unknown`. CSV exports include the same completeness envelope, including a metadata row when a bounded or failed aggregation has no data rows.
 
 ### 4. First security-monitoring slice
 

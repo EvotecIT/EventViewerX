@@ -38,6 +38,7 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
                 string[] names = raw.Split(',')
                     .Select(static value => value.Trim())
                     .Where(static value => value.Length > 0)
+                    .Select(static value => value.ToUpperInvariant())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(static value => value, StringComparer.Ordinal)
                     .ToArray();
@@ -65,21 +66,21 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
             .ToArray();
         long knownMask = Flags.Aggregate(0L, static (value, flag) => value | flag.Key);
         long unknownMask = mask & ~knownMask;
-        var display = new List<string>(selected);
+        var canonical = new List<string>(selected);
         if (unknownMask != 0) {
-            display.Add("UNKNOWN_0x" + unknownMask.ToString("X", CultureInfo.InvariantCulture));
+            canonical.Add("UNKNOWN_0x" + unknownMask.ToString("X", CultureInfo.InvariantCulture));
         }
         return EventValueNormalizer.Create(
             context,
-            selected,
-            display.Count == 0 ? "NONE" : string.Join(", ", display),
+            canonical.ToArray(),
+            canonical.Count == 0 ? "NONE" : string.Join(", ", canonical),
             EventNormalizedValueKind.FlagSet,
             Name,
             Version,
             isLossless: unknownMask == 0,
             warnings: unknownMask == 0
                 ? Array.Empty<string>()
-                : new[] { $"Unknown UserAccountControl bits 0x{unknownMask:X} were retained in the display value." });
+                : new[] { $"Unknown UserAccountControl bits 0x{unknownMask:X} were retained in the canonical and display values." });
     }
 
     private static bool TryParse(string value, out long result) {
