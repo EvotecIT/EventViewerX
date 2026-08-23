@@ -259,6 +259,10 @@ internal static partial class Program {
                 "Use --type, --definition, --definition-name, --log, --source, and --provider to filter stored rows.");
         }
         if (options.Get("context-store") != null) {
+            if (options.Has("explain")) {
+                throw new ArgumentException(
+                    "--explain cannot be combined with --context-store because contextual Group Policy queries update persistent context while reading the complete timeline.");
+            }
             EventType[] contextTypes = ParseTypes(options.GetMany("type"));
             if (stored || contextTypes.Length != 1 || contextTypes[0] != EventType.GroupPolicyDirectoryAudit) {
                 throw new ArgumentException("--context-store requires exactly --type GroupPolicyDirectoryAudit and a live or offline source.");

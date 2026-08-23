@@ -155,6 +155,25 @@ Describe 'evx portable host' {
         Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 
+    It 'rejects contextual explanation before creating persistent state' {
+        $ContextPath = Join-Path $TestDrive 'context-explain-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --explain 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--explain cannot be combined with --context-store'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'rejects live-only controls for stored queries before opening history' {
         $StorePath = Join-Path $TestDrive 'stored-live-options-rejected.db'
         $PreviousErrorActionPreference = $ErrorActionPreference
@@ -229,7 +248,7 @@ Describe 'evx portable host' {
         $Rows[0].'Result kind' | Should -Be 'ResultMetadata'
         $Rows[0].'Aggregation complete' | Should -Be 'False'
         $Rows[0].Diagnostic | Should -Match 'MaximumGroups'
-        $Rows[0].'Input rows' | Should -Be '4'
+        $Rows[0].'Input rows' | Should -Be '2'
     }
 
     It 'rejects occurrence grouping over already-derived stored summaries' {

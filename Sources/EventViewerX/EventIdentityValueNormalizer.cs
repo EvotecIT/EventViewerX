@@ -13,7 +13,7 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
 
     public string Name => "event-identity";
 
-    public int Version => 1;
+    public int Version => 2;
 
     public bool CanNormalize(EventValueContext context) {
         string field = context.FieldName;
@@ -23,7 +23,8 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
     }
 
     public EventNormalizedValue Normalize(EventValueContext context) {
-        string raw = EventValueNormalizer.Format(context.RawValue).Trim();
+        string formatted = EventValueNormalizer.Format(context.RawValue);
+        string raw = formatted.Trim();
         string field = context.FieldName;
         if (EndsWith(field, "Sid")) {
             string canonical = raw.ToUpperInvariant();
@@ -60,7 +61,7 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
                     EventNormalizationOutcome.Unchanged)
                 : Malformed(context, raw, EventNormalizedValueKind.ObjectIdentifier, "OID");
         }
-        string distinguishedName = NormalizeDistinguishedName(raw);
+        string distinguishedName = NormalizeDistinguishedName(formatted);
         return EventValueNormalizer.Create(
             context,
             distinguishedName,
@@ -68,7 +69,7 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
             EventNormalizedValueKind.DistinguishedName,
             Name,
             Version,
-            string.Equals(raw, distinguishedName, StringComparison.Ordinal)
+            string.Equals(formatted, distinguishedName, StringComparison.Ordinal)
                 ? EventNormalizationOutcome.Unchanged
                 : EventNormalizationOutcome.Normalized);
     }
@@ -95,45 +96,66 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
 
     private static string NormalizeDistinguishedName(string value) {
         var result = new StringBuilder(value.Length);
+        var pendingWhitespace = new StringBuilder();
         bool escaped = false;
-        bool pendingWhitespace = false;
+        bool quoted = false;
+        bool inValue = false;
+        bool hasValueContent = false;
         foreach (char character in value) {
             if (escaped) {
-                if (pendingWhitespace) {
-                    result.Append(' ');
-                    pendingWhitespace = false;
-                }
+                FlushWhitespace();
                 result.Append(character);
+                hasValueContent = inValue;
                 escaped = false;
                 continue;
             }
             if (character == '\\') {
-                if (pendingWhitespace) {
-                    result.Append(' ');
-                    pendingWhitespace = false;
-                }
+                FlushWhitespace();
                 result.Append(character);
+                hasValueContent = inValue;
                 escaped = true;
                 continue;
             }
-            if (character == ',') {
-                while (result.Length > 0 && result[result.Length - 1] == ' ') {
-                    result.Length--;
-                }
-                result.Append(',');
-                pendingWhitespace = false;
+            if (character == '"') {
+                FlushWhitespace();
+                result.Append(character);
+                quoted = !quoted;
+                hasValueContent = inValue;
+                continue;
+            }
+            if (!quoted && character is ',' or ';' or '+') {
+                pendingWhitespace.Clear();
+                result.Append(character == ';' ? ',' : character);
+                inValue = false;
+                hasValueContent = false;
+                continue;
+            }
+            if (!quoted && character == '=' && !inValue) {
+                pendingWhitespace.Clear();
+                result.Append(character);
+                inValue = true;
+                hasValueContent = false;
                 continue;
             }
             if (char.IsWhiteSpace(character)) {
-                pendingWhitespace = result.Length > 0 && result[result.Length - 1] != ',';
+                pendingWhitespace.Append(character);
                 continue;
             }
-            if (pendingWhitespace) {
-                result.Append(' ');
-                pendingWhitespace = false;
-            }
+            FlushWhitespace();
             result.Append(character);
+            hasValueContent = inValue;
         }
-        return result.ToString().Trim();
+
+        return result.ToString();
+
+        void FlushWhitespace() {
+            if (pendingWhitespace.Length == 0) {
+                return;
+            }
+            if (quoted || inValue && hasValueContent) {
+                result.Append(pendingWhitespace);
+            }
+            pendingWhitespace.Clear();
+        }
     }
 }

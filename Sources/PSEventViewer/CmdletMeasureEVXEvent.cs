@@ -140,7 +140,10 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
                 MaxEvents = 0
             };
             if (Explain.IsPresent) {
-                WriteObject(EventStore.PlanAggregation(query, definition));
+                EventStoreAggregationPlan plan = await new EventStore(FromStore!)
+                    .PlanAggregationAsync(query, definition, CancelToken)
+                    .ConfigureAwait(false);
+                WriteObject(plan);
                 return;
             }
             EventAggregationResult stored = await new EventStore(FromStore!)

@@ -20,6 +20,45 @@ public sealed partial class EventStore {
             .Aggregate(Array.Empty<EventReportRow>(), definition)
             .Definition;
         string? reason = GetManagedAggregationReason(snapshot, aggregation);
+        if (reason == null && RequiresNativeTextInspection(aggregation)) {
+            reason = "Native text aggregation requires store-aware Unicode inspection; use PlanAggregationAsync for a definitive execution owner.";
+        }
+        return CreateAggregationPlan(reason);
+    }
+
+    /// <summary>Returns the deterministic execution owner after inspecting data-dependent Unicode grouping requirements.</summary>
+    public async Task<EventStoreAggregationPlan> PlanAggregationAsync(
+        EventStoreQuery query,
+        EventAggregationDefinition definition,
+        CancellationToken cancellationToken = default) {
+
+        if (query == null) {
+            throw new ArgumentNullException(nameof(query));
+        }
+        EventStoreQuery snapshot = query.Snapshot();
+        EventAggregationDefinition aggregation = EventAggregationEngine
+            .Aggregate(Array.Empty<EventReportRow>(), definition)
+            .Definition;
+        string? reason = GetManagedAggregationReason(snapshot, aggregation);
+        if (reason == null && RequiresNativeTextInspection(aggregation)) {
+            EnsureInitialized();
+            WhereCommand filter = BuildWhere(snapshot, includePredicateNative: false);
+            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+            await using SQLiteAsyncSession session = await sqlite
+                .OpenSessionAsync(Path, cancellationToken)
+                .ConfigureAwait(false);
+            if (await ContainsNonAsciiAggregationTextAsync(
+                    session,
+                    filter,
+                    aggregation,
+                    cancellationToken).ConfigureAwait(false)) {
+                reason = "Matching native text contains non-ASCII data, so exact Unicode grouping uses the managed engine.";
+            }
+        }
+        return CreateAggregationPlan(reason);
+    }
+
+    private static EventStoreAggregationPlan CreateAggregationPlan(string? reason) {
         return reason == null
             ? new EventStoreAggregationPlan(
                 EventAggregationExecutionMode.SqlitePushdown,
@@ -164,6 +203,13 @@ public sealed partial class EventStore {
         }
         return null;
     }
+
+    private static bool RequiresNativeTextInspection(EventAggregationDefinition definition) =>
+        definition.GroupBy
+            .Concat(definition.Measures.Where(static measure => measure.Field != null)
+                .Select(static measure => measure.Field!))
+            .Select(field => AggregationFields[field])
+            .Any(static field => field.IsText);
 
     private static async Task<bool> ContainsNonAsciiAggregationTextAsync(
         SQLiteAsyncSession session,

@@ -27,7 +27,10 @@ internal static partial class Program {
                     .ConfigureAwait(false);
                 result = AggregateOccurrences(stored, definition, options);
             } else if (options.Has("explain")) {
-                return WriteJson(EventStore.PlanAggregation(query, definition));
+                EventStoreAggregationPlan plan = await new EventStore(storePath)
+                    .PlanAggregationAsync(query, definition)
+                    .ConfigureAwait(false);
+                return WriteJson(plan);
             } else {
                 result = await new EventStore(storePath)
                     .AggregateAsync(query, definition)

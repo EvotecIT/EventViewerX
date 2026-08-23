@@ -24,17 +24,18 @@ public sealed partial class CmdletGetEVXEvent {
                 "ContextStorePath requires exactly -Type GroupPolicyDirectoryAudit so the persistent context engine owns the complete Group Policy directory-audit timeline.",
                 nameof(ContextStorePath));
         }
-        if (Where != null || ResolveDns.IsPresent || EventRecordId?.Length > 0 ||
+        if (Where != null || MessageRegex != null || ResolveDns.IsPresent || EventRecordId?.Length > 0 ||
             !string.IsNullOrWhiteSpace(RecordIdFile)) {
             throw new PSArgumentException(
-                "ContextStorePath cannot be combined with Where, ResolveDns, EventRecordId, or RecordIdFile because persistent Group Policy context requires its own complete timeline and checkpoints.",
+                "ContextStorePath cannot be combined with Where, MessageRegex, ResolveDns, EventRecordId, or RecordIdFile because persistent Group Policy context requires its own complete timeline and checkpoints.",
                 nameof(ContextStorePath));
         }
+        List<string?>? targets = Collector ?? MachineName;
         var query = new GroupPolicyAuditQuery {
             ContextStore = new SqliteEventContextStore(ContextStorePath!),
             AuthorizationContext = ContextAuthorization,
             Paths = Path.Length == 0 ? null : Path,
-            MachineNames = Collector ?? MachineName,
+            MachineNames = targets,
             CollectorLogName = Collector == null ? null : "ForwardedEvents",
             StartTime = StartTime,
             EndTime = EndTime,
@@ -50,7 +51,7 @@ public sealed partial class CmdletGetEVXEvent {
             BufferCapacity = BufferCapacity > 0 ? BufferCapacity : 64,
             MessageCulture = MessageCulture,
             FallbackMessageCulture = FallbackMessageCulture,
-            ContinueOnRemoteFailure = ContinueOnError.IsPresent || (MachineName?.Count ?? 0) > 1
+            ContinueOnRemoteFailure = ContinueOnError.IsPresent || (targets?.Count ?? 0) > 1
         };
         var execution = new GroupPolicyAuditQueryExecutionInfo();
         await foreach (GroupPolicyAuditRecord record in GroupPolicyAuditEngine.ReadAsync(

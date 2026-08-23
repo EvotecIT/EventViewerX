@@ -6,6 +6,47 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task StoreAwareAggregationPlanMatchesUnicodeFallbackOwner() {
+        string asciiPath = CreateStorePath();
+        string unicodePath = CreateStorePath();
+        try {
+            DateTime time = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+            var asciiStore = new EventStore(asciiPath);
+            var unicodeStore = new EventStore(unicodePath);
+            await asciiStore.WriteAsync(CreateReportFromTransport(
+                new[] { (time, 1L, "Alice") },
+                "WEC01",
+                "ForwardedEvents",
+                providerName: "Contoso Provider"));
+            await unicodeStore.WriteAsync(CreateReportFromTransport(
+                new[] { (time, 1L, "Alice") },
+                "WEC01",
+                "ForwardedEvents",
+                providerName: "München Provider"));
+            var definition = new EventAggregationDefinition { GroupBy = new[] { "Provider" } };
+
+            EventStoreAggregationPlan conservative = EventStore.PlanAggregation(
+                new EventStoreQuery(),
+                definition);
+            EventStoreAggregationPlan ascii = await asciiStore.PlanAggregationAsync(
+                new EventStoreQuery(),
+                definition);
+            EventStoreAggregationPlan unicode = await unicodeStore.PlanAggregationAsync(
+                new EventStoreQuery(),
+                definition);
+
+            Assert.Equal(EventAggregationExecutionMode.Managed, conservative.ExecutionMode);
+            Assert.Contains("store-aware", conservative.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, ascii.ExecutionMode);
+            Assert.Equal(EventAggregationExecutionMode.Managed, unicode.ExecutionMode);
+            Assert.Contains("Unicode", unicode.Reason, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            DeleteStore(asciiPath);
+            DeleteStore(unicodePath);
+        }
+    }
+
+    [Fact]
     public async Task SqliteTopRankingSupportsFirstAndLastSeenMeasures() {
         string path = CreateStorePath();
         try {

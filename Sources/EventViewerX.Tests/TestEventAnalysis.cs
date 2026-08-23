@@ -48,6 +48,32 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void DistinguishedNameNormalizationPreservesSignificantWhitespaceAndEscapes() {
+        EventNormalizedValue spaced = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["ObjectDN"] = " CN = John  Doe , OU = Users "
+            }))["ObjectDN"];
+        EventNormalizedValue single = EventValueNormalizationEngine.Normalize(CreateRow(
+            2,
+            new Dictionary<string, object?> {
+                ["ObjectDN"] = "CN=John Doe,OU=Users"
+            }))["ObjectDN"];
+        EventNormalizedValue escaped = EventValueNormalizationEngine.Normalize(CreateRow(
+            3,
+            new Dictionary<string, object?> {
+                ["ObjectDN"] = @"CN=John\ ,OU=Users"
+            }))["ObjectDN"];
+
+        Assert.Equal("CN=John  Doe,OU=Users", spaced.Value);
+        Assert.Equal(@"CN=John\ ,OU=Users", escaped.Value);
+        Assert.NotEqual(
+            EventAggregationEngine.Canonicalize(spaced.Value),
+            EventAggregationEngine.Canonicalize(single.Value));
+        Assert.Equal(2, spaced.NormalizerVersion);
+    }
+
+    [Fact]
     public void TextualUserAccountControlFlagsHaveCaseIndependentCanonicalIdentity() {
         EventNormalizedValue first = EventValueNormalizationEngine.Normalize(CreateRow(
             1,
@@ -774,6 +800,34 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void AggregationStreamsInputBeforeEnforcingStateBounds() {
+        int enumerated = 0;
+        IEnumerable<EventReportRow> Rows() {
+            while (true) {
+                enumerated++;
+                if (enumerated > 1) {
+                    throw new InvalidOperationException("Aggregation enumerated beyond the row that exceeded its state budget.");
+                }
+                yield return CreateRow(
+                    enumerated,
+                    new Dictionary<string, object?> { ["Who"] = "Alice" });
+            }
+        }
+
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            Rows(),
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Who" },
+                MaximumStateBytes = 1
+            });
+
+        Assert.False(result.AggregationComplete);
+        Assert.Equal(1, result.InputRows);
+        Assert.Equal(1, enumerated);
+        Assert.Contains("MaximumStateBytes", result.Diagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AggregationReportDisambiguatesDomainFieldsFromEnvelopeColumns() {
         EventAggregationResult result = EventAggregationEngine.Aggregate(
             new[] { CreateRow(1, new Dictionary<string, object?> { ["Diagnostic"] = "domain-value" }) },
@@ -845,8 +899,10 @@ public sealed class TestEventAnalysis {
             });
         string workbook = Path.Combine(Path.GetTempPath(), $"evx-aggregation-collision-{Guid.NewGuid():N}.xlsx");
         try {
+            string html = EventAggregationHtmlRenderer.Render(result);
             string saved = EventAggregationExcelRenderer.Save(result, workbook);
 
+            Assert.Contains("domain-bucket", html, StringComparison.Ordinal);
             Assert.True(new FileInfo(saved).Length > 0);
         } finally {
             if (File.Exists(workbook)) {

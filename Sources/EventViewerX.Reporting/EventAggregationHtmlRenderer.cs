@@ -72,29 +72,41 @@ public static class EventAggregationHtmlRenderer {
             .SavedView("Aggregation")
             .ActiveGroup("Dimensions and measures")
             .Settings(settings => settings.AccessibleLabel("Event aggregation rows").PageSize(25).End());
-        string[] columns = new[] { "bucket" }
-            .Concat(result.Definition.GroupBy)
-            .Concat(result.Definition.Measures.Select(static measure => measure.OutputName!))
+        const string bucketColumn = "evx-bucket";
+        KeyValuePair<string, string>[] groupColumns = result.Definition.GroupBy
+            .Select((field, index) => new KeyValuePair<string, string>(
+                field,
+                "evx-group-" + index.ToString(CultureInfo.InvariantCulture)))
+            .ToArray();
+        KeyValuePair<EventAggregationMeasure, string>[] measureColumns = result.Definition.Measures
+            .Select((measure, index) => new KeyValuePair<EventAggregationMeasure, string>(
+                measure,
+                "evx-measure-" + index.ToString(CultureInfo.InvariantCulture)))
+            .ToArray();
+        string[] columns = new[] { bucketColumn }
+            .Concat(groupColumns.Select(static binding => binding.Value))
+            .Concat(measureColumns.Select(static binding => binding.Value))
             .ToArray();
         explorer.AddColumnGroup("Dimensions and measures", columns);
-        explorer.AddColumn("bucket", "Bucket", pinned: true);
-        foreach (string group in result.Definition.GroupBy) {
-            explorer.AddColumn(group, group);
+        explorer.AddColumn(bucketColumn, "Bucket", pinned: true);
+        foreach (KeyValuePair<string, string> binding in groupColumns) {
+            explorer.AddColumn(binding.Value, binding.Key);
         }
-        foreach (EventAggregationMeasure measure in result.Definition.Measures) {
-            explorer.AddColumn(measure.OutputName!, measure.OutputName!);
+        foreach (KeyValuePair<EventAggregationMeasure, string> binding in measureColumns) {
+            explorer.AddColumn(binding.Value, binding.Key.OutputName!);
         }
         for (int index = 0; index < result.Rows.Count; index++) {
             EventAggregationRow row = result.Rows[index];
             explorer.AddRecord("aggregation-" + index.ToString(CultureInfo.InvariantCulture),
                 row.BucketLabel ?? "Aggregate", record => {
-                    record.Cell("bucket", row.BucketLabel ?? "All events");
-                    foreach (string group in result.Definition.GroupBy) {
-                        record.Cell(group, Convert.ToString(row.Group[group], CultureInfo.InvariantCulture) ?? string.Empty);
+                    record.Cell(bucketColumn, row.BucketLabel ?? "All events");
+                    foreach (KeyValuePair<string, string> binding in groupColumns) {
+                        record.Cell(binding.Value, Convert.ToString(
+                            row.Group[binding.Key], CultureInfo.InvariantCulture) ?? string.Empty);
                     }
-                    foreach (EventAggregationMeasure measure in result.Definition.Measures) {
-                        record.Cell(measure.OutputName!, Convert.ToString(
-                            row.Measures[measure.OutputName!], CultureInfo.InvariantCulture) ?? string.Empty);
+                    foreach (KeyValuePair<EventAggregationMeasure, string> binding in measureColumns) {
+                        record.Cell(binding.Value, Convert.ToString(
+                            row.Measures[binding.Key.OutputName!], CultureInfo.InvariantCulture) ?? string.Empty);
                     }
                 });
         }

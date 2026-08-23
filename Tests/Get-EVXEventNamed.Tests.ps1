@@ -44,6 +44,39 @@ Describe 'Get-EVXEvent - Type' {
         } | Should -Not -Throw
     }
 
+    It 'rejects message filtering before opening persistent Group Policy context' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'message-filter-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $Fixture `
+                -ContextStorePath $ContextPath `
+                -MessageRegex 'policy' `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextStorePath cannot be combined with*MessageRegex*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'continues independent persistent-context collector targets by default' {
+        $ContextPath = Join-Path $TestDrive 'collector-continuation-context.db'
+        $Errors = @()
+
+        $null = @(Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Collector '192.0.2.1', '192.0.2.2' `
+                -ContextStorePath $ContextPath `
+                -SessionTimeoutMs 500 `
+                -MaxEventsScanned 1 `
+                -ErrorAction SilentlyContinue `
+                -ErrorVariable +Errors)
+
+        @($Errors.FullyQualifiedErrorId |
+                Where-Object { $_ -eq 'EVXEventTypeTargetFailed,PSEventViewer.CmdletGetEVXEvent' }).Count |
+            Should -Be 2
+    }
+
     It 'rejects credentials when any event-type target is local' {
         $SecurePassword = ConvertTo-SecureString 'not-used' -AsPlainText -Force
         $Credential = [pscredential]::new('reader', $SecurePassword)
