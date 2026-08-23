@@ -103,6 +103,78 @@ public sealed class TestGroupPolicyAudit {
     }
 
     [Fact]
+    public void GroupPolicyContextFactUsesOnlySelectedEventEvidence() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline");
+
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(source);
+        EventContextFact fact = Assert.IsType<EventContextFact>(GroupPolicyContextFactFactory.Create(record));
+
+        Assert.Equal(Guid.Parse(gpoId).ToString("D").ToUpperInvariant(),
+            EventContextIdentity.NormalizeCanonicalId(fact.ObjectKind, fact.CanonicalId));
+        Assert.Equal("Domain controllers baseline", fact.DisplayName);
+        Assert.Equal("ad.evotec.xyz", fact.Domain);
+        Assert.Equal(EventContextProvenance.Event, fact.Provenance);
+        Assert.True(fact.IsShareable);
+    }
+
+    [Fact]
+    public void DeletedAttributeValueIsNotMistakenForTheCurrentGpoName() {
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Retired name",
+            operationType: "%%14675");
+
+        EventContextFact fact = Assert.IsType<EventContextFact>(
+            GroupPolicyContextFactFactory.Create(GroupPolicyAuditEngine.CreateRecord(source)));
+
+        Assert.Null(fact.DisplayName);
+    }
+
+    [Fact]
+    public void SnapshotRetainsTheExplicitContextStore() {
+        var store = new InMemoryEventContextStore();
+        var query = new GroupPolicyAuditQuery { ContextStore = store };
+
+        GroupPolicyAuditQuery snapshot = GroupPolicyAuditEngine.CreateSnapshot(query);
+
+        Assert.Same(store, snapshot.ContextStore);
+    }
+
+    [Fact]
+    public async Task MaterializedEventCanPopulateAndResolveExplicitContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline");
+
+        GroupPolicyAuditRecord record = await GroupPolicyAuditEngine.CreateRecordAsync(
+            source,
+            new InMemoryEventContextStore());
+
+        Assert.Equal(EventContextState.Current, record.ContextState);
+        Assert.Equal("Domain controllers baseline", record.GroupPolicyNameAtEventTime);
+        Assert.Equal("Domain controllers baseline", record.GroupPolicyCurrentName);
+    }
+
+    [Fact]
     public void UnrelatedDirectoryEventIsRejected() {
         EventObject source = CreateSource(
             5136,
@@ -253,7 +325,9 @@ public sealed class TestGroupPolicyAudit {
         string objectDn,
         string providerName = "Microsoft-Windows-Security-Auditing",
         string originalLogName = "Security",
-        string? bookmarkXml = null) {
+        string? bookmarkXml = null,
+        string attributeValue = "value",
+        string operationType = "%%14674") {
 
         string xml = $$"""
             <Event>
@@ -270,8 +344,8 @@ public sealed class TestGroupPolicyAudit {
                 <Data Name="ObjectGUID">{9b263379-4310-4585-9eb3-ee688590d3f0}</Data>
                 <Data Name="ObjectClass">{{objectClass}}</Data>
                 <Data Name="AttributeLDAPDisplayName">{{attributeName}}</Data>
-                <Data Name="AttributeValue">value</Data>
-                <Data Name="OperationType">%%14674</Data>
+                <Data Name="AttributeValue">{{attributeValue}}</Data>
+                <Data Name="OperationType">{{operationType}}</Data>
               </EventData>
             </Event>
             """;

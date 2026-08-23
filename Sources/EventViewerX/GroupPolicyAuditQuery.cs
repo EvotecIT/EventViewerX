@@ -8,6 +8,12 @@ namespace EventViewerX;
 /// collector mode reads the configured collector channel while preserving each event's source computer.
 /// </summary>
 public sealed class GroupPolicyAuditQuery {
+    /// <summary>
+    /// Optional context store populated and resolved only from selected Group Policy events.
+    /// Supplying a store does not initiate directory or SYSVOL discovery.
+    /// </summary>
+    public IEventContextStore? ContextStore { get; set; }
+
     /// <summary>Optional offline event-log files.</summary>
     public IReadOnlyList<string>? Paths { get; set; }
 

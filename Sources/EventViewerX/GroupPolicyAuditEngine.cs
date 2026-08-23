@@ -61,7 +61,11 @@ public static class GroupPolicyAuditEngine {
                                definitionQuery,
                                definitionInfo,
                                cancellationToken)) {
-                yield return new GroupPolicyAuditRecord(record);
+                var projected = new GroupPolicyAuditRecord(record);
+                if (snapshot.ContextStore != null) {
+                    await ApplyContextAsync(projected, snapshot.ContextStore, cancellationToken).ConfigureAwait(false);
+                }
+                yield return projected;
             }
         } finally {
             executionInfo.EventsScanned = definitionInfo.EventsScanned;
@@ -91,6 +95,23 @@ public static class GroupPolicyAuditEngine {
         return new GroupPolicyAuditRecord(record);
     }
 
+    /// <summary>
+    /// Projects an already materialized source event, stores only context carried by that event,
+    /// and resolves the resulting event-time context.
+    /// </summary>
+    public static async ValueTask<GroupPolicyAuditRecord> CreateRecordAsync(
+        EventObject source,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken = default) {
+
+        if (contextStore == null) {
+            throw new ArgumentNullException(nameof(contextStore));
+        }
+        GroupPolicyAuditRecord record = CreateRecord(source);
+        await ApplyContextAsync(record, contextStore, cancellationToken).ConfigureAwait(false);
+        return record;
+    }
+
     internal static GroupPolicyAuditQuery CreateSnapshot(GroupPolicyAuditQuery query) {
         if (query.MaxEvents < 0 || query.MaxCandidates < 0) {
             throw new ArgumentOutOfRangeException(nameof(query), "Event limits must be non-negative.");
@@ -102,6 +123,7 @@ public static class GroupPolicyAuditEngine {
             throw new ArgumentException("Every checkpoint must use the same Oldest ordering as the query.", nameof(query));
         }
         return new GroupPolicyAuditQuery {
+            ContextStore = query.ContextStore,
             Paths = query.Paths?.ToArray(),
             MachineNames = query.MachineNames?.ToArray(),
             CollectorLogName = string.IsNullOrWhiteSpace(query.CollectorLogName)
@@ -197,5 +219,26 @@ public static class GroupPolicyAuditEngine {
         TimeCreatedUtc = source.TimeCreatedUtc,
         Oldest = source.Oldest
     };
+
+    private static async ValueTask ApplyContextAsync(
+        GroupPolicyAuditRecord record,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken) {
+
+        EventContextFact? fact = GroupPolicyContextFactFactory.Create(record);
+        if (fact == null) {
+            return;
+        }
+        await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
+        EventContextResolution resolution = await contextStore.ResolveAsync(
+            new EventContextQuery {
+                ObjectKind = EventContextObjectKind.GroupPolicy,
+                CanonicalId = fact.CanonicalId,
+                Alias = record.ObjectDistinguishedName,
+                AtUtc = record.TimeCreatedUtc
+            },
+            cancellationToken).ConfigureAwait(false);
+        record.ApplyContext(resolution);
+    }
 
 }
