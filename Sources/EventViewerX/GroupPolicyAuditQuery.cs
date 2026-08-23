@@ -8,6 +8,19 @@ namespace EventViewerX;
 /// collector mode reads the configured collector channel while preserving each event's source computer.
 /// </summary>
 public sealed class GroupPolicyAuditQuery {
+    /// <summary>
+    /// Optional context store populated and resolved only from selected Group Policy events.
+    /// Supplying a store does not initiate directory or SYSVOL discovery.
+    /// Results are buffered until the selected scan timeline has been stored so event-time context is final.
+    /// </summary>
+    public IEventContextStore? ContextStore { get; set; }
+
+    /// <summary>
+    /// Optional caller-authorized partition used to resolve non-shareable lookup or imported context.
+    /// Supplying a value selects matching evidence; it does not grant access to that partition.
+    /// </summary>
+    public string? AuthorizationContext { get; set; }
+
     /// <summary>Optional offline event-log files.</summary>
     public IReadOnlyList<string>? Paths { get; set; }
 

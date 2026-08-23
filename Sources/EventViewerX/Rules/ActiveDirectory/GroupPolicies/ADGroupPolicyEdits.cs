@@ -1,5 +1,3 @@
-using EventViewerX.Helpers.ActiveDirectory;
-
 namespace EventViewerX.Rules.ActiveDirectory;
 
 /// <summary>
@@ -60,16 +58,9 @@ public class ADGroupPolicyEdits : EventRuleBase {
         var guidPattern = @"\{(?<guid>[0-9A-Fa-f-]+)\}";
         var match = System.Text.RegularExpressions.Regex.Match(dn, guidPattern);
         if (match.Success) {
-            var foundGpo = GroupPolicyHelpers.QueryGroupPolicyByDistinguishedName(dn);
-            if (foundGpo != null) {
-                GroupPolicy = new GroupPolicy {
-                    GpoId = match.Groups["guid"].Value,
-                    GpoName = foundGpo.GpoName,
-                    //DistinguishedName = dn,
-                    //IsEnabled = true
-                };
-                GroupPolicyDisplayName = foundGpo.GpoName;
-            }
+            GroupPolicy = new GroupPolicy {
+                GpoId = match.Groups["guid"].Value
+            };
         }
         AttributeLDAPDisplayName = SourceEvent.GetValueFromDataDictionary("AttributeLDAPDisplayName");
         //AttributeValue = SourceEvent.GetValueFromDataDictionary("AttributeValue");

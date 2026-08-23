@@ -216,8 +216,11 @@ public sealed class TestEventLogSubscription {
             Assert.True(
                 callbackEntered.Wait(
                     TimeSpan.FromSeconds(10)));
-            cancelTask = Task.Run(
-                cancellation.Cancel);
+            cancelTask = Task.Factory.StartNew(
+                cancellation.Cancel,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
 
             Assert.True(
                 cancelTask.Wait(

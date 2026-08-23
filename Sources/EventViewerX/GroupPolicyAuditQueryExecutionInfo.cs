@@ -64,4 +64,10 @@ public sealed class GroupPolicyAuditQueryExecutionInfo {
         };
         _checkpoints[checkpoint.SourceKey] = checkpoint;
     }
+
+    internal void RecordCheckpoints(IEnumerable<GroupPolicyAuditCheckpoint> checkpoints) {
+        foreach (GroupPolicyAuditCheckpoint checkpoint in checkpoints) {
+            _checkpoints[checkpoint.SourceKey] = checkpoint.Copy();
+        }
+    }
 }

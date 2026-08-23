@@ -137,6 +137,21 @@ public sealed class GroupPolicyAuditRecord {
     /// <summary>Group Policy surface affected by the event.</summary>
     public GroupPolicyAuditTargetKind TargetKind { get; }
 
+    /// <summary>Persistent context state at the event time.</summary>
+    public EventContextState ContextState { get; private set; } = EventContextState.Unknown;
+
+    /// <summary>Best known Group Policy name at the event time.</summary>
+    public string? GroupPolicyNameAtEventTime { get; private set; }
+
+    /// <summary>Last known historical name without implying that a deleted object is current.</summary>
+    public string? GroupPolicyLastKnownName { get; private set; }
+
+    /// <summary>Current name only when the latest stored context is live and unambiguous.</summary>
+    public string? GroupPolicyCurrentName { get; private set; }
+
+    /// <summary>Explanation when persistent context is unknown or ambiguous.</summary>
+    public string? ContextReason { get; private set; }
+
     /// <summary>Domain-qualified actor name when both components are available.</summary>
     public string Actor => string.IsNullOrWhiteSpace(ActorDomainName)
         ? ActorUserName
@@ -144,6 +159,14 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Stable source key for checkpoint lookup.</summary>
     public string SourceKey => GroupPolicyAuditCheckpoint.CreateSourceKey(QueryTarget, ContainerLogName);
+
+    internal void ApplyContext(EventContextResolution resolution) {
+        ContextState = resolution.State;
+        GroupPolicyNameAtEventTime = resolution.NameAtEventTime;
+        GroupPolicyLastKnownName = resolution.LastKnownName;
+        GroupPolicyCurrentName = resolution.CurrentName;
+        ContextReason = resolution.Reason;
+    }
 
     private static string Value(CustomEventRecord record, string name) {
         return record.Values.TryGetValue(name, out object? value)

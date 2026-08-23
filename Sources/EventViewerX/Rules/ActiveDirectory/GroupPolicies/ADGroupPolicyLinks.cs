@@ -1,5 +1,3 @@
-using EventViewerX.Helpers.ActiveDirectory;
-
 namespace EventViewerX.Rules.ActiveDirectory;
 
 /// <summary>
@@ -143,10 +141,6 @@ public class ADGroupPolicyLinks : EventRuleBase {
                     var guidMatch = System.Text.RegularExpressions.Regex.Match(gpoLink.DistinguishedName, guidPattern);
                     if (guidMatch.Success) {
                         gpoLink.Guid = guidMatch.Groups["guid"].Value;
-                        var foundGpo = GroupPolicyHelpers.QueryGroupPolicyByDistinguishedName(gpoLink.DistinguishedName);
-                        if (foundGpo != null) {
-                            gpoLink.DisplayName = foundGpo.GpoName;
-                        }
                     }
                     links.Add(gpoLink);
                 }

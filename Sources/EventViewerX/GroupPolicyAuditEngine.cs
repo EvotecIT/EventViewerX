@@ -29,6 +29,9 @@ public static class GroupPolicyAuditEngine {
         IReadOnlyDictionary<string, GroupPolicyAuditCheckpoint> checkpoints =
             CreateCheckpointIndex(snapshot.Checkpoints, snapshot.Oldest);
         var definitionInfo = new EventDefinitionQueryExecutionInfo();
+        var bufferedProgress = snapshot.ContextStore == null
+            ? null
+            : new GroupPolicyAuditQueryExecutionInfo();
         var definitionQuery = new EventDefinitionQuery(GroupPolicyAuditDefinitions.CreateDirectoryChanges()) {
             Paths = snapshot.Paths,
             MachineNames = snapshot.MachineNames,
@@ -52,24 +55,68 @@ public static class GroupPolicyAuditEngine {
             ContinueOnRemoteFailure = snapshot.ContinueOnRemoteFailure,
             StrictBookmark = snapshot.StrictCheckpoint,
             BookmarkXmlResolver = (target, container) => ResolveCheckpoint(checkpoints, target, container),
-            CandidateObserver = source => executionInfo.RecordCheckpoint(source, snapshot.Oldest),
+            CandidateObserver = source => (bufferedProgress ?? executionInfo)
+                .RecordCheckpoint(source, snapshot.Oldest),
             ResultPredicate = IsGroupPolicyAuditEvent
         };
+        List<GroupPolicyAuditBufferedRecord>? contextRecords = snapshot.ContextStore == null
+            ? null
+            : new List<GroupPolicyAuditBufferedRecord>();
 
         try {
             await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(
                                definitionQuery,
                                definitionInfo,
                                cancellationToken)) {
-                yield return new GroupPolicyAuditRecord(record);
+                var projected = new GroupPolicyAuditRecord(record);
+                if (contextRecords == null) {
+                    yield return projected;
+                } else {
+                    contextRecords.Add(new GroupPolicyAuditBufferedRecord(
+                        projected,
+                        bufferedProgress!.Checkpoints));
+                }
+            }
+            if (contextRecords != null) {
+                await FinalizeContextAsync(
+                    contextRecords.Select(static item => item.Record).ToArray(),
+                    snapshot.ContextStore!,
+                    snapshot.AuthorizationContext,
+                    cancellationToken).ConfigureAwait(false);
+                await foreach (GroupPolicyAuditRecord record in DeliverBufferedAsync(
+                                   contextRecords,
+                                   bufferedProgress!.Checkpoints,
+                                   executionInfo,
+                                   cancellationToken)) {
+                    yield return record;
+                }
             }
         } finally {
             executionInfo.EventsScanned = definitionInfo.EventsScanned;
-            executionInfo.EventsEmitted = definitionInfo.EventsEmitted;
+            if (contextRecords == null) {
+                executionInfo.EventsEmitted = definitionInfo.EventsEmitted;
+            }
             executionInfo.ScanLimitReached = definitionInfo.ScanLimitReached;
             executionInfo.ResultLimitReached = definitionInfo.ResultLimitReached;
             executionInfo.TargetFailures = definitionInfo.TargetFailures;
         }
+    }
+
+    internal static async IAsyncEnumerable<GroupPolicyAuditRecord> DeliverBufferedAsync(
+        IReadOnlyList<GroupPolicyAuditBufferedRecord> records,
+        IReadOnlyList<GroupPolicyAuditCheckpoint> finalCheckpoints,
+        GroupPolicyAuditQueryExecutionInfo executionInfo,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+
+        await Task.CompletedTask.ConfigureAwait(false);
+        foreach (GroupPolicyAuditBufferedRecord item in records) {
+            cancellationToken.ThrowIfCancellationRequested();
+            executionInfo.RecordCheckpoints(item.Checkpoints);
+            executionInfo.EventsEmitted++;
+            yield return item.Record;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        executionInfo.RecordCheckpoints(finalCheckpoints);
     }
 
     /// <summary>Projects an already materialized source event through the Group Policy audit contract.</summary>
@@ -91,6 +138,87 @@ public static class GroupPolicyAuditEngine {
         return new GroupPolicyAuditRecord(record);
     }
 
+    /// <summary>
+    /// Stores the complete available Group Policy timeline before resolving each record against that timeline.
+    /// </summary>
+    internal static async ValueTask FinalizeContextAsync(
+        IReadOnlyList<GroupPolicyAuditRecord> records,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken = default) {
+
+        await FinalizeContextAsync(
+            records,
+            contextStore,
+            authorizationContext: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async ValueTask FinalizeContextAsync(
+        IReadOnlyList<GroupPolicyAuditRecord> records,
+        IEventContextStore contextStore,
+        string? authorizationContext,
+        CancellationToken cancellationToken = default) {
+
+        var storedFacts = new List<EventContextFact>(records.Count);
+        var queries = new List<EventContextQuery>(records.Count);
+        var recordIndexes = new List<int>(records.Count);
+        for (int i = 0; i < records.Count; i++) {
+            EventContextFact? fact = GroupPolicyContextFactFactory.Create(records[i]);
+            if (fact != null) {
+                storedFacts.Add(fact);
+                queries.Add(CreateContextQuery(records[i], fact, authorizationContext));
+                recordIndexes.Add(i);
+            }
+        }
+        await contextStore.StoreManyAsync(storedFacts, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<EventContextResolution> resolutions = await contextStore
+            .ResolveManyAsync(queries, cancellationToken)
+            .ConfigureAwait(false);
+        if (resolutions.Count != queries.Count) {
+            throw new InvalidDataException("The context store returned an unexpected number of batch resolutions.");
+        }
+        for (int i = 0; i < resolutions.Count; i++) {
+            records[recordIndexes[i]].ApplyContext(resolutions[i]);
+        }
+    }
+
+    /// <summary>
+    /// Projects an already materialized source event, stores only context carried by that event,
+    /// and resolves the resulting event-time context.
+    /// </summary>
+    public static async ValueTask<GroupPolicyAuditRecord> CreateRecordAsync(
+        EventObject source,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken = default) {
+
+        return await CreateRecordAsync(
+            source,
+            contextStore,
+            cancellationToken,
+            authorizationContext: null).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Projects one source event and resolves context visible to the supplied caller-authorized partition.
+    /// </summary>
+    public static async ValueTask<GroupPolicyAuditRecord> CreateRecordAsync(
+        EventObject source,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken,
+        string? authorizationContext) {
+
+        if (contextStore == null) {
+            throw new ArgumentNullException(nameof(contextStore));
+        }
+        GroupPolicyAuditRecord record = CreateRecord(source);
+        await ApplyContextAsync(
+            record,
+            contextStore,
+            authorizationContext,
+            cancellationToken).ConfigureAwait(false);
+        return record;
+    }
+
     internal static GroupPolicyAuditQuery CreateSnapshot(GroupPolicyAuditQuery query) {
         if (query.MaxEvents < 0 || query.MaxCandidates < 0) {
             throw new ArgumentOutOfRangeException(nameof(query), "Event limits must be non-negative.");
@@ -102,6 +230,8 @@ public static class GroupPolicyAuditEngine {
             throw new ArgumentException("Every checkpoint must use the same Oldest ordering as the query.", nameof(query));
         }
         return new GroupPolicyAuditQuery {
+            ContextStore = query.ContextStore,
+            AuthorizationContext = NormalizeAuthorizationContext(query.AuthorizationContext),
             Paths = query.Paths?.ToArray(),
             MachineNames = query.MachineNames?.ToArray(),
             CollectorLogName = string.IsNullOrWhiteSpace(query.CollectorLogName)
@@ -198,4 +328,65 @@ public static class GroupPolicyAuditEngine {
         Oldest = source.Oldest
     };
 
+    private static async ValueTask ApplyContextAsync(
+        GroupPolicyAuditRecord record,
+        IEventContextStore contextStore,
+        string? authorizationContext,
+        CancellationToken cancellationToken) {
+
+        EventContextFact? fact = GroupPolicyContextFactFactory.Create(record);
+        if (fact == null) {
+            return;
+        }
+        await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
+        await ResolveContextAsync(
+            record,
+            fact,
+            contextStore,
+            authorizationContext,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask ResolveContextAsync(
+        GroupPolicyAuditRecord record,
+        EventContextFact fact,
+        IEventContextStore contextStore,
+        string? authorizationContext,
+        CancellationToken cancellationToken) {
+
+        EventContextResolution resolution = await contextStore.ResolveAsync(
+            CreateContextQuery(record, fact, authorizationContext),
+            cancellationToken).ConfigureAwait(false);
+        record.ApplyContext(resolution);
+    }
+
+    private static EventContextQuery CreateContextQuery(
+        GroupPolicyAuditRecord record,
+        EventContextFact fact,
+        string? authorizationContext) => new() {
+        ObjectKind = EventContextObjectKind.GroupPolicy,
+        CanonicalId = fact.CanonicalId,
+        Alias = record.ObjectDistinguishedName,
+        AtUtc = record.TimeCreatedUtc,
+        AuthorizationContext = NormalizeAuthorizationContext(authorizationContext)
+    };
+
+    private static string? NormalizeAuthorizationContext(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value!.Trim().ToUpperInvariant();
+
+}
+
+internal sealed class GroupPolicyAuditBufferedRecord {
+    internal GroupPolicyAuditBufferedRecord(
+        GroupPolicyAuditRecord record,
+        IReadOnlyList<GroupPolicyAuditCheckpoint> checkpoints) {
+
+        Record = record ?? throw new ArgumentNullException(nameof(record));
+        Checkpoints = checkpoints?.Select(static checkpoint => checkpoint.Copy()).ToArray()
+            ?? throw new ArgumentNullException(nameof(checkpoints));
+    }
+
+    internal GroupPolicyAuditRecord Record { get; }
+
+    internal IReadOnlyList<GroupPolicyAuditCheckpoint> Checkpoints { get; }
 }
