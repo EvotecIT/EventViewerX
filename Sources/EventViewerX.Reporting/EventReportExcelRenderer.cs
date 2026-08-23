@@ -209,7 +209,7 @@ public static class EventReportExcelRenderer {
         List<Dictionary<string, object?>> rows = EventReportTableProjection.ProjectProvenance(report.Rows);
         string[] columns = {
             "Time Created", "Type", "Event ID", "Level", "Source Computer", "Source Log",
-            "Provider", "Record ID", "Message", "Container Log", "Collector Computer"
+            "Provider", "Record ID", "Message", "Raw Values", "Container Log", "Collector Computer"
         };
         string range = provenance.TableFrom(rows, "Event provenance",
             configure: options => {

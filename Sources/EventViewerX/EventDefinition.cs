@@ -5,6 +5,9 @@ namespace EventViewerX;
 
 /// <summary>A declarative, serializable event definition for workflows not built into EventViewerX.</summary>
 public sealed class EventDefinition {
+    /// <summary>Reserved JSON envelope used for EventViewerX output metadata.</summary>
+    public const string OutputMetadataFieldName = "_EventViewerX";
+
     private static readonly JsonSerializerOptions ReadOptions = CreateJsonOptions(writeIndented: false);
     private static readonly HashSet<string> ReservedNames = new(
         Enum.GetNames(typeof(EventType)).Concat(new[] { "Generic", "EventStoreSummary" }),
@@ -90,6 +93,10 @@ public sealed class EventDefinition {
             field.Name = field.Name.Trim();
             field.DisplayName = field.DisplayName?.Trim() ?? string.Empty;
             field.Description = field.Description?.Trim() ?? string.Empty;
+            if (string.Equals(field.Name, OutputMetadataFieldName, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidDataException(
+                    $"Fields[{index}].Name '{field.Name}' is reserved for EventViewerX output metadata.");
+            }
             if (!names.Add(field.Name)) {
                 throw new InvalidDataException($"Fields[{index}].Name must be non-empty and unique.");
             }
@@ -104,6 +111,10 @@ public sealed class EventDefinition {
             }
             field.Aliases = field.Aliases.Select(static alias => alias.Trim()).ToArray();
             foreach (string alias in field.Aliases) {
+                if (string.Equals(alias, OutputMetadataFieldName, StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidDataException(
+                        $"Fields[{index}].Aliases contains '{alias}', which is reserved for EventViewerX output metadata.");
+                }
                 if (!names.Add(alias)) {
                     throw new InvalidDataException($"Fields[{index}].Aliases must be unique across field names and aliases.");
                 }

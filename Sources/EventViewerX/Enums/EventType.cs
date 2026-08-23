@@ -431,5 +431,32 @@ namespace EventViewerX {
 
         /// <summary>Composite view of infrastructure service health across Windows workloads.</summary>
         InfrastructureHealth,
+
+        /// <summary>A scheduled task was enabled (4700).</summary>
+        ScheduledTaskEnabled,
+        /// <summary>A scheduled task was disabled (4701).</summary>
+        ScheduledTaskDisabled,
+        /// <summary>A scheduled task was updated (4702).</summary>
+        ScheduledTaskUpdated,
+        /// <summary>A Windows Firewall rule was added (4946).</summary>
+        FirewallRuleAdded,
+        /// <summary>A Windows Firewall rule was deleted (4948).</summary>
+        FirewallRuleDeleted,
+        /// <summary>Microsoft Defender detected a threat (1116).</summary>
+        DefenderThreatDetected,
+        /// <summary>Microsoft Defender took action on a threat (1117).</summary>
+        DefenderThreatAction,
+        /// <summary>Microsoft Defender configuration changed (5007).</summary>
+        DefenderConfigurationChanged,
+        /// <summary>Composite scheduled-task lifecycle view.</summary>
+        ScheduledTaskActivity,
+        /// <summary>Composite Windows Firewall rule lifecycle view.</summary>
+        FirewallRuleActivity,
+        /// <summary>Composite Microsoft Defender security view.</summary>
+        DefenderSecurity,
+        /// <summary>Composite NTLMv1, weak Kerberos encryption, and unsigned LDAP bind view.</summary>
+        AuthenticationHealth,
+        /// <summary>Group Policy object, link, inheritance, and WMI-filter directory audit events.</summary>
+        GroupPolicyDirectoryAudit,
     }
 }

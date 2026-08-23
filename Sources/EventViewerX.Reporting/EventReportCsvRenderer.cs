@@ -156,9 +156,18 @@ public static class EventReportCsvRenderer {
         List<Dictionary<string, object?>> rows = EventReportTableProjection.Project(section);
         IReadOnlyDictionary<string, string> displayNames =
             EventReportTableProjection.CreateUniqueDisplayNames(section.Columns);
-        string[] headers = section.Columns.Select(column => displayNames[column.Name]).ToArray();
-        writer.WriteRows(headers, rows.Select(row =>
-            section.Columns.Select(column => row.TryGetValue(column.Name, out object? value) ? value : null).ToArray()));
+        EventReportColumn[] rawColumns = section.Columns.Where(column => section.Rows.Any(row =>
+            row.NormalizedValues.TryGetValue(column.Name, out EventNormalizedValue? value) &&
+            value.Outcome != EventNormalizationOutcome.Unchanged)).ToArray();
+        string[] headers = section.Columns.Select(column => displayNames[column.Name])
+            .Concat(rawColumns.Select(column => displayNames[column.Name] + " Raw"))
+            .ToArray();
+        writer.WriteRows(headers, rows.Select((row, index) =>
+            section.Columns.Select(column => row.TryGetValue(column.Name, out object? value) ? value : null)
+                .Concat(rawColumns.Select(column => section.Rows[index].Values.TryGetValue(
+                    column.Name,
+                    out object? raw) ? raw : null))
+                .ToArray()));
     }
 
     private static void WriteDictionaries(

@@ -90,7 +90,9 @@ Build-Module -ModuleName 'PSEventViewer' {
         NETProjectName                    = 'PSEventViewer'
         NETProjectPath                    = 'Sources\PSEventViewer\PSEventViewer.csproj'
         NETConfiguration                  = 'Release'
-        NETFramework                      = 'net8.0-windows', 'netstandard2.1', 'net472'
+        # One portable Core payload keeps PowerShell 7.0+ deterministic; the NuGet packages still retain
+        # their optimized net8/net10 targets independently of the module's runtime selector.
+        NETFramework                      = 'netstandard2.1', 'net472'
         NETSearchClass                    = 'PSEventViewer.CmdletGetEVXEvent'
         NETHandleAssemblyWithSameName     = $true
         NETAssemblyLoadContext            = $true

@@ -23,6 +23,8 @@ namespace PSEventViewer;
 ///   <para>Does not query the event log again.</para>
 /// </example>
 [OutputType(typeof(EventReport))]
+[OutputType(typeof(EventAggregationResult))]
+[OutputType(typeof(EventOccurrenceResult))]
 [OutputType(typeof(EventEmailPackage))]
 [Cmdlet(VerbsCommon.Show, "EVXEvent", DefaultParameterSetName = "Input")]
 public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
@@ -166,6 +168,17 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter(ParameterSetName = "Type")]
     public SwitchParameter ResolveDns { get; set; }
 
+    /// <summary>
+    /// SQLite file that preserves Group Policy names and identity history across report runs.
+    /// This is available only with <c>-Type GroupPolicyDirectoryAudit</c> and never performs directory discovery.
+    /// </summary>
+    [Parameter(ParameterSetName = "Type")]
+    public string? ContextStorePath { get; set; }
+
+    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</summary>
+    [Parameter(ParameterSetName = "Type")]
+    public string? ContextAuthorization { get; set; }
+
     /// <summary>Remote query credential.</summary>
     [Credential]
     [Parameter(ParameterSetName = "Type")]
@@ -215,6 +228,24 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter]
     public SwitchParameter PassThru { get; set; }
 
+    /// <summary>Optional exact transport or compiled semantic occurrence grouping.</summary>
+    [Parameter]
+    public EventDuplicateMode DuplicateMode { get; set; }
+
+    /// <summary>Maximum separation for compiled semantic causal-identifier grouping.</summary>
+    [Parameter]
+    public TimeSpan OccurrenceWindow { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Maximum observations accepted by one occurrence grouping operation.</summary>
+    [Parameter]
+    [ValidateRange(1, int.MaxValue)]
+    public int MaximumOccurrenceObservations { get; set; } = 100000;
+
+    /// <summary>Maximum occurrence groups retained.</summary>
+    [Parameter]
+    [ValidateRange(1, int.MaxValue)]
+    public int MaximumOccurrenceGroups { get; set; } = 25000;
+
     /// <inheritdoc />
     protected override Task ProcessRecordAsync() {
         if (ParameterSetName == "Input" && InputObject != null) {
@@ -236,8 +267,14 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
                 nameof(StorePath));
         }
         EventReport report;
+        EventAggregationResult? aggregation = null;
         if (ParameterSetName == "Input") {
-            report = EventReportEngine.Create(_input, Title);
+            if (_input.Count == 1 && _input[0] is EventAggregationResult aggregationResult) {
+                aggregation = aggregationResult;
+                report = EventAggregationReportFactory.Create(aggregationResult, Title);
+            } else {
+                report = EventReportEngine.Create(_input, Title);
+            }
         } else if (ParameterSetName == "Store") {
             if (Type.Length > 0 && Definition != null) {
                 throw new PSArgumentException(
@@ -311,6 +348,26 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             report = SummaryPeriod.HasValue
                 ? await store.CreateSummaryReportAsync(query, SummaryPeriod.Value, Title, CancelToken).ConfigureAwait(false)
                 : await store.ReadReportAsync(query, Title, CancelToken).ConfigureAwait(false);
+        } else if (!string.IsNullOrWhiteSpace(ContextStorePath)) {
+            ValidateGroupPolicyContextSelection();
+            var query = new GroupPolicyAuditQuery {
+                ContextStore = new SqliteEventContextStore(ContextStorePath!),
+                AuthorizationContext = ContextAuthorization,
+                Paths = Path.Length == 0 ? null : Path,
+                MachineNames = Collector ?? MachineName,
+                CollectorLogName = Collector == null ? null : "ForwardedEvents",
+                StartTime = StartTime,
+                EndTime = EndTime,
+                TimePeriod = TimePeriod,
+                MaxEvents = MaxEvents,
+                MaxCandidates = MaxEventsScanned,
+                MaxConcurrency = MaxConcurrency,
+                Oldest = true,
+                Credential = Credential?.GetNetworkCredential(),
+                Authentication = Authentication
+            };
+            report = await GroupPolicyAuditReportEngine.QueryAsync(query, Title, CancelToken)
+                .ConfigureAwait(false);
         } else {
             EventReportRequest request;
             if (ParameterSetName == "Type") {
@@ -360,6 +417,22 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             report = await EventReportEngine.QueryAsync(request, CancelToken).ConfigureAwait(false);
         }
 
+        EventOccurrenceResult? occurrences = null;
+        if (DuplicateMode != EventDuplicateMode.None) {
+            if (aggregation != null || SummaryPeriod.HasValue) {
+                throw new PSArgumentException(
+                    "DuplicateMode applies to source observations before aggregation or stored summaries, not to already-derived rows.",
+                    nameof(DuplicateMode));
+            }
+            occurrences = EventOccurrenceEngine.Group(report.Rows, new EventOccurrenceOptions {
+                Mode = DuplicateMode,
+                Window = OccurrenceWindow,
+                MaximumObservations = MaximumOccurrenceObservations,
+                MaximumGroups = MaximumOccurrenceGroups
+            });
+            report = EventOccurrenceReportFactory.Create(occurrences, Title);
+        }
+
         bool hasDestination = !string.IsNullOrWhiteSpace(HtmlPath) ||
                               !string.IsNullOrWhiteSpace(ExcelPath) ||
                               !string.IsNullOrWhiteSpace(CsvPath) ||
@@ -370,12 +443,22 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             htmlPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"EventViewerX-{DateTime.Now:yyyyMMdd-HHmmss}.html");
         }
         if (!string.IsNullOrWhiteSpace(htmlPath)) {
-            var htmlOptions = new EventReportHtmlOptions { RecordDrawerPlacement = DrawerPlacement };
-            string saved = EventReportHtmlRenderer.Save(report, htmlPath!, htmlOptions, Open.IsPresent || !hasDestination);
+            string saved;
+            if (aggregation != null) {
+                saved = EventAggregationHtmlRenderer.Save(aggregation, htmlPath!, Title);
+                if (Open.IsPresent || !hasDestination) {
+                    Process.Start(new ProcessStartInfo(saved) { UseShellExecute = true });
+                }
+            } else {
+                var htmlOptions = new EventReportHtmlOptions { RecordDrawerPlacement = DrawerPlacement };
+                saved = EventReportHtmlRenderer.Save(report, htmlPath!, htmlOptions, Open.IsPresent || !hasDestination);
+            }
             WriteObject(saved);
         }
         if (!string.IsNullOrWhiteSpace(ExcelPath)) {
-            string saved = EventReportExcelRenderer.Save(report, ExcelPath!);
+            string saved = aggregation == null
+                ? EventReportExcelRenderer.Save(report, ExcelPath!)
+                : EventAggregationExcelRenderer.Save(aggregation, ExcelPath!, Title);
             if (Open.IsPresent) {
                 Process.Start(new ProcessStartInfo(saved) { UseShellExecute = true });
             }
@@ -389,6 +472,11 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             WriteObject(saved);
         }
         if (!string.IsNullOrWhiteSpace(StorePath)) {
+            if (aggregation != null || occurrences != null) {
+                throw new PSArgumentException(
+                    "Aggregation and occurrence rows are derived output and cannot be written into event history. Store source events instead.",
+                    nameof(StorePath));
+            }
             var store = new EventStore(StorePath!);
             EventStoreWriteResult stored = await store.WriteAsync(report, cancellationToken: CancelToken).ConfigureAwait(false);
             WriteVerbose($"Stored {stored.Inserted} new rows and skipped {stored.Duplicates} duplicates.");
@@ -398,7 +486,20 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             WriteObject(await EventReportEmailRenderer.RenderAsync(report).ConfigureAwait(false));
         }
         if (PassThru.IsPresent) {
-            WriteObject(report);
+            WriteObject(occurrences ?? (object?)aggregation ?? report);
+        }
+    }
+
+    private void ValidateGroupPolicyContextSelection() {
+        if (Type.Length != 1 || Type[0] != EventType.GroupPolicyDirectoryAudit) {
+            throw new PSArgumentException(
+                "ContextStorePath requires exactly -Type GroupPolicyDirectoryAudit so the persistent context engine owns the complete Group Policy directory-audit timeline.",
+                nameof(ContextStorePath));
+        }
+        if (Where != null || ResolveDns.IsPresent || EventRecordId?.Length > 0) {
+            throw new PSArgumentException(
+                "ContextStorePath cannot be combined with Where, ResolveDns, or EventRecordId because persistent Group Policy context requires the complete selected timeline.",
+                nameof(ContextStorePath));
         }
     }
 

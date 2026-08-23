@@ -98,6 +98,7 @@ internal static class EventReportTableProjection {
             ["Provider"] = row.Provider,
             ["Record ID"] = row.RecordId,
             ["Message"] = CollapseWhitespace(row.Message),
+            ["Raw Values"] = FormatRawDetails(row, separator: "; "),
             ["Container Log"] = row.ContainerLog,
             ["Collector Computer"] = row.CollectorComputer
         }).ToList();
@@ -116,7 +117,17 @@ internal static class EventReportTableProjection {
         return string.Join(separator ?? Environment.NewLine, row.Values
             .Where(static item => !string.IsNullOrWhiteSpace(item.Key))
             .Take(maximumValues)
-            .Select(static item => $"{SplitWords(item.Key)}: {FormatValue(item.Value)}"));
+            .Select(item => $"{SplitWords(item.Key)}: {FormatValue(GetPresentationValue(row, item.Key, item.Value))}"));
+    }
+
+    internal static string FormatRawDetails(EventReportRow row, string? separator = null) {
+        if (row == null) {
+            throw new ArgumentNullException(nameof(row));
+        }
+        return string.Join(separator ?? Environment.NewLine, row.NormalizedValues
+            .Where(static item => item.Value.Outcome != EventNormalizationOutcome.Unchanged)
+            .OrderBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(static item => $"{SplitWords(item.Key)}: {FormatValue(item.Value.RawValue)}"));
     }
 
     private static Dictionary<string, object?> ProjectRow(EventReportSection section, EventReportRow row) {
@@ -124,7 +135,7 @@ internal static class EventReportTableProjection {
         foreach (EventReportColumn column in section.Columns) {
             if (section.Kind != EventReportSectionKind.Generic) {
                 result[column.Name] = row.Values.TryGetValue(column.Name, out object? value)
-                    ? NormalizeCellValue(value)
+                    ? NormalizeCellValue(GetPresentationValue(row, column.Name, value))
                     : null;
                 continue;
             }
@@ -141,7 +152,9 @@ internal static class EventReportTableProjection {
                 nameof(EventReportRow.Level) => row.Level,
                 nameof(EventReportRow.Message) => CollapseWhitespace(row.Message),
                 "Details" => FormatDetails(row, separator: "; "),
-                _ => row.Values.TryGetValue(column.Name, out object? value) ? NormalizeCellValue(value) : null
+                _ => row.Values.TryGetValue(column.Name, out object? value)
+                    ? NormalizeCellValue(GetPresentationValue(row, column.Name, value))
+                    : null
             };
         }
         return result;
@@ -153,6 +166,12 @@ internal static class EventReportTableProjection {
         IEnumerable enumerable => FormatEnumerable(enumerable),
         _ => value
     };
+
+    private static object? GetPresentationValue(EventReportRow row, string name, object? raw) =>
+        row.NormalizedValues.TryGetValue(name, out EventNormalizedValue? normalized) &&
+        normalized.Outcome != EventNormalizationOutcome.Unchanged
+            ? normalized.DisplayValue
+            : raw;
 
     private static bool IsPlaceholder(string value) {
         string trimmed = value.Trim();

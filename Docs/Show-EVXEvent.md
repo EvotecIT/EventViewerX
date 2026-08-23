@@ -15,32 +15,32 @@ Typed and custom definitions render only their domain fields. Composite types ke
 ## SYNTAX
 ### Input (Default)
 ```powershell
-Show-EVXEvent -InputObject <Object> [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent -InputObject <Object> [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Type
 ```powershell
-Show-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-ResolveDns] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-ResolveDns] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Store
 ```powershell
-Show-EVXEvent [-FromStore] <string> [-Type <EventType[]>] [-LogName <string>] [-Definition <Object>] [-Where <Object>] [-EventId <int[]>] [-EventRecordId <long[]>] [-SourceComputer <string[]>] [-ProviderName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-Oldest] [-SummaryPeriod <EventStoreSummaryPeriod>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent [-FromStore] <string> [-Type <EventType[]>] [-LogName <string>] [-Definition <Object>] [-Where <Object>] [-EventId <int[]>] [-EventRecordId <long[]>] [-SourceComputer <string[]>] [-ProviderName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-Oldest] [-SummaryPeriod <EventStoreSummaryPeriod>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Log
 ```powershell
-Show-EVXEvent [-LogName] <string> [-EventId <int[]>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent [-LogName] <string> [-EventId <int[]>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Path
 ```powershell
-Show-EVXEvent [-Path] <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent [-Path] <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Definition
 ```powershell
-Show-EVXEvent [-Definition] <Object> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [<CommonParameters>]
+Show-EVXEvent [-Definition] <Object> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -107,6 +107,39 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -ContextAuthorization
+Caller-authorized partition used to resolve non-shareable imported Group Policy context.
+
+```yaml
+Type: String
+Parameter Sets: Type
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ContextStorePath
+SQLite file that preserves Group Policy names and identity history across report runs.
+This is available only with -Type GroupPolicyDirectoryAudit and never performs directory discovery.
+
+```yaml
+Type: String
+Parameter Sets: Type
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -Credential
 Remote query credential.
 
@@ -163,6 +196,22 @@ Type: MonitoringRecordDrawerPlacement
 Parameter Sets: Input, Type, Store, Log, Path, Definition
 Aliases: None
 Possible values: Auto, Top, Right
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -DuplicateMode
+Optional exact transport or compiled semantic occurrence grouping.
+
+```yaml
+Type: EventDuplicateMode
+Parameter Sets: Input, Type, Store, Log, Path, Definition
+Aliases: None
+Possible values: None, Transport, Semantic
 
 Required: False
 Position: named
@@ -379,6 +428,54 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -MaximumOccurrenceGroups
+Maximum occurrence groups retained.
+
+```yaml
+Type: Int32
+Parameter Sets: Input, Type, Store, Log, Path, Definition
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaximumOccurrenceObservations
+Maximum observations accepted by one occurrence grouping operation.
+
+```yaml
+Type: Int32
+Parameter Sets: Input, Type, Store, Log, Path, Definition
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -OccurrenceWindow
+Maximum separation for compiled semantic causal-identifier grouping.
+
+```yaml
+Type: TimeSpan
+Parameter Sets: Input, Type, Store, Log, Path, Definition
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -Oldest
 Reads oldest matches first.
 
@@ -578,7 +675,7 @@ Built-in leaf or composite event definitions. Each definition owns its channels 
 Type: EventType[]
 Parameter Sets: Type, Store
 Aliases: None
-Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth
+Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth, ScheduledTaskEnabled, ScheduledTaskDisabled, ScheduledTaskUpdated, FirewallRuleAdded, FirewallRuleDeleted, DefenderThreatDetected, DefenderThreatAction, DefenderConfigurationChanged, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity, AuthenticationHealth, GroupPolicyDirectoryAudit
 
 Required: True
 Position: 0
@@ -614,6 +711,8 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 - `EventViewerX.Reporting.EventReport`
+- `EventViewerX.Reporting.EventAggregationResult`
+- `EventViewerX.Reporting.EventOccurrenceResult`
 - `EventViewerX.Reporting.EventEmailPackage`
 
 ## RELATED LINKS

@@ -5,7 +5,7 @@ Describe 'Get-EVXEvent - Type' {
         $Parameter.Aliases | Should -Contain 'NamedEvents'
     }
 
-    It 'exposes opt-in DNS enrichment only on the Type parameter set' {
+    It 'exposes opt-in DNS enrichment on typed and preset queries' {
         $Command = Get-Command Get-EVXEvent
         $Command.Parameters.Keys | Should -Contain 'ResolveDns'
         $Command.Parameters.Keys | Should -Contain 'DnsTimeoutMs'
@@ -14,9 +14,9 @@ Describe 'Get-EVXEvent - Type' {
         $ResolveDnsSets = @($Command.Parameters['ResolveDns'].ParameterSets.Keys)
         $DnsTimeoutSets = @($Command.Parameters['DnsTimeoutMs'].ParameterSets.Keys)
         $DnsConcurrencySets = @($Command.Parameters['DnsMaxConcurrency'].ParameterSets.Keys)
-        $ResolveDnsSets | Should -Be @('Type')
-        $DnsTimeoutSets | Should -Be @('Type')
-        $DnsConcurrencySets | Should -Be @('Type')
+        $ResolveDnsSets | Sort-Object | Should -Be @('Preset', 'Type')
+        $DnsTimeoutSets | Sort-Object | Should -Be @('Preset', 'Type')
+        $DnsConcurrencySets | Sort-Object | Should -Be @('Preset', 'Type')
     }
 
     It 'exposes native remote, failure, bookmark, and Int64 scan controls without no-op filters' {

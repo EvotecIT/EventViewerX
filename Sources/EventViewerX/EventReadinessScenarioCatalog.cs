@@ -17,9 +17,13 @@ public static class EventReadinessScenarioCatalog {
             EventType.GroupPolicyActivity
         },
         EventReadinessScenario.AuthenticationMonitoring => new[] {
-            EventType.ActiveDirectoryAuthentication,
-            EventType.ADLdapBindingSummary,
-            EventType.ADLdapBindingDetails
+            EventType.AuthenticationHealth
+        },
+        EventReadinessScenario.SecurityMonitoring => new[] {
+            EventType.ScheduledTaskActivity,
+            EventType.FirewallRuleActivity,
+            EventType.DefenderSecurity,
+            EventType.AuthenticationHealth
         },
         EventReadinessScenario.None => throw new ArgumentException("Scenario None does not select event types.", nameof(scenario)),
         _ => throw new ArgumentOutOfRangeException(nameof(scenario))

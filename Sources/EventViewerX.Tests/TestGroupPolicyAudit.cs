@@ -1,6 +1,7 @@
 using System.Diagnostics.Eventing.Reader;
 using System.Security.Principal;
 using EventViewerX;
+using EventViewerX.Reporting;
 using Xunit;
 
 namespace EventViewerX.Tests;
@@ -61,6 +62,33 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal("EVOTEC\\alice", record.Actor);
         Assert.Equal("S-1-5-21-1-2-3-1105", record.ActorSid);
         Assert.Equal("{operation-correlation}", record.OperationCorrelationId);
+    }
+
+    [Fact]
+    public async Task ReportProjectionKeepsOneSchemaAcrossUnknownAndResolvedContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline");
+        GroupPolicyAuditRecord unknown = GroupPolicyAuditEngine.CreateRecord(source);
+        GroupPolicyAuditRecord resolved = await GroupPolicyAuditEngine.CreateRecordAsync(
+            source,
+            new InMemoryEventContextStore());
+
+        EventReportProjection unknownProjection = EventReportProjectionFactory.Create(unknown);
+        EventReportProjection resolvedProjection = EventReportProjectionFactory.Create(resolved);
+
+        Assert.Equal(unknownProjection.Section.Key, resolvedProjection.Section.Key);
+        Assert.Equal("Domain controllers baseline", resolved.GroupPolicyNameAtEventTime);
+        Assert.Equal(
+            typeof(string),
+            unknownProjection.Section.Columns.Single(static column =>
+                column.Name == nameof(GroupPolicyAuditRecord.GroupPolicyNameAtEventTime)).ValueType);
     }
 
     [Theory]
@@ -553,6 +581,38 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal(expected, GroupPolicyAuditCheckpoint.CreateSourceKey(
             EventLogTarget.LocalMachineName,
             "Security"));
+    }
+
+    [Fact]
+    public void ReportCoveragePreservesCollectorLogAndOfflineFailures() {
+        string offline = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.evtx");
+        var offlineQuery = new GroupPolicyAuditQuery { Paths = new[] { offline } };
+        var offlineFailure = new EventLogQueryTargetFailure(
+            "Offline",
+            offline,
+            EventLogRemoteQueryFailureKind.LogNotFound,
+            "Missing fixture.");
+        var collectorQuery = new GroupPolicyAuditQuery {
+            MachineNames = new[] { "wec01" },
+            CollectorLogName = "ForwardedEvents"
+        };
+        var collectorFailure = new EventLogQueryTargetFailure(
+            "wec01",
+            "ForwardedEvents",
+            EventLogRemoteQueryFailureKind.AccessDenied,
+            "Denied.");
+
+        EventReportCoverage offlineCoverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(offlineQuery, new[] { offlineFailure }));
+        EventReportCoverage collectorCoverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(collectorQuery, new[] { collectorFailure }));
+
+        Assert.False(offlineCoverage.Succeeded);
+        Assert.Equal(EventLogRemoteQueryFailureKind.LogNotFound.ToString(), offlineCoverage.Status);
+        Assert.Equal(Path.GetFullPath(offline), offlineCoverage.LogName);
+        Assert.False(collectorCoverage.Succeeded);
+        Assert.Equal("ForwardedEvents", collectorCoverage.LogName);
+        Assert.Equal(EventLogRemoteQueryFailureKind.AccessDenied.ToString(), collectorCoverage.Status);
     }
 
     private static EventObject CreateSource(

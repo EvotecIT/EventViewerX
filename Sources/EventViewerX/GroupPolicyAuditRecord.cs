@@ -23,6 +23,7 @@ public sealed class GroupPolicyAuditRecord {
         QueryTarget = string.IsNullOrWhiteSpace(source.CollectorComputer)
             ? Environment.MachineName
             : source.CollectorComputer;
+        QuerySourceKind = source.QuerySourceKind;
         OriginalLogName = source.OriginalLogName;
         ContainerLogName = string.IsNullOrWhiteSpace(source.ContainerLogName)
             ? source.GatheredLogName
@@ -73,6 +74,9 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Computer or offline file from which the event was queried.</summary>
     public string QueryTarget { get; }
+
+    /// <summary>Whether the record came from a live channel or an offline event-log file.</summary>
+    public EventLogQuerySourceKind QuerySourceKind { get; }
 
     /// <summary>Original event channel, normally Security.</summary>
     public string OriginalLogName { get; }

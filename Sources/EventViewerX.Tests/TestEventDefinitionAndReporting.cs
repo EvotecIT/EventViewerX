@@ -115,6 +115,23 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Equal("Who", builder.Field(" Account ").Name);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CustomDefinitionsRejectReservedOutputMetadataFieldsAndAliases(bool useFieldName) {
+        EventDefinition definition = CreateDefinition();
+        if (useFieldName) {
+            definition.Fields[0].Name = EventDefinition.OutputMetadataFieldName;
+        } else {
+            definition.Fields[0].Aliases = new[] { EventDefinition.OutputMetadataFieldName };
+        }
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(definition.Validate);
+
+        Assert.Contains(EventDefinition.OutputMetadataFieldName, exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reserved", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task EmptyTypedAndCustomQueriesRetainSchemasForCsvExport() {
         string fixture = Path.GetFullPath(Path.Combine(

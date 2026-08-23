@@ -11,5 +11,7 @@ public enum EventReadinessScenario {
     /// <summary>Group Policy change collection and reporting.</summary>
     GroupPolicyMonitoring,
     /// <summary>Logon, NTLMv1, Kerberos, and LDAP authentication monitoring.</summary>
-    AuthenticationMonitoring
+    AuthenticationMonitoring,
+    /// <summary>Scheduled-task, firewall, Defender, and authentication-health monitoring.</summary>
+    SecurityMonitoring
 }

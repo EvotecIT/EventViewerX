@@ -49,6 +49,12 @@ public sealed class EventReportRow {
     /// <summary>Type-specific projected values.</summary>
     public IReadOnlyDictionary<string, object?> Values { get; set; } = new Dictionary<string, object?>();
 
+    /// <summary>
+    /// Deterministic canonical views of type-specific values. Raw evidence remains in <see cref="Values"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, EventNormalizedValue> NormalizedValues { get; internal set; } =
+        new Dictionary<string, EventNormalizedValue>();
+
     /// <summary>Flattens common and type-specific fields for serialization and transport adapters.</summary>
     public IReadOnlyDictionary<string, object?> ToDictionary() {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
@@ -70,6 +76,51 @@ public sealed class EventReportRow {
             if (!result.ContainsKey(value.Key)) {
                 result[value.Key] = value.Value;
             }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Flattens common fields and canonical type-specific values for grouping and aggregation.
+    /// Use <see cref="ToDictionary()"/> when raw projected values are required.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> ToNormalizedDictionary() {
+        var result = ToDictionary().ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        AddCommonAliases(result);
+        foreach (KeyValuePair<string, EventNormalizedValue> value in NormalizedValues) {
+            if (string.Equals(Type, "Generic", StringComparison.OrdinalIgnoreCase) &&
+                IsCommonFieldName(value.Key)) {
+                continue;
+            }
+            result[value.Key] = value.Value.Value;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Flattens one homogeneous report section using canonical values while retaining the section's
+    /// declared field contract.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> ToNormalizedDictionary(EventReportSection section) {
+        if (section == null) {
+            throw new ArgumentNullException(nameof(section));
+        }
+        var result = ToNormalizedDictionary().ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        if (section.Kind == EventReportSectionKind.Generic) {
+            return result;
+        }
+        foreach (EventReportColumn column in section.Columns) {
+            result[column.Name] = NormalizedValues.TryGetValue(column.Name, out EventNormalizedValue? normalized)
+                ? normalized.Value
+                : Values.TryGetValue(column.Name, out object? value)
+                    ? value
+                    : null;
         }
         return result;
     }
@@ -129,4 +180,18 @@ public sealed class EventReportRow {
     }
 
     internal static bool IsCommonFieldName(string name) => CommonFieldNames.Contains(name);
+
+    private void AddCommonAliases(IDictionary<string, object?> result) {
+        result["TypeName"] = Type;
+        result["Id"] = EventId;
+        result["EventRecordId"] = RecordId;
+        result["ProviderName"] = Provider;
+        result["SourceLogName"] = SourceLog;
+        result["LogName"] = SourceLog;
+        result["ContainerLogName"] = ContainerLog;
+        result["MachineName"] = SourceComputer;
+        result["Computer"] = SourceComputer;
+        result["When"] = TimeCreated;
+        result["LevelDisplayName"] = Level;
+    }
 }

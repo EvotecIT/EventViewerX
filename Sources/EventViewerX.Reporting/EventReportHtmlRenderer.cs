@@ -227,6 +227,10 @@ public static class EventReportHtmlRenderer {
         if (!string.IsNullOrWhiteSpace(message)) {
             record.Detail("Message excerpt", message.Length <= 320 ? message : message.Substring(0, 319) + "…", "Message");
         }
+        string rawValues = EventReportTableProjection.FormatRawDetails(row, separator: "; ");
+        if (!string.IsNullOrWhiteSpace(rawValues)) {
+            record.Detail("Raw values", rawValues, "Normalization");
+        }
     }
 
     private static int FindRowIndex(IReadOnlyList<EventReportRow> rows, EventReportRow row) {

@@ -67,6 +67,8 @@ namespace PSEventViewer;
 [OutputType(typeof(EventObject), ParameterSetName = new string[] { "Xml" })]
 [OutputType(typeof(EventObject), ParameterSetName = new string[] { "Provider" })]
 [OutputType(typeof(EventTypeRecord), ParameterSetName = new string[] { "Type" })]
+[OutputType(typeof(GroupPolicyAuditRecord), ParameterSetName = new string[] { "Type" })]
+[OutputType(typeof(EventTypeRecord), ParameterSetName = new string[] { "Preset" })]
 [OutputType(typeof(CustomEventRecord), ParameterSetName = new string[] { "Definition" })]
 [OutputType(typeof(EventTypeRecord), ParameterSetName = new string[] { "TypedFilter" })]
 [OutputType(typeof(CustomEventRecord), ParameterSetName = new string[] { "TypedFilter" })]
@@ -107,6 +109,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
         ValueFromPipelineByPropertyName = true,
         ParameterSetName = "Path")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     public string[] Path { get; set; } = Array.Empty<string>();
 
@@ -125,6 +128,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Alias("RecordId")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -136,6 +140,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -149,6 +154,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -163,6 +169,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Alias("ComputerName", "ServerName")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -175,6 +182,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// The selected Type still owns each event's original source channel and identifiers.
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     public List<string?>? Collector { get; set; }
@@ -208,6 +216,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Alias("DateFrom")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
@@ -220,6 +229,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Alias("DateTo")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
@@ -232,6 +242,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -251,6 +262,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -265,6 +277,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Alias("NumberOfThreads")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -279,6 +292,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -295,6 +309,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -309,12 +324,14 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// event and never remove the event from the pipeline.
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     public SwitchParameter ResolveDns { get; set; }
 
     /// <summary>
     /// Whole-request timeout in milliseconds for each optional reverse-DNS request, including dependency retries.
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [ValidateRange(1, 60000)]
     public int DnsTimeoutMs { get; set; } = 1000;
 
@@ -322,6 +339,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// Maximum number of reverse-DNS requests that may overlap. Results and checkpoints remain in event order.
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [ValidateRange(1, 64)]
     public int DnsMaxConcurrency { get; set; } = 8;
 
@@ -333,6 +351,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -349,6 +368,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -364,6 +384,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -387,6 +408,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -401,6 +423,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -416,6 +439,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -446,6 +470,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -458,8 +483,23 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     /// One or more built-in typed event definitions to query. Each type owns its source channels and event identifiers.
     /// </summary>
     [Alias("NamedEvent", "NamedEvents")]
-    [Parameter(Mandatory = true, ParameterSetName = "Type")]
+    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Type")]
     public EventType[] Type { get; set; } = Array.Empty<EventType>();
+
+    /// <summary>Built-in monitoring preset combining canonical event types with exact semantic filtering.</summary>
+    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Preset")]
+    public EventMonitoringPreset? Preset { get; set; }
+
+    /// <summary>
+    /// SQLite file that preserves Group Policy names and identity history across runs.
+    /// This requires exactly <c>-Type GroupPolicyDirectoryAudit</c> and does not scan Active Directory or SYSVOL.
+    /// </summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    public string? ContextStorePath { get; set; }
+
+    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    public string? ContextAuthorization { get; set; }
 
     /// <summary>Custom EventViewerX definition instance or JSON file path.</summary>
     [Parameter(Mandatory = true, ParameterSetName = "Definition")]
@@ -467,11 +507,13 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
 
     /// <summary>Reusable typed EventPredicate, predicate JSON, or predicate JSON file.</summary>
     [Parameter(ParameterSetName = "Type")]
+    [Parameter(ParameterSetName = "Preset")]
     [Parameter(ParameterSetName = "Definition")]
     public object? Where { get; set; }
 
     /// <summary>Returns the native/managed predicate plan without querying event sources.</summary>
     [Parameter(ParameterSetName = "Type")]
+    [Parameter(ParameterSetName = "Preset")]
     [Parameter(ParameterSetName = "Definition")]
     [Parameter(ParameterSetName = "TypedFilter")]
     [Parameter(ParameterSetName = "Path")]
@@ -479,6 +521,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
 
     /// <summary>Returns definition and field metadata without querying event sources.</summary>
     [Parameter(ParameterSetName = "Type")]
+    [Parameter(ParameterSetName = "Preset")]
     [Parameter(ParameterSetName = "Definition")]
     [Parameter(ParameterSetName = "TypedFilter")]
     [Parameter(ParameterSetName = "Path")]
@@ -496,6 +539,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
             Array.Empty<WildcardPattern>();
         _offlineProvidersByPath.Clear();
         InitializeTypedFilter();
+        EventPredicate? presetPredicate = ResolvePreset();
         if (Describe.IsPresent) {
             if (UsesCustomDefinitionQuery) {
                 WriteObject(ResolveEventDefinition());
@@ -504,6 +548,10 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
                     WriteObject(EventTypeCatalog.GetDefinition(type));
                 }
             }
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(ContextStorePath)) {
+            await ProcessGroupPolicyContextAsync();
             return;
         }
         if ((UsesBuiltInTypeQuery || UsesCustomDefinitionQuery) &&
@@ -520,6 +568,11 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
             Where,
             nameof(Where),
             predicateBuilder);
+        if (presetPredicate != null) {
+            predicate = predicate == null
+                ? presetPredicate
+                : EventPredicate.AllOf(presetPredicate, predicate);
+        }
         if (predicate != null && predicateBuilder != null) {
             predicate = predicateBuilder.Normalize(predicate);
         }
@@ -654,10 +707,6 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
         }
 
     }
-
-    private bool UsesBuiltInTypeQuery =>
-        ParameterSetName == "Type" ||
-        _typedFilter?.Type != null;
 
     private bool UsesCustomDefinitionQuery =>
         ParameterSetName == "Definition" ||

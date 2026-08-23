@@ -161,6 +161,7 @@ public static class EventReportEngine {
                     nameof(rows));
             }
             NormalizeStoredValues(row, matchingSchemas[0]);
+            EventValueNormalizationEngine.Populate(row);
         }
         var sections = new List<EventReportSection>();
         foreach (EventReportSectionSchema schema in schemaSnapshot) {
@@ -219,9 +220,10 @@ public static class EventReportEngine {
             EventTypeRecord typed => EventReportProjectionFactory.Create(typed),
             EventObject source => EventReportProjectionFactory.Create(source),
             CustomEventRecord custom => EventReportProjectionFactory.Create(custom),
+            GroupPolicyAuditRecord groupPolicy => EventReportProjectionFactory.Create(groupPolicy),
             null => throw new ArgumentNullException(nameof(input)),
             _ => throw new ArgumentException(
-                $"Unsupported report input type '{input.GetType().FullName}'. Expected EventObject, EventTypeRecord, or CustomEventRecord.",
+                $"Unsupported report input type '{input.GetType().FullName}'. Expected EventObject, EventTypeRecord, CustomEventRecord, or GroupPolicyAuditRecord.",
                 nameof(input))
         };
     }

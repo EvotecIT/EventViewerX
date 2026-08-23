@@ -9,9 +9,12 @@ Describe 'evx portable host' {
         $Definitions = @(& $script:CliPath types | ForEach-Object { $_ | ConvertFrom-Json })
 
         $LASTEXITCODE | Should -Be 0
-        $Definitions.Count | Should -Be 90
-        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 80
-        @($Definitions | Where-Object IsComposite).Count | Should -Be 10
+        $Definitions.Count | Should -Be ([Enum]::GetValues([EventViewerX.EventType]).Count)
+        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 89
+        @($Definitions | Where-Object IsComposite).Count | Should -Be 14
+        $Definitions.Name | Should -Contain 'GroupPolicyDirectoryAudit'
+        $Definitions.Name | Should -Contain 'AuthenticationHealth'
+        $Definitions.Name | Should -Contain 'DefenderSecurity'
     }
 
     It 'queries offline files without PowerShell module startup' {
@@ -23,6 +26,16 @@ Describe 'evx portable host' {
         $Rows[0].Type | Should -Be 'Generic'
         $Rows[0].SourceLog | Should -Be 'System'
         $Rows[0].Message | Should -Not -BeNullOrEmpty
+    }
+
+    It 'emits canonical aliases and normalization evidence in query JSON' {
+        $Row = & $script:CliPath query --path $script:FixturePath --max 1 |
+            ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Row.ProviderName | Should -Be $Row.Provider
+        $Row.TypeName | Should -Be $Row.Type
+        $Row._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
     }
 
     It 'renders HTML and Excel from one query and composes a Mailozaurr delivery' {
@@ -163,6 +176,44 @@ Describe 'evx portable host' {
         $ConcurrencyExitCode | Should -Be 1
         [string] $ResolveDnsOutput | Should -Match 'live event-source options'
         [string] $ConcurrencyOutput | Should -Match 'live event-source options'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
+    It 'uses managed occurrence grouping before aggregating stored history' {
+        $StorePath = Join-Path $TestDrive 'occurrence-measure.db'
+        $null = & $script:CliPath query `
+            --path $script:FixturePath `
+            --oldest `
+            --max 4 `
+            --write-store $StorePath
+
+        $Result = & $script:CliPath measure `
+            --store $StorePath `
+            --duplicates Transport `
+            --group-by Type | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Result.ExecutionMode | Should -Be 'Managed'
+        $Result.InputRows | Should -Be 4
+        $Result.Rows[0].Measures.Count | Should -Be 4
+    }
+
+    It 'rejects occurrence grouping over already-derived stored summaries' {
+        $StorePath = Join-Path $TestDrive 'summary-occurrence-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath report `
+                --store $StorePath `
+                --summary Day `
+                --duplicates Semantic `
+                --html (Join-Path $TestDrive 'not-created.html') 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'already derived data'
         Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 
@@ -424,6 +475,11 @@ Describe 'evx portable host' {
                     Source = 'Constant'
                     SourceName = 'domain-provider'
                 }
+                @{
+                    Name = 'Normalization'
+                    Source = 'Constant'
+                    SourceName = 'domain-normalization'
+                }
             )
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $DefinitionPath -Encoding UTF8
 
@@ -444,8 +500,12 @@ Describe 'evx portable host' {
         $StoredRows | Should -HaveCount 1
         $LiveRows[0].EventId | Should -Be 'domain-event-id'
         $LiveRows[0].Provider | Should -Be 'domain-provider'
+        $LiveRows[0].Normalization | Should -Be 'domain-normalization'
+        $LiveRows[0]._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
         $StoredRows[0].EventId | Should -Be 'domain-event-id'
         $StoredRows[0].Provider | Should -Be 'domain-provider'
+        $StoredRows[0].Normalization | Should -Be 'domain-normalization'
+        $StoredRows[0]._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
     }
 
     It 'removes an already absent collector subscription idempotently' {

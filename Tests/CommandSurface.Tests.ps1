@@ -12,6 +12,7 @@ Describe 'PSEventViewer v4 command surface' {
             'Get-EVXTarget'
             'Get-EVXWatcher'
             'Install-EVXProviderPackage'
+            'Measure-EVXEvent'
             'New-EVXCollectorSubscription'
             'New-EVXFilter'
             'New-EVXLog'
@@ -112,7 +113,18 @@ Describe 'PSEventViewer v4 command surface' {
         }
 
         (Get-Command Get-EVXEvent).ParameterSets.Name | Sort-Object |
-            Should -Be (@('Channel', 'Path', 'Definition', 'Provider', 'Type', 'TypedFilter', 'Hashtable', 'Xml') | Sort-Object)
+            Should -Be (@('Channel', 'Path', 'Definition', 'Provider', 'Type', 'Preset', 'TypedFilter', 'Hashtable', 'Xml') | Sort-Object)
+        $GetEventCommand = Get-Command Get-EVXEvent
+        ($GetEventCommand.ParameterSets | Where-Object Name -EQ 'Type').Parameters |
+            Where-Object Name -EQ 'Type' |
+            Select-Object -ExpandProperty IsMandatory |
+            Should -BeTrue
+        ($GetEventCommand.ParameterSets | Where-Object Name -EQ 'Preset').Parameters |
+            Where-Object Name -EQ 'Preset' |
+            Select-Object -ExpandProperty IsMandatory |
+            Should -BeTrue
+        $GetEventCommand.Parameters.ContextStorePath.ParameterSets.Keys |
+            Should -Be @('Type')
         (Get-Command Show-EVXEvent).ParameterSets.Name | Sort-Object |
             Should -Be (@('Type', 'Path', 'Log', 'Definition', 'Input', 'Store') | Sort-Object)
         (Get-Command New-EVXFilter).ParameterSets.Name | Sort-Object |
@@ -134,5 +146,17 @@ Describe 'PSEventViewer v4 command surface' {
             Should -Contain 'Source'
         $WriteCommand.Parameters.ProviderName.Aliases |
             Should -Contain 'Provider'
+    }
+
+    It 'expands monitoring presets without opening event sources' {
+        $Definitions = @(Get-EVXEvent -Preset AuthenticationHealth -Describe)
+
+        $Definitions.Count | Should -Be 1
+        $Definitions[0].Type | Should -Be ([EventViewerX.EventType]::AuthenticationHealth)
+        $EventIds = @($Definitions[0].Sources | ForEach-Object EventIds | Sort-Object -Unique)
+        $EventIds | Should -Contain 4624
+        $EventIds | Should -Contain 4768
+        $EventIds | Should -Contain 4769
+        $EventIds | Should -Contain 2889
     }
 }
