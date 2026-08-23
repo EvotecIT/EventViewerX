@@ -39,23 +39,37 @@ public static class EventAggregationExcelRenderer {
                 ("Execution", result.ExecutionMode.ToString())
             }, perRow: 3);
 
+        var usedColumnNames = new HashSet<string>(
+            new[] { "Bucket", "Bucket Start UTC", "Bucket End UTC" },
+            StringComparer.OrdinalIgnoreCase);
+        KeyValuePair<string, string>[] groupColumns = result.Definition.GroupBy
+            .Select(field => new KeyValuePair<string, string>(
+                field,
+                CreateUniqueColumnName(field, "Group", usedColumnNames)))
+            .ToArray();
+        (EventAggregationMeasure Measure, string Name)[] measureColumns = result.Definition.Measures
+            .Select(measure => (
+                measure,
+                CreateUniqueColumnName(measure.OutputName!, "Measure", usedColumnNames)))
+            .ToArray();
+
         List<Dictionary<string, object?>> rows = result.Rows.Select(row => {
             var item = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
                 ["Bucket"] = row.BucketLabel ?? "All events",
                 ["Bucket Start UTC"] = row.BucketStartUtc,
                 ["Bucket End UTC"] = row.BucketEndUtc
             };
-            foreach (KeyValuePair<string, object?> dimension in row.Group) {
-                item[dimension.Key] = dimension.Value;
+            foreach (KeyValuePair<string, string> binding in groupColumns) {
+                item[binding.Value] = row.Group[binding.Key];
             }
-            foreach (KeyValuePair<string, object?> measure in row.Measures) {
-                item[measure.Key] = measure.Value;
+            foreach ((EventAggregationMeasure measure, string name) in measureColumns) {
+                item[name] = row.Measures[measure.OutputName!];
             }
             return item;
         }).ToList();
         string[] columns = new[] { "Bucket", "Bucket Start UTC", "Bucket End UTC" }
-            .Concat(result.Definition.GroupBy)
-            .Concat(result.Definition.Measures.Select(static measure => measure.OutputName!))
+            .Concat(groupColumns.Select(static binding => binding.Value))
+            .Concat(measureColumns.Select(static binding => binding.Name))
             .ToArray();
         string range = sheet.TableFrom(rows, "Aggregation rows", configure: options => {
             options.HeaderCase = HeaderCase.Raw;
@@ -64,8 +78,8 @@ public static class EventAggregationExcelRenderer {
         }, style: ExcelTableStyle.TableStyleLight9, visuals: visuals => {
             visuals.NumericColumnFormats["Bucket Start UTC"] = "yyyy-mm-dd hh:mm:ss";
             visuals.NumericColumnFormats["Bucket End UTC"] = "yyyy-mm-dd hh:mm:ss";
-            foreach (EventAggregationMeasure measure in result.Definition.Measures) {
-                visuals.NumericColumnFormats[measure.OutputName!] = measure.Operation == EventAggregationOperation.Rate
+            foreach ((EventAggregationMeasure measure, string name) in measureColumns) {
+                visuals.NumericColumnFormats[name] = measure.Operation == EventAggregationOperation.Rate
                     ? "0.0000"
                     : measure.Operation is EventAggregationOperation.Count or EventAggregationOperation.DistinctCount
                         ? "#,##0"
@@ -80,16 +94,22 @@ public static class EventAggregationExcelRenderer {
 
         EventAggregationChartData? chart = EventAggregationChartProjection.Create(result);
         if (chart != null) {
+            var usedChartColumns = new HashSet<string>(new[] { "Bucket" }, StringComparer.OrdinalIgnoreCase);
+            KeyValuePair<EventAggregationChartSeries, string>[] chartColumns = chart.Series
+                .Select(series => new KeyValuePair<EventAggregationChartSeries, string>(
+                    series,
+                    CreateUniqueColumnName(series.Name, "Series", usedChartColumns)))
+                .ToArray();
             var chartRows = chart.Categories.Select((category, index) => {
                 var item = new Dictionary<string, object?> { ["Bucket"] = category };
-                foreach (EventAggregationChartSeries series in chart.Series) {
-                    item[series.Name] = series.Points[index];
+                foreach (KeyValuePair<EventAggregationChartSeries, string> binding in chartColumns) {
+                    item[binding.Value] = binding.Key.Points[index];
                 }
                 return item;
             }).ToList();
             string chartRange = sheet.TableFrom(chartRows, "Chart data", configure: options => {
                 options.HeaderCase = HeaderCase.Raw;
-                options.Columns = new[] { "Bucket" }.Concat(chart.Series.Select(static series => series.Name)).ToArray();
+                options.Columns = new[] { "Bucket" }.Concat(chartColumns.Select(static binding => binding.Value)).ToArray();
             }, style: ExcelTableStyle.TableStyleLight9);
             sheet.Sheet.AddRevenueTrendChart(chartRange, row: 10, column: Math.Max(6, columns.Length + 2),
                     title: chart.Measure + " trend" + (chart.IsTruncated ? " (first 12 series)" : string.Empty), widthPixels: 700, heightPixels: 360)
@@ -99,5 +119,23 @@ public static class EventAggregationExcelRenderer {
         sheet.PrintDefaults(showGridlines: false, fitToWidth: 1).Finish(autoFitColumns: false);
         document.Save();
         return fullPath;
+    }
+
+    private static string CreateUniqueColumnName(
+        string requested,
+        string prefix,
+        ISet<string> usedNames) {
+
+        if (usedNames.Add(requested)) {
+            return requested;
+        }
+        string root = prefix + "." + requested;
+        string candidate = root;
+        int suffix = 2;
+        while (!usedNames.Add(candidate)) {
+            candidate = root + "." + suffix.ToString(CultureInfo.InvariantCulture);
+            suffix++;
+        }
+        return candidate;
     }
 }

@@ -33,7 +33,7 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
                     : EventNormalizationOutcome.Normalized);
         }
         if (context.RawValue is DateTimeOffset offset) {
-            return Create(context, offset.UtcDateTime, EventNormalizationOutcome.Unchanged);
+            return Create(context, offset.UtcDateTime, EventNormalizationOutcome.Normalized);
         }
         string raw = EventValueNormalizer.Format(context.RawValue).Trim();
         Match match = GeneralizedTime.Match(raw);

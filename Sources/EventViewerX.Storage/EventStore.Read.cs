@@ -186,6 +186,7 @@ public sealed partial class EventStore {
             long scanned = 0;
             long offset = 0;
             bool scanLimitReached = false;
+            bool resultLimitReached = false;
             bool completed = false;
             while (!completed) {
                 long remainingCandidates = command.CandidateLimit > 0
@@ -194,7 +195,7 @@ public sealed partial class EventStore {
                 long pageLimit = command.CandidateLimit > 0
                     ? Math.Min(StoredReadPageSize, remainingCandidates + 1)
                     : snapshot.MaxEvents > 0
-                        ? Math.Min(StoredReadPageSize, snapshot.MaxEvents - rows.Count)
+                        ? Math.Min(StoredReadPageSize, GetResultProbeLimit(snapshot.MaxEvents, rows.Count))
                         : StoredReadPageSize;
                 if (pageLimit <= 0) {
                     break;
@@ -227,11 +228,12 @@ public sealed partial class EventStore {
                         !EventPredicateEvaluator.Matches(snapshot.Predicate, row.ToPredicateDictionary())) {
                         continue;
                     }
-                    rows.Add(row);
                     if (snapshot.MaxEvents > 0 && rows.Count >= snapshot.MaxEvents) {
+                        resultLimitReached = true;
                         completed = true;
                         break;
                     }
+                    rows.Add(row);
                 }
                 if (candidates.Count < pageLimit) {
                     break;
@@ -265,8 +267,32 @@ public sealed partial class EventStore {
                 title,
                 coverage,
                 eventsScanned: scanned,
-                scanLimitReached: scanLimitReached);
+                scanLimitReached: scanLimitReached || resultLimitReached,
+                completenessDiagnostic: CreateReadCompletenessDiagnostic(
+                    snapshot.MaxEvents,
+                    scanLimitReached,
+                    resultLimitReached));
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? CreateReadCompletenessDiagnostic(
+        long maximum,
+        bool scanLimitReached,
+        bool resultLimitReached) {
+
+        var reasons = new List<string>();
+        if (scanLimitReached) {
+            reasons.Add("The stored candidate scan limit was reached");
+        }
+        if (resultLimitReached) {
+            reasons.Add($"The stored result limit MaxEvents {maximum:N0} was reached; additional matching events exist");
+        }
+        return reasons.Count == 0 ? null : string.Join(". ", reasons) + ".";
+    }
+
+    private static long GetResultProbeLimit(long maximum, int selectedCount) {
+        long remaining = maximum - selectedCount;
+        return remaining == long.MaxValue ? long.MaxValue : remaining + 1L;
     }
 
     private static QueryCommand BuildReadCommand(

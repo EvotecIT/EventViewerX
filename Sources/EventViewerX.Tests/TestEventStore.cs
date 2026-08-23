@@ -818,7 +818,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task ManagedStoredReadsStopPagingAfterMaxEventsWithoutMaterializingLaterRows() {
+    public async Task ManagedStoredReadsProbeOneAdditionalMatchWithoutMaterializingLaterRows() {
         string path = CreateStorePath();
         try {
             var store = new EventStore(path);
@@ -836,13 +836,36 @@ public sealed partial class TestEventStore {
 
             EventReport report = await store.ReadReportAsync(new EventStoreQuery {
                 DefinitionNames = new[] { "StoredLogon" },
-                Predicate = EventPredicate.Compare("User", EventPredicateOperator.Equal, "user-1"),
+                Predicate = EventPredicate.Compare("User", EventPredicateOperator.IsNotNull),
                 MaxEvents = 1,
                 Oldest = true
             });
 
             Assert.Equal("user-1", Assert.Single(report.Rows).Values["User"]);
-            Assert.Equal(1, report.EventsScanned);
+            Assert.Equal(2, report.EventsScanned);
+            Assert.True(report.ScanLimitReached);
+            Assert.Contains("stored result limit", report.CompletenessDiagnostic, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StoredReadsAcceptLongMaxValueAsAnEffectivelyUnlimitedResultBound() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport(
+                (new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc), 42, "alice"),
+                (new DateTime(2026, 8, 1, 2, 0, 0, DateTimeKind.Utc), 43, "bob")));
+
+            EventReport report = await store.ReadReportAsync(new EventStoreQuery {
+                MaxEvents = long.MaxValue,
+                Oldest = true
+            });
+
+            Assert.Equal(2, report.Rows.Count);
+            Assert.False(report.ScanLimitReached);
         } finally {
             DeleteStore(path);
         }

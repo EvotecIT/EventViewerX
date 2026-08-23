@@ -49,7 +49,6 @@ namespace EventViewerX {
             IReadOnlyList<EventType> typeEventsList,
             EventEnricher? enricher,
             Func<bool> candidateAdmission,
-            Action<EventObject>? candidateObserver,
             [EnumeratorCancellation] CancellationToken cancellationToken) {
 
             int batchSize = enricher?.MaxConcurrency ?? 1;
@@ -82,7 +81,6 @@ namespace EventViewerX {
                 cancellationToken.ThrowIfCancellationRequested();
                 for (int index = 0; index < batch.Count; index++) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    candidateObserver?.Invoke(batch[index].Source);
                     yield return new EventTypeProjection(batch[index].Source, targets[index]);
                 }
 

@@ -29,6 +29,11 @@ public sealed class EventTypeQueryExecutionInfo {
     /// </summary>
     public bool ScanLimitReached { get; internal set; }
 
+    /// <summary>
+    /// Indicates that another projected result existed after the configured result cap.
+    /// </summary>
+    public bool ResultLimitReached { get; internal set; }
+
     /// <summary>Native and managed predicate plan used by this query.</summary>
     public EventPredicatePlan? PredicatePlan { get; internal set; }
 
@@ -45,6 +50,7 @@ public sealed class EventTypeQueryExecutionInfo {
         EventsEmitted = 0;
         MaxEventsScanned = maxEventsScanned;
         ScanLimitReached = false;
+        ResultLimitReached = false;
         PredicatePlan = null;
         _targetFailures.Clear();
     }

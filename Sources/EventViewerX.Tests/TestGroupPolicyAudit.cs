@@ -2,6 +2,7 @@ using System.Diagnostics.Eventing.Reader;
 using System.Security.Principal;
 using EventViewerX;
 using EventViewerX.Reporting;
+using EventViewerX.Storage;
 using Xunit;
 
 namespace EventViewerX.Tests;
@@ -89,6 +90,39 @@ public sealed class TestGroupPolicyAudit {
             typeof(string),
             unknownProjection.Section.Columns.Single(static column =>
                 column.Name == nameof(GroupPolicyAuditRecord.GroupPolicyNameAtEventTime)).ValueType);
+    }
+
+    [Fact]
+    public async Task GroupPolicyTypeSelectorIncludesThePersistentAuditIdentity() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline"));
+        EventReport report = EventReportEngine.Create(new object[] { record });
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-gpo-store-{Guid.NewGuid():N}.db");
+        try {
+            Assert.Equal("GroupPolicyAudit", Assert.Single(report.Rows).Type);
+            Assert.Equal("GroupPolicyAudit", Assert.Single(report.Sections).Name);
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+
+            EventReport restored = await store.ReadReportAsync(new EventStoreQuery {
+                Types = new[] { EventType.GroupPolicyDirectoryAudit }
+            });
+
+            Assert.Single(restored.Rows);
+        } finally {
+            foreach (string candidate in new[] { path, path + "-wal", path + "-shm" }) {
+                if (File.Exists(candidate)) {
+                    File.Delete(candidate);
+                }
+            }
+        }
     }
 
     [Theory]

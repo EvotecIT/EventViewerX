@@ -100,7 +100,9 @@ public sealed class EventStoreQuery {
 
     internal string[] ResolveDefinitionNames() => (DefinitionNames ?? Array.Empty<string>())
         .Concat(EventTypeCatalog.Expand(Types ?? Array.Empty<EventType>())
-            .Select(static type => type.ToString()))
+            .SelectMany(static type => type == EventType.GroupPolicyDirectoryAudit
+                ? new[] { type.ToString(), "GroupPolicyAudit" }
+                : new[] { type.ToString() }))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
 

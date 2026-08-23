@@ -54,6 +54,10 @@ public static partial class EventAggregationEngine {
                     snapshot.RankingMeasure,
                     StringComparison.OrdinalIgnoreCase)).ToArray()
                 : Array.Empty<EventAggregationMeasure>();
+            AggregationBucketRange globalRankingBucket = CreateGlobalRankingBucket(
+                snapshot,
+                source,
+                rankingMeasures);
             long stateBytes = 0;
             foreach (EventReportRow row in source) {
                 IReadOnlyDictionary<string, object?> values = row.ToNormalizedDictionary();
@@ -75,7 +79,7 @@ public static partial class EventAggregationEngine {
                         rankingStates,
                         group.Identity,
                         group,
-                        AggregationBucketRange.None,
+                        globalRankingBucket,
                         snapshot,
                         ref stateBytes,
                         rankingMeasures);
@@ -120,6 +124,34 @@ public static partial class EventAggregationEngine {
                 EventAggregationExecutionMode.Managed,
                 source.LongLength);
         }
+    }
+
+    private static AggregationBucketRange CreateGlobalRankingBucket(
+        EventAggregationDefinition definition,
+        IReadOnlyList<EventReportRow> source,
+        IReadOnlyList<EventAggregationMeasure> rankingMeasures) {
+
+        if (rankingMeasures.Count != 1 ||
+            rankingMeasures[0].Operation != EventAggregationOperation.Rate ||
+            source.Count == 0) {
+            return AggregationBucketRange.None;
+        }
+        DateTime start;
+        DateTime end;
+        if (definition.WindowStart.HasValue && definition.WindowEnd.HasValue) {
+            start = definition.WindowStart.Value;
+            end = definition.WindowEnd.Value;
+        } else {
+            AggregationBucketRange[] buckets = source.Select(row => CreateBucket(
+                    definition,
+                    row.TimeCreated))
+                .ToArray();
+            start = buckets.Min(static bucket => bucket.StartUtc!.Value);
+            end = buckets.Max(static bucket => bucket.EndUtc!.Value);
+        }
+        string identity = start.Ticks.ToString("D19", CultureInfo.InvariantCulture) + "/" +
+                          end.Ticks.ToString("D19", CultureInfo.InvariantCulture);
+        return new AggregationBucketRange(start, end, identity, label: null);
     }
 
     private static AggregationState GetOrCreate(

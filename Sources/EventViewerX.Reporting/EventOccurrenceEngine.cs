@@ -22,14 +22,18 @@ public static class EventOccurrenceEngine {
         }
         options ??= new EventOccurrenceOptions();
         Validate(options);
-        EventReportRow[] source = observations.ToArray();
-        if (source.Any(static observation => observation == null)) {
-            throw new ArgumentException("Observations cannot contain null rows.", nameof(observations));
+        var bounded = new List<EventReportRow>(Math.Min(options.MaximumObservations, 4096));
+        foreach (EventReportRow observation in observations) {
+            if (observation == null) {
+                throw new ArgumentException("Observations cannot contain null rows.", nameof(observations));
+            }
+            if (bounded.Count >= options.MaximumObservations) {
+                return Incomplete(
+                    $"Observation count exceeds MaximumObservations {options.MaximumObservations:N0}.");
+            }
+            bounded.Add(observation);
         }
-        if (source.Length > options.MaximumObservations) {
-            return Incomplete(
-                $"Observation count {source.Length:N0} exceeds MaximumObservations {options.MaximumObservations:N0}.");
-        }
+        EventReportRow[] source = bounded.ToArray();
         List<WorkingGroup> transport = options.Mode == EventDuplicateMode.None
             ? CreateSingletons(source)
             : CreateTransportGroups(source);

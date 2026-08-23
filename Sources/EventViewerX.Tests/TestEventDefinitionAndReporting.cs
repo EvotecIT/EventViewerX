@@ -765,6 +765,39 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public async Task GenericAndCustomReportsExposeResultLimitIncompleteness() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventReportRequest genericRequest = EventReportRequest.ForFiles(fixture);
+        genericRequest.MaxEvents = 1;
+        EventDefinition definition = new() {
+            Name = "ServiceStartTypeChange",
+            Sources = new[] {
+                new EventDefinitionSource {
+                    LogName = "System",
+                    EventIds = new[] { 7040 },
+                    ProviderNames = new[] { "Service Control Manager" }
+                }
+            }
+        };
+        EventReportRequest customRequest = EventReportRequest.ForDefinition(definition);
+        customRequest.Paths = new[] { fixture };
+        customRequest.MaxEvents = 1;
+
+        EventReport generic = await EventReportEngine.QueryAsync(genericRequest);
+        EventReport custom = await EventReportEngine.QueryAsync(customRequest);
+
+        Assert.Single(generic.Rows);
+        Assert.Single(custom.Rows);
+        Assert.Equal(2, generic.EventsScanned);
+        Assert.Equal(2, custom.EventsScanned);
+        Assert.True(generic.ScanLimitReached);
+        Assert.True(custom.ScanLimitReached);
+        Assert.Contains("MaxEvents", generic.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.Contains("MaxEvents", custom.CompletenessDiagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReportRequestsApplyDurableRecordBoundariesToEveryQueryOwner() {
         string fixture = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));

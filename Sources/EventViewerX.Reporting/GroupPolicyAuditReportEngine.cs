@@ -36,7 +36,12 @@ public static class GroupPolicyAuditReportEngine {
                 projections.Count == 0 ? new[] { emptySection } : null),
             coverage,
             execution.EventsScanned,
-            execution.IsTruncated);
+            execution.IsTruncated,
+            EventCompletenessDiagnostic.Compose(
+                execution.ScanLimitReached ? "The Group Policy candidate scan limit was reached" : null,
+                execution.ResultLimitReached
+                    ? $"The Group Policy result limit MaxEvents {query.MaxEvents:N0} was reached; additional matching events exist"
+                    : null));
     }
 
     internal static EventReportCoverage[] BuildCoverage(

@@ -25,7 +25,8 @@ internal sealed class EventMultiValueNormalizer : IEventValueNormalizer {
         string[] canonical = values
             .Where(static value => !string.IsNullOrWhiteSpace(value))
             .Select(static value => value.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .GroupBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.OrderBy(static value => value, StringComparer.Ordinal).First())
             .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static value => value, StringComparer.Ordinal)
             .ToArray();

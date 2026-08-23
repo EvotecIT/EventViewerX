@@ -107,6 +107,35 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void TypedGeneralizedTimeOffsetsReportNormalizationToUtc() {
+        var row = CreateRow(1, new Dictionary<string, object?> {
+            ["WhenCreated"] = new DateTimeOffset(2026, 8, 23, 12, 15, 30, TimeSpan.FromHours(2))
+        });
+
+        EventNormalizedValue normalized = EventValueNormalizationEngine.Normalize(row)["WhenCreated"];
+
+        Assert.Equal(new DateTime(2026, 8, 23, 10, 15, 30, DateTimeKind.Utc), normalized.Value);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized.Outcome);
+    }
+
+    [Fact]
+    public void MultiValueCanonicalCasingIsIndependentOfInputOrder() {
+        EventNormalizedValue forward = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["Privileges"] = new[] { "reader", "Admin", "admin" }
+            }))["Privileges"];
+        EventNormalizedValue reverse = EventValueNormalizationEngine.Normalize(CreateRow(
+            2,
+            new Dictionary<string, object?> {
+                ["Privileges"] = new[] { "admin", "Admin", "reader" }
+            }))["Privileges"];
+
+        Assert.Equal(Assert.IsType<string[]>(forward.Value), Assert.IsType<string[]>(reverse.Value));
+        Assert.Equal(forward.DisplayValue, reverse.DisplayValue);
+    }
+
+    [Fact]
     public void MalformedActiveDirectoryGeneralizedTimeRetainsTypedEvidence() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["WhenChanged"] = "not-generalized-time"
@@ -330,6 +359,38 @@ public sealed class TestEventAnalysis {
         Assert.True(result.AggregationComplete);
         Assert.Equal(2, result.Rows.Count);
         Assert.All(result.Rows, static row => Assert.Equal(60L, row.Measures["Values"]));
+    }
+
+    [Fact]
+    public void BucketedGlobalRateRankingUsesTheFullSelectedInterval() {
+        DateTime firstDay = new(2026, 8, 22, 0, 0, 0, DateTimeKind.Utc);
+        EventReportRow[] rows = {
+            CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice" }, firstDay.AddHours(1)),
+            CreateRow(2, new Dictionary<string, object?> { ["Who"] = "Alice" }, firstDay.AddDays(1).AddHours(1)),
+            CreateRow(3, new Dictionary<string, object?> { ["Who"] = "Bob" }, firstDay.AddHours(2)),
+            CreateRow(4, new Dictionary<string, object?> { ["Who"] = "Bob" }, firstDay.AddHours(3)),
+            CreateRow(5, new Dictionary<string, object?> { ["Who"] = "Bob" }, firstDay.AddDays(1).AddHours(2))
+        };
+        var definition = new EventAggregationDefinition {
+            GroupBy = new[] { "Who" },
+            Bucket = EventAggregationBucket.Day,
+            Measures = new[] {
+                new EventAggregationMeasure {
+                    Operation = EventAggregationOperation.Rate,
+                    OutputName = "PerHour",
+                    RateUnit = TimeSpan.FromHours(1)
+                }
+            },
+            Top = 1,
+            TopScope = EventAggregationTopScope.GlobalGroup,
+            RankingMeasure = "PerHour"
+        };
+
+        EventAggregationResult result = EventAggregationEngine.Aggregate(rows, definition);
+
+        Assert.True(result.AggregationComplete);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.All(result.Rows, static row => Assert.Equal("Bob", row.Group["Who"]));
     }
 
     [Fact]
@@ -691,6 +752,28 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void OccurrenceObservationBoundConsumesOnlyOneProofRowBeyondTheLimit() {
+        int enumerated = 0;
+        IEnumerable<EventReportRow> Observations() {
+            for (int index = 1; index <= 4; index++) {
+                enumerated++;
+                if (index == 4) {
+                    throw new InvalidOperationException("The occurrence engine read beyond its proof row.");
+                }
+                yield return CreateRow(index, new Dictionary<string, object?>());
+            }
+        }
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            Observations(),
+            new EventOccurrenceOptions { MaximumObservations = 2 });
+
+        Assert.False(result.IsComplete);
+        Assert.Equal(3, enumerated);
+        Assert.Contains("MaximumObservations", result.Diagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AggregationReportDisambiguatesDomainFieldsFromEnvelopeColumns() {
         EventAggregationResult result = EventAggregationEngine.Aggregate(
             new[] { CreateRow(1, new Dictionary<string, object?> { ["Diagnostic"] = "domain-value" }) },
@@ -737,6 +820,33 @@ public sealed class TestEventAnalysis {
 
             Assert.Contains("Who=Alice", html, StringComparison.Ordinal);
             Assert.Contains("Who=Bob", html, StringComparison.Ordinal);
+            Assert.True(new FileInfo(saved).Length > 0);
+        } finally {
+            if (File.Exists(workbook)) {
+                File.Delete(workbook);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExcelAggregationRendererDisambiguatesDomainAndMetadataColumns() {
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            new[] {
+                CreateRow(1, new Dictionary<string, object?> { ["Bucket"] = "domain-bucket" })
+            },
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Bucket" },
+                Measures = new[] {
+                    new EventAggregationMeasure {
+                        Operation = EventAggregationOperation.Count,
+                        OutputName = "Bucket Start UTC"
+                    }
+                }
+            });
+        string workbook = Path.Combine(Path.GetTempPath(), $"evx-aggregation-collision-{Guid.NewGuid():N}.xlsx");
+        try {
+            string saved = EventAggregationExcelRenderer.Save(result, workbook);
+
             Assert.True(new FileInfo(saved).Length > 0);
         } finally {
             if (File.Exists(workbook)) {
