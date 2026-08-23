@@ -77,6 +77,7 @@ public static class GroupPolicyAuditEngine {
                     snapshot.ContextStore!,
                     cancellationToken).ConfigureAwait(false);
                 foreach (GroupPolicyAuditRecord record in contextRecords) {
+                    cancellationToken.ThrowIfCancellationRequested();
                     yield return record;
                 }
             }

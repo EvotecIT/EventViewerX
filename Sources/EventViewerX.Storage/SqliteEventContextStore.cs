@@ -32,25 +32,24 @@ public sealed class SqliteEventContextStore : IEventContextStore {
             }
             using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
             using SQLiteSession session = sqlite.OpenSession(Path);
-            object? metadataTable = session.ExecuteScalar(
-                "SELECT 1 FROM sqlite_master " +
-                "WHERE type = 'table' AND name = 'evx_context_metadata' LIMIT 1;");
-            if (metadataTable != null) {
-                int version = ReadSchemaVersion(session.ExecuteScalar(
-                    "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
-                if (version == 1) {
-                    session.ExecuteNonQuery(MigrateSchemaV1ToV2Sql);
-                }
-            }
             session.ExecuteNonQuery("PRAGMA journal_mode=WAL;");
             session.ExecuteNonQuery("PRAGMA synchronous=NORMAL;");
-            session.ExecuteNonQuery(SchemaSql);
-            int currentVersion = ReadSchemaVersion(session.ExecuteScalar(
-                "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
-            if (currentVersion != CurrentSchemaVersion) {
-                throw new InvalidDataException(
-                    $"Context schema version '{currentVersion}' is not supported by this EventViewerX build.");
-            }
+            session.ExecuteNonQuery(MetadataSchemaSql);
+            session.RunInTransaction(transaction => {
+                transaction.ExecuteNonQuery(ReserveWriterSql);
+                int version = ReadSchemaVersion(transaction.ExecuteScalar(
+                    "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
+                if (version == 1) {
+                    transaction.ExecuteNonQuery(MigrateSchemaV1ToV2Sql);
+                    version = ReadSchemaVersion(transaction.ExecuteScalar(
+                        "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
+                }
+                if (version != CurrentSchemaVersion) {
+                    throw new InvalidDataException(
+                        $"Context schema version '{version}' is not supported by this EventViewerX build.");
+                }
+                transaction.ExecuteNonQuery(SchemaSql);
+            });
             _initialized = true;
         }
     }
@@ -154,7 +153,6 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
-        var facts = new Dictionary<string, EventContextFact>(StringComparer.Ordinal);
         EventContextQuery[] distinctRequests = requests
             .GroupBy(static request => string.Join("\u001f", new[] {
                 ((int)request.ObjectKind).ToString(CultureInfo.InvariantCulture),
@@ -164,28 +162,34 @@ public sealed class SqliteEventContextStore : IEventContextStore {
             }), StringComparer.Ordinal)
             .Select(static group => group.First())
             .ToArray();
-        for (int offset = 0; offset < distinctRequests.Length; offset += BatchQuerySize) {
-            EventContextQuery[] batch = distinctRequests
-                .Skip(offset)
-                .Take(BatchQuerySize)
-                .ToArray();
-            var parameters = new Dictionary<string, object?>();
-            string values = string.Join(",", Enumerable.Range(0, batch.Length).Select(index => {
-                parameters["$objectKind" + index] = (int)batch[index].ObjectKind;
-                parameters["$canonicalId" + index] = batch[index].CanonicalId;
-                parameters["$alias" + index] = batch[index].Alias;
-                parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
-                return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
-            }));
-            IReadOnlyList<EventContextFact> loaded = await session.QueryAsListAsync(
-                SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
-                MapFact,
-                parameters,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            foreach (EventContextFact fact in loaded) {
-                facts[EventContextIdentity.CreateFactKey(fact)] = fact;
-            }
-        }
+        Dictionary<string, EventContextFact> facts = await session.RunInTransactionAsync(
+            async (transaction, token) => {
+                var snapshot = new Dictionary<string, EventContextFact>(StringComparer.Ordinal);
+                for (int offset = 0; offset < distinctRequests.Length; offset += BatchQuerySize) {
+                    EventContextQuery[] batch = distinctRequests
+                        .Skip(offset)
+                        .Take(BatchQuerySize)
+                        .ToArray();
+                    var parameters = new Dictionary<string, object?>();
+                    string values = string.Join(",", Enumerable.Range(0, batch.Length).Select(index => {
+                        parameters["$objectKind" + index] = (int)batch[index].ObjectKind;
+                        parameters["$canonicalId" + index] = batch[index].CanonicalId;
+                        parameters["$alias" + index] = batch[index].Alias;
+                        parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
+                        return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
+                    }));
+                    IReadOnlyList<EventContextFact> loaded = await transaction.QueryAsListAsync(
+                        SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
+                        MapFact,
+                        parameters,
+                        cancellationToken: token).ConfigureAwait(false);
+                    foreach (EventContextFact fact in loaded) {
+                        snapshot[EventContextIdentity.CreateFactKey(fact)] = fact;
+                    }
+                }
+                return snapshot;
+            },
+            cancellationToken).ConfigureAwait(false);
         return EventContextResolver.ResolveMany(facts.Values, requests);
     }
 
@@ -313,15 +317,16 @@ UPDATE evx_context_metadata
 SET schema_version = 2
 WHERE singleton_id = 1;";
 
-    private const string SchemaSql = @"
+    private const string MetadataSchemaSql = @"
 CREATE TABLE IF NOT EXISTS evx_context_metadata (
     singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version INTEGER NOT NULL,
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_context_metadata (singleton_id, schema_version, created_utc)
-VALUES (1, 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+VALUES (1, 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));";
 
+    private const string SchemaSql = @"
 CREATE TABLE IF NOT EXISTS evx_context_facts (
     fact_key TEXT NOT NULL PRIMARY KEY,
     object_kind INTEGER NOT NULL,

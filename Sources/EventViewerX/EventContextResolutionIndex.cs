@@ -34,7 +34,7 @@ internal static class EventContextResolutionIndex {
 
     private sealed class ResolutionScope {
         private readonly Dictionary<string, EventContextTimeline> _timelines;
-        private readonly Dictionary<string, HashSet<string>> _aliasCanonicalIds;
+        private readonly Dictionary<string, Dictionary<string, DateTime>> _aliasCanonicalIds;
 
         internal ResolutionScope(IReadOnlyList<EventContextFact> facts) {
             _timelines = facts
@@ -43,14 +43,17 @@ internal static class EventContextResolutionIndex {
                     static group => group.Key,
                     static group => new EventContextTimeline(group.ToArray()),
                     StringComparer.Ordinal);
-            _aliasCanonicalIds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            _aliasCanonicalIds = new Dictionary<string, Dictionary<string, DateTime>>(StringComparer.Ordinal);
             foreach (EventContextFact fact in facts) {
                 foreach (string alias in fact.Aliases) {
-                    if (!_aliasCanonicalIds.TryGetValue(alias, out HashSet<string>? canonicalIds)) {
-                        canonicalIds = new HashSet<string>(StringComparer.Ordinal);
+                    if (!_aliasCanonicalIds.TryGetValue(alias, out Dictionary<string, DateTime>? canonicalIds)) {
+                        canonicalIds = new Dictionary<string, DateTime>(StringComparer.Ordinal);
                         _aliasCanonicalIds.Add(alias, canonicalIds);
                     }
-                    canonicalIds.Add(fact.CanonicalId);
+                    if (!canonicalIds.TryGetValue(fact.CanonicalId, out DateTime firstSeenUtc) ||
+                        fact.EffectiveAtUtc < firstSeenUtc) {
+                        canonicalIds[fact.CanonicalId] = fact.EffectiveAtUtc;
+                    }
                 }
             }
         }
@@ -58,10 +61,10 @@ internal static class EventContextResolutionIndex {
         internal EventContextResolution Resolve(EventContextQuery query) {
             string? canonicalId = query.CanonicalId;
             if (!string.IsNullOrWhiteSpace(canonicalId)) {
+                string[] aliasCanonicalIds = ResolveAliasCanonicalIds(query.Alias, query.AtUtc);
                 if (!string.IsNullOrWhiteSpace(query.Alias) &&
-                    _aliasCanonicalIds.TryGetValue(query.Alias!, out HashSet<string>? aliasCanonicalIds) &&
-                    aliasCanonicalIds.Count > 0 &&
-                    !aliasCanonicalIds.Contains(canonicalId!)) {
+                    aliasCanonicalIds.Length > 0 &&
+                    !aliasCanonicalIds.Contains(canonicalId!, StringComparer.Ordinal)) {
                     return Ambiguous(
                         query,
                         canonicalId,
@@ -69,17 +72,17 @@ internal static class EventContextResolutionIndex {
                 }
                 if (!_timelines.TryGetValue(canonicalId!, out EventContextTimeline? canonicalTimeline) ||
                     !string.IsNullOrWhiteSpace(query.Alias) &&
-                    (!_aliasCanonicalIds.TryGetValue(query.Alias!, out HashSet<string>? agreeingIds) ||
-                     !agreeingIds.Contains(canonicalId!))) {
+                    !aliasCanonicalIds.Contains(canonicalId!, StringComparer.Ordinal)) {
                     return Unknown(query, canonicalId, "No visible context fact matches the requested identity.");
                 }
                 return canonicalTimeline.Resolve(query);
             }
 
-            if (!_aliasCanonicalIds.TryGetValue(query.Alias!, out HashSet<string>? matches) || matches.Count == 0) {
+            string[] matches = ResolveAliasCanonicalIds(query.Alias, query.AtUtc);
+            if (matches.Length == 0) {
                 return Unknown(query, null, "No visible context fact matches the requested identity.");
             }
-            if (matches.Count > 1) {
+            if (matches.Length > 1) {
                 return Ambiguous(
                     query,
                     null,
@@ -87,6 +90,17 @@ internal static class EventContextResolutionIndex {
             }
             string matchedCanonicalId = matches.Single();
             return _timelines[matchedCanonicalId].Resolve(query);
+        }
+
+        private string[] ResolveAliasCanonicalIds(string? alias, DateTime atUtc) {
+            if (string.IsNullOrWhiteSpace(alias) ||
+                !_aliasCanonicalIds.TryGetValue(alias!, out Dictionary<string, DateTime>? canonicalIds)) {
+                return Array.Empty<string>();
+            }
+            return canonicalIds
+                .Where(pair => pair.Value <= atUtc)
+                .Select(static pair => pair.Key)
+                .ToArray();
         }
 
         private static EventContextResolution Unknown(

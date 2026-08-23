@@ -216,15 +216,22 @@ public sealed class TestEventContext {
         await store.StoreAsync(first);
         await store.StoreAsync(second);
 
-        EventContextResolution result = await store.ResolveAsync(new EventContextQuery {
+        EventContextResolution beforeReuse = await store.ResolveAsync(new EventContextQuery {
+            ObjectKind = EventContextObjectKind.GroupPolicy,
+            Alias = reusedDn,
+            AtUtc = CreatedUtc
+        });
+        EventContextResolution afterReuse = await store.ResolveAsync(new EventContextQuery {
             ObjectKind = EventContextObjectKind.GroupPolicy,
             Alias = reusedDn,
             AtUtc = CreatedUtc.AddHours(2)
         });
 
-        Assert.Equal(EventContextState.Ambiguous, result.State);
-        Assert.Null(result.CanonicalId);
-        Assert.Contains("more than one", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(EventContextState.Current, beforeReuse.State);
+        Assert.Equal(GpoId.ToString("D").ToUpperInvariant(), beforeReuse.CanonicalId);
+        Assert.Equal(EventContextState.Ambiguous, afterReuse.State);
+        Assert.Null(afterReuse.CanonicalId);
+        Assert.Contains("more than one", afterReuse.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -408,6 +415,38 @@ public sealed class TestEventContext {
     }
 
     [Fact]
+    public async Task SqliteAliasAssociationAfterTheQueryTimeDoesNotRevealEarlierContext() {
+        string path = CreateStorePath();
+        try {
+            const string futureAlias =
+                "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},OU=Future,DC=ad,DC=evotec,DC=xyz";
+            EventContextFact created = Fact(
+                CreatedUtc,
+                "Original policy",
+                "event-create-without-alias",
+                distinguishedName: null);
+            EventContextFact moved = Fact(
+                RenamedUtc,
+                "Moved policy",
+                "event-future-alias",
+                futureAlias);
+            var store = new SqliteEventContextStore(path);
+            await store.StoreManyAsync(new[] { created, moved });
+
+            EventContextResolution result = await store.ResolveAsync(new EventContextQuery {
+                ObjectKind = EventContextObjectKind.GroupPolicy,
+                Alias = futureAlias,
+                AtUtc = CreatedUtc.AddMinutes(5)
+            });
+
+            Assert.Equal(EventContextState.Unknown, result.State);
+            Assert.Null(result.CanonicalId);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task ReobservingTheSameSourceIsIdempotent() {
         string path = CreateStorePath();
         try {
@@ -532,42 +571,32 @@ VALUES (1, 99, '2026-08-23T00:00:00.0000000Z');");
     public void VersionOneContextSchemaMigratesDisplayNameObservationState() {
         string path = CreateStorePath();
         try {
-            using (var sqlite = new SQLite { BusyTimeoutMs = 10000 }) {
-                using SQLiteSession session = sqlite.OpenSession(path);
-                session.ExecuteNonQuery(@"
-CREATE TABLE evx_context_metadata (
-    singleton_id INTEGER NOT NULL PRIMARY KEY,
-    schema_version INTEGER NOT NULL,
-    created_utc TEXT NOT NULL
-);
-INSERT INTO evx_context_metadata (singleton_id, schema_version, created_utc)
-VALUES (1, 1, '2026-08-23T00:00:00.0000000Z');
-CREATE TABLE evx_context_facts (
-    fact_key TEXT NOT NULL PRIMARY KEY,
-    object_kind INTEGER NOT NULL,
-    canonical_id TEXT NOT NULL,
-    display_name TEXT NULL,
-    domain TEXT NULL,
-    distinguished_name TEXT NULL,
-    effective_utc TEXT NOT NULL,
-    observed_utc TEXT NOT NULL,
-    is_deleted INTEGER NOT NULL,
-    provenance INTEGER NOT NULL,
-    source_identity TEXT NOT NULL,
-    provider_name TEXT NOT NULL,
-    provider_schema_version INTEGER NOT NULL,
-    confidence_reason TEXT NULL,
-    authorization_context TEXT NULL,
-    is_shareable INTEGER NOT NULL
-);
-CREATE TABLE evx_context_aliases (
-    fact_key TEXT NOT NULL,
-    alias TEXT NOT NULL,
-    PRIMARY KEY (fact_key, alias)
-);");
-            }
+            CreateVersionOneContextSchema(path);
 
             new SqliteEventContextStore(path).Initialize();
+
+            using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession verification = verificationClient.OpenSession(path);
+            Assert.Equal(2L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"),
+                CultureInfo.InvariantCulture));
+            Assert.Equal(1L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT COUNT(*) FROM pragma_table_info('evx_context_facts') " +
+                "WHERE name = 'display_name_observed';"),
+                CultureInfo.InvariantCulture));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentStoreInstancesSerializeVersionOneMigration() {
+        string path = CreateStorePath();
+        try {
+            CreateVersionOneContextSchema(path);
+
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(
+                () => new SqliteEventContextStore(path).Initialize())));
 
             using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
             using SQLiteSession verification = verificationClient.OpenSession(path);
@@ -613,6 +642,42 @@ CREATE TABLE evx_context_aliases (
             "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
             isDeleted: true)
     };
+
+    private static void CreateVersionOneContextSchema(string path) {
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        using SQLiteSession session = sqlite.OpenSession(path);
+        session.ExecuteNonQuery(@"
+CREATE TABLE evx_context_metadata (
+    singleton_id INTEGER NOT NULL PRIMARY KEY,
+    schema_version INTEGER NOT NULL,
+    created_utc TEXT NOT NULL
+);
+INSERT INTO evx_context_metadata (singleton_id, schema_version, created_utc)
+VALUES (1, 1, '2026-08-23T00:00:00.0000000Z');
+CREATE TABLE evx_context_facts (
+    fact_key TEXT NOT NULL PRIMARY KEY,
+    object_kind INTEGER NOT NULL,
+    canonical_id TEXT NOT NULL,
+    display_name TEXT NULL,
+    domain TEXT NULL,
+    distinguished_name TEXT NULL,
+    effective_utc TEXT NOT NULL,
+    observed_utc TEXT NOT NULL,
+    is_deleted INTEGER NOT NULL,
+    provenance INTEGER NOT NULL,
+    source_identity TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    provider_schema_version INTEGER NOT NULL,
+    confidence_reason TEXT NULL,
+    authorization_context TEXT NULL,
+    is_shareable INTEGER NOT NULL
+);
+CREATE TABLE evx_context_aliases (
+    fact_key TEXT NOT NULL,
+    alias TEXT NOT NULL,
+    PRIMARY KEY (fact_key, alias)
+);");
+    }
 
     private static EventContextFact Fact(
         DateTime effectiveUtc,
