@@ -55,6 +55,9 @@ public static class GroupPolicyAuditEngine {
             CandidateObserver = source => executionInfo.RecordCheckpoint(source, snapshot.Oldest),
             ResultPredicate = IsGroupPolicyAuditEvent
         };
+        List<GroupPolicyAuditRecord>? contextRecords = snapshot.ContextStore == null
+            ? null
+            : new List<GroupPolicyAuditRecord>();
 
         try {
             await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(
@@ -62,10 +65,20 @@ public static class GroupPolicyAuditEngine {
                                definitionInfo,
                                cancellationToken)) {
                 var projected = new GroupPolicyAuditRecord(record);
-                if (snapshot.ContextStore != null) {
-                    await ApplyContextAsync(projected, snapshot.ContextStore, cancellationToken).ConfigureAwait(false);
+                if (contextRecords == null) {
+                    yield return projected;
+                } else {
+                    contextRecords.Add(projected);
                 }
-                yield return projected;
+            }
+            if (contextRecords != null) {
+                await FinalizeContextAsync(
+                    contextRecords,
+                    snapshot.ContextStore!,
+                    cancellationToken).ConfigureAwait(false);
+                foreach (GroupPolicyAuditRecord record in contextRecords) {
+                    yield return record;
+                }
             }
         } finally {
             executionInfo.EventsScanned = definitionInfo.EventsScanned;
@@ -93,6 +106,30 @@ public static class GroupPolicyAuditEngine {
             throw new ArgumentException("The event does not affect a Group Policy object, scope, or WMI filter.", nameof(source));
         }
         return new GroupPolicyAuditRecord(record);
+    }
+
+    /// <summary>
+    /// Stores the complete available Group Policy timeline before resolving each record against that timeline.
+    /// </summary>
+    internal static async ValueTask FinalizeContextAsync(
+        IReadOnlyList<GroupPolicyAuditRecord> records,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken = default) {
+
+        var facts = new EventContextFact?[records.Count];
+        for (int i = 0; i < records.Count; i++) {
+            EventContextFact? fact = GroupPolicyContextFactFactory.Create(records[i]);
+            facts[i] = fact;
+            if (fact != null) {
+                await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        for (int i = 0; i < records.Count; i++) {
+            if (facts[i] != null) {
+                await ResolveContextAsync(records[i], facts[i]!, contextStore, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>
@@ -230,6 +267,15 @@ public static class GroupPolicyAuditEngine {
             return;
         }
         await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
+        await ResolveContextAsync(record, fact, contextStore, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask ResolveContextAsync(
+        GroupPolicyAuditRecord record,
+        EventContextFact fact,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken) {
+
         EventContextResolution resolution = await contextStore.ResolveAsync(
             new EventContextQuery {
                 ObjectKind = EventContextObjectKind.GroupPolicy,

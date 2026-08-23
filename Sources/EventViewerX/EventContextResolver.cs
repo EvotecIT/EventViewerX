@@ -16,16 +16,28 @@ public static class EventContextResolver {
             .Where(fact => fact.ObjectKind == request.ObjectKind)
             .Where(fact => IsVisible(fact, request.AuthorizationContext))
             .ToArray();
-        HashSet<string> matchingCanonicalIds = candidates
-            .Where(fact => Matches(fact, request))
-            .Select(static fact => fact.CanonicalId)
-            .ToHashSet(StringComparer.Ordinal);
+        HashSet<string> matchingCanonicalIds = FindMatchingCanonicalIds(candidates, request);
         if (matchingCanonicalIds.Count > 1) {
             return new EventContextResolution {
                 ObjectKind = request.ObjectKind,
                 State = EventContextState.Ambiguous,
                 Reason = "The requested alias is associated with more than one canonical object identity."
             };
+        }
+        if (!string.IsNullOrWhiteSpace(request.CanonicalId) &&
+            !string.IsNullOrWhiteSpace(request.Alias)) {
+            HashSet<string> aliasCanonicalIds = candidates
+                .Where(fact => fact.Aliases.Contains(request.Alias!, StringComparer.Ordinal))
+                .Select(static fact => fact.CanonicalId)
+                .ToHashSet(StringComparer.Ordinal);
+            if (aliasCanonicalIds.Count > 0 && !aliasCanonicalIds.Contains(request.CanonicalId!)) {
+                return new EventContextResolution {
+                    ObjectKind = request.ObjectKind,
+                    CanonicalId = request.CanonicalId,
+                    State = EventContextState.Ambiguous,
+                    Reason = "The supplied canonical identity and alias identify different objects."
+                };
+            }
         }
         EventContextFact[] visible = candidates
             .Where(fact => matchingCanonicalIds.Contains(fact.CanonicalId))
@@ -65,13 +77,32 @@ public static class EventContextResolver {
             applicable,
             static fact => fact.DistinguishedName,
             out bool distinguishedNameAmbiguous);
-        ambiguous |= nameAmbiguous || distinguishedNameAmbiguous;
-        EventContextFact latestStored = visible[visible.Length - 1];
-        string? currentName = null;
-        if (!latestStored.IsDeleted) {
-            currentName = LatestDistinctValue(visible, static fact => fact.DisplayName, out bool currentAmbiguous);
-            ambiguous |= currentAmbiguous;
-        }
+        string? domain = LatestDistinctValue(applicable, static fact => fact.Domain, out bool domainAmbiguous);
+        ambiguous |= nameAmbiguous || distinguishedNameAmbiguous || domainAmbiguous;
+
+        DateTime latestStoredTime = visible[visible.Length - 1].EffectiveAtUtc;
+        EventContextFact[] latestStoredFacts = visible
+            .Where(fact => fact.EffectiveAtUtc == latestStoredTime)
+            .ToArray();
+        bool currentDeletionAmbiguous = latestStoredFacts.Any(static fact => fact.IsDeleted) &&
+                                          latestStoredFacts.Any(static fact => !fact.IsDeleted);
+        bool currentlyDeleted = latestStoredFacts.All(static fact => fact.IsDeleted);
+        string? latestCurrentName = LatestDistinctValue(
+            visible,
+            static fact => fact.DisplayName,
+            out bool currentNameAmbiguous);
+        LatestDistinctValue(
+            visible,
+            static fact => fact.DistinguishedName,
+            out bool currentDistinguishedNameAmbiguous);
+        LatestDistinctValue(visible, static fact => fact.Domain, out bool currentDomainAmbiguous);
+        bool currentMaterialAmbiguous = currentDeletionAmbiguous ||
+                                        currentNameAmbiguous ||
+                                        currentDistinguishedNameAmbiguous ||
+                                        currentDomainAmbiguous;
+        string? currentName = currentlyDeleted || currentMaterialAmbiguous
+            ? null
+            : latestCurrentName;
         EventContextFact selected = decisive[decisive.Length - 1];
         EventContextState state = ambiguous
             ? EventContextState.Ambiguous
@@ -85,10 +116,10 @@ public static class EventContextResolver {
             CanonicalId = selected.CanonicalId,
             State = state,
             NameAtEventTime = nameAtTime,
-            LastKnownName = nameAtTime,
+            LastKnownName = LatestStableValue(applicable, static fact => fact.DisplayName),
             CurrentName = state == EventContextState.Ambiguous ? null : currentName,
             DistinguishedName = distinguishedName,
-            Domain = LatestDistinctValue(applicable, static fact => fact.Domain, out _),
+            Domain = domain,
             Provenance = selected.Provenance,
             Reason = ambiguous ? "Facts at the same effective point disagree about material object state." : null
         };
@@ -181,12 +212,26 @@ public static class EventContextResolver {
         };
     }
 
-    private static bool Matches(EventContextFact fact, EventContextQuery query) {
-        if (!string.IsNullOrWhiteSpace(query.CanonicalId) &&
-            string.Equals(fact.CanonicalId, query.CanonicalId, StringComparison.Ordinal)) {
-            return true;
+    private static HashSet<string> FindMatchingCanonicalIds(
+        IReadOnlyList<EventContextFact> facts,
+        EventContextQuery query) {
+
+        if (!string.IsNullOrWhiteSpace(query.CanonicalId)) {
+            bool canonicalExists = facts.Any(fact => string.Equals(
+                fact.CanonicalId,
+                query.CanonicalId,
+                StringComparison.Ordinal));
+            bool aliasAgrees = string.IsNullOrWhiteSpace(query.Alias) || facts.Any(fact =>
+                string.Equals(fact.CanonicalId, query.CanonicalId, StringComparison.Ordinal) &&
+                fact.Aliases.Contains(query.Alias!, StringComparer.Ordinal));
+            return canonicalExists && aliasAgrees
+                ? new HashSet<string>(new[] { query.CanonicalId! }, StringComparer.Ordinal)
+                : new HashSet<string>(StringComparer.Ordinal);
         }
-        return !string.IsNullOrWhiteSpace(query.Alias) && fact.Aliases.Contains(query.Alias!, StringComparer.Ordinal);
+        return facts
+            .Where(fact => fact.Aliases.Contains(query.Alias!, StringComparer.Ordinal))
+            .Select(static fact => fact.CanonicalId)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static bool IsVisible(EventContextFact fact, string? authorizationContext) =>
@@ -229,6 +274,21 @@ public static class EventContextResolver {
             return ambiguous ? null : values[0];
         }
         ambiguous = false;
+        return null;
+    }
+
+    private static string? LatestStableValue(
+        IReadOnlyList<EventContextFact> facts,
+        Func<EventContextFact, string?> selector) {
+
+        foreach (IGrouping<DateTime, EventContextFact> group in facts
+                     .OrderByDescending(static fact => fact.EffectiveAtUtc)
+                     .GroupBy(static fact => fact.EffectiveAtUtc)) {
+            string[] values = DistinctValues(group.Select(selector));
+            if (values.Length == 1) {
+                return values[0];
+            }
+        }
         return null;
     }
 }

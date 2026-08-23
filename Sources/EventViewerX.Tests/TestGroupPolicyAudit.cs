@@ -126,6 +126,47 @@ public sealed class TestGroupPolicyAudit {
     }
 
     [Fact]
+    public async Task WmiFilterAssignmentOnAGroupPolicyContainerRetainsContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        string distinguishedName =
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz";
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(new EventContextFact {
+            ObjectKind = EventContextObjectKind.GroupPolicy,
+            CanonicalId = gpoId,
+            Aliases = new[] { distinguishedName },
+            DisplayName = "Existing policy",
+            Domain = "ad.evotec.xyz",
+            DistinguishedName = distinguishedName,
+            EffectiveAtUtc = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc),
+            ObservedAtUtc = new DateTime(2026, 8, 18, 9, 1, 0, DateTimeKind.Utc),
+            Provenance = EventContextProvenance.Event,
+            SourceIdentity = "existing-policy",
+            ProviderName = "EventViewerX.Tests",
+            ProviderSchemaVersion = 1,
+            IsShareable = true
+        });
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "gPCWQLFilter",
+            distinguishedName,
+            attributeValue: "[ad.evotec.xyz;{F91E082B-25C8-4D63-9D8C-946B9AB4DF85};0]");
+
+        GroupPolicyAuditRecord record = await GroupPolicyAuditEngine.CreateRecordAsync(source, store);
+        EventContextFact fact = Assert.IsType<EventContextFact>(GroupPolicyContextFactFactory.Create(record));
+
+        Assert.Equal(GroupPolicyAuditTargetKind.WmiFilterAssignment, record.TargetKind);
+        Assert.Equal(Guid.Parse(gpoId), record.GroupPolicyId);
+        Assert.Equal("Existing policy", record.GroupPolicyNameAtEventTime);
+        Assert.Equal("Existing policy", record.GroupPolicyCurrentName);
+        Assert.Equal(Guid.Parse(gpoId).ToString("D").ToUpperInvariant(),
+            EventContextIdentity.NormalizeCanonicalId(fact.ObjectKind, fact.CanonicalId));
+    }
+
+    [Fact]
     public void DeletedAttributeValueIsNotMistakenForTheCurrentGpoName() {
         EventObject source = CreateSource(
             5136,
@@ -172,6 +213,57 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal(EventContextState.Current, record.ContextState);
         Assert.Equal("Domain controllers baseline", record.GroupPolicyNameAtEventTime);
         Assert.Equal("Domain controllers baseline", record.GroupPolicyCurrentName);
+    }
+
+    [Fact]
+    public async Task TimelineIsFullyIngestedBeforeRecordsAreResolved() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        string distinguishedName =
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz";
+        DateTime createdUtc = new(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc);
+        DateTime renamedUtc = createdUtc.AddHours(1);
+        DateTime deletedUtc = createdUtc.AddHours(2);
+        GroupPolicyAuditRecord[] records = {
+            GroupPolicyAuditEngine.CreateRecord(CreateSource(
+                5137,
+                "AD1.ad.evotec.xyz",
+                "Security",
+                "groupPolicyContainer",
+                "displayName",
+                distinguishedName,
+                attributeValue: "Original policy",
+                timeCreatedUtc: createdUtc)),
+            GroupPolicyAuditEngine.CreateRecord(CreateSource(
+                5136,
+                "AD1.ad.evotec.xyz",
+                "Security",
+                "groupPolicyContainer",
+                "displayName",
+                distinguishedName,
+                attributeValue: "Renamed policy",
+                timeCreatedUtc: renamedUtc)),
+            GroupPolicyAuditEngine.CreateRecord(CreateSource(
+                5141,
+                "AD1.ad.evotec.xyz",
+                "Security",
+                "groupPolicyContainer",
+                string.Empty,
+                distinguishedName,
+                attributeValue: "-",
+                operationType: string.Empty,
+                timeCreatedUtc: deletedUtc))
+        };
+
+        await GroupPolicyAuditEngine.FinalizeContextAsync(records, new InMemoryEventContextStore());
+
+        Assert.Equal(EventContextState.Historical, records[0].ContextState);
+        Assert.Equal("Original policy", records[0].GroupPolicyNameAtEventTime);
+        Assert.Null(records[0].GroupPolicyCurrentName);
+        Assert.Equal(EventContextState.Historical, records[1].ContextState);
+        Assert.Equal("Renamed policy", records[1].GroupPolicyNameAtEventTime);
+        Assert.Equal(EventContextState.Deleted, records[2].ContextState);
+        Assert.Equal("Renamed policy", records[2].GroupPolicyLastKnownName);
+        Assert.Null(records[2].GroupPolicyCurrentName);
     }
 
     [Fact]
@@ -327,7 +419,8 @@ public sealed class TestGroupPolicyAudit {
         string originalLogName = "Security",
         string? bookmarkXml = null,
         string attributeValue = "value",
-        string operationType = "%%14674") {
+        string operationType = "%%14674",
+        DateTime? timeCreatedUtc = null) {
 
         string xml = $$"""
             <Event>
@@ -356,7 +449,8 @@ public sealed class TestGroupPolicyAudit {
             xml,
             providerName,
             originalLogName,
-            bookmarkXml);
+            bookmarkXml,
+            timeCreatedUtc);
     }
 
     private static EventObject CreateMovedSource(string oldObjectDn, string newObjectDn) {
@@ -385,6 +479,7 @@ public sealed class TestGroupPolicyAudit {
             xml,
             "Microsoft-Windows-Security-Auditing",
             "Security",
+            null,
             null);
     }
 
@@ -395,10 +490,11 @@ public sealed class TestGroupPolicyAudit {
         string xml,
         string providerName,
         string originalLogName,
-        string? bookmarkXml) {
+        string? bookmarkXml,
+        DateTime? timeCreatedUtc) {
 
         return new EventObject(
-            new SyntheticEventRecord(eventId, xml, providerName, originalLogName, bookmarkXml),
+            new SyntheticEventRecord(eventId, xml, providerName, originalLogName, bookmarkXml, timeCreatedUtc),
             queriedMachine,
             EventReadMode.StructuredData,
             includeBookmark: !string.IsNullOrWhiteSpace(bookmarkXml)) {
@@ -413,19 +509,22 @@ public sealed class TestGroupPolicyAudit {
         private readonly string _providerName;
         private readonly string _logName;
         private readonly string? _bookmarkXml;
+        private readonly DateTime _timeCreatedUtc;
 
         internal SyntheticEventRecord(
             int eventId,
             string xml,
             string providerName,
             string logName,
-            string? bookmarkXml) {
+            string? bookmarkXml,
+            DateTime? timeCreatedUtc) {
 
             _eventId = eventId;
             _xml = xml;
             _providerName = providerName;
             _logName = logName;
             _bookmarkXml = bookmarkXml;
+            _timeCreatedUtc = timeCreatedUtc ?? new DateTime(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc);
         }
 
         public override string ProviderName => _providerName;
@@ -446,7 +545,7 @@ public sealed class TestGroupPolicyAudit {
         public override int? ThreadId => 1;
         public override string LevelDisplayName => "Information";
         public override IList<EventProperty> Properties => Array.Empty<EventProperty>();
-        public override DateTime? TimeCreated => new(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc);
+        public override DateTime? TimeCreated => _timeCreatedUtc;
         public override int? Qualifiers => null;
         public override long? RecordId => 42;
         public override byte? Version => 0;

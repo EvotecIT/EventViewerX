@@ -50,6 +50,38 @@ public sealed class TestEventContext {
     }
 
     [Fact]
+    public async Task FutureNameConflictDoesNotMakeHistoricalStateAmbiguous() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        await store.StoreAsync(Fact(RenamedUtc, "Future name one", "source-future-1"));
+        await store.StoreAsync(Fact(RenamedUtc, "Future name two", "source-future-2"));
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc.AddMinutes(5)));
+
+        Assert.Equal(EventContextState.Historical, result.State);
+        Assert.Equal("Original policy", result.NameAtEventTime);
+        Assert.Equal("Original policy", result.LastKnownName);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
+    public async Task FutureDomainConflictSuppressesOnlyCurrentContext() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        EventContextFact first = Fact(RenamedUtc, "Renamed policy", "source-future-domain-1");
+        EventContextFact second = Fact(RenamedUtc, "Renamed policy", "source-future-domain-2");
+        second.Domain = "other.example.com";
+        await store.StoreAsync(first);
+        await store.StoreAsync(second);
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc.AddMinutes(5)));
+
+        Assert.Equal(EventContextState.Historical, result.State);
+        Assert.Equal("Original policy", result.NameAtEventTime);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
     public async Task SameTimeConflictsFailClosedAsAmbiguous() {
         var store = new InMemoryEventContextStore();
         await store.StoreAsync(Fact(CreatedUtc, "First name", "source-1"));
@@ -61,6 +93,50 @@ public sealed class TestEventContext {
         Assert.Null(result.NameAtEventTime);
         Assert.Null(result.CurrentName);
         Assert.Contains("disagree", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task StableNameBeforeAConflictRemainsTheLastKnownName() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        await store.StoreAsync(Fact(RenamedUtc, "Conflicting name one", "source-conflict-1"));
+        await store.StoreAsync(Fact(RenamedUtc, "Conflicting name two", "source-conflict-2"));
+
+        EventContextResolution result = await store.ResolveAsync(Query(RenamedUtc));
+
+        Assert.Equal(EventContextState.Ambiguous, result.State);
+        Assert.Null(result.NameAtEventTime);
+        Assert.Equal("Original policy", result.LastKnownName);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
+    public async Task ConflictingLatestDeletionStateNeverExposesACurrentName() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        await store.StoreAsync(Fact(RenamedUtc, null, "source-a-deleted", isDeleted: true));
+        await store.StoreAsync(Fact(RenamedUtc, "Renamed policy", "source-z-live"));
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc.AddMinutes(5)));
+
+        Assert.Equal(EventContextState.Historical, result.State);
+        Assert.Equal("Original policy", result.NameAtEventTime);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
+    public async Task ConflictingDomainsFailClosedAsAmbiguous() {
+        var store = new InMemoryEventContextStore();
+        EventContextFact first = Fact(CreatedUtc, "Policy", "source-domain-1");
+        EventContextFact second = Fact(CreatedUtc, "Policy", "source-domain-2");
+        second.Domain = "other.example.com";
+        await store.StoreAsync(first);
+        await store.StoreAsync(second);
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc));
+
+        Assert.Equal(EventContextState.Ambiguous, result.State);
+        Assert.Null(result.Domain);
     }
 
     [Fact]
@@ -85,6 +161,56 @@ public sealed class TestEventContext {
     }
 
     [Fact]
+    public async Task SuppliedCanonicalIdentityCannotFallBackToAnotherObjectsAlias() {
+        var store = new InMemoryEventContextStore();
+        const string firstDn = "CN=First,OU=Policies,DC=ad,DC=evotec,DC=xyz";
+        const string secondDn = "CN=Second,OU=Policies,DC=ad,DC=evotec,DC=xyz";
+        EventContextFact first = Fact(CreatedUtc, "First object", "source-first", firstDn);
+        EventContextFact second = Fact(CreatedUtc, "Second object", "source-second", secondDn);
+        second.CanonicalId = "A3AB176B-A8F8-4D42-944C-C5258D1E4F65";
+        await store.StoreAsync(first);
+        await store.StoreAsync(second);
+
+        EventContextResolution result = await store.ResolveAsync(new EventContextQuery {
+            ObjectKind = EventContextObjectKind.GroupPolicy,
+            CanonicalId = GpoId.ToString("D"),
+            Alias = secondDn,
+            AtUtc = CreatedUtc
+        });
+
+        Assert.Equal(EventContextState.Ambiguous, result.State);
+        Assert.Equal(GpoId.ToString("D").ToUpperInvariant(), result.CanonicalId);
+        Assert.Contains("different objects", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SqliteIdentityLookupPreservesCanonicalAndAliasAgreement() {
+        string path = CreateStorePath();
+        try {
+            var store = new SqliteEventContextStore(path);
+            const string firstDn = "CN=First,OU=Policies,DC=ad,DC=evotec,DC=xyz";
+            const string secondDn = "CN=Second,OU=Policies,DC=ad,DC=evotec,DC=xyz";
+            EventContextFact first = Fact(CreatedUtc, "First object", "source-first", firstDn);
+            EventContextFact second = Fact(CreatedUtc, "Second object", "source-second", secondDn);
+            second.CanonicalId = "A3AB176B-A8F8-4D42-944C-C5258D1E4F65";
+            await store.StoreAsync(first);
+            await store.StoreAsync(second);
+
+            EventContextResolution result = await store.ResolveAsync(new EventContextQuery {
+                ObjectKind = EventContextObjectKind.GroupPolicy,
+                CanonicalId = GpoId.ToString("D"),
+                Alias = secondDn,
+                AtUtc = CreatedUtc
+            });
+
+            Assert.Equal(EventContextState.Ambiguous, result.State);
+            Assert.Equal(GpoId.ToString("D").ToUpperInvariant(), result.CanonicalId);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task NonShareableEvidenceIsPartitionedByAuthorizationContext() {
         var store = new InMemoryEventContextStore();
         EventContextFact fact = Fact(CreatedUtc, "Restricted policy", "lookup-1");
@@ -101,6 +227,42 @@ public sealed class TestEventContext {
         Assert.Equal(EventContextState.Unknown, denied.State);
         Assert.Equal(EventContextState.Current, allowed.State);
         Assert.Equal("Restricted policy", allowed.NameAtEventTime);
+    }
+
+    [Fact]
+    public async Task IdenticalEvidenceCanBeStoredForSeparateAuthorizationPartitions() {
+        string path = CreateStorePath();
+        try {
+            var store = new SqliteEventContextStore(path);
+            EventContextFact first = Fact(CreatedUtc, "Restricted policy", "lookup-shared-source");
+            first.Provenance = EventContextProvenance.LiveLookup;
+            first.IsShareable = false;
+            first.AuthorizationContext = "EVOTEC\\reader-a";
+            EventContextFact second = Fact(CreatedUtc, "Restricted policy", "lookup-shared-source");
+            second.Provenance = EventContextProvenance.LiveLookup;
+            second.IsShareable = false;
+            second.AuthorizationContext = "EVOTEC\\reader-b";
+
+            Assert.NotEqual(
+                EventContextIdentity.CreateFactKey(first),
+                EventContextIdentity.CreateFactKey(second));
+            await store.StoreAsync(first);
+            await store.StoreAsync(second);
+
+            EventContextQuery firstQuery = Query(CreatedUtc);
+            firstQuery.AuthorizationContext = "EVOTEC\\reader-a";
+            EventContextQuery secondQuery = Query(CreatedUtc);
+            secondQuery.AuthorizationContext = "EVOTEC\\reader-b";
+            Assert.Equal(EventContextState.Current, (await store.ResolveAsync(firstQuery)).State);
+            Assert.Equal(EventContextState.Current, (await store.ResolveAsync(secondQuery)).State);
+            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession session = sqlite.OpenSession(path);
+            Assert.Equal(2L, Convert.ToInt64(session.ExecuteScalar(
+                "SELECT COUNT(*) FROM evx_context_facts;"),
+                CultureInfo.InvariantCulture));
+        } finally {
+            DeleteStore(path);
+        }
     }
 
     [Fact]
@@ -162,6 +324,24 @@ public sealed class TestEventContext {
         } finally {
             DeleteStore(path);
         }
+    }
+
+    [Fact]
+    public async Task MateriallyDifferentFactsFromTheSameSourceRemainVisible() {
+        var store = new InMemoryEventContextStore();
+        EventContextFact first = Fact(CreatedUtc, "First interpretation", "shared-source");
+        EventContextFact second = Fact(CreatedUtc, "Second interpretation", "shared-source");
+
+        Assert.NotEqual(
+            EventContextIdentity.CreateFactKey(first),
+            EventContextIdentity.CreateFactKey(second));
+        await store.StoreAsync(first);
+        await store.StoreAsync(second);
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc));
+
+        Assert.Equal(EventContextState.Ambiguous, result.State);
+        Assert.Null(result.NameAtEventTime);
     }
 
     [Fact]

@@ -4,12 +4,12 @@ namespace EventViewerX;
 
 /// <summary>Creates bounded context facts only from fields carried by Group Policy audit events.</summary>
 public static class GroupPolicyContextFactFactory {
-    /// <summary>Creates a fact for a Group Policy object event, or null for scope and WMI-filter events.</summary>
+    /// <summary>Creates a fact for a Group Policy container event, or null for unrelated directory objects.</summary>
     public static EventContextFact? Create(GroupPolicyAuditRecord record) {
         if (record == null) {
             throw new ArgumentNullException(nameof(record));
         }
-        if (record.TargetKind != GroupPolicyAuditTargetKind.GroupPolicyObject) {
+        if (!string.Equals(record.ObjectClass, "groupPolicyContainer", StringComparison.OrdinalIgnoreCase)) {
             return null;
         }
         string? canonicalId = record.GroupPolicyId?.ToString("D");

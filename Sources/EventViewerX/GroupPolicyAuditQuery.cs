@@ -11,6 +11,7 @@ public sealed class GroupPolicyAuditQuery {
     /// <summary>
     /// Optional context store populated and resolved only from selected Group Policy events.
     /// Supplying a store does not initiate directory or SYSVOL discovery.
+    /// Results are buffered until the selected scan timeline has been stored so event-time context is final.
     /// </summary>
     public IEventContextStore? ContextStore { get; set; }
 

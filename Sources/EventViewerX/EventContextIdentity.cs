@@ -35,11 +35,17 @@ public static class EventContextIdentity {
             ((int)snapshot.ObjectKind).ToString(CultureInfo.InvariantCulture),
             snapshot.CanonicalId,
             string.Join("|", snapshot.Aliases.OrderBy(static value => value, StringComparer.Ordinal)),
+            snapshot.DisplayName ?? string.Empty,
+            snapshot.Domain ?? string.Empty,
+            snapshot.DistinguishedName ?? string.Empty,
             snapshot.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            snapshot.IsDeleted ? "1" : "0",
             ((int)snapshot.Provenance).ToString(CultureInfo.InvariantCulture),
             snapshot.SourceIdentity,
             snapshot.ProviderName,
-            snapshot.ProviderSchemaVersion.ToString(CultureInfo.InvariantCulture)
+            snapshot.ProviderSchemaVersion.ToString(CultureInfo.InvariantCulture),
+            snapshot.AuthorizationContext ?? string.Empty,
+            snapshot.IsShareable ? "1" : "0"
         });
         using SHA256 sha256 = SHA256.Create();
         return BitConverter.ToString(sha256.ComputeHash(Encoding.UTF8.GetBytes(payload))).Replace("-", string.Empty);
