@@ -81,6 +81,7 @@ public static class GroupPolicyAuditEngine {
                 await FinalizeContextAsync(
                     contextRecords.Select(static item => item.Record).ToArray(),
                     snapshot.ContextStore!,
+                    snapshot.AuthorizationContext,
                     cancellationToken).ConfigureAwait(false);
                 await foreach (GroupPolicyAuditRecord record in DeliverBufferedAsync(
                                    contextRecords,
@@ -145,6 +146,19 @@ public static class GroupPolicyAuditEngine {
         IEventContextStore contextStore,
         CancellationToken cancellationToken = default) {
 
+        await FinalizeContextAsync(
+            records,
+            contextStore,
+            authorizationContext: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async ValueTask FinalizeContextAsync(
+        IReadOnlyList<GroupPolicyAuditRecord> records,
+        IEventContextStore contextStore,
+        string? authorizationContext,
+        CancellationToken cancellationToken = default) {
+
         var storedFacts = new List<EventContextFact>(records.Count);
         var queries = new List<EventContextQuery>(records.Count);
         var recordIndexes = new List<int>(records.Count);
@@ -152,7 +166,7 @@ public static class GroupPolicyAuditEngine {
             EventContextFact? fact = GroupPolicyContextFactFactory.Create(records[i]);
             if (fact != null) {
                 storedFacts.Add(fact);
-                queries.Add(CreateContextQuery(records[i], fact));
+                queries.Add(CreateContextQuery(records[i], fact, authorizationContext));
                 recordIndexes.Add(i);
             }
         }
@@ -177,11 +191,31 @@ public static class GroupPolicyAuditEngine {
         IEventContextStore contextStore,
         CancellationToken cancellationToken = default) {
 
+        return await CreateRecordAsync(
+            source,
+            contextStore,
+            cancellationToken,
+            authorizationContext: null).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Projects one source event and resolves context visible to the supplied caller-authorized partition.
+    /// </summary>
+    public static async ValueTask<GroupPolicyAuditRecord> CreateRecordAsync(
+        EventObject source,
+        IEventContextStore contextStore,
+        CancellationToken cancellationToken,
+        string? authorizationContext) {
+
         if (contextStore == null) {
             throw new ArgumentNullException(nameof(contextStore));
         }
         GroupPolicyAuditRecord record = CreateRecord(source);
-        await ApplyContextAsync(record, contextStore, cancellationToken).ConfigureAwait(false);
+        await ApplyContextAsync(
+            record,
+            contextStore,
+            authorizationContext,
+            cancellationToken).ConfigureAwait(false);
         return record;
     }
 
@@ -197,6 +231,7 @@ public static class GroupPolicyAuditEngine {
         }
         return new GroupPolicyAuditQuery {
             ContextStore = query.ContextStore,
+            AuthorizationContext = NormalizeAuthorizationContext(query.AuthorizationContext),
             Paths = query.Paths?.ToArray(),
             MachineNames = query.MachineNames?.ToArray(),
             CollectorLogName = string.IsNullOrWhiteSpace(query.CollectorLogName)
@@ -296,6 +331,7 @@ public static class GroupPolicyAuditEngine {
     private static async ValueTask ApplyContextAsync(
         GroupPolicyAuditRecord record,
         IEventContextStore contextStore,
+        string? authorizationContext,
         CancellationToken cancellationToken) {
 
         EventContextFact? fact = GroupPolicyContextFactFactory.Create(record);
@@ -303,29 +339,40 @@ public static class GroupPolicyAuditEngine {
             return;
         }
         await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
-        await ResolveContextAsync(record, fact, contextStore, cancellationToken).ConfigureAwait(false);
+        await ResolveContextAsync(
+            record,
+            fact,
+            contextStore,
+            authorizationContext,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private static async ValueTask ResolveContextAsync(
         GroupPolicyAuditRecord record,
         EventContextFact fact,
         IEventContextStore contextStore,
+        string? authorizationContext,
         CancellationToken cancellationToken) {
 
         EventContextResolution resolution = await contextStore.ResolveAsync(
-            CreateContextQuery(record, fact),
+            CreateContextQuery(record, fact, authorizationContext),
             cancellationToken).ConfigureAwait(false);
         record.ApplyContext(resolution);
     }
 
     private static EventContextQuery CreateContextQuery(
         GroupPolicyAuditRecord record,
-        EventContextFact fact) => new() {
+        EventContextFact fact,
+        string? authorizationContext) => new() {
         ObjectKind = EventContextObjectKind.GroupPolicy,
         CanonicalId = fact.CanonicalId,
         Alias = record.ObjectDistinguishedName,
-        AtUtc = record.TimeCreatedUtc
+        AtUtc = record.TimeCreatedUtc,
+        AuthorizationContext = NormalizeAuthorizationContext(authorizationContext)
     };
+
+    private static string? NormalizeAuthorizationContext(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value!.Trim().ToUpperInvariant();
 
 }
 

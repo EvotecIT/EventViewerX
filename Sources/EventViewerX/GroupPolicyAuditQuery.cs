@@ -15,6 +15,12 @@ public sealed class GroupPolicyAuditQuery {
     /// </summary>
     public IEventContextStore? ContextStore { get; set; }
 
+    /// <summary>
+    /// Optional caller-authorized partition used to resolve non-shareable lookup or imported context.
+    /// Supplying a value selects matching evidence; it does not grant access to that partition.
+    /// </summary>
+    public string? AuthorizationContext { get; set; }
+
     /// <summary>Optional offline event-log files.</summary>
     public IReadOnlyList<string>? Paths { get; set; }
 

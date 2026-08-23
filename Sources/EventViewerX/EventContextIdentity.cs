@@ -31,24 +31,42 @@ public static class EventContextIdentity {
     /// <summary>Creates a stable key for idempotent fact storage.</summary>
     public static string CreateFactKey(EventContextFact fact) {
         EventContextFact snapshot = EventContextResolver.ValidateAndSnapshot(fact);
-        string payload = string.Join("\n", new[] {
-            ((int)snapshot.ObjectKind).ToString(CultureInfo.InvariantCulture),
-            snapshot.CanonicalId,
-            string.Join("|", snapshot.Aliases.OrderBy(static value => value, StringComparer.Ordinal)),
-            snapshot.DisplayName ?? string.Empty,
-            snapshot.DisplayNameObserved ? "1" : "0",
-            snapshot.Domain ?? string.Empty,
-            snapshot.DistinguishedName ?? string.Empty,
-            snapshot.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),
-            snapshot.IsDeleted ? "1" : "0",
-            ((int)snapshot.Provenance).ToString(CultureInfo.InvariantCulture),
-            snapshot.SourceIdentity,
-            snapshot.ProviderName,
-            snapshot.ProviderSchemaVersion.ToString(CultureInfo.InvariantCulture),
-            snapshot.AuthorizationContext ?? string.Empty,
-            snapshot.IsShareable ? "1" : "0"
-        });
+        using var payload = new MemoryStream();
+        using (var writer = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true)) {
+            writer.Write(3);
+            WriteField(writer, ((int)snapshot.ObjectKind).ToString(CultureInfo.InvariantCulture));
+            WriteField(writer, snapshot.CanonicalId);
+            string[] aliases = snapshot.Aliases
+                .OrderBy(static value => value, StringComparer.Ordinal)
+                .ToArray();
+            writer.Write(aliases.Length);
+            foreach (string alias in aliases) {
+                WriteField(writer, alias);
+            }
+            WriteField(writer, snapshot.DisplayName);
+            writer.Write(snapshot.DisplayNameObserved);
+            WriteField(writer, snapshot.Domain);
+            WriteField(writer, snapshot.DistinguishedName);
+            WriteField(writer, snapshot.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture));
+            writer.Write(snapshot.IsDeleted);
+            WriteField(writer, ((int)snapshot.Provenance).ToString(CultureInfo.InvariantCulture));
+            WriteField(writer, snapshot.SourceIdentity);
+            WriteField(writer, snapshot.ProviderName);
+            WriteField(writer, snapshot.ProviderSchemaVersion.ToString(CultureInfo.InvariantCulture));
+            WriteField(writer, snapshot.AuthorizationContext);
+            writer.Write(snapshot.IsShareable);
+        }
         using SHA256 sha256 = SHA256.Create();
-        return BitConverter.ToString(sha256.ComputeHash(Encoding.UTF8.GetBytes(payload))).Replace("-", string.Empty);
+        return BitConverter.ToString(sha256.ComputeHash(payload.ToArray())).Replace("-", string.Empty);
+    }
+
+    private static void WriteField(BinaryWriter writer, string? value) {
+        if (value == null) {
+            writer.Write(-1);
+            return;
+        }
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        writer.Write(bytes.Length);
+        writer.Write(bytes);
     }
 }

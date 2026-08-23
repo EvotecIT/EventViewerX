@@ -188,11 +188,58 @@ public sealed class TestGroupPolicyAudit {
     [Fact]
     public void SnapshotRetainsTheExplicitContextStore() {
         var store = new InMemoryEventContextStore();
-        var query = new GroupPolicyAuditQuery { ContextStore = store };
+        var query = new GroupPolicyAuditQuery {
+            ContextStore = store,
+            AuthorizationContext = " evotec\\reader-a "
+        };
 
         GroupPolicyAuditQuery snapshot = GroupPolicyAuditEngine.CreateSnapshot(query);
 
         Assert.Same(store, snapshot.ContextStore);
+        Assert.Equal("EVOTEC\\READER-A", snapshot.AuthorizationContext);
+    }
+
+    [Fact]
+    public async Task MaterializedEventResolvesCallerAuthorizedNonShareableContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        string distinguishedName =
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz";
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(new EventContextFact {
+            ObjectKind = EventContextObjectKind.GroupPolicy,
+            CanonicalId = gpoId,
+            Aliases = new[] { distinguishedName },
+            DisplayName = "Restricted policy",
+            Domain = "ad.evotec.xyz",
+            DistinguishedName = distinguishedName,
+            EffectiveAtUtc = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc),
+            ObservedAtUtc = new DateTime(2026, 8, 18, 9, 1, 0, DateTimeKind.Utc),
+            Provenance = EventContextProvenance.LiveLookup,
+            SourceIdentity = "restricted-lookup",
+            ProviderName = "EventViewerX.Tests",
+            ProviderSchemaVersion = 1,
+            AuthorizationContext = "EVOTEC\\reader-a",
+            IsShareable = false
+        });
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "versionNumber",
+            distinguishedName,
+            attributeValue: "2");
+
+        GroupPolicyAuditRecord denied = await GroupPolicyAuditEngine.CreateRecordAsync(source, store);
+        GroupPolicyAuditRecord allowed = await GroupPolicyAuditEngine.CreateRecordAsync(
+            source,
+            store,
+            cancellationToken: default,
+            authorizationContext: "evotec\\READER-A");
+
+        Assert.Null(denied.GroupPolicyNameAtEventTime);
+        Assert.Equal("Restricted policy", allowed.GroupPolicyNameAtEventTime);
+        Assert.Equal("Restricted policy", allowed.GroupPolicyCurrentName);
     }
 
     [Fact]
@@ -209,7 +256,8 @@ public sealed class TestGroupPolicyAudit {
 
         GroupPolicyAuditRecord record = await GroupPolicyAuditEngine.CreateRecordAsync(
             source,
-            new InMemoryEventContextStore());
+            new InMemoryEventContextStore(),
+            default);
 
         Assert.Equal(EventContextState.Current, record.ContextState);
         Assert.Equal("Domain controllers baseline", record.GroupPolicyNameAtEventTime);
@@ -268,6 +316,46 @@ public sealed class TestGroupPolicyAudit {
         Assert.Null(records[2].GroupPolicyCurrentName);
         Assert.Equal(1, store.StoreManyCalls);
         Assert.Equal(1, store.ResolveManyCalls);
+    }
+
+    [Fact]
+    public async Task BufferedFinalizationResolvesCallerAuthorizedContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        string distinguishedName =
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz";
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(new EventContextFact {
+            ObjectKind = EventContextObjectKind.GroupPolicy,
+            CanonicalId = gpoId,
+            Aliases = new[] { distinguishedName },
+            DisplayName = "Buffered restricted policy",
+            Domain = "ad.evotec.xyz",
+            DistinguishedName = distinguishedName,
+            EffectiveAtUtc = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc),
+            ObservedAtUtc = new DateTime(2026, 8, 18, 9, 1, 0, DateTimeKind.Utc),
+            Provenance = EventContextProvenance.LiveLookup,
+            SourceIdentity = "buffered-restricted-lookup",
+            ProviderName = "EventViewerX.Tests",
+            ProviderSchemaVersion = 1,
+            AuthorizationContext = "EVOTEC\\reader-a",
+            IsShareable = false
+        });
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "versionNumber",
+            distinguishedName,
+            attributeValue: "3"));
+
+        await GroupPolicyAuditEngine.FinalizeContextAsync(
+            new[] { record },
+            store,
+            "evotec\\READER-A");
+
+        Assert.Equal("Buffered restricted policy", record.GroupPolicyNameAtEventTime);
+        Assert.Equal("Buffered restricted policy", record.GroupPolicyCurrentName);
     }
 
     [Fact]

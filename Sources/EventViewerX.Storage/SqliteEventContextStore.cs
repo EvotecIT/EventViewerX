@@ -4,7 +4,7 @@ namespace EventViewerX.Storage;
 
 /// <summary>Durable DbaClientX-backed context store that can share an EventViewerX SQLite database.</summary>
 public sealed class SqliteEventContextStore : IEventContextStore {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const int BatchQuerySize = 100;
     private readonly object _initializationLock = new();
     private bool _initialized;
@@ -44,6 +44,11 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                     version = ReadSchemaVersion(transaction.ExecuteScalar(
                         "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
                 }
+                if (version == 2) {
+                    MigrateSchemaV2ToV3(transaction);
+                    version = ReadSchemaVersion(transaction.ExecuteScalar(
+                        "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
+                }
                 if (version != CurrentSchemaVersion) {
                     throw new InvalidDataException(
                         $"Context schema version '{version}' is not supported by this EventViewerX build.");
@@ -69,18 +74,22 @@ public sealed class SqliteEventContextStore : IEventContextStore {
 
     private static void MigrateSchemaV1ToV2(SQLiteSession transaction) {
         transaction.ExecuteNonQuery(AddDisplayNameObservationSql);
-        IReadOnlyList<MigratingFact> facts = transaction.QueryAsList(
+        transaction.ExecuteNonQuery(CompleteV2MigrationSql);
+    }
+
+    private static void MigrateSchemaV2ToV3(SQLiteSession transaction) {
+        IReadOnlyList<StoredFactRow> rows = transaction.QueryAsList(
             SelectFactsForMigrationSql,
-            static record => new MigratingFact(record.GetString(17), MapFact(record)));
-        foreach (MigratingFact migrating in facts) {
-            string currentKey = EventContextIdentity.CreateFactKey(migrating.Fact);
-            if (string.Equals(currentKey, migrating.LegacyKey, StringComparison.Ordinal)) {
+            MapStoredFact);
+        foreach (KeyValuePair<string, EventContextFact> migrating in MaterializeFacts(rows)) {
+            string currentKey = EventContextIdentity.CreateFactKey(migrating.Value);
+            if (string.Equals(currentKey, migrating.Key, StringComparison.Ordinal)) {
                 continue;
             }
             transaction.ExecuteNonQuery(
                 InsertFactSql,
-                CreateParameters(currentKey, migrating.Fact));
-            foreach (string alias in migrating.Fact.Aliases) {
+                CreateParameters(currentKey, migrating.Value));
+            foreach (string alias in migrating.Value.Aliases) {
                 transaction.ExecuteNonQuery(
                     InsertAliasSql,
                     new Dictionary<string, object?> {
@@ -90,12 +99,12 @@ public sealed class SqliteEventContextStore : IEventContextStore {
             }
             transaction.ExecuteNonQuery(
                 DeleteAliasesSql,
-                new Dictionary<string, object?> { ["$factKey"] = migrating.LegacyKey });
+                new Dictionary<string, object?> { ["$factKey"] = migrating.Key });
             transaction.ExecuteNonQuery(
                 DeleteFactSql,
-                new Dictionary<string, object?> { ["$factKey"] = migrating.LegacyKey });
+                new Dictionary<string, object?> { ["$factKey"] = migrating.Key });
         }
-        transaction.ExecuteNonQuery(CompleteV2MigrationSql);
+        transaction.ExecuteNonQuery(CompleteV3MigrationSql);
     }
 
     /// <inheritdoc />
@@ -185,12 +194,11 @@ public sealed class SqliteEventContextStore : IEventContextStore {
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
         EventContextQuery[] distinctRequests = requests
-            .GroupBy(static request => string.Join("\u001f", new[] {
-                ((int)request.ObjectKind).ToString(CultureInfo.InvariantCulture),
-                request.CanonicalId ?? string.Empty,
-                request.Alias ?? string.Empty,
-                request.AuthorizationContext ?? string.Empty
-            }), StringComparer.Ordinal)
+            .GroupBy(static request => (
+                request.ObjectKind,
+                request.CanonicalId,
+                request.Alias,
+                request.AuthorizationContext))
             .Select(static group => group.First())
             .ToArray();
         Dictionary<string, EventContextFact> facts = await session.RunInTransactionAsync(
@@ -209,13 +217,13 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                         parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
                         return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
                     }));
-                    IReadOnlyList<EventContextFact> loaded = await transaction.QueryAsListAsync(
+                    IReadOnlyList<StoredFactRow> loaded = await transaction.QueryAsListAsync(
                         SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
-                        MapFact,
+                        MapStoredFact,
                         parameters,
                         cancellationToken: token).ConfigureAwait(false);
-                    foreach (EventContextFact fact in loaded) {
-                        snapshot[EventContextIdentity.CreateFactKey(fact)] = fact;
+                    foreach (KeyValuePair<string, EventContextFact> fact in MaterializeFacts(loaded)) {
+                        snapshot[fact.Key] = fact.Value;
                     }
                 }
                 return snapshot;
@@ -252,36 +260,56 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         ["$isShareable"] = fact.IsShareable ? 1 : 0
     };
 
-    private static EventContextFact MapFact(System.Data.IDataRecord record) => new() {
-        ObjectKind = (EventContextObjectKind)record.GetInt32(0),
-        CanonicalId = record.GetString(1),
-        Aliases = record.GetString(2)
-            .Split(new[] { '\u001f' }, StringSplitOptions.RemoveEmptyEntries),
-        DisplayName = record.IsDBNull(3) ? null : record.GetString(3),
-        DisplayNameObserved = record.GetInt32(4) != 0,
-        Domain = record.IsDBNull(5) ? null : record.GetString(5),
-        DistinguishedName = record.IsDBNull(6) ? null : record.GetString(6),
-        EffectiveAtUtc = ParseUtc(record.GetString(7)),
-        ObservedAtUtc = ParseUtc(record.GetString(8)),
-        IsDeleted = record.GetInt32(9) != 0,
-        Provenance = (EventContextProvenance)record.GetInt32(10),
-        SourceIdentity = record.GetString(11),
-        ProviderName = record.GetString(12),
-        ProviderSchemaVersion = record.GetInt32(13),
-        ConfidenceReason = record.IsDBNull(14) ? null : record.GetString(14),
-        AuthorizationContext = record.IsDBNull(15) ? null : record.GetString(15),
-        IsShareable = record.GetInt32(16) != 0
-    };
+    private static StoredFactRow MapStoredFact(System.Data.IDataRecord record) => new(
+        record.GetString(0),
+        new EventContextFact {
+            ObjectKind = (EventContextObjectKind)record.GetInt32(1),
+            CanonicalId = record.GetString(2),
+            DisplayName = record.IsDBNull(3) ? null : record.GetString(3),
+            DisplayNameObserved = record.GetInt32(4) != 0,
+            Domain = record.IsDBNull(5) ? null : record.GetString(5),
+            DistinguishedName = record.IsDBNull(6) ? null : record.GetString(6),
+            EffectiveAtUtc = ParseUtc(record.GetString(7)),
+            ObservedAtUtc = ParseUtc(record.GetString(8)),
+            IsDeleted = record.GetInt32(9) != 0,
+            Provenance = (EventContextProvenance)record.GetInt32(10),
+            SourceIdentity = record.GetString(11),
+            ProviderName = record.GetString(12),
+            ProviderSchemaVersion = record.GetInt32(13),
+            ConfidenceReason = record.IsDBNull(14) ? null : record.GetString(14),
+            AuthorizationContext = record.IsDBNull(15) ? null : record.GetString(15),
+            IsShareable = record.GetInt32(16) != 0
+        },
+        record.IsDBNull(17) ? null : record.GetString(17));
 
-    private sealed class MigratingFact {
-        internal MigratingFact(string legacyKey, EventContextFact fact) {
-            LegacyKey = legacyKey;
+    private static IReadOnlyList<KeyValuePair<string, EventContextFact>> MaterializeFacts(
+        IEnumerable<StoredFactRow> rows) => rows
+        .GroupBy(static row => row.FactKey, StringComparer.Ordinal)
+        .Select(static group => {
+            StoredFactRow first = group.First();
+            first.Fact.Aliases = group
+                .Select(static row => row.Alias)
+                .Where(static alias => alias != null)
+                .Select(static alias => alias!)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static alias => alias, StringComparer.Ordinal)
+                .ToArray();
+            return new KeyValuePair<string, EventContextFact>(first.FactKey, first.Fact);
+        })
+        .ToArray();
+
+    private sealed class StoredFactRow {
+        internal StoredFactRow(string factKey, EventContextFact fact, string? alias) {
+            FactKey = factKey;
             Fact = fact;
+            Alias = alias;
         }
 
-        internal string LegacyKey { get; }
+        internal string FactKey { get; }
 
         internal EventContextFact Fact { get; }
+
+        internal string? Alias { get; }
     }
 
     private static DateTime ParseUtc(string value) => DateTime.Parse(
@@ -318,11 +346,9 @@ WHERE fact_key = $factKey;";
 WITH requested(object_kind, canonical_id, alias, authorization_context) AS (VALUES ";
 
     private const string SelectFactsBatchSuffix = @")
-SELECT f.object_kind,
+SELECT f.fact_key,
+       f.object_kind,
        f.canonical_id,
-       COALESCE((SELECT group_concat(a.alias, char(31))
-                 FROM evx_context_aliases a
-                 WHERE a.fact_key = f.fact_key), ''),
        f.display_name,
        f.display_name_observed,
        f.domain,
@@ -336,8 +362,10 @@ SELECT f.object_kind,
        f.provider_schema_version,
        f.confidence_reason,
        f.authorization_context,
-       f.is_shareable
+       f.is_shareable,
+       alias.alias
 FROM evx_context_facts f
+LEFT JOIN evx_context_aliases alias ON alias.fact_key = f.fact_key
 WHERE EXISTS (
     SELECT 1
     FROM requested request
@@ -355,7 +383,7 @@ WHERE EXISTS (
                 FROM evx_context_aliases match_alias
                 WHERE match_alias.fact_key = identity_fact.fact_key
                   AND match_alias.alias = request.alias))))
-ORDER BY f.effective_utc, f.source_identity;";
+ORDER BY f.fact_key, alias.alias;";
 
     private const string AddDisplayNameObservationSql = @"
 ALTER TABLE evx_context_facts
@@ -365,11 +393,9 @@ SET display_name_observed = 1
 WHERE display_name IS NOT NULL;";
 
     private const string SelectFactsForMigrationSql = @"
-SELECT f.object_kind,
+SELECT f.fact_key,
+       f.object_kind,
        f.canonical_id,
-       COALESCE((SELECT group_concat(a.alias, char(31))
-                 FROM evx_context_aliases a
-                 WHERE a.fact_key = f.fact_key), ''),
        f.display_name,
        f.display_name_observed,
        f.domain,
@@ -384,13 +410,19 @@ SELECT f.object_kind,
        f.confidence_reason,
        f.authorization_context,
        f.is_shareable,
-       f.fact_key
+       alias.alias
 FROM evx_context_facts f
-ORDER BY f.fact_key;";
+LEFT JOIN evx_context_aliases alias ON alias.fact_key = f.fact_key
+ORDER BY f.fact_key, alias.alias;";
 
     private const string CompleteV2MigrationSql = @"
 UPDATE evx_context_metadata
 SET schema_version = 2
+WHERE singleton_id = 1;";
+
+    private const string CompleteV3MigrationSql = @"
+UPDATE evx_context_metadata
+SET schema_version = 3
 WHERE singleton_id = 1;";
 
     private const string MetadataSchemaSql = @"
@@ -400,7 +432,7 @@ CREATE TABLE IF NOT EXISTS evx_context_metadata (
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_context_metadata (singleton_id, schema_version, created_utc)
-VALUES (1, 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));";
+VALUES (1, 3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));";
 
     private const string SchemaSql = @"
 CREATE TABLE IF NOT EXISTS evx_context_facts (
