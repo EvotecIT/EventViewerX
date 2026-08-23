@@ -6,9 +6,22 @@ public sealed class InMemoryEventContextStore : IEventContextStore {
 
     /// <inheritdoc />
     public ValueTask StoreAsync(EventContextFact fact, CancellationToken cancellationToken = default) {
+        return StoreManyAsync(new[] { fact }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask StoreManyAsync(
+        IReadOnlyList<EventContextFact> facts,
+        CancellationToken cancellationToken = default) {
+
+        if (facts == null) {
+            throw new ArgumentNullException(nameof(facts));
+        }
         cancellationToken.ThrowIfCancellationRequested();
-        EventContextFact snapshot = EventContextResolver.ValidateAndSnapshot(fact);
-        _facts.TryAdd(EventContextIdentity.CreateFactKey(snapshot), snapshot);
+        foreach (EventContextFact fact in facts) {
+            EventContextFact snapshot = EventContextResolver.ValidateAndSnapshot(fact);
+            _facts.TryAdd(EventContextIdentity.CreateFactKey(snapshot), snapshot);
+        }
         return default;
     }
 
@@ -19,5 +32,15 @@ public sealed class InMemoryEventContextStore : IEventContextStore {
 
         cancellationToken.ThrowIfCancellationRequested();
         return new ValueTask<EventContextResolution>(EventContextResolver.Resolve(_facts.Values, query));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<EventContextResolution>> ResolveManyAsync(
+        IReadOnlyList<EventContextQuery> queries,
+        CancellationToken cancellationToken = default) {
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<IReadOnlyList<EventContextResolution>>(
+            EventContextResolver.ResolveMany(_facts.Values, queries));
     }
 }

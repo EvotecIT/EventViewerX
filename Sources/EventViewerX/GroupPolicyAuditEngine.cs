@@ -116,19 +116,26 @@ public static class GroupPolicyAuditEngine {
         IEventContextStore contextStore,
         CancellationToken cancellationToken = default) {
 
-        var facts = new EventContextFact?[records.Count];
+        var storedFacts = new List<EventContextFact>(records.Count);
+        var queries = new List<EventContextQuery>(records.Count);
+        var recordIndexes = new List<int>(records.Count);
         for (int i = 0; i < records.Count; i++) {
             EventContextFact? fact = GroupPolicyContextFactFactory.Create(records[i]);
-            facts[i] = fact;
             if (fact != null) {
-                await contextStore.StoreAsync(fact, cancellationToken).ConfigureAwait(false);
+                storedFacts.Add(fact);
+                queries.Add(CreateContextQuery(records[i], fact));
+                recordIndexes.Add(i);
             }
         }
-        for (int i = 0; i < records.Count; i++) {
-            if (facts[i] != null) {
-                await ResolveContextAsync(records[i], facts[i]!, contextStore, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+        await contextStore.StoreManyAsync(storedFacts, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<EventContextResolution> resolutions = await contextStore
+            .ResolveManyAsync(queries, cancellationToken)
+            .ConfigureAwait(false);
+        if (resolutions.Count != queries.Count) {
+            throw new InvalidDataException("The context store returned an unexpected number of batch resolutions.");
+        }
+        for (int i = 0; i < resolutions.Count; i++) {
+            records[recordIndexes[i]].ApplyContext(resolutions[i]);
         }
     }
 
@@ -277,14 +284,18 @@ public static class GroupPolicyAuditEngine {
         CancellationToken cancellationToken) {
 
         EventContextResolution resolution = await contextStore.ResolveAsync(
-            new EventContextQuery {
-                ObjectKind = EventContextObjectKind.GroupPolicy,
-                CanonicalId = fact.CanonicalId,
-                Alias = record.ObjectDistinguishedName,
-                AtUtc = record.TimeCreatedUtc
-            },
+            CreateContextQuery(record, fact),
             cancellationToken).ConfigureAwait(false);
         record.ApplyContext(resolution);
     }
+
+    private static EventContextQuery CreateContextQuery(
+        GroupPolicyAuditRecord record,
+        EventContextFact fact) => new() {
+        ObjectKind = EventContextObjectKind.GroupPolicy,
+        CanonicalId = fact.CanonicalId,
+        Alias = record.ObjectDistinguishedName,
+        AtUtc = record.TimeCreatedUtc
+    };
 
 }

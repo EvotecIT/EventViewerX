@@ -111,6 +111,73 @@ public sealed class TestEventContext {
     }
 
     [Fact]
+    public async Task HistoricalConflictDoesNotSuppressALaterStableCurrentName() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Conflicting name one", "source-conflict-1"));
+        await store.StoreAsync(Fact(CreatedUtc, "Conflicting name two", "source-conflict-2"));
+        await store.StoreAsync(Fact(RenamedUtc, "Current stable name", "source-current"));
+
+        EventContextResolution result = await store.ResolveAsync(Query(CreatedUtc));
+
+        Assert.Equal(EventContextState.Ambiguous, result.State);
+        Assert.Null(result.NameAtEventTime);
+        Assert.Equal("Current stable name", result.CurrentName);
+    }
+
+    [Fact]
+    public async Task RecreationAfterDeletionDoesNotCarryThePreviousNameForward() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        await store.StoreAsync(Fact(RenamedUtc, null, "source-delete", isDeleted: true));
+        await store.StoreAsync(Fact(DeletedUtc, null, "source-recreate"));
+
+        EventContextResolution result = await store.ResolveAsync(Query(DeletedUtc));
+
+        Assert.Equal(EventContextState.Current, result.State);
+        Assert.Null(result.NameAtEventTime);
+        Assert.Equal("Original policy", result.LastKnownName);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
+    public async Task ExplicitDisplayNameRemovalStopsNameCarryForward() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
+        EventContextFact removal = Fact(RenamedUtc, null, "source-name-removed");
+        removal.DisplayNameObserved = true;
+        await store.StoreAsync(removal);
+
+        EventContextResolution result = await store.ResolveAsync(Query(RenamedUtc));
+
+        Assert.Equal(EventContextState.Current, result.State);
+        Assert.Null(result.NameAtEventTime);
+        Assert.Equal("Original policy", result.LastKnownName);
+        Assert.Null(result.CurrentName);
+    }
+
+    [Fact]
+    public async Task BatchResolutionMatchesSingleQuerySemantics() {
+        var store = new InMemoryEventContextStore();
+        await store.StoreManyAsync(CreateTimeline());
+        EventContextQuery[] queries = {
+            Query(CreatedUtc),
+            Query(RenamedUtc),
+            Query(DeletedUtc)
+        };
+
+        IReadOnlyList<EventContextResolution> batch = await store.ResolveManyAsync(queries);
+
+        Assert.Equal(queries.Length, batch.Count);
+        for (int i = 0; i < queries.Length; i++) {
+            EventContextResolution single = await store.ResolveAsync(queries[i]);
+            Assert.Equal(single.State, batch[i].State);
+            Assert.Equal(single.NameAtEventTime, batch[i].NameAtEventTime);
+            Assert.Equal(single.LastKnownName, batch[i].LastKnownName);
+            Assert.Equal(single.CurrentName, batch[i].CurrentName);
+        }
+    }
+
+    [Fact]
     public async Task ConflictingLatestDeletionStateNeverExposesACurrentName() {
         var store = new InMemoryEventContextStore();
         await store.StoreAsync(Fact(CreatedUtc, "Original policy", "source-original"));
@@ -305,6 +372,42 @@ public sealed class TestEventContext {
     }
 
     [Fact]
+    public async Task SqliteBatchResolutionCrossesTheBoundedQueryChunk() {
+        string path = CreateStorePath();
+        try {
+            var facts = new List<EventContextFact>();
+            var queries = new List<EventContextQuery>();
+            for (int index = 0; index < 101; index++) {
+                Guid id = Guid.Parse($"00000000-0000-0000-0000-{index + 1:000000000000}");
+                string alias = $"CN=Policy-{index},CN=Policies,DC=ad,DC=evotec,DC=xyz";
+                EventContextFact fact = Fact(
+                    CreatedUtc.AddMinutes(index),
+                    "Policy " + index.ToString(CultureInfo.InvariantCulture),
+                    "batch-" + index.ToString(CultureInfo.InvariantCulture),
+                    alias);
+                fact.CanonicalId = id.ToString("D");
+                fact.Aliases = new[] { alias };
+                facts.Add(fact);
+                queries.Add(new EventContextQuery {
+                    ObjectKind = EventContextObjectKind.GroupPolicy,
+                    CanonicalId = id.ToString("D"),
+                    Alias = alias,
+                    AtUtc = fact.EffectiveAtUtc
+                });
+            }
+            var store = new SqliteEventContextStore(path);
+            await store.StoreManyAsync(facts);
+
+            IReadOnlyList<EventContextResolution> results = await store.ResolveManyAsync(queries);
+
+            Assert.Equal(101, results.Count);
+            Assert.All(results, result => Assert.Equal(EventContextState.Current, result.State));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task ReobservingTheSameSourceIsIdempotent() {
         string path = CreateStorePath();
         try {
@@ -420,6 +523,61 @@ VALUES (1, 99, '2026-08-23T00:00:00.0000000Z');");
             using SQLiteSession verification = verificationClient.OpenSession(path);
             Assert.Null(verification.ExecuteScalar(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evx_context_facts';"));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public void VersionOneContextSchemaMigratesDisplayNameObservationState() {
+        string path = CreateStorePath();
+        try {
+            using (var sqlite = new SQLite { BusyTimeoutMs = 10000 }) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery(@"
+CREATE TABLE evx_context_metadata (
+    singleton_id INTEGER NOT NULL PRIMARY KEY,
+    schema_version INTEGER NOT NULL,
+    created_utc TEXT NOT NULL
+);
+INSERT INTO evx_context_metadata (singleton_id, schema_version, created_utc)
+VALUES (1, 1, '2026-08-23T00:00:00.0000000Z');
+CREATE TABLE evx_context_facts (
+    fact_key TEXT NOT NULL PRIMARY KEY,
+    object_kind INTEGER NOT NULL,
+    canonical_id TEXT NOT NULL,
+    display_name TEXT NULL,
+    domain TEXT NULL,
+    distinguished_name TEXT NULL,
+    effective_utc TEXT NOT NULL,
+    observed_utc TEXT NOT NULL,
+    is_deleted INTEGER NOT NULL,
+    provenance INTEGER NOT NULL,
+    source_identity TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    provider_schema_version INTEGER NOT NULL,
+    confidence_reason TEXT NULL,
+    authorization_context TEXT NULL,
+    is_shareable INTEGER NOT NULL
+);
+CREATE TABLE evx_context_aliases (
+    fact_key TEXT NOT NULL,
+    alias TEXT NOT NULL,
+    PRIMARY KEY (fact_key, alias)
+);");
+            }
+
+            new SqliteEventContextStore(path).Initialize();
+
+            using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession verification = verificationClient.OpenSession(path);
+            Assert.Equal(2L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"),
+                CultureInfo.InvariantCulture));
+            Assert.Equal(1L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT COUNT(*) FROM pragma_table_info('evx_context_facts') " +
+                "WHERE name = 'display_name_observed';"),
+                CultureInfo.InvariantCulture));
         } finally {
             DeleteStore(path);
         }

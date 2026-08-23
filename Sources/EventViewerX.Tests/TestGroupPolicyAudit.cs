@@ -182,6 +182,7 @@ public sealed class TestGroupPolicyAudit {
             GroupPolicyContextFactFactory.Create(GroupPolicyAuditEngine.CreateRecord(source)));
 
         Assert.Null(fact.DisplayName);
+        Assert.True(fact.DisplayNameObserved);
     }
 
     [Fact]
@@ -254,7 +255,8 @@ public sealed class TestGroupPolicyAudit {
                 timeCreatedUtc: deletedUtc))
         };
 
-        await GroupPolicyAuditEngine.FinalizeContextAsync(records, new InMemoryEventContextStore());
+        var store = new BatchOnlyContextStore();
+        await GroupPolicyAuditEngine.FinalizeContextAsync(records, store);
 
         Assert.Equal(EventContextState.Historical, records[0].ContextState);
         Assert.Equal("Original policy", records[0].GroupPolicyNameAtEventTime);
@@ -264,6 +266,8 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal(EventContextState.Deleted, records[2].ContextState);
         Assert.Equal("Renamed policy", records[2].GroupPolicyLastKnownName);
         Assert.Null(records[2].GroupPolicyCurrentName);
+        Assert.Equal(1, store.StoreManyCalls);
+        Assert.Equal(1, store.ResolveManyCalls);
     }
 
     [Fact]
@@ -556,5 +560,36 @@ public sealed class TestGroupPolicyAudit {
         public override string FormatDescription() => string.Empty;
         public override string FormatDescription(IEnumerable<object> values) => string.Empty;
         public override string ToXml() => _xml;
+    }
+
+    private sealed class BatchOnlyContextStore : IEventContextStore {
+        private readonly InMemoryEventContextStore _inner = new();
+
+        internal int StoreManyCalls { get; private set; }
+        internal int ResolveManyCalls { get; private set; }
+
+        public ValueTask StoreAsync(EventContextFact fact, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Buffered finalization must use StoreManyAsync.");
+
+        public async ValueTask StoreManyAsync(
+            IReadOnlyList<EventContextFact> facts,
+            CancellationToken cancellationToken = default) {
+
+            StoreManyCalls++;
+            await _inner.StoreManyAsync(facts, cancellationToken);
+        }
+
+        public ValueTask<EventContextResolution> ResolveAsync(
+            EventContextQuery query,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Buffered finalization must use ResolveManyAsync.");
+
+        public async ValueTask<IReadOnlyList<EventContextResolution>> ResolveManyAsync(
+            IReadOnlyList<EventContextQuery> queries,
+            CancellationToken cancellationToken = default) {
+
+            ResolveManyCalls++;
+            return await _inner.ResolveManyAsync(queries, cancellationToken);
+        }
     }
 }

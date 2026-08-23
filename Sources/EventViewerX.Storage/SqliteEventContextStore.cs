@@ -4,6 +4,8 @@ namespace EventViewerX.Storage;
 
 /// <summary>Durable DbaClientX-backed context store that can share an EventViewerX SQLite database.</summary>
 public sealed class SqliteEventContextStore : IEventContextStore {
+    private const int CurrentSchemaVersion = 2;
+    private const int BatchQuerySize = 100;
     private readonly object _initializationLock = new();
     private bool _initialized;
 
@@ -34,24 +36,36 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                 "SELECT 1 FROM sqlite_master " +
                 "WHERE type = 'table' AND name = 'evx_context_metadata' LIMIT 1;");
             if (metadataTable != null) {
-                ValidateSchemaVersion(session.ExecuteScalar(
+                int version = ReadSchemaVersion(session.ExecuteScalar(
                     "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
+                if (version == 1) {
+                    session.ExecuteNonQuery(MigrateSchemaV1ToV2Sql);
+                }
             }
             session.ExecuteNonQuery("PRAGMA journal_mode=WAL;");
             session.ExecuteNonQuery("PRAGMA synchronous=NORMAL;");
             session.ExecuteNonQuery(SchemaSql);
-            ValidateSchemaVersion(session.ExecuteScalar(
+            int currentVersion = ReadSchemaVersion(session.ExecuteScalar(
                 "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
+            if (currentVersion != CurrentSchemaVersion) {
+                throw new InvalidDataException(
+                    $"Context schema version '{currentVersion}' is not supported by this EventViewerX build.");
+            }
             _initialized = true;
         }
     }
 
-    private static void ValidateSchemaVersion(object? version) {
-        if (version == null || version == DBNull.Value ||
-            Convert.ToInt32(version, CultureInfo.InvariantCulture) != 1) {
+    private static int ReadSchemaVersion(object? version) {
+        if (version == null || version == DBNull.Value) {
             throw new InvalidDataException(
                 $"Context schema version '{version ?? "missing"}' is not supported by this EventViewerX build.");
         }
+        int parsed = Convert.ToInt32(version, CultureInfo.InvariantCulture);
+        if (parsed < 1 || parsed > CurrentSchemaVersion) {
+            throw new InvalidDataException(
+                $"Context schema version '{parsed}' is not supported by this EventViewerX build.");
+        }
+        return parsed;
     }
 
     /// <inheritdoc />
@@ -59,8 +73,29 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         EventContextFact fact,
         CancellationToken cancellationToken = default) {
 
-        EventContextFact snapshot = EventContextResolver.ValidateAndSnapshot(fact);
-        string factKey = EventContextIdentity.CreateFactKey(snapshot);
+        await StoreManyAsync(new[] { fact }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask StoreManyAsync(
+        IReadOnlyList<EventContextFact> facts,
+        CancellationToken cancellationToken = default) {
+
+        if (facts == null) {
+            throw new ArgumentNullException(nameof(facts));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        KeyValuePair<string, EventContextFact>[] snapshots = facts
+            .Select(EventContextResolver.ValidateAndSnapshot)
+            .Select(static fact => new KeyValuePair<string, EventContextFact>(
+                EventContextIdentity.CreateFactKey(fact),
+                fact))
+            .GroupBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .ToArray();
+        if (snapshots.Length == 0) {
+            return;
+        }
         EnsureInitialized();
         using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
         await using SQLiteAsyncSession session = await sqlite
@@ -70,18 +105,20 @@ public sealed class SqliteEventContextStore : IEventContextStore {
             await transaction.ExecuteNonQueryAsync(
                 ReserveWriterSql,
                 cancellationToken: token).ConfigureAwait(false);
-            await transaction.ExecuteNonQueryAsync(
-                InsertFactSql,
-                CreateParameters(factKey, snapshot),
-                token).ConfigureAwait(false);
-            foreach (string alias in snapshot.Aliases) {
+            foreach (KeyValuePair<string, EventContextFact> pair in snapshots) {
                 await transaction.ExecuteNonQueryAsync(
-                    InsertAliasSql,
-                    new Dictionary<string, object?> {
-                        ["$factKey"] = factKey,
-                        ["$alias"] = alias
-                    },
+                    InsertFactSql,
+                    CreateParameters(pair.Key, pair.Value),
                     token).ConfigureAwait(false);
+                foreach (string alias in pair.Value.Aliases) {
+                    await transaction.ExecuteNonQueryAsync(
+                        InsertAliasSql,
+                        new Dictionary<string, object?> {
+                            ["$factKey"] = pair.Key,
+                            ["$alias"] = alias
+                        },
+                        token).ConfigureAwait(false);
+                }
             }
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -91,23 +128,65 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         EventContextQuery query,
         CancellationToken cancellationToken = default) {
 
-        EventContextQuery request = EventContextResolver.ValidateAndSnapshot(query);
+        IReadOnlyList<EventContextResolution> resolutions = await ResolveManyAsync(
+            new[] { query },
+            cancellationToken).ConfigureAwait(false);
+        return resolutions[0];
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<EventContextResolution>> ResolveManyAsync(
+        IReadOnlyList<EventContextQuery> queries,
+        CancellationToken cancellationToken = default) {
+
+        if (queries == null) {
+            throw new ArgumentNullException(nameof(queries));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        EventContextQuery[] requests = queries
+            .Select(EventContextResolver.ValidateAndSnapshot)
+            .ToArray();
+        if (requests.Length == 0) {
+            return Array.Empty<EventContextResolution>();
+        }
         EnsureInitialized();
         using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
-        IReadOnlyList<EventContextFact> facts = await session.QueryAsListAsync(
-            SelectFactsSql,
-            MapFact,
-            new Dictionary<string, object?> {
-                ["$objectKind"] = (int)request.ObjectKind,
-                ["$canonicalId"] = request.CanonicalId,
-                ["$alias"] = request.Alias,
-                ["$authorizationContext"] = request.AuthorizationContext
-            },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        return EventContextResolver.Resolve(facts, request);
+        var facts = new Dictionary<string, EventContextFact>(StringComparer.Ordinal);
+        EventContextQuery[] distinctRequests = requests
+            .GroupBy(static request => string.Join("\u001f", new[] {
+                ((int)request.ObjectKind).ToString(CultureInfo.InvariantCulture),
+                request.CanonicalId ?? string.Empty,
+                request.Alias ?? string.Empty,
+                request.AuthorizationContext ?? string.Empty
+            }), StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .ToArray();
+        for (int offset = 0; offset < distinctRequests.Length; offset += BatchQuerySize) {
+            EventContextQuery[] batch = distinctRequests
+                .Skip(offset)
+                .Take(BatchQuerySize)
+                .ToArray();
+            var parameters = new Dictionary<string, object?>();
+            string values = string.Join(",", Enumerable.Range(0, batch.Length).Select(index => {
+                parameters["$objectKind" + index] = (int)batch[index].ObjectKind;
+                parameters["$canonicalId" + index] = batch[index].CanonicalId;
+                parameters["$alias" + index] = batch[index].Alias;
+                parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
+                return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
+            }));
+            IReadOnlyList<EventContextFact> loaded = await session.QueryAsListAsync(
+                SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
+                MapFact,
+                parameters,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            foreach (EventContextFact fact in loaded) {
+                facts[EventContextIdentity.CreateFactKey(fact)] = fact;
+            }
+        }
+        return EventContextResolver.ResolveMany(facts.Values, requests);
     }
 
     private void EnsureInitialized() {
@@ -123,6 +202,7 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         ["$objectKind"] = (int)fact.ObjectKind,
         ["$canonicalId"] = fact.CanonicalId,
         ["$displayName"] = fact.DisplayName,
+        ["$displayNameObserved"] = fact.DisplayNameObserved ? 1 : 0,
         ["$domain"] = fact.Domain,
         ["$distinguishedName"] = fact.DistinguishedName,
         ["$effectiveUtc"] = fact.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),
@@ -143,18 +223,19 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         Aliases = record.GetString(2)
             .Split(new[] { '\u001f' }, StringSplitOptions.RemoveEmptyEntries),
         DisplayName = record.IsDBNull(3) ? null : record.GetString(3),
-        Domain = record.IsDBNull(4) ? null : record.GetString(4),
-        DistinguishedName = record.IsDBNull(5) ? null : record.GetString(5),
-        EffectiveAtUtc = ParseUtc(record.GetString(6)),
-        ObservedAtUtc = ParseUtc(record.GetString(7)),
-        IsDeleted = record.GetInt32(8) != 0,
-        Provenance = (EventContextProvenance)record.GetInt32(9),
-        SourceIdentity = record.GetString(10),
-        ProviderName = record.GetString(11),
-        ProviderSchemaVersion = record.GetInt32(12),
-        ConfidenceReason = record.IsDBNull(13) ? null : record.GetString(13),
-        AuthorizationContext = record.IsDBNull(14) ? null : record.GetString(14),
-        IsShareable = record.GetInt32(15) != 0
+        DisplayNameObserved = record.GetInt32(4) != 0,
+        Domain = record.IsDBNull(5) ? null : record.GetString(5),
+        DistinguishedName = record.IsDBNull(6) ? null : record.GetString(6),
+        EffectiveAtUtc = ParseUtc(record.GetString(7)),
+        ObservedAtUtc = ParseUtc(record.GetString(8)),
+        IsDeleted = record.GetInt32(9) != 0,
+        Provenance = (EventContextProvenance)record.GetInt32(10),
+        SourceIdentity = record.GetString(11),
+        ProviderName = record.GetString(12),
+        ProviderSchemaVersion = record.GetInt32(13),
+        ConfidenceReason = record.IsDBNull(14) ? null : record.GetString(14),
+        AuthorizationContext = record.IsDBNull(15) ? null : record.GetString(15),
+        IsShareable = record.GetInt32(16) != 0
     };
 
     private static DateTime ParseUtc(string value) => DateTime.Parse(
@@ -167,11 +248,11 @@ public sealed class SqliteEventContextStore : IEventContextStore {
 
     private const string InsertFactSql = @"
 INSERT OR IGNORE INTO evx_context_facts
-    (fact_key, object_kind, canonical_id, display_name, domain, distinguished_name,
+    (fact_key, object_kind, canonical_id, display_name, display_name_observed, domain, distinguished_name,
      effective_utc, observed_utc, is_deleted, provenance, source_identity, provider_name,
      provider_schema_version, confidence_reason, authorization_context, is_shareable)
 VALUES
-    ($factKey, $objectKind, $canonicalId, $displayName, $domain, $distinguishedName,
+    ($factKey, $objectKind, $canonicalId, $displayName, $displayNameObserved, $domain, $distinguishedName,
      $effectiveUtc, $observedUtc, $isDeleted, $provenance, $sourceIdentity, $providerName,
      $providerSchemaVersion, $confidenceReason, $authorizationContext, $isShareable);";
 
@@ -179,13 +260,17 @@ VALUES
 INSERT OR IGNORE INTO evx_context_aliases (fact_key, alias)
 VALUES ($factKey, $alias);";
 
-    private const string SelectFactsSql = @"
+    private const string SelectFactsBatchPrefix = @"
+WITH requested(object_kind, canonical_id, alias, authorization_context) AS (VALUES ";
+
+    private const string SelectFactsBatchSuffix = @")
 SELECT f.object_kind,
        f.canonical_id,
        COALESCE((SELECT group_concat(a.alias, char(31))
                  FROM evx_context_aliases a
                  WHERE a.fact_key = f.fact_key), ''),
        f.display_name,
+       f.display_name_observed,
        f.domain,
        f.distinguished_name,
        f.effective_utc,
@@ -199,17 +284,34 @@ SELECT f.object_kind,
        f.authorization_context,
        f.is_shareable
 FROM evx_context_facts f
-WHERE f.object_kind = $objectKind
-  AND (f.is_shareable = 1 OR f.authorization_context = $authorizationContext)
-  AND f.canonical_id IN (
-      SELECT identity_fact.canonical_id
-      FROM evx_context_facts identity_fact
-      WHERE identity_fact.object_kind = $objectKind
-        AND (identity_fact.is_shareable = 1 OR identity_fact.authorization_context = $authorizationContext)
-        AND (identity_fact.canonical_id = $canonicalId OR EXISTS (
-            SELECT 1 FROM evx_context_aliases match_alias
-            WHERE match_alias.fact_key = identity_fact.fact_key AND match_alias.alias = $alias)))
+WHERE EXISTS (
+    SELECT 1
+    FROM requested request
+    WHERE request.object_kind = f.object_kind
+      AND (f.is_shareable = 1 OR f.authorization_context = request.authorization_context)
+      AND EXISTS (
+          SELECT 1
+          FROM evx_context_facts identity_fact
+          WHERE identity_fact.object_kind = request.object_kind
+            AND identity_fact.canonical_id = f.canonical_id
+            AND (identity_fact.is_shareable = 1 OR
+                 identity_fact.authorization_context = request.authorization_context)
+            AND (identity_fact.canonical_id = request.canonical_id OR EXISTS (
+                SELECT 1
+                FROM evx_context_aliases match_alias
+                WHERE match_alias.fact_key = identity_fact.fact_key
+                  AND match_alias.alias = request.alias))))
 ORDER BY f.effective_utc, f.source_identity;";
+
+    private const string MigrateSchemaV1ToV2Sql = @"
+ALTER TABLE evx_context_facts
+ADD COLUMN display_name_observed INTEGER NOT NULL DEFAULT 0;
+UPDATE evx_context_facts
+SET display_name_observed = 1
+WHERE display_name IS NOT NULL;
+UPDATE evx_context_metadata
+SET schema_version = 2
+WHERE singleton_id = 1;";
 
     private const string SchemaSql = @"
 CREATE TABLE IF NOT EXISTS evx_context_metadata (
@@ -218,13 +320,14 @@ CREATE TABLE IF NOT EXISTS evx_context_metadata (
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_context_metadata (singleton_id, schema_version, created_utc)
-VALUES (1, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+VALUES (1, 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 CREATE TABLE IF NOT EXISTS evx_context_facts (
     fact_key TEXT NOT NULL PRIMARY KEY,
     object_kind INTEGER NOT NULL,
     canonical_id TEXT NOT NULL,
     display_name TEXT NULL,
+    display_name_observed INTEGER NOT NULL,
     domain TEXT NULL,
     distinguished_name TEXT NULL,
     effective_utc TEXT NOT NULL,

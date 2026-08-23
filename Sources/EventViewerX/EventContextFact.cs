@@ -14,6 +14,12 @@ public sealed class EventContextFact {
     /// <summary>Display name carried by this observation, when present.</summary>
     public string? DisplayName { get; set; }
 
+    /// <summary>
+    /// Whether this fact explicitly observed the display-name field. A true value with a null
+    /// <see cref="DisplayName"/> represents an explicit removal rather than missing evidence.
+    /// </summary>
+    public bool DisplayNameObserved { get; set; }
+
     /// <summary>Directory domain carried or derived from the observation.</summary>
     public string? Domain { get; set; }
 

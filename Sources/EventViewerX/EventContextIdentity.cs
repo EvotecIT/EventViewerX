@@ -36,6 +36,7 @@ public static class EventContextIdentity {
             snapshot.CanonicalId,
             string.Join("|", snapshot.Aliases.OrderBy(static value => value, StringComparer.Ordinal)),
             snapshot.DisplayName ?? string.Empty,
+            snapshot.DisplayNameObserved ? "1" : "0",
             snapshot.Domain ?? string.Empty,
             snapshot.DistinguishedName ?? string.Empty,
             snapshot.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),

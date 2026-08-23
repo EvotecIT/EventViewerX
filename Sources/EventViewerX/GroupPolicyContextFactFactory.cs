@@ -25,8 +25,13 @@ public static class GroupPolicyContextFactFactory {
             .Where(static value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        string? displayName = string.Equals(record.AttributeName, "displayName", StringComparison.OrdinalIgnoreCase) &&
-                              IsAddedValue(record.OperationType)
+        bool isDisplayNameAttribute = string.Equals(
+            record.AttributeName,
+            "displayName",
+            StringComparison.OrdinalIgnoreCase);
+        bool displayNameObserved = isDisplayNameAttribute &&
+                                   (IsAddedValue(record.OperationType) || IsDeletedValue(record.OperationType));
+        string? displayName = isDisplayNameAttribute && IsAddedValue(record.OperationType)
             ? NormalizeAttributeValue(record.AttributeValue)
             : null;
         return new EventContextFact {
@@ -34,6 +39,7 @@ public static class GroupPolicyContextFactFactory {
             CanonicalId = canonicalId!,
             Aliases = aliases,
             DisplayName = displayName,
+            DisplayNameObserved = displayNameObserved,
             Domain = ExtractDomain(record.ObjectDistinguishedName),
             DistinguishedName = string.IsNullOrWhiteSpace(record.ObjectDistinguishedName)
                 ? null
@@ -67,6 +73,10 @@ public static class GroupPolicyContextFactFactory {
     private static bool IsAddedValue(string operationType) =>
         string.Equals(operationType, "%%14674", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(operationType, "Value Added", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDeletedValue(string operationType) =>
+        string.Equals(operationType, "%%14675", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(operationType, "Value Deleted", StringComparison.OrdinalIgnoreCase);
 
     private static string? ExtractDomain(string distinguishedName) {
         string[] components = (distinguishedName ?? string.Empty)

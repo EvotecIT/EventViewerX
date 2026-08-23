@@ -7,122 +7,26 @@ public static class EventContextResolver {
         IEnumerable<EventContextFact> facts,
         EventContextQuery query) {
 
+        return ResolveMany(facts, new[] { query })[0];
+    }
+
+    /// <summary>
+    /// Resolves multiple queries from one validated and indexed fact snapshot. Timelines are
+    /// materialized once, so many event-time queries do not repeatedly scan the same history.
+    /// </summary>
+    public static IReadOnlyList<EventContextResolution> ResolveMany(
+        IEnumerable<EventContextFact> facts,
+        IReadOnlyList<EventContextQuery> queries) {
+
         if (facts == null) {
             throw new ArgumentNullException(nameof(facts));
         }
-        EventContextQuery request = ValidateAndSnapshot(query);
-        EventContextFact[] candidates = facts
-            .Select(ValidateAndSnapshot)
-            .Where(fact => fact.ObjectKind == request.ObjectKind)
-            .Where(fact => IsVisible(fact, request.AuthorizationContext))
-            .ToArray();
-        HashSet<string> matchingCanonicalIds = FindMatchingCanonicalIds(candidates, request);
-        if (matchingCanonicalIds.Count > 1) {
-            return new EventContextResolution {
-                ObjectKind = request.ObjectKind,
-                State = EventContextState.Ambiguous,
-                Reason = "The requested alias is associated with more than one canonical object identity."
-            };
+        if (queries == null) {
+            throw new ArgumentNullException(nameof(queries));
         }
-        if (!string.IsNullOrWhiteSpace(request.CanonicalId) &&
-            !string.IsNullOrWhiteSpace(request.Alias)) {
-            HashSet<string> aliasCanonicalIds = candidates
-                .Where(fact => fact.Aliases.Contains(request.Alias!, StringComparer.Ordinal))
-                .Select(static fact => fact.CanonicalId)
-                .ToHashSet(StringComparer.Ordinal);
-            if (aliasCanonicalIds.Count > 0 && !aliasCanonicalIds.Contains(request.CanonicalId!)) {
-                return new EventContextResolution {
-                    ObjectKind = request.ObjectKind,
-                    CanonicalId = request.CanonicalId,
-                    State = EventContextState.Ambiguous,
-                    Reason = "The supplied canonical identity and alias identify different objects."
-                };
-            }
-        }
-        EventContextFact[] visible = candidates
-            .Where(fact => matchingCanonicalIds.Contains(fact.CanonicalId))
-            .OrderBy(static fact => fact.EffectiveAtUtc)
-            .ThenBy(static fact => fact.SourceIdentity, StringComparer.Ordinal)
-            .ToArray();
-        if (visible.Length == 0) {
-            return new EventContextResolution {
-                ObjectKind = request.ObjectKind,
-                CanonicalId = NormalizeOptionalCanonical(request),
-                State = EventContextState.Unknown,
-                Reason = "No visible context fact matches the requested identity."
-            };
-        }
-
-        EventContextFact[] applicable = visible
-            .Where(fact => fact.EffectiveAtUtc <= request.AtUtc)
-            .ToArray();
-        if (applicable.Length == 0) {
-            return new EventContextResolution {
-                ObjectKind = request.ObjectKind,
-                CanonicalId = visible[0].CanonicalId,
-                State = EventContextState.Unknown,
-                Reason = "Matching context exists only after the requested event time."
-            };
-        }
-
-        DateTime decisiveTime = applicable.Max(static fact => fact.EffectiveAtUtc);
-        EventContextFact[] decisive = applicable.Where(fact => fact.EffectiveAtUtc == decisiveTime).ToArray();
-        string[] decisiveNames = DistinctValues(decisive.Select(static fact => fact.DisplayName));
-        string[] decisiveDns = DistinctValues(decisive.Select(static fact => fact.DistinguishedName));
-        bool contradictoryDeletion = decisive.Any(static fact => fact.IsDeleted) &&
-                                     decisive.Any(static fact => !fact.IsDeleted);
-        bool ambiguous = contradictoryDeletion || decisiveNames.Length > 1 || decisiveDns.Length > 1;
-        string? nameAtTime = LatestDistinctValue(applicable, static fact => fact.DisplayName, out bool nameAmbiguous);
-        string? distinguishedName = LatestDistinctValue(
-            applicable,
-            static fact => fact.DistinguishedName,
-            out bool distinguishedNameAmbiguous);
-        string? domain = LatestDistinctValue(applicable, static fact => fact.Domain, out bool domainAmbiguous);
-        ambiguous |= nameAmbiguous || distinguishedNameAmbiguous || domainAmbiguous;
-
-        DateTime latestStoredTime = visible[visible.Length - 1].EffectiveAtUtc;
-        EventContextFact[] latestStoredFacts = visible
-            .Where(fact => fact.EffectiveAtUtc == latestStoredTime)
-            .ToArray();
-        bool currentDeletionAmbiguous = latestStoredFacts.Any(static fact => fact.IsDeleted) &&
-                                          latestStoredFacts.Any(static fact => !fact.IsDeleted);
-        bool currentlyDeleted = latestStoredFacts.All(static fact => fact.IsDeleted);
-        string? latestCurrentName = LatestDistinctValue(
-            visible,
-            static fact => fact.DisplayName,
-            out bool currentNameAmbiguous);
-        LatestDistinctValue(
-            visible,
-            static fact => fact.DistinguishedName,
-            out bool currentDistinguishedNameAmbiguous);
-        LatestDistinctValue(visible, static fact => fact.Domain, out bool currentDomainAmbiguous);
-        bool currentMaterialAmbiguous = currentDeletionAmbiguous ||
-                                        currentNameAmbiguous ||
-                                        currentDistinguishedNameAmbiguous ||
-                                        currentDomainAmbiguous;
-        string? currentName = currentlyDeleted || currentMaterialAmbiguous
-            ? null
-            : latestCurrentName;
-        EventContextFact selected = decisive[decisive.Length - 1];
-        EventContextState state = ambiguous
-            ? EventContextState.Ambiguous
-            : selected.IsDeleted
-                ? EventContextState.Deleted
-                : request.AtUtc < visible.Max(static fact => fact.EffectiveAtUtc)
-                    ? EventContextState.Historical
-                    : EventContextState.Current;
-        return new EventContextResolution {
-            ObjectKind = request.ObjectKind,
-            CanonicalId = selected.CanonicalId,
-            State = state,
-            NameAtEventTime = nameAtTime,
-            LastKnownName = LatestStableValue(applicable, static fact => fact.DisplayName),
-            CurrentName = state == EventContextState.Ambiguous ? null : currentName,
-            DistinguishedName = distinguishedName,
-            Domain = domain,
-            Provenance = selected.Provenance,
-            Reason = ambiguous ? "Facts at the same effective point disagree about material object state." : null
-        };
+        EventContextFact[] snapshots = facts.Select(ValidateAndSnapshot).ToArray();
+        EventContextQuery[] requests = queries.Select(ValidateAndSnapshot).ToArray();
+        return EventContextResolutionIndex.Resolve(snapshots, requests);
     }
 
     /// <summary>Validates and detaches one fact for safe storage.</summary>
@@ -167,6 +71,7 @@ public static class EventContextResolver {
             CanonicalId = canonicalId,
             Aliases = aliases,
             DisplayName = NormalizeOptional(fact.DisplayName),
+            DisplayNameObserved = fact.DisplayNameObserved || !string.IsNullOrWhiteSpace(fact.DisplayName),
             Domain = NormalizeOptional(fact.Domain),
             DistinguishedName = NormalizeOptional(fact.DistinguishedName),
             EffectiveAtUtc = NormalizeUtc(fact.EffectiveAtUtc),
@@ -212,36 +117,6 @@ public static class EventContextResolver {
         };
     }
 
-    private static HashSet<string> FindMatchingCanonicalIds(
-        IReadOnlyList<EventContextFact> facts,
-        EventContextQuery query) {
-
-        if (!string.IsNullOrWhiteSpace(query.CanonicalId)) {
-            bool canonicalExists = facts.Any(fact => string.Equals(
-                fact.CanonicalId,
-                query.CanonicalId,
-                StringComparison.Ordinal));
-            bool aliasAgrees = string.IsNullOrWhiteSpace(query.Alias) || facts.Any(fact =>
-                string.Equals(fact.CanonicalId, query.CanonicalId, StringComparison.Ordinal) &&
-                fact.Aliases.Contains(query.Alias!, StringComparer.Ordinal));
-            return canonicalExists && aliasAgrees
-                ? new HashSet<string>(new[] { query.CanonicalId! }, StringComparer.Ordinal)
-                : new HashSet<string>(StringComparer.Ordinal);
-        }
-        return facts
-            .Where(fact => fact.Aliases.Contains(query.Alias!, StringComparer.Ordinal))
-            .Select(static fact => fact.CanonicalId)
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    private static bool IsVisible(EventContextFact fact, string? authorizationContext) =>
-        fact.IsShareable || string.Equals(
-            fact.AuthorizationContext,
-            authorizationContext,
-            StringComparison.Ordinal);
-
-    private static string? NormalizeOptionalCanonical(EventContextQuery query) => query.CanonicalId;
-
     private static DateTime NormalizeUtc(DateTime value) => value.Kind == DateTimeKind.Utc
         ? value
         : value.ToUniversalTime();
@@ -252,43 +127,4 @@ public static class EventContextResolver {
     private static string? NormalizeAuthorizationContext(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value!.Trim().ToUpperInvariant();
 
-    private static string[] DistinctValues(IEnumerable<string?> values) => values
-        .Where(static value => !string.IsNullOrWhiteSpace(value))
-        .Select(static value => value!.Trim())
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
-
-    private static string? LatestDistinctValue(
-        IReadOnlyList<EventContextFact> facts,
-        Func<EventContextFact, string?> selector,
-        out bool ambiguous) {
-
-        foreach (IGrouping<DateTime, EventContextFact> group in facts
-                     .OrderByDescending(static fact => fact.EffectiveAtUtc)
-                     .GroupBy(static fact => fact.EffectiveAtUtc)) {
-            string[] values = DistinctValues(group.Select(selector));
-            if (values.Length == 0) {
-                continue;
-            }
-            ambiguous = values.Length > 1;
-            return ambiguous ? null : values[0];
-        }
-        ambiguous = false;
-        return null;
-    }
-
-    private static string? LatestStableValue(
-        IReadOnlyList<EventContextFact> facts,
-        Func<EventContextFact, string?> selector) {
-
-        foreach (IGrouping<DateTime, EventContextFact> group in facts
-                     .OrderByDescending(static fact => fact.EffectiveAtUtc)
-                     .GroupBy(static fact => fact.EffectiveAtUtc)) {
-            string[] values = DistinctValues(group.Select(selector));
-            if (values.Length == 1) {
-                return values[0];
-            }
-        }
-        return null;
-    }
 }
