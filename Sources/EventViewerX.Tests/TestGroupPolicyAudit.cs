@@ -374,6 +374,61 @@ public sealed class TestGroupPolicyAudit {
     }
 
     [Fact]
+    public async Task BufferedCancellationDoesNotAdvanceCheckpointBeyondDeliveredRecord() {
+        const string firstBookmark =
+            "<BookmarkList><Bookmark Channel='Security' RecordId='41' IsCurrent='true'/></BookmarkList>";
+        const string secondBookmark =
+            "<BookmarkList><Bookmark Channel='Security' RecordId='42' IsCurrent='true'/></BookmarkList>";
+        EventObject firstSource = CreateSource(
+            5136,
+            "WEC01",
+            "ForwardedEvents",
+            "groupPolicyContainer",
+            "displayName",
+            "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            bookmarkXml: firstBookmark,
+            timeCreatedUtc: new DateTime(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc));
+        EventObject secondSource = CreateSource(
+            5136,
+            "WEC01",
+            "ForwardedEvents",
+            "groupPolicyContainer",
+            "displayName",
+            "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            bookmarkXml: secondBookmark,
+            timeCreatedUtc: new DateTime(2026, 8, 18, 10, 1, 0, DateTimeKind.Utc));
+        var captured = new GroupPolicyAuditQueryExecutionInfo();
+        captured.RecordCheckpoint(firstSource, oldest: true);
+        var first = new GroupPolicyAuditBufferedRecord(
+            GroupPolicyAuditEngine.CreateRecord(firstSource),
+            captured.Checkpoints);
+        captured.RecordCheckpoint(secondSource, oldest: true);
+        var second = new GroupPolicyAuditBufferedRecord(
+            GroupPolicyAuditEngine.CreateRecord(secondSource),
+            captured.Checkpoints);
+        var delivered = new GroupPolicyAuditQueryExecutionInfo();
+        using var cancellation = new CancellationTokenSource();
+        await using IAsyncEnumerator<GroupPolicyAuditRecord> enumerator = GroupPolicyAuditEngine
+            .DeliverBufferedAsync(
+                new[] { first, second },
+                captured.Checkpoints,
+                delivered,
+                cancellation.Token)
+            .GetAsyncEnumerator(cancellation.Token);
+
+        Assert.True(await enumerator.MoveNextAsync());
+        Assert.Equal(1, delivered.EventsEmitted);
+        Assert.Equal(firstBookmark, Assert.Single(delivered.Checkpoints).BookmarkXml);
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await enumerator.MoveNextAsync().AsTask());
+
+        Assert.Equal(1, delivered.EventsEmitted);
+        Assert.Equal(firstBookmark, Assert.Single(delivered.Checkpoints).BookmarkXml);
+    }
+
+    [Fact]
     public void DeclarativeAndTypedQueriesFreezeBookmarkResolversAndOptions() {
         Func<string?, string, string?> resolver = static (_, _) => "<BookmarkList />";
         var definitionQuery = new EventDefinitionQuery(GroupPolicyAuditDefinitions.CreateDirectoryChanges()) {

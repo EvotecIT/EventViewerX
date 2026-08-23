@@ -29,6 +29,9 @@ public static class GroupPolicyAuditEngine {
         IReadOnlyDictionary<string, GroupPolicyAuditCheckpoint> checkpoints =
             CreateCheckpointIndex(snapshot.Checkpoints, snapshot.Oldest);
         var definitionInfo = new EventDefinitionQueryExecutionInfo();
+        var bufferedProgress = snapshot.ContextStore == null
+            ? null
+            : new GroupPolicyAuditQueryExecutionInfo();
         var definitionQuery = new EventDefinitionQuery(GroupPolicyAuditDefinitions.CreateDirectoryChanges()) {
             Paths = snapshot.Paths,
             MachineNames = snapshot.MachineNames,
@@ -52,12 +55,13 @@ public static class GroupPolicyAuditEngine {
             ContinueOnRemoteFailure = snapshot.ContinueOnRemoteFailure,
             StrictBookmark = snapshot.StrictCheckpoint,
             BookmarkXmlResolver = (target, container) => ResolveCheckpoint(checkpoints, target, container),
-            CandidateObserver = source => executionInfo.RecordCheckpoint(source, snapshot.Oldest),
+            CandidateObserver = source => (bufferedProgress ?? executionInfo)
+                .RecordCheckpoint(source, snapshot.Oldest),
             ResultPredicate = IsGroupPolicyAuditEvent
         };
-        List<GroupPolicyAuditRecord>? contextRecords = snapshot.ContextStore == null
+        List<GroupPolicyAuditBufferedRecord>? contextRecords = snapshot.ContextStore == null
             ? null
-            : new List<GroupPolicyAuditRecord>();
+            : new List<GroupPolicyAuditBufferedRecord>();
 
         try {
             await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(
@@ -68,26 +72,50 @@ public static class GroupPolicyAuditEngine {
                 if (contextRecords == null) {
                     yield return projected;
                 } else {
-                    contextRecords.Add(projected);
+                    contextRecords.Add(new GroupPolicyAuditBufferedRecord(
+                        projected,
+                        bufferedProgress!.Checkpoints));
                 }
             }
             if (contextRecords != null) {
                 await FinalizeContextAsync(
-                    contextRecords,
+                    contextRecords.Select(static item => item.Record).ToArray(),
                     snapshot.ContextStore!,
                     cancellationToken).ConfigureAwait(false);
-                foreach (GroupPolicyAuditRecord record in contextRecords) {
-                    cancellationToken.ThrowIfCancellationRequested();
+                await foreach (GroupPolicyAuditRecord record in DeliverBufferedAsync(
+                                   contextRecords,
+                                   bufferedProgress!.Checkpoints,
+                                   executionInfo,
+                                   cancellationToken)) {
                     yield return record;
                 }
             }
         } finally {
             executionInfo.EventsScanned = definitionInfo.EventsScanned;
-            executionInfo.EventsEmitted = definitionInfo.EventsEmitted;
+            if (contextRecords == null) {
+                executionInfo.EventsEmitted = definitionInfo.EventsEmitted;
+            }
             executionInfo.ScanLimitReached = definitionInfo.ScanLimitReached;
             executionInfo.ResultLimitReached = definitionInfo.ResultLimitReached;
             executionInfo.TargetFailures = definitionInfo.TargetFailures;
         }
+    }
+
+    internal static async IAsyncEnumerable<GroupPolicyAuditRecord> DeliverBufferedAsync(
+        IReadOnlyList<GroupPolicyAuditBufferedRecord> records,
+        IReadOnlyList<GroupPolicyAuditCheckpoint> finalCheckpoints,
+        GroupPolicyAuditQueryExecutionInfo executionInfo,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+
+        await Task.CompletedTask.ConfigureAwait(false);
+        foreach (GroupPolicyAuditBufferedRecord item in records) {
+            cancellationToken.ThrowIfCancellationRequested();
+            executionInfo.RecordCheckpoints(item.Checkpoints);
+            executionInfo.EventsEmitted++;
+            yield return item.Record;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        executionInfo.RecordCheckpoints(finalCheckpoints);
     }
 
     /// <summary>Projects an already materialized source event through the Group Policy audit contract.</summary>
@@ -299,4 +327,19 @@ public static class GroupPolicyAuditEngine {
         AtUtc = record.TimeCreatedUtc
     };
 
+}
+
+internal sealed class GroupPolicyAuditBufferedRecord {
+    internal GroupPolicyAuditBufferedRecord(
+        GroupPolicyAuditRecord record,
+        IReadOnlyList<GroupPolicyAuditCheckpoint> checkpoints) {
+
+        Record = record ?? throw new ArgumentNullException(nameof(record));
+        Checkpoints = checkpoints?.Select(static checkpoint => checkpoint.Copy()).ToArray()
+            ?? throw new ArgumentNullException(nameof(checkpoints));
+    }
+
+    internal GroupPolicyAuditRecord Record { get; }
+
+    internal IReadOnlyList<GroupPolicyAuditCheckpoint> Checkpoints { get; }
 }

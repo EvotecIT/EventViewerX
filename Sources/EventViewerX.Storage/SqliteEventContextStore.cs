@@ -40,7 +40,7 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                 int version = ReadSchemaVersion(transaction.ExecuteScalar(
                     "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
                 if (version == 1) {
-                    transaction.ExecuteNonQuery(MigrateSchemaV1ToV2Sql);
+                    MigrateSchemaV1ToV2(transaction);
                     version = ReadSchemaVersion(transaction.ExecuteScalar(
                         "SELECT schema_version FROM evx_context_metadata WHERE singleton_id = 1;"));
                 }
@@ -65,6 +65,37 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                 $"Context schema version '{parsed}' is not supported by this EventViewerX build.");
         }
         return parsed;
+    }
+
+    private static void MigrateSchemaV1ToV2(SQLiteSession transaction) {
+        transaction.ExecuteNonQuery(AddDisplayNameObservationSql);
+        IReadOnlyList<MigratingFact> facts = transaction.QueryAsList(
+            SelectFactsForMigrationSql,
+            static record => new MigratingFact(record.GetString(17), MapFact(record)));
+        foreach (MigratingFact migrating in facts) {
+            string currentKey = EventContextIdentity.CreateFactKey(migrating.Fact);
+            if (string.Equals(currentKey, migrating.LegacyKey, StringComparison.Ordinal)) {
+                continue;
+            }
+            transaction.ExecuteNonQuery(
+                InsertFactSql,
+                CreateParameters(currentKey, migrating.Fact));
+            foreach (string alias in migrating.Fact.Aliases) {
+                transaction.ExecuteNonQuery(
+                    InsertAliasSql,
+                    new Dictionary<string, object?> {
+                        ["$factKey"] = currentKey,
+                        ["$alias"] = alias
+                    });
+            }
+            transaction.ExecuteNonQuery(
+                DeleteAliasesSql,
+                new Dictionary<string, object?> { ["$factKey"] = migrating.LegacyKey });
+            transaction.ExecuteNonQuery(
+                DeleteFactSql,
+                new Dictionary<string, object?> { ["$factKey"] = migrating.LegacyKey });
+        }
+        transaction.ExecuteNonQuery(CompleteV2MigrationSql);
     }
 
     /// <inheritdoc />
@@ -242,6 +273,17 @@ public sealed class SqliteEventContextStore : IEventContextStore {
         IsShareable = record.GetInt32(16) != 0
     };
 
+    private sealed class MigratingFact {
+        internal MigratingFact(string legacyKey, EventContextFact fact) {
+            LegacyKey = legacyKey;
+            Fact = fact;
+        }
+
+        internal string LegacyKey { get; }
+
+        internal EventContextFact Fact { get; }
+    }
+
     private static DateTime ParseUtc(string value) => DateTime.Parse(
         value,
         CultureInfo.InvariantCulture,
@@ -263,6 +305,14 @@ VALUES
     private const string InsertAliasSql = @"
 INSERT OR IGNORE INTO evx_context_aliases (fact_key, alias)
 VALUES ($factKey, $alias);";
+
+    private const string DeleteAliasesSql = @"
+DELETE FROM evx_context_aliases
+WHERE fact_key = $factKey;";
+
+    private const string DeleteFactSql = @"
+DELETE FROM evx_context_facts
+WHERE fact_key = $factKey;";
 
     private const string SelectFactsBatchPrefix = @"
 WITH requested(object_kind, canonical_id, alias, authorization_context) AS (VALUES ";
@@ -307,12 +357,38 @@ WHERE EXISTS (
                   AND match_alias.alias = request.alias))))
 ORDER BY f.effective_utc, f.source_identity;";
 
-    private const string MigrateSchemaV1ToV2Sql = @"
+    private const string AddDisplayNameObservationSql = @"
 ALTER TABLE evx_context_facts
 ADD COLUMN display_name_observed INTEGER NOT NULL DEFAULT 0;
 UPDATE evx_context_facts
 SET display_name_observed = 1
-WHERE display_name IS NOT NULL;
+WHERE display_name IS NOT NULL;";
+
+    private const string SelectFactsForMigrationSql = @"
+SELECT f.object_kind,
+       f.canonical_id,
+       COALESCE((SELECT group_concat(a.alias, char(31))
+                 FROM evx_context_aliases a
+                 WHERE a.fact_key = f.fact_key), ''),
+       f.display_name,
+       f.display_name_observed,
+       f.domain,
+       f.distinguished_name,
+       f.effective_utc,
+       f.observed_utc,
+       f.is_deleted,
+       f.provenance,
+       f.source_identity,
+       f.provider_name,
+       f.provider_schema_version,
+       f.confidence_reason,
+       f.authorization_context,
+       f.is_shareable,
+       f.fact_key
+FROM evx_context_facts f
+ORDER BY f.fact_key;";
+
+    private const string CompleteV2MigrationSql = @"
 UPDATE evx_context_metadata
 SET schema_version = 2
 WHERE singleton_id = 1;";

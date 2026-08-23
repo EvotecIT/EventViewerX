@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using DBAClientX;
 using EventViewerX.Storage;
 using Xunit;
@@ -613,6 +615,64 @@ VALUES (1, 99, '2026-08-23T00:00:00.0000000Z');");
     }
 
     [Fact]
+    public async Task VersionOneMigrationRekeysStoredFactsWithoutBreakingIdempotency() {
+        string path = CreateStorePath();
+        try {
+            CreateVersionOneContextSchema(path);
+            EventContextFact fact = EventContextResolver.ValidateAndSnapshot(Fact(
+                CreatedUtc,
+                "Migrated policy",
+                "event-migrated"));
+            string legacyKey = CreateVersionOneFactKey(fact);
+            using (var sqlite = new SQLite { BusyTimeoutMs = 10000 }) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery(@"
+INSERT INTO evx_context_facts
+    (fact_key, object_kind, canonical_id, display_name, domain, distinguished_name,
+     effective_utc, observed_utc, is_deleted, provenance, source_identity, provider_name,
+     provider_schema_version, confidence_reason, authorization_context, is_shareable)
+VALUES
+    ($factKey, $objectKind, $canonicalId, $displayName, $domain, $distinguishedName,
+     $effectiveUtc, $observedUtc, $isDeleted, $provenance, $sourceIdentity, $providerName,
+     $providerSchemaVersion, $confidenceReason, $authorizationContext, $isShareable);",
+                    CreateVersionOneParameters(legacyKey, fact));
+                foreach (string alias in fact.Aliases) {
+                    session.ExecuteNonQuery(
+                        "INSERT INTO evx_context_aliases (fact_key, alias) VALUES ($factKey, $alias);",
+                        new Dictionary<string, object?> {
+                            ["$factKey"] = legacyKey,
+                            ["$alias"] = alias
+                        });
+                }
+            }
+
+            var store = new SqliteEventContextStore(path);
+            store.Initialize();
+            await store.StoreAsync(fact);
+
+            using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession verification = verificationClient.OpenSession(path);
+            Assert.Equal(1L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT COUNT(*) FROM evx_context_facts;"),
+                CultureInfo.InvariantCulture));
+            Assert.Equal(EventContextIdentity.CreateFactKey(fact), Convert.ToString(
+                verification.ExecuteScalar("SELECT fact_key FROM evx_context_facts;"),
+                CultureInfo.InvariantCulture));
+            Assert.Equal(fact.Aliases.Count, Convert.ToInt32(verification.ExecuteScalar(
+                "SELECT COUNT(*) FROM evx_context_aliases;"),
+                CultureInfo.InvariantCulture));
+            EventContextResolution resolution = await store.ResolveAsync(new EventContextQuery {
+                ObjectKind = EventContextObjectKind.GroupPolicy,
+                Alias = fact.Aliases[0],
+                AtUtc = CreatedUtc
+            });
+            Assert.Equal("Migrated policy", resolution.CurrentName);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task FactsAfterRequestedTimeRemainUnknown() {
         var store = new InMemoryEventContextStore();
         await store.StoreAsync(Fact(CreatedUtc, "Future policy", "source-future"));
@@ -677,6 +737,43 @@ CREATE TABLE evx_context_aliases (
     alias TEXT NOT NULL,
     PRIMARY KEY (fact_key, alias)
 );");
+    }
+
+    private static Dictionary<string, object?> CreateVersionOneParameters(
+        string factKey,
+        EventContextFact fact) => new() {
+        ["$factKey"] = factKey,
+        ["$objectKind"] = (int)fact.ObjectKind,
+        ["$canonicalId"] = fact.CanonicalId,
+        ["$displayName"] = fact.DisplayName,
+        ["$domain"] = fact.Domain,
+        ["$distinguishedName"] = fact.DistinguishedName,
+        ["$effectiveUtc"] = fact.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),
+        ["$observedUtc"] = fact.ObservedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+        ["$isDeleted"] = fact.IsDeleted ? 1 : 0,
+        ["$provenance"] = (int)fact.Provenance,
+        ["$sourceIdentity"] = fact.SourceIdentity,
+        ["$providerName"] = fact.ProviderName,
+        ["$providerSchemaVersion"] = fact.ProviderSchemaVersion,
+        ["$confidenceReason"] = fact.ConfidenceReason,
+        ["$authorizationContext"] = fact.AuthorizationContext,
+        ["$isShareable"] = fact.IsShareable ? 1 : 0
+    };
+
+    private static string CreateVersionOneFactKey(EventContextFact fact) {
+        string payload = string.Join("\n", new[] {
+            ((int)fact.ObjectKind).ToString(CultureInfo.InvariantCulture),
+            fact.CanonicalId,
+            string.Join("|", fact.Aliases.OrderBy(static value => value, StringComparer.Ordinal)),
+            fact.EffectiveAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            ((int)fact.Provenance).ToString(CultureInfo.InvariantCulture),
+            fact.SourceIdentity,
+            fact.ProviderName,
+            fact.ProviderSchemaVersion.ToString(CultureInfo.InvariantCulture)
+        });
+        using SHA256 sha256 = SHA256.Create();
+        return BitConverter.ToString(sha256.ComputeHash(Encoding.UTF8.GetBytes(payload)))
+            .Replace("-", string.Empty);
     }
 
     private static EventContextFact Fact(
