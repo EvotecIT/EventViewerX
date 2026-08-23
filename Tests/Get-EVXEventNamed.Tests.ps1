@@ -59,6 +59,18 @@ Describe 'Get-EVXEvent - Type' {
         Test-Path -LiteralPath $ContextPath | Should -BeFalse
     }
 
+    It 'rejects context authorization without a persistent context store' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+
+        {
+            Get-EVXEvent `
+                -Type OSStartup `
+                -Path $Fixture `
+                -ContextAuthorization 'authorized-partition' `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
+    }
+
     It 'continues independent persistent-context collector targets by default' {
         $ContextPath = Join-Path $TestDrive 'collector-continuation-context.db'
         $Errors = @()

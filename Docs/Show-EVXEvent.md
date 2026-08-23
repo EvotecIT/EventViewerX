@@ -108,7 +108,7 @@ Accept wildcard characters: False
 ```
 
 ### -ContextAuthorization
-Caller-authorized partition used to resolve non-shareable imported Group Policy context.
+Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.
 
 ```yaml
 Type: String

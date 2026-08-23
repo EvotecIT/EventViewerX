@@ -59,6 +59,9 @@ public sealed class ScheduledTaskUpdated : ScheduledTaskStateChange {
     public string TaskContent = string.Empty;
     /// <summary>Creates the typed projection.</summary>
     public ScheduledTaskUpdated(EventObject eventObject) : base(eventObject, nameof(ScheduledTaskUpdated)) {
-        TaskContent = SourceEvent.GetValueFromDataDictionary("TaskContent");
+        TaskContent = SourceEvent.TryGetDataValue("TaskContentNew", out string updatedTaskContent, trim: false) &&
+                      !string.IsNullOrEmpty(updatedTaskContent)
+            ? updatedTaskContent
+            : SourceEvent.GetDataValueOrEmpty("TaskContent", trim: false);
     }
 }

@@ -193,6 +193,23 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void TypedActiveDirectoryFileTimeReportsUtcConversion() {
+        DateTime utc = new(2026, 8, 23, 10, 15, 30, DateTimeKind.Utc);
+        DateTime local = DateTime.SpecifyKind(utc, DateTimeKind.Local);
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(CreateRow(
+                1,
+                new Dictionary<string, object?> {
+                    ["LastLogon"] = local,
+                    ["LastLogonTimestamp"] = utc
+                }));
+
+        Assert.Equal(local.ToUniversalTime(), normalized["LastLogon"].Value);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized["LastLogon"].Outcome);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["LastLogonTimestamp"].Outcome);
+    }
+
+    [Fact]
     public void ActiveDirectoryGeneralizedTimeValidatesOffsetsAndReportsFractionLoss() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["WhenCreated"] = "20260823101530.123456789Z",
@@ -220,6 +237,12 @@ public sealed class TestEventAnalysis {
             source: "dc1.ad.evotec.xyz", collector: "wec1.ad.evotec.xyz", container: "ForwardedEvents");
         EventReportRow peer = CreateRow(22, direct.Values, timestamp.AddSeconds(2),
             source: "dc2.ad.evotec.xyz", collector: "dc2.ad.evotec.xyz", container: "Security");
+        direct.EventId = 5136;
+        direct.Type = "GroupPolicyValueChanged";
+        forwarded.EventId = 5136;
+        forwarded.Type = "GroupPolicyValueChanged";
+        peer.EventId = 5137;
+        peer.Type = "GroupPolicyValueApplied";
 
         EventOccurrenceResult transport = EventOccurrenceEngine.Group(
             new[] { peer, forwarded, direct },
@@ -234,6 +257,7 @@ public sealed class TestEventAnalysis {
         EventOccurrenceGroup occurrence = Assert.Single(semantic.Groups);
         Assert.Equal(3, occurrence.ObservationCount);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
+        Assert.Equal(2, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 

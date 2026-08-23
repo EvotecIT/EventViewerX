@@ -175,7 +175,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter(ParameterSetName = "Type")]
     public string? ContextStorePath { get; set; }
 
-    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</summary>
+    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires <c>ContextStorePath</c>.</summary>
     [Parameter(ParameterSetName = "Type")]
     public string? ContextAuthorization { get; set; }
 
@@ -260,6 +260,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
 
     /// <inheritdoc />
     protected override async Task EndProcessingAsync() {
+        ValidateContextAuthorizationSelection();
         if (SummaryPeriod.HasValue && !string.IsNullOrWhiteSpace(StorePath)) {
             throw new PSArgumentException(
                 "SummaryPeriod and StorePath cannot be combined because derived summary rows are not durable event history. " +
@@ -500,6 +501,14 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             throw new PSArgumentException(
                 "ContextStorePath cannot be combined with Where, ResolveDns, or EventRecordId because persistent Group Policy context requires the complete selected timeline.",
                 nameof(ContextStorePath));
+        }
+    }
+
+    private void ValidateContextAuthorizationSelection() {
+        if (!string.IsNullOrWhiteSpace(ContextAuthorization) && string.IsNullOrWhiteSpace(ContextStorePath)) {
+            throw new PSArgumentException(
+                "ContextAuthorization requires ContextStorePath because authorization applies only to persistent Group Policy context.",
+                nameof(ContextAuthorization));
         }
     }
 

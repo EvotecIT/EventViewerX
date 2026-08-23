@@ -62,4 +62,12 @@ public sealed partial class CmdletGetEVXEvent {
         }
         WriteNamedTargetFailures(execution.TargetFailures);
     }
+
+    private void ValidateContextAuthorizationSelection() {
+        if (!string.IsNullOrWhiteSpace(ContextAuthorization) && string.IsNullOrWhiteSpace(ContextStorePath)) {
+            throw new PSArgumentException(
+                "ContextAuthorization requires ContextStorePath because authorization applies only to persistent Group Policy context.",
+                nameof(ContextAuthorization));
+        }
+    }
 }

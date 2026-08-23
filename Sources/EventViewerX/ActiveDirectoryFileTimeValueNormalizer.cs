@@ -28,7 +28,9 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
                 EventNormalizedValueKind.DateTime,
                 Name,
                 Version,
-                EventNormalizationOutcome.Unchanged);
+                date.Kind == DateTimeKind.Utc
+                    ? EventNormalizationOutcome.Unchanged
+                    : EventNormalizationOutcome.Normalized);
         }
         string raw = EventValueNormalizer.Format(context.RawValue).Trim();
         if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out long fileTime)) {

@@ -13,7 +13,7 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
 
     public string Name => "causal-identifier";
 
-    public int Version => 1;
+    public int Version => 2;
 
     public bool TryGetIdentity(EventReportRow observation, out string identity, out string reason) {
         IReadOnlyDictionary<string, object?> values = observation.ToNormalizedDictionary();
@@ -25,7 +25,7 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
             if (value.Length == 0 || value == "-" || value == Guid.Empty.ToString()) {
                 continue;
             }
-            identity = string.Join("\0", observation.Type.ToUpperInvariant(), observation.EventId, field.ToUpperInvariant(), value.ToUpperInvariant());
+            identity = string.Join("\0", field.ToUpperInvariant(), value.ToUpperInvariant());
             reason = $"Shared {field} value '{value}'.";
             return true;
         }

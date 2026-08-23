@@ -3513,7 +3513,7 @@ The selected Type still owns each event's original source channel and identifier
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ContextAuthorization</maml:name>
           <maml:description>
-            <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</maml:para>
+            <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -6144,7 +6144,7 @@ The selected Type still owns each event's original source channel and identifier
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>ContextAuthorization</maml:name>
         <maml:description>
-          <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</maml:para>
+          <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
         <dev:type>
@@ -15980,7 +15980,7 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ContextAuthorization</maml:name>
           <maml:description>
-            <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</maml:para>
+            <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -18060,7 +18060,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>ContextAuthorization</maml:name>
         <maml:description>
-          <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</maml:para>
+          <maml:para>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
         <dev:type>

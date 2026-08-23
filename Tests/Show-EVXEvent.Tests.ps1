@@ -31,6 +31,19 @@ Describe 'Show-EVXEvent' {
         $Report.Sections[0].Columns.Name | Should -Contain 'EventId'
     }
 
+    It 'rejects context authorization without a persistent context store' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+
+        {
+            Show-EVXEvent `
+                -Type OSStartup `
+                -Path $FixturePath `
+                -ContextAuthorization 'authorized-partition' `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
+    }
+
     It 'renders HTML, Excel, email, and the report from one supplied snapshot' {
         $Event = Get-EVXEvent -LogName System -MaxEvents 1 -ReadMode StructuredDataAndMessage |
             Select-Object -First 1

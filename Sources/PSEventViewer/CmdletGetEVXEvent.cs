@@ -497,7 +497,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
     public string? ContextStorePath { get; set; }
 
-    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context.</summary>
+    /// <summary>Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires <c>ContextStorePath</c>.</summary>
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
     public string? ContextAuthorization { get; set; }
 
@@ -538,6 +538,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
         _managedProviderPatterns =
             Array.Empty<WildcardPattern>();
         _offlineProvidersByPath.Clear();
+        ValidateContextAuthorizationSelection();
         InitializeTypedFilter();
         EventPredicate? presetPredicate = ResolvePreset();
         if (Describe.IsPresent) {
