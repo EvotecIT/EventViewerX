@@ -159,7 +159,12 @@ internal static class BoundedNativeOperation {
         }
 
         if (completed && Volatile.Read(ref completedAfterMilliseconds) <= timeoutMilliseconds) {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested) {
+                ObserveLateResult(
+                    task,
+                    lateResultCleanup);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             return task.GetAwaiter().GetResult();
         }
 

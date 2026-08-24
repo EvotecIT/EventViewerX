@@ -290,7 +290,7 @@ public sealed partial class EventStore {
         return reasons.Count == 0 ? null : string.Join(". ", reasons) + ".";
     }
 
-    private static long GetResultProbeLimit(long maximum, int selectedCount) {
+    private static long GetResultProbeLimit(long maximum, long selectedCount) {
         long remaining = maximum - selectedCount;
         return remaining == long.MaxValue ? long.MaxValue : remaining + 1L;
     }

@@ -149,6 +149,24 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void TypedDirectoryOperationLabelsRemainValidIdentityEvidence() {
+        EventReportRow row = CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["OperationType"] = "Organizational Unit Created"
+            });
+        row.Type = nameof(EventType.ADOrganizationalUnitChangeDetailed);
+        EventValueNormalizationEngine.Populate(row);
+
+        EventNormalizedValue operation = row.NormalizedValues["OperationType"];
+
+        Assert.Equal("Organizational Unit Created", operation.Value);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, operation.Outcome);
+        Assert.Empty(operation.Warnings);
+        Assert.Equal("identity", operation.Normalizer);
+    }
+
+    [Fact]
     public void MalformedKnownValuesRemainVisibleWithTypedDiagnostics() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["ObjectGuid"] = "not-a-guid",
@@ -580,6 +598,29 @@ public sealed class TestEventAnalysis {
         Assert.Empty(forward.Rows);
         Assert.Empty(reverse.Rows);
         Assert.Equal(forward.Diagnostic, reverse.Diagnostic);
+    }
+
+    [Fact]
+    public void GlobalRankingStatesShareTheMaximumGroupBudget() {
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            new[] {
+                CreateRow(
+                    1,
+                    new Dictionary<string, object?> { ["Who"] = "Alice" },
+                    new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc))
+            },
+            new EventAggregationDefinition {
+                GroupBy = new[] { "Who" },
+                Bucket = EventAggregationBucket.Day,
+                Top = 1,
+                TopScope = EventAggregationTopScope.GlobalGroup,
+                MaximumGroups = 1
+            });
+
+        Assert.False(result.AggregationComplete);
+        Assert.Empty(result.Rows);
+        Assert.Equal(1, result.InputRows);
+        Assert.Contains("MaximumGroups", result.Diagnostic, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -59,7 +59,8 @@ public sealed class EventAggregationAccumulator {
                 group,
                 bucket,
                 _definition,
-                ref _stateBytes);
+                ref _stateBytes,
+                auxiliaryStateCount: _rankingStates.Count);
             _stateBytes += state.Add(row, values, _definition.MaximumDistinctValues);
             if (_requiresGlobalRanking) {
                 AggregationState ranking = EventAggregationEngine.GetOrCreate(
@@ -69,7 +70,8 @@ public sealed class EventAggregationAccumulator {
                     AggregationBucketRange.None,
                     _definition,
                     ref _stateBytes,
-                    _rankingMeasures);
+                    _rankingMeasures,
+                    _states.Count);
                 _stateBytes += ranking.Add(row, values, _definition.MaximumDistinctValues);
             }
             if (_stateBytes > _definition.MaximumStateBytes) {
@@ -88,6 +90,13 @@ public sealed class EventAggregationAccumulator {
 
     /// <summary>Completes the aggregation and returns its bounded result.</summary>
     public EventAggregationResult Complete() {
+        return Complete(_inputCompleteness, _inputDiagnostic);
+    }
+
+    internal EventAggregationResult Complete(
+        EventAggregationInputCompleteness inputCompleteness,
+        string? inputDiagnostic) {
+
         if (_completed) {
             throw new InvalidOperationException("The aggregation accumulator is already complete.");
         }
@@ -96,9 +105,9 @@ public sealed class EventAggregationAccumulator {
             return new EventAggregationResult(
                 _definition,
                 Array.Empty<EventAggregationRow>(),
-                _inputCompleteness,
+                inputCompleteness,
                 aggregationComplete: false,
-                EventCompletenessDiagnostic.Compose(_boundDiagnostic, _inputDiagnostic),
+                EventCompletenessDiagnostic.Compose(_boundDiagnostic, inputDiagnostic),
                 EventAggregationExecutionMode.Managed,
                 _inputRows);
         }
@@ -111,7 +120,7 @@ public sealed class EventAggregationAccumulator {
             .ThenBy(static state => state.Group.Identity, StringComparer.Ordinal)
             .Select(state => state.CreateRow(_definition))
             .ToArray();
-        string? completenessDiagnostic = _inputCompleteness switch {
+        string? completenessDiagnostic = inputCompleteness switch {
             EventAggregationInputCompleteness.Unknown =>
                 "Aggregation is exhaustive for supplied rows, but source-query completeness is unknown.",
             EventAggregationInputCompleteness.Incomplete =>
@@ -121,9 +130,9 @@ public sealed class EventAggregationAccumulator {
         return new EventAggregationResult(
             _definition,
             rows,
-            _inputCompleteness,
+            inputCompleteness,
             aggregationComplete: true,
-            EventCompletenessDiagnostic.Compose(_inputDiagnostic, completenessDiagnostic),
+            EventCompletenessDiagnostic.Compose(inputDiagnostic, completenessDiagnostic),
             EventAggregationExecutionMode.Managed,
             _inputRows);
     }

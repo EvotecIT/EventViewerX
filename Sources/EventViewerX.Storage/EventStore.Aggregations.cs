@@ -84,9 +84,11 @@ public sealed partial class EventStore {
             .Definition;
         string? managedReason = GetManagedAggregationReason(snapshot, aggregation);
         if (managedReason != null) {
-            EventReport report = await ReadReportAsync(snapshot, cancellationToken: cancellationToken)
+            return await AggregateManagedStreamingAsync(
+                    snapshot,
+                    aggregation,
+                    cancellationToken)
                 .ConfigureAwait(false);
-            return EventAggregationEngine.Aggregate(report, aggregation);
         }
 
         EnsureInitialized();
@@ -101,9 +103,11 @@ public sealed partial class EventStore {
                 filter,
                 aggregation,
                 cancellationToken).ConfigureAwait(false)) {
-            EventReport report = await ReadReportAsync(snapshot, cancellationToken: cancellationToken)
+            return await AggregateManagedStreamingAsync(
+                    snapshot,
+                    aggregation,
+                    cancellationToken)
                 .ConfigureAwait(false);
-            return EventAggregationEngine.Aggregate(report, aggregation);
         }
 
         object? inputValue = await session.ExecuteScalarAsync(
@@ -122,7 +126,11 @@ public sealed partial class EventStore {
                 inputRows: 0);
         }
 
-        SqlAggregationCommand command = BuildAggregationCommand(filter, aggregation);
+        _ = TryGetBoundedGroupingIndex(aggregation, out string? groupingIndex);
+        SqlAggregationCommand command = BuildAggregationCommand(
+            filter,
+            aggregation,
+            groupingIndex);
         IReadOnlyList<EventAggregationRow> pushedRows = await session.QueryAsListAsync(
             command.Sql,
             record => MapAggregationRow(record, aggregation, command),
@@ -201,7 +209,144 @@ public sealed partial class EventStore {
             definition.TopScope == EventAggregationTopScope.GlobalGroup) {
             return "Global top-N across time buckets uses the managed engine so ranking measures retain exact semantics.";
         }
+        if (!TryGetBoundedGroupingIndex(definition, out _)) {
+            return "The selected grouping has no ordered SQLite index, so the shared streaming managed engine enforces MaximumGroups before unbounded database grouping state can accumulate.";
+        }
         return null;
+    }
+
+    private async Task<EventAggregationResult> AggregateManagedStreamingAsync(
+        EventStoreQuery snapshot,
+        EventAggregationDefinition aggregation,
+        CancellationToken cancellationToken) {
+
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        return await session.RunInTransactionAsync(async (transaction, token) => {
+            StoredSchemaContext schemaContext = await ReadSchemaContextAsync(
+                transaction,
+                snapshot.ResolveDefinitionNames(),
+                snapshot.DefinitionSchemas,
+                token).ConfigureAwait(false);
+            snapshot.Predicate = NormalizeStoredPredicate(snapshot.Predicate, schemaContext.Schemas);
+            QueryCommand command = BuildReadCommand(snapshot, schemaContext.Pushdown);
+            EventAggregationAccumulator accumulator = EventAggregationEngine.CreateAccumulator(
+                aggregation,
+                EventAggregationInputCompleteness.Unknown);
+            long scanned = 0;
+            long selected = 0;
+            long offset = 0;
+            bool scanLimitReached = false;
+            bool resultLimitReached = false;
+            bool aggregationBoundReached = false;
+            bool completed = false;
+            while (!completed) {
+                long remainingCandidates = command.CandidateLimit > 0
+                    ? command.CandidateLimit - scanned
+                    : long.MaxValue;
+                long pageLimit = command.CandidateLimit > 0
+                    ? Math.Min(StoredReadPageSize, remainingCandidates + 1)
+                    : snapshot.MaxEvents > 0
+                        ? Math.Min(StoredReadPageSize, GetResultProbeLimit(snapshot.MaxEvents, selected))
+                        : StoredReadPageSize;
+                if (pageLimit <= 0) {
+                    break;
+                }
+                var pageParameters = new Dictionary<string, object?>(command.Parameters) {
+                    ["$pageLimit"] = pageLimit,
+                    ["$pageOffset"] = offset
+                };
+                IReadOnlyList<EventReportRow> candidates = await transaction.QueryAsListAsync(
+                    command.Sql + " LIMIT $pageLimit OFFSET $pageOffset;",
+                    record => MapEventRow(record, schemaContext.ByName),
+                    pageParameters,
+                    cancellationToken: token).ConfigureAwait(false);
+                if (candidates.Count == 0) {
+                    break;
+                }
+                offset += candidates.Count;
+                foreach (EventReportRow row in candidates) {
+                    token.ThrowIfCancellationRequested();
+                    if (command.CandidateLimit > 0 && scanned >= command.CandidateLimit) {
+                        scanLimitReached = true;
+                        completed = true;
+                        break;
+                    }
+                    scanned++;
+                    if (!MatchesDirectTextSelection(snapshot, row)) {
+                        continue;
+                    }
+                    if (snapshot.Predicate != null &&
+                        !EventPredicateEvaluator.Matches(snapshot.Predicate, row.ToPredicateDictionary())) {
+                        continue;
+                    }
+                    if (snapshot.MaxEvents > 0 && selected >= snapshot.MaxEvents) {
+                        resultLimitReached = true;
+                        completed = true;
+                        break;
+                    }
+                    selected++;
+                    if (!accumulator.Add(row)) {
+                        aggregationBoundReached = true;
+                        completed = true;
+                        break;
+                    }
+                }
+                if (candidates.Count < pageLimit) {
+                    break;
+                }
+            }
+            EventAggregationInputCompleteness completeness =
+                scanLimitReached || resultLimitReached || aggregationBoundReached
+                    ? EventAggregationInputCompleteness.Incomplete
+                    : EventAggregationInputCompleteness.Complete;
+            string? diagnostic = EventCompletenessDiagnostic.Compose(
+                CreateReadCompletenessDiagnostic(
+                    snapshot.MaxEvents,
+                    scanLimitReached,
+                    resultLimitReached),
+                aggregationBoundReached
+                    ? "The stored scan stopped when an aggregation bound was reached"
+                    : null);
+            return accumulator.Complete(completeness, diagnostic);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool TryGetBoundedGroupingIndex(
+        EventAggregationDefinition definition,
+        out string? indexName) {
+
+        indexName = null;
+        if (definition.Bucket != EventAggregationBucket.None) {
+            return false;
+        }
+        string[] columns = definition.GroupBy
+            .Select(field => AggregationFields[field].Sql)
+            .ToArray();
+        if (columns.Length == 0) {
+            return true;
+        }
+        if (columns.SequenceEqual(new[] { "source_computer" }, StringComparer.Ordinal) ||
+            columns.SequenceEqual(new[] { "source_computer", "source_log" }, StringComparer.Ordinal)) {
+            indexName = "ix_evx_events_source_nocase_time";
+            return true;
+        }
+        if (columns.SequenceEqual(new[] { "provider" }, StringComparer.Ordinal)) {
+            indexName = "ix_evx_events_provider_nocase_time";
+            return true;
+        }
+        if (columns.SequenceEqual(new[] { "event_id" }, StringComparer.Ordinal)) {
+            indexName = "ix_evx_events_event_id_time";
+            return true;
+        }
+        if (columns.SequenceEqual(new[] { "event_time_utc" }, StringComparer.Ordinal)) {
+            indexName = "ix_evx_events_time";
+            return true;
+        }
+        return false;
     }
 
     private static bool RequiresNativeTextInspection(EventAggregationDefinition definition) =>
@@ -243,13 +388,14 @@ public sealed partial class EventStore {
 
     private static SqlAggregationCommand BuildAggregationCommand(
         WhereCommand filter,
-        EventAggregationDefinition definition) {
+        EventAggregationDefinition definition,
+        string? groupingIndex) {
 
         var select = new List<string>();
         var groupBy = new List<string>();
         foreach (string fieldName in definition.GroupBy) {
             StoredAggregationField field = AggregationFields[fieldName];
-            string grouping = field.IsText ? $"UPPER({field.Sql})" : field.Sql;
+            string grouping = field.IsText ? $"{field.Sql} COLLATE NOCASE" : field.Sql;
             select.Add(field.IsText ? $"MIN({field.Sql})" : field.Sql);
             groupBy.Add(grouping);
         }
@@ -261,7 +407,8 @@ public sealed partial class EventStore {
         foreach (EventAggregationMeasure measure in definition.Measures) {
             select.Add(GetSqlMeasure(measure));
         }
-        string sql = "SELECT " + string.Join(", ", select) + " FROM evx_events";
+        string sql = "SELECT " + string.Join(", ", select) + " FROM evx_events" +
+                     (groupingIndex == null ? string.Empty : $" INDEXED BY {groupingIndex}");
         var aggregationClauses = new List<string>(filter.Clauses);
         if (definition.GroupNulls == EventAggregationNullPolicy.Exclude) {
             aggregationClauses.AddRange(definition.GroupBy.Select(fieldName =>

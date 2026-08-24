@@ -434,6 +434,13 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             report = EventOccurrenceReportFactory.Create(occurrences, report, Title);
         }
 
+        if (!string.IsNullOrWhiteSpace(StorePath) &&
+            (aggregation != null || occurrences != null)) {
+            throw new PSArgumentException(
+                "Aggregation and occurrence rows are derived output and cannot be written into event history. Store source events instead.",
+                nameof(StorePath));
+        }
+
         bool hasDestination = !string.IsNullOrWhiteSpace(HtmlPath) ||
                               !string.IsNullOrWhiteSpace(ExcelPath) ||
                               !string.IsNullOrWhiteSpace(CsvPath) ||
@@ -473,11 +480,6 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             WriteObject(saved);
         }
         if (!string.IsNullOrWhiteSpace(StorePath)) {
-            if (aggregation != null || occurrences != null) {
-                throw new PSArgumentException(
-                    "Aggregation and occurrence rows are derived output and cannot be written into event history. Store source events instead.",
-                    nameof(StorePath));
-            }
             var store = new EventStore(StorePath!);
             EventStoreWriteResult stored = await store.WriteAsync(report, cancellationToken: CancelToken).ConfigureAwait(false);
             WriteVerbose($"Stored {stored.Inserted} new rows and skipped {stored.Duplicates} duplicates.");

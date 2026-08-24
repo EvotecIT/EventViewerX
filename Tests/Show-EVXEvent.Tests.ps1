@@ -59,6 +59,42 @@ Describe 'Show-EVXEvent' {
         Test-Path -LiteralPath $ContextPath | Should -BeFalse
     }
 
+    It 'rejects derived aggregation storage before writing another destination' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $StorePath = Join-Path $TestDrive 'derived-aggregation.db'
+        $HtmlPath = Join-Path $TestDrive 'derived-aggregation.html'
+        $Aggregation = Get-EVXEvent -Path $FixturePath -MaxEvents 2 |
+            Measure-EVXEvent -GroupBy ProviderName
+
+        {
+            $Aggregation | Show-EVXEvent `
+                -StorePath $StorePath `
+                -HtmlPath $HtmlPath `
+                -ErrorAction Stop
+        } | Should -Throw '*derived output*'
+
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+        Test-Path -LiteralPath $HtmlPath | Should -BeFalse
+    }
+
+    It 'rejects derived occurrence storage before writing another destination' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $StorePath = Join-Path $TestDrive 'derived-occurrence.db'
+        $CsvPath = Join-Path $TestDrive 'derived-occurrence.csv'
+
+        {
+            Get-EVXEvent -Path $FixturePath -MaxEvents 2 |
+                Show-EVXEvent `
+                    -DuplicateMode Transport `
+                    -StorePath $StorePath `
+                    -CsvPath $CsvPath `
+                    -ErrorAction Stop
+        } | Should -Throw '*derived output*'
+
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+        Test-Path -LiteralPath $CsvPath | Should -BeFalse
+    }
+
     It 'renders HTML, Excel, email, and the report from one supplied snapshot' {
         $Event = Get-EVXEvent -LogName System -MaxEvents 1 -ReadMode StructuredDataAndMessage |
             Select-Object -First 1

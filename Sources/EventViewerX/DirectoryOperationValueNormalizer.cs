@@ -12,9 +12,21 @@ internal sealed class DirectoryOperationValueNormalizer : IEventValueNormalizer 
 
     public int Version => 1;
 
-    public bool CanNormalize(EventValueContext context) =>
-        string.Equals(context.FieldName, "OperationType", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(context.FieldName, "ActionDetail", StringComparison.OrdinalIgnoreCase);
+    public bool CanNormalize(EventValueContext context) {
+        bool operationField =
+            string.Equals(context.FieldName, "OperationType", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(context.FieldName, "ActionDetail", StringComparison.OrdinalIgnoreCase);
+        if (!operationField) {
+            return false;
+        }
+        string raw = EventValueNormalizer.Format(context.RawValue).Trim();
+        return string.Equals(
+                   context.TypeName,
+                   nameof(EventType.GroupPolicyDirectoryAudit),
+                   StringComparison.OrdinalIgnoreCase) ||
+               Operations.ContainsKey(raw) ||
+               Operations.Values.Contains(raw, StringComparer.OrdinalIgnoreCase);
+    }
 
     public EventNormalizedValue Normalize(EventValueContext context) {
         string formatted = EventValueNormalizer.Format(context.RawValue);

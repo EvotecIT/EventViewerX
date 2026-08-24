@@ -238,6 +238,25 @@ Describe 'evx portable host' {
         $Result.Rows[0].Group.Type | Should -Be 'Generic'
     }
 
+    It 'validates occurrence aggregation definitions before explain output or store creation' {
+        $StorePath = Join-Path $TestDrive 'invalid-occurrence-explain.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath measure `
+                --store $StorePath `
+                --duplicates Semantic `
+                --explain `
+                --measure 'Rate::PerHour:01:00:00' 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'unbucketed Rate'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
     It 'emits an explicit metadata record when occurrence bounds fail closed' {
         $Result = & $script:CliPath query `
             --path $script:FixturePath `

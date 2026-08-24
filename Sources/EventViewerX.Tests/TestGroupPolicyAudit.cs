@@ -649,6 +649,25 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal(EventLogRemoteQueryFailureKind.AccessDenied.ToString(), collectorCoverage.Status);
     }
 
+    [Fact]
+    public void EmptyMachineSelectionRetainsLocalFailureCoverage() {
+        var query = new GroupPolicyAuditQuery {
+            MachineNames = Array.Empty<string?>()
+        };
+        var failure = new EventLogQueryTargetFailure(
+            Environment.MachineName,
+            "Security",
+            EventLogRemoteQueryFailureKind.AccessDenied,
+            "Denied.");
+
+        EventReportCoverage coverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(query, new[] { failure }));
+
+        Assert.Equal(Environment.MachineName, coverage.MachineName, ignoreCase: true);
+        Assert.False(coverage.Succeeded);
+        Assert.Equal(EventLogRemoteQueryFailureKind.AccessDenied.ToString(), coverage.Status);
+    }
+
     private static EventObject CreateSource(
         int eventId,
         string queriedMachine,

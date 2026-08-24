@@ -70,7 +70,7 @@ public sealed partial class TestEventStore {
 
             EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
 
-            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Equal(EventAggregationExecutionMode.Managed, pushed.ExecutionMode);
             Assert.Equal(2L, Assert.Single(pushed.Rows).Group["RecordId"]);
         } finally {
             DeleteStore(path);
@@ -208,7 +208,7 @@ public sealed partial class TestEventStore {
 
             EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
 
-            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Equal(EventAggregationExecutionMode.Managed, pushed.ExecutionMode);
             Assert.False(pushed.AggregationComplete);
             Assert.Equal(2, pushed.InputRows);
             Assert.Contains("MaximumGroups", pushed.Diagnostic, StringComparison.Ordinal);
@@ -256,10 +256,49 @@ public sealed partial class TestEventStore {
             EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
             EventAggregationResult managed = EventAggregationEngine.Aggregate(report, definition);
 
-            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.Equal(EventAggregationExecutionMode.Managed, pushed.ExecutionMode);
             Assert.Equal(2, pushed.InputRows);
             Assert.Equal(managed.Rows.Count, pushed.Rows.Count);
             Assert.Equal(1L, Assert.Single(pushed.Rows).Group["RecordId"]);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task UnindexedGroupingFallsBackToBoundedManagedStreaming() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(Enumerable.Range(1, 20)
+                .Select(index => (
+                    new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc).AddMinutes(index),
+                    (long)index,
+                    $"User{index}"))
+                .ToArray());
+            for (int index = 0; index < report.Rows.Count; index++) {
+                report.Rows[index].Message = $"Unique message {index}";
+            }
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition {
+                GroupBy = new[] { "Message" },
+                MaximumGroups = 1
+            };
+
+            EventStoreAggregationPlan plan = await store.PlanAggregationAsync(
+                new EventStoreQuery(),
+                definition);
+            EventAggregationResult result = await store.AggregateAsync(
+                new EventStoreQuery(),
+                definition);
+
+            Assert.Equal(EventAggregationExecutionMode.Managed, plan.ExecutionMode);
+            Assert.Contains("ordered SQLite index", plan.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(EventAggregationExecutionMode.Managed, result.ExecutionMode);
+            Assert.False(result.AggregationComplete);
+            Assert.Equal(EventAggregationInputCompleteness.Incomplete, result.InputCompleteness);
+            Assert.Equal(2, result.InputRows);
+            Assert.Contains("MaximumGroups", result.Diagnostic, StringComparison.Ordinal);
         } finally {
             DeleteStore(path);
         }

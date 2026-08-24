@@ -17,6 +17,7 @@ internal static partial class Program {
                 "--duplicates");
             if (duplicateMode != EventDuplicateMode.None) {
                 if (options.Has("explain")) {
+                    _ = EventAggregationEngine.CreateAccumulator(definition);
                     return WriteJson(new {
                         ExecutionMode = EventAggregationExecutionMode.Managed,
                         Reason = "Occurrence grouping must retain source observations before aggregation, so stored pushdown is disabled."

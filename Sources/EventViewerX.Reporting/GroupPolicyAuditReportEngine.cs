@@ -62,7 +62,7 @@ public static class GroupPolicyAuditReportEngine {
                 };
             }).ToArray();
         }
-        IReadOnlyList<string?> targets = query.MachineNames ?? new string?[] { null };
+        IReadOnlyList<string?> targets = EventLogTarget.NormalizeMachineNames(query.MachineNames);
         string queriedLog = string.IsNullOrWhiteSpace(query.CollectorLogName)
             ? "Security"
             : query.CollectorLogName!;

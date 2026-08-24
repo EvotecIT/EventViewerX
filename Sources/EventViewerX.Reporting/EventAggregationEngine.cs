@@ -59,13 +59,14 @@ public static partial class EventAggregationEngine {
         AggregationBucketRange bucket,
         EventAggregationDefinition definition,
         ref long stateBytes,
-        IReadOnlyList<EventAggregationMeasure>? measures = null) {
+        IReadOnlyList<EventAggregationMeasure>? measures = null,
+        int auxiliaryStateCount = 0) {
 
         if (states.TryGetValue(key, out AggregationState? state)) {
             state.MergeGroupDisplay(group);
             return state;
         }
-        if (states.Count >= definition.MaximumGroups) {
+        if ((long)states.Count + auxiliaryStateCount >= definition.MaximumGroups) {
             throw new AggregationBoundException(
                 $"Aggregation group count exceeds MaximumGroups {definition.MaximumGroups:N0}.");
         }
