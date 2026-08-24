@@ -44,6 +44,10 @@ public sealed class EventReportRow {
     public string Level { get; set; } = string.Empty;
     /// <summary>Numeric Windows event level used by exact predicates.</summary>
     public byte? LevelValue { get; set; }
+    /// <summary>Windows system activity identifier used for same-producer causal grouping.</summary>
+    public Guid? ActivityId { get; set; }
+    /// <summary>Windows system related-activity identifier used for same-producer causal grouping.</summary>
+    public Guid? RelatedActivityId { get; set; }
     /// <summary>Rendered provider message.</summary>
     public string Message { get; set; } = string.Empty;
     /// <summary>Type-specific projected values.</summary>
@@ -70,6 +74,8 @@ public sealed class EventReportRow {
             [nameof(CollectorComputer)] = CollectorComputer,
             [nameof(Level)] = Level,
             [nameof(LevelValue)] = LevelValue,
+            [nameof(ActivityId)] = ActivityId,
+            [nameof(RelatedActivityId)] = RelatedActivityId,
             [nameof(Message)] = Message
         };
         foreach (KeyValuePair<string, object?> value in Values) {

@@ -798,6 +798,43 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public async Task ReportExportsRetainTheCompletenessDiagnostic() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventReportRequest request = EventReportRequest.ForFiles(fixture);
+        request.MaxEvents = 1;
+        EventReport source = await EventReportEngine.QueryAsync(request);
+        string diagnostic = Assert.IsType<string>(source.CompletenessDiagnostic);
+        string excelPath = Path.Combine(Path.GetTempPath(), $"evx-completeness-{Guid.NewGuid():N}.xlsx");
+        string bundlePath = Path.Combine(Path.GetTempPath(), $"evx-completeness-{Guid.NewGuid():N}.zip");
+        try {
+            string html = EventReportHtmlRenderer.Render(source);
+            EventReportExcelRenderer.Save(source, excelPath);
+            EventReportCsvRenderer.Save(source, bundlePath);
+
+            Assert.Contains(diagnostic, html, StringComparison.Ordinal);
+            using (ZipArchive workbook = ZipFile.OpenRead(excelPath)) {
+                string workbookXml = string.Join("\n", workbook.Entries
+                    .Where(static entry => entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                    .Select(static entry => {
+                        using StreamReader reader = new(entry.Open());
+                        return reader.ReadToEnd();
+                    }));
+                Assert.Contains(diagnostic, workbookXml, StringComparison.Ordinal);
+            }
+            using (ZipArchive bundle = ZipFile.OpenRead(bundlePath)) {
+                ZipArchiveEntry manifest = Assert.Single(bundle.Entries, static entry =>
+                    string.Equals(entry.FullName, "manifest.json", StringComparison.Ordinal));
+                using StreamReader reader = new(manifest.Open());
+                Assert.Contains(diagnostic, reader.ReadToEnd(), StringComparison.Ordinal);
+            }
+        } finally {
+            File.Delete(excelPath);
+            File.Delete(bundlePath);
+        }
+    }
+
+    [Fact]
     public async Task ReportRequestsApplyDurableRecordBoundariesToEveryQueryOwner() {
         string fixture = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));

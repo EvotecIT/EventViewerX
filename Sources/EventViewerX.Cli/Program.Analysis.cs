@@ -7,6 +7,7 @@ namespace EventViewerX.Cli;
 internal static partial class Program {
     private static async Task<int> MeasureAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: false);
+        ValidateOccurrenceOptions(options);
         EventAggregationDefinition definition = CreateAggregationDefinition(options);
         EventAggregationResult result;
         if (options.Get("store") is string storePath) {
@@ -114,19 +115,24 @@ internal static partial class Program {
     }
 
     private static EventOccurrenceResult GroupOccurrences(EventReport report, CliArguments options) {
-        EventDuplicateMode mode = ParseEnum(
-            options.Get("duplicates"),
-            EventDuplicateMode.None,
-            "--duplicates");
-        return EventOccurrenceEngine.Group(report.Rows, new EventOccurrenceOptions {
-            Mode = mode,
+        return EventOccurrenceEngine.Group(report.Rows, CreateOccurrenceOptions(options));
+    }
+
+    private static void ValidateOccurrenceOptions(CliArguments options) =>
+        EventOccurrenceEngine.ValidateOptions(CreateOccurrenceOptions(options));
+
+    private static EventOccurrenceOptions CreateOccurrenceOptions(CliArguments options) =>
+        new() {
+            Mode = ParseEnum(
+                options.Get("duplicates"),
+                EventDuplicateMode.None,
+                "--duplicates"),
             Window = options.Get("occurrence-window") is string window
                 ? TimeSpan.Parse(window, CultureInfo.InvariantCulture)
                 : TimeSpan.FromSeconds(10),
             MaximumObservations = options.GetInt("maximum-occurrence-observations", 100000),
             MaximumGroups = options.GetInt("maximum-occurrence-groups", 25000)
-        });
-    }
+        };
 
     private static EventAggregationDefinition CreateAggregationDefinition(CliArguments options) {
         EventAggregationMeasure[] measures = options.GetMany("measure")

@@ -47,6 +47,9 @@ public sealed class EventAggregationAccumulator {
         }
         _inputRows = checked(_inputRows + 1);
         try {
+            if (row.NormalizedValues.Count == 0 && row.Values.Count > 0) {
+                EventValueNormalizationEngine.Populate(row);
+            }
             IReadOnlyDictionary<string, object?> values = row.ToNormalizedDictionary();
             if (!EventAggregationEngine.TryCreateGroup(_definition, values, out AggregationGroup group)) {
                 return true;

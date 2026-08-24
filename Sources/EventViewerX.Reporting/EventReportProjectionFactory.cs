@@ -211,6 +211,8 @@ internal static class EventReportProjectionFactory {
             CollectorComputer = source.CollectorComputer,
             Level = source.LevelDisplayName,
             LevelValue = source.Level,
+            ActivityId = source.ActivityId,
+            RelatedActivityId = source.RelatedActivityId,
             Message = source.Message,
             Values = values
         };

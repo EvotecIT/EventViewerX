@@ -5,6 +5,14 @@ namespace EventViewerX.Reporting;
 
 /// <summary>Creates non-destructive transport and semantic occurrence groups.</summary>
 public static class EventOccurrenceEngine {
+    /// <summary>Validates occurrence grouping options without consuming any observations.</summary>
+    public static void ValidateOptions(EventOccurrenceOptions options) {
+        if (options == null) {
+            throw new ArgumentNullException(nameof(options));
+        }
+        Validate(options);
+    }
+
     private static readonly IEventOccurrencePolicy[] Policies = {
         new CausalIdentifierOccurrencePolicy()
     };

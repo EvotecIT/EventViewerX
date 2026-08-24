@@ -171,8 +171,25 @@ internal sealed class AggregationGroup {
     }
 
     private static int CompareDisplay(object? left, object? right) => string.CompareOrdinal(
-        Convert.ToString(left, CultureInfo.InvariantCulture) ?? string.Empty,
-        Convert.ToString(right, CultureInfo.InvariantCulture) ?? string.Empty);
+        FormatDisplayIdentity(left),
+        FormatDisplayIdentity(right));
+
+    private static string FormatDisplayIdentity(object? value) => value switch {
+        null => string.Empty,
+        string text => text,
+        DateTime date => date.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture),
+        DateTimeOffset date => date.UtcTicks.ToString("D19", CultureInfo.InvariantCulture),
+        System.Collections.IEnumerable enumerable when value is not string =>
+            "[" + string.Join("\u001f", EnumerateDisplay(enumerable)) + "]",
+        IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
+        _ => value.ToString() ?? string.Empty
+    };
+
+    private static IEnumerable<string> EnumerateDisplay(System.Collections.IEnumerable values) {
+        foreach (object? value in values) {
+            yield return FormatDisplayIdentity(value);
+        }
+    }
 }
 
 internal sealed class AggregationBucketRange {

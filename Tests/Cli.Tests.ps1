@@ -257,6 +257,24 @@ Describe 'evx portable host' {
         Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 
+    It 'validates query occurrence options before opening persistent output' {
+        $StorePath = Join-Path $TestDrive 'invalid-query-occurrence.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --path $script:FixturePath `
+                --duplicates NotAMode `
+                --write-store $StorePath 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--duplicates has an unsupported value'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
     It 'emits an explicit metadata record when occurrence bounds fail closed' {
         $Result = & $script:CliPath query `
             --path $script:FixturePath `

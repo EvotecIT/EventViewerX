@@ -45,6 +45,7 @@ internal static partial class Program {
 
     private static async Task<int> QueryAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: false);
+        ValidateOccurrenceOptions(options);
         if (options.Get("store") is string storePath) {
             EventStoreQuery storedQuery = CreateStoreQuery(options);
             if (options.Has("explain")) {
@@ -102,6 +103,7 @@ internal static partial class Program {
 
     private static async Task<int> ReportAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: true);
+        ValidateOccurrenceOptions(options);
         EventReport report;
         if (options.Get("store") is string storePath) {
             var store = new EventStore(storePath);
@@ -563,24 +565,11 @@ internal static partial class Program {
             }
         }
         foreach (EventReportRow row in report.Rows) {
-            IReadOnlyDictionary<string, object?> values = sectionsByRow.TryGetValue(
+            sectionsByRow.TryGetValue(
                 row,
-                out EventReportSection? section)
-                ? row.ToNormalizedDictionary(section)
-                : row.ToNormalizedDictionary();
-            var output = values.ToDictionary(
-                static item => item.Key,
-                static item => item.Value,
-                StringComparer.OrdinalIgnoreCase);
-            if (row.NormalizedValues.Count > 0) {
-                if (output.ContainsKey(EventDefinition.OutputMetadataFieldName)) {
-                    throw new InvalidDataException(
-                        $"Event output contains reserved field '{EventDefinition.OutputMetadataFieldName}'.");
-                }
-                output[EventDefinition.OutputMetadataFieldName] = new Dictionary<string, object?> {
-                    ["Normalization"] = row.NormalizedValues
-                };
-            }
+                out EventReportSection? section);
+            IReadOnlyDictionary<string, object?> output =
+                EventReportJsonProjection.Project(row, section);
             Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
         }
         return 0;

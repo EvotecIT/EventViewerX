@@ -136,6 +136,7 @@ public static class EventReportCsvRenderer {
                     EventCount = report.Rows.Count,
                     report.EventsScanned,
                     report.ScanLimitReached,
+                    report.CompletenessDiagnostic,
                     Sections = sectionFiles.Select(static item => new {
                         item.Section.Name,
                         item.Section.DisplayName,

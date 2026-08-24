@@ -331,10 +331,10 @@ public sealed class TestEventAnalysis {
         Assert.True(transport.IsComplete);
         Assert.Equal(2, transport.Groups.Count);
         Assert.Contains(transport.Groups, static group => group.ObservationCount == 2);
-        EventOccurrenceGroup occurrence = Assert.Single(semantic.Groups);
-        Assert.Equal(3, occurrence.ObservationCount);
+        Assert.Equal(2, semantic.Groups.Count);
+        EventOccurrenceGroup occurrence = semantic.Groups.Single(static group => group.ObservationCount == 2);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
-        Assert.Equal(2, occurrence.PolicyVersion);
+        Assert.Equal(3, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 
@@ -350,6 +350,59 @@ public sealed class TestEventAnalysis {
 
         Assert.True(result.IsComplete);
         Assert.Equal(2, result.Groups.Count);
+        Assert.All(result.Groups, static group => Assert.Equal(1, group.ObservationCount));
+    }
+
+    [Fact]
+    public void SemanticGroupingUsesSystemActivityIdentifiersAcrossRelatedStages() {
+        Guid activityId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        EventReportRow created = CreateRow(1, new Dictionary<string, object?>());
+        EventReportRow completed = CreateRow(2, new Dictionary<string, object?>());
+        created.EventId = 4698;
+        created.Type = "ScheduledTaskCreated";
+        created.ActivityId = activityId;
+        completed.EventId = 4702;
+        completed.Type = "ScheduledTaskUpdated";
+        completed.RelatedActivityId = activityId;
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] { completed, created },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic });
+
+        EventOccurrenceGroup group = Assert.Single(result.Groups);
+        Assert.Equal(2, group.ObservationCount);
+        Assert.Equal("causal-identifier", group.PolicyName);
+    }
+
+    [Fact]
+    public void SemanticGroupingTreatsPayloadActivityAliasesAsOneCausalFamily() {
+        const string activityId = "7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06";
+        EventReportRow parent = CreateRow(1, new Dictionary<string, object?> { ["ActivityID"] = activityId });
+        EventReportRow child = CreateRow(2, new Dictionary<string, object?> { ["RelatedActivityId"] = activityId });
+
+        EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { child, parent },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+        Assert.Equal(2, group.ObservationCount);
+    }
+
+    [Fact]
+    public void SemanticGroupingNamespacesPayloadIdentifiersByProducerAndSource() {
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> { ["BatchId"] = "1" });
+        EventReportRow otherProvider = CreateRow(2, new Dictionary<string, object?> { ["BatchId"] = "1" });
+        EventReportRow otherSource = CreateRow(
+            3,
+            new Dictionary<string, object?> { ["BatchId"] = "1" },
+            source: "dc2.ad.evotec.xyz",
+            collector: "dc2.ad.evotec.xyz");
+        otherProvider.Provider = "Contoso-Synthetic-Provider";
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] { first, otherProvider, otherSource },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic });
+
+        Assert.Equal(3, result.Groups.Count);
         Assert.All(result.Groups, static group => Assert.Equal(1, group.ObservationCount));
     }
 
@@ -444,6 +497,58 @@ public sealed class TestEventAnalysis {
 
         Assert.Equal("Alice", forward);
         Assert.Equal(forward, reverse);
+    }
+
+    [Fact]
+    public void ManagedAggregationComparesCollectionDisplayValuesByContent() {
+        EventReportRow upper = CreateRow(1, new Dictionary<string, object?> {
+            ["Privileges"] = new[] { "ALICE" }
+        });
+        EventReportRow lower = CreateRow(2, new Dictionary<string, object?> {
+            ["Privileges"] = new[] { "alice" }
+        });
+        var definition = new EventAggregationDefinition { GroupBy = new[] { "Privileges" } };
+
+        object? forward = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { lower, upper }, definition).Rows).Group["Privileges"];
+        object? reverse = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { upper, lower }, definition).Rows).Group["Privileges"];
+
+        Assert.Equal(new[] { "ALICE" }, Assert.IsType<string[]>(forward));
+        Assert.Equal(
+            EventAggregationEngine.Canonicalize(forward),
+            EventAggregationEngine.Canonicalize(reverse));
+    }
+
+    [Fact]
+    public void ManagedAggregationNormalizesExternallyConstructedRows() {
+        EventReportRow numeric = CreateRow(1, new Dictionary<string, object?>());
+        EventReportRow textual = CreateRow(2, new Dictionary<string, object?>());
+        numeric.Values = new Dictionary<string, object?> { ["UserAccountControl"] = "512" };
+        textual.Values = new Dictionary<string, object?> { ["UserAccountControl"] = "NORMAL_ACCOUNT" };
+        numeric.NormalizedValues = new Dictionary<string, EventNormalizedValue>();
+        textual.NormalizedValues = new Dictionary<string, EventNormalizedValue>();
+        var definition = new EventAggregationDefinition { GroupBy = new[] { "UserAccountControl" } };
+
+        EventAggregationRow group = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { numeric, textual }, definition).Rows);
+
+        Assert.Equal(new[] { "NORMAL_ACCOUNT" }, Assert.IsType<string[]>(group.Group["UserAccountControl"]));
+        Assert.Equal(2L, group.Measures["Count"]);
+    }
+
+    [Fact]
+    public void JsonProjectionPreservesProviderFieldsThatUseTheMetadataEnvelopeName() {
+        EventReportRow row = CreateRow(1, new Dictionary<string, object?> {
+            ["_EventViewerX"] = "provider-value",
+            ["_EventViewerX_ProviderField"] = "existing-value"
+        });
+
+        IReadOnlyDictionary<string, object?> projected = EventReportJsonProjection.Project(row);
+
+        Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(projected["_EventViewerX"]);
+        Assert.Equal("existing-value", projected["_EventViewerX_ProviderField"]);
+        Assert.Equal("provider-value", projected["_EventViewerX_ProviderField2"]);
     }
 
     [Fact]

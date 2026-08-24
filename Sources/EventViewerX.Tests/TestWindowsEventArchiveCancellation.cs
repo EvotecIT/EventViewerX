@@ -3,6 +3,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
+[Collection("NativeOperationLifetime")]
 public sealed class TestWindowsEventArchiveCancellation {
     [Fact]
     public void ArchiveResourcesPreservesSourceOpenAccessFailure() {

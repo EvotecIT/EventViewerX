@@ -68,7 +68,8 @@ public static class EventReportHtmlRenderer {
         page.AddMetric(metric => metric.Title("Result limit").Value(report.ScanLimitReached ? "Reached" : "Complete")
             .Icon(report.ScanLimitReached ? TablerIconType.AlertTriangle : TablerIconType.ShieldCheck)
             .State(report.ScanLimitReached ? MonitoringHealthState.Warning : MonitoringHealthState.Healthy)
-            .Change(report.ScanLimitReached ? "More matching candidates may exist" : "No truncation detected"));
+            .Change(report.CompletenessDiagnostic ??
+                    (report.ScanLimitReached ? "More matching candidates may exist" : "No truncation detected")));
 
         page.Grid(grid => {
             var breakdown = new MonitoringConnectionBreakdown()

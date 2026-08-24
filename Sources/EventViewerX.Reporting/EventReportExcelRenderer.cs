@@ -61,7 +61,8 @@ public static class EventReportExcelRenderer {
                 ("First event", firstEvent?.ToString("u") ?? "No matching events"),
                 ("Last event", lastEvent?.ToString("u") ?? "No matching events"),
                 ("Healthy sources", report.Coverage.Count(static item => item.Succeeded)),
-                ("Failed sources", report.Coverage.Count(static item => !item.Succeeded))
+                ("Failed sources", report.Coverage.Count(static item => !item.Succeeded)),
+                ("Completeness detail", report.CompletenessDiagnostic ?? "No truncation detected")
             }, columns: 2);
         List<Dictionary<string, object?>> typeRows = report.Sections
                 .OrderByDescending(static section => section.Rows.Count)
