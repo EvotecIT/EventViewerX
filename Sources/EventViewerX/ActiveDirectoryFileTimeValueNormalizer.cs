@@ -19,6 +19,10 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
         IsFileTimeAttributeValue(context);
 
     public EventNormalizedValue Normalize(EventValueContext context) {
+        if (context.RawValue == null ||
+            context.RawValue is string empty && string.IsNullOrWhiteSpace(empty)) {
+            return EventValueNormalizer.Unchanged(context);
+        }
         if (context.RawValue is DateTime date) {
             DateTime utc = date.ToUniversalTime();
             return EventValueNormalizer.Create(

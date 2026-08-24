@@ -98,6 +98,29 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void NumericAndTextualUserAccountControlFlagsShareCanonicalOrder() {
+        EventNormalizedValue numeric = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["UserAccountControl"] = "3"
+            }))["UserAccountControl"];
+        EventNormalizedValue textual = EventValueNormalizationEngine.Normalize(CreateRow(
+            2,
+            new Dictionary<string, object?> {
+                ["UserAccountControl"] = "SCRIPT, ACCOUNTDISABLE"
+            }))["UserAccountControl"];
+
+        Assert.Equal(
+            EventAggregationEngine.Canonicalize(textual.Value),
+            EventAggregationEngine.Canonicalize(numeric.Value));
+        Assert.Equal(
+            new[] { "ACCOUNTDISABLE", "SCRIPT" },
+            Assert.IsType<string[]>(numeric.Value));
+        Assert.Equal(2, numeric.NormalizerVersion);
+        Assert.Equal(2, textual.NormalizerVersion);
+    }
+
+    [Fact]
     public void StructuredGroupPolicyLinkCollectionsRetainDistinctEvidence() {
         var firstLinks = new List<GroupPolicyLinks> {
             new() {
@@ -315,6 +338,24 @@ public sealed class TestEventAnalysis {
         Assert.Equal(offset.UtcDateTime, normalized["BadPasswordTime"].Value);
         Assert.Equal(EventNormalizationOutcome.Normalized, normalized["BadPasswordTime"].Outcome);
         Assert.Equal(offset, normalized["BadPasswordTime"].RawValue);
+    }
+
+    [Fact]
+    public void MissingActiveDirectoryFileTimeValuesRemainUnchanged() {
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(CreateRow(
+                1,
+                new Dictionary<string, object?> {
+                    ["LastLogon"] = null,
+                    ["AccountExpires"] = " "
+                }));
+
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["LastLogon"].Outcome);
+        Assert.Null(normalized["LastLogon"].Value);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["AccountExpires"].Outcome);
+        Assert.Equal(" ", normalized["AccountExpires"].Value);
+        Assert.Equal("identity", normalized["LastLogon"].Normalizer);
+        Assert.Equal("identity", normalized["AccountExpires"].Normalizer);
     }
 
     [Fact]
@@ -571,6 +612,29 @@ public sealed class TestEventAnalysis {
             new[] { upper, lower }, definition).Rows).Group["Privileges"];
 
         Assert.Equal(new[] { "ALICE" }, Assert.IsType<string[]>(forward));
+        Assert.Equal(
+            EventAggregationEngine.Canonicalize(forward),
+            EventAggregationEngine.Canonicalize(reverse));
+    }
+
+    [Fact]
+    public void ManagedAggregationCanonicalizesDictionariesIndependentOfInsertionOrder() {
+        var forward = new Dictionary<string, object?> {
+            ["B"] = 2,
+            ["A"] = "one"
+        };
+        var reverse = new Dictionary<string, object?> {
+            ["A"] = "one",
+            ["B"] = 2
+        };
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> { ["Payload"] = forward });
+        EventReportRow second = CreateRow(2, new Dictionary<string, object?> { ["Payload"] = reverse });
+        var definition = new EventAggregationDefinition { GroupBy = new[] { "Payload" } };
+
+        EventAggregationRow group = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { first, second }, definition).Rows);
+
+        Assert.Equal(2L, group.Measures["Count"]);
         Assert.Equal(
             EventAggregationEngine.Canonicalize(forward),
             EventAggregationEngine.Canonicalize(reverse));
@@ -909,9 +973,15 @@ public sealed class TestEventAnalysis {
     [Fact]
     public void OccurrenceReportSummarizesWithoutDiscardingSourceObservations() {
         DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        Guid activityId = Guid.NewGuid();
+        Guid relatedActivityId = Guid.NewGuid();
         EventReportRow direct = CreateRow(17, new Dictionary<string, object?>(), timestamp);
+        direct.ActivityId = activityId;
+        direct.RelatedActivityId = relatedActivityId;
         EventReportRow forwarded = CreateRow(17, new Dictionary<string, object?>(), timestamp,
             collector: "wec1.ad.evotec.xyz", container: "ForwardedEvents");
+        forwarded.ActivityId = activityId;
+        forwarded.RelatedActivityId = relatedActivityId;
         EventOccurrenceResult occurrences = EventOccurrenceEngine.Group(
             new[] { forwarded, direct },
             new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport });
@@ -923,6 +993,8 @@ public sealed class TestEventAnalysis {
         EventReportRow row = Assert.Single(report.Rows);
         Assert.Equal(2, row.Values["ObservationCount"]);
         Assert.Contains("17", Assert.IsType<string>(row.Values["RecordIds"]));
+        Assert.Equal(activityId, row.ActivityId);
+        Assert.Equal(relatedActivityId, row.RelatedActivityId);
     }
 
     [Fact]

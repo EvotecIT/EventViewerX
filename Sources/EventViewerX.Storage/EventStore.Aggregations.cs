@@ -211,6 +211,12 @@ public sealed partial class EventStore {
         if (unsupported != null) {
             return $"Field '{unsupported}' requires normalized managed evaluation because it is not a native stored column.";
         }
+        EventAggregationMeasure? parsedDateMeasure = definition.Measures.FirstOrDefault(measure =>
+            measure.Operation is EventAggregationOperation.FirstSeen or EventAggregationOperation.LastSeen &&
+            AggregationFields[measure.Field!].ValueKind != StoredAggregationValueKind.DateTime);
+        if (parsedDateMeasure != null) {
+            return $"{parsedDateMeasure.Operation} over field '{parsedDateMeasure.Field}' requires managed date parsing because the stored column is not a native UTC timestamp.";
+        }
         if (definition.Top > 0 && definition.Bucket != EventAggregationBucket.None &&
             definition.TopScope == EventAggregationTopScope.GlobalGroup) {
             return "Global top-N across time buckets uses the managed engine so ranking measures retain exact semantics.";

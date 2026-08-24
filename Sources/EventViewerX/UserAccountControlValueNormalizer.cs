@@ -20,7 +20,7 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
 
     public string Name => "user-account-control";
 
-    public int Version => 1;
+    public int Version => 2;
 
     public bool CanNormalize(EventValueContext context) =>
         context.FieldName.IndexOf("UserAccountControl", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -70,6 +70,7 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
         if (unknownMask != 0) {
             canonical.Add("UNKNOWN_0x" + unknownMask.ToString("X", CultureInfo.InvariantCulture));
         }
+        canonical.Sort(StringComparer.Ordinal);
         return EventValueNormalizer.Create(
             context,
             canonical.ToArray(),

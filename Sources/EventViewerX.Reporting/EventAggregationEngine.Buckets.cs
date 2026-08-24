@@ -121,6 +121,10 @@ public static partial class EventAggregationEngine {
                 type = "text";
                 text = valueText.Normalize(NormalizationForm.FormC).ToUpperInvariant();
                 break;
+            case System.Collections.IDictionary dictionary:
+                type = "dictionary";
+                text = string.Join("\u001f", EnumerateCanonical(dictionary));
+                break;
             case System.Collections.IEnumerable enumerable when value is not string:
                 type = "collection";
                 text = string.Join("\u001f", EnumerateCanonical(enumerable));
@@ -142,6 +146,16 @@ public static partial class EventAggregationEngine {
         foreach (object? value in values) {
             yield return Canonicalize(value);
         }
+    }
+
+    private static IEnumerable<string> EnumerateCanonical(System.Collections.IDictionary values) {
+        var entries = new List<string>(values.Count);
+        System.Collections.IDictionaryEnumerator enumerator = values.GetEnumerator();
+        while (enumerator.MoveNext()) {
+            entries.Add(Canonicalize(enumerator.Key) + Canonicalize(enumerator.Value));
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries;
     }
 }
 
@@ -179,6 +193,8 @@ internal sealed class AggregationGroup {
         string text => text,
         DateTime date => date.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture),
         DateTimeOffset date => date.UtcTicks.ToString("D19", CultureInfo.InvariantCulture),
+        System.Collections.IDictionary dictionary =>
+            "{" + string.Join("\u001f", EnumerateDisplay(dictionary)) + "}",
         System.Collections.IEnumerable enumerable when value is not string =>
             "[" + string.Join("\u001f", EnumerateDisplay(enumerable)) + "]",
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
@@ -189,6 +205,16 @@ internal sealed class AggregationGroup {
         foreach (object? value in values) {
             yield return FormatDisplayIdentity(value);
         }
+    }
+
+    private static IEnumerable<string> EnumerateDisplay(System.Collections.IDictionary values) {
+        var entries = new List<string>(values.Count);
+        System.Collections.IDictionaryEnumerator enumerator = values.GetEnumerator();
+        while (enumerator.MoveNext()) {
+            entries.Add(FormatDisplayIdentity(enumerator.Key) + "=" + FormatDisplayIdentity(enumerator.Value));
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries;
     }
 }
 

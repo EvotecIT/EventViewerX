@@ -47,6 +47,51 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task TextualFirstAndLastSeenUseManagedDateParsing() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice"),
+                (new DateTime(2026, 8, 23, 10, 1, 0, DateTimeKind.Utc), 2, "Bob"));
+            report.Rows[0].Message = "2026-01-01T00:00:00+14:00";
+            report.Rows[1].Message = "2025-12-31T23:00:00-12:00";
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition {
+                GroupBy = new[] { "Provider" },
+                Measures = new[] {
+                    new EventAggregationMeasure {
+                        Operation = EventAggregationOperation.FirstSeen,
+                        Field = "Message",
+                        OutputName = "First"
+                    },
+                    new EventAggregationMeasure {
+                        Operation = EventAggregationOperation.LastSeen,
+                        Field = "Message",
+                        OutputName = "Last"
+                    }
+                }
+            };
+
+            EventStoreAggregationPlan plan = await store.PlanAggregationAsync(
+                new EventStoreQuery(),
+                definition);
+            EventAggregationResult result = await store.AggregateAsync(
+                new EventStoreQuery(),
+                definition);
+
+            Assert.Equal(EventAggregationExecutionMode.Managed, plan.ExecutionMode);
+            Assert.Contains("managed date parsing", plan.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(EventAggregationExecutionMode.Managed, result.ExecutionMode);
+            EventAggregationRow row = Assert.Single(result.Rows);
+            Assert.Equal(new DateTime(2025, 12, 31, 10, 0, 0, DateTimeKind.Utc), row.Measures["First"]);
+            Assert.Equal(new DateTime(2026, 1, 1, 11, 0, 0, DateTimeKind.Utc), row.Measures["Last"]);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task SqliteTopRankingSupportsFirstAndLastSeenMeasures() {
         string path = CreateStorePath();
         try {

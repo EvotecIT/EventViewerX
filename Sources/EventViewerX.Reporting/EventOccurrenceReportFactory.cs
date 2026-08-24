@@ -52,6 +52,8 @@ public static class EventOccurrenceReportFactory {
             Provider = group.Representative.Provider,
             SourceLog = group.Representative.SourceLog,
             ContainerLog = group.Representative.ContainerLog,
+            ActivityId = group.Representative.ActivityId,
+            RelatedActivityId = group.Representative.RelatedActivityId,
             SourceKind = group.Representative.SourceKind,
             SourceComputer = group.Representative.SourceComputer,
             CollectorComputer = group.Representative.CollectorComputer,
