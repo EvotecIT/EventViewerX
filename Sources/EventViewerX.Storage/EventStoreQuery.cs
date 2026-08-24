@@ -4,6 +4,15 @@ namespace EventViewerX.Storage;
 
 /// <summary>Defines a bounded query over locally stored normalized event rows.</summary>
 public sealed class EventStoreQuery {
+    /// <summary>Creates a detached stored selector that keeps a monitoring preset's event types and semantic predicate together.</summary>
+    public static EventStoreQuery ForPreset(EventMonitoringPreset preset) {
+        EventMonitoringPresetDefinition definition = EventMonitoringPresetCatalog.Get(preset);
+        return new EventStoreQuery {
+            Types = definition.Types.ToArray(),
+            Predicate = definition.Predicate?.Clone()
+        };
+    }
+
     /// <summary>Built-in typed definitions to include. Mutually exclusive with DefinitionNames and DefinitionSchemas.</summary>
     public IReadOnlyList<EventType>? Types { get; set; }
     /// <summary>Built-in or custom stable definition names to include. Mutually exclusive with Types.</summary>

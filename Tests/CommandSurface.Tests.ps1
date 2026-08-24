@@ -125,6 +125,9 @@ Describe 'PSEventViewer v4 command surface' {
             Should -BeTrue
         $GetEventCommand.Parameters.ContextStorePath.ParameterSets.Keys |
             Should -Be @('Type')
+        $MeasureCommand = Get-Command Measure-EVXEvent
+        $MeasureCommand.Parameters.Preset.ParameterSets.Keys |
+            Should -Be @('Store')
         (Get-Command Show-EVXEvent).ParameterSets.Name | Sort-Object |
             Should -Be (@('Type', 'Path', 'Log', 'Definition', 'Input', 'Store') | Sort-Object)
         (Get-Command New-EVXFilter).ParameterSets.Name | Sort-Object |

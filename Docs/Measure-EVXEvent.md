@@ -20,7 +20,7 @@ Measure-EVXEvent -InputObject <Object> [-GroupBy <string[]>] [-Bucket <EventAggr
 
 ### Store
 ```powershell
-Measure-EVXEvent -FromStore <string> [-Type <EventType[]>] [-DefinitionName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-SourceComputer <string[]>] [-GroupBy <string[]>] [-Bucket <EventAggregationBucket>] [-TimeZoneId <string>] [-Measure <Object[]>] [-Top <int>] [-TopScope <EventAggregationTopScope>] [-RankingMeasure <string>] [-WindowStart <DateTime>] [-WindowEnd <DateTime>] [-MaximumGroups <int>] [-MaximumDistinctValues <int>] [-MaximumStateBytes <long>] [-Explain] [<CommonParameters>]
+Measure-EVXEvent -FromStore <string> [-Type <EventType[]>] [-Preset <EventMonitoringPreset>] [-DefinitionName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-SourceComputer <string[]>] [-GroupBy <string[]>] [-Bucket <EventAggregationBucket>] [-TimeZoneId <string>] [-Measure <Object[]>] [-Top <int>] [-TopScope <EventAggregationTopScope>] [-RankingMeasure <string>] [-WindowStart <DateTime>] [-WindowEnd <DateTime>] [-MaximumGroups <int>] [-MaximumDistinctValues <int>] [-MaximumStateBytes <long>] [-Explain] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -41,10 +41,10 @@ Returns one completeness-aware aggregation result containing deterministic rows.
 
 ### EXAMPLE 2
 ```powershell
-Measure-EVXEvent -FromStore C:\EventViewerX\events.db -Type AuthenticationHealth -Bucket Hour -GroupBy Type
+Measure-EVXEvent -FromStore C:\EventViewerX\events.db -Preset AuthenticationHealth -Bucket Hour -GroupBy Type
 ```
 
-Uses SQLite pushdown when the selected fields and UTC bucket can preserve the shared semantics.
+Applies the exact weak-authentication preset predicate and uses SQLite pushdown only when the selected fields preserve the shared semantics.
 
 ### EXAMPLE 3
 ```powershell
@@ -223,6 +223,22 @@ Type: Object[]
 Parameter Sets: Input, Store
 Aliases: None
 Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Preset
+Stored monitoring preset whose event types and exact semantic predicate are applied together.
+
+```yaml
+Type: EventMonitoringPreset
+Parameter Sets: Store
+Aliases: None
+Possible values: AuthenticationHealth, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity
 
 Required: False
 Position: named

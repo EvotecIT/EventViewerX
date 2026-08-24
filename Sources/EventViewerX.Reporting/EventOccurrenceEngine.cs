@@ -123,14 +123,17 @@ public static class EventOccurrenceEngine {
         IReadOnlyList<WorkingGroup> source,
         TimeSpan window) {
 
-        var semantic = new Dictionary<string, List<PolicyCandidate>>(StringComparer.Ordinal);
+        var candidates = new List<PolicyCandidate>();
         var retained = new List<WorkingGroup>();
         foreach (WorkingGroup group in source) {
             EventReportRow representative = SelectRepresentative(group.Observations);
             PolicyCandidate? candidate = null;
             foreach (IEventOccurrencePolicy policy in Policies) {
-                if (policy.TryGetIdentity(representative, out string identity, out string reason)) {
-                    candidate = new PolicyCandidate(group, policy, identity, reason);
+                IReadOnlyList<EventOccurrencePolicyIdentity> identities = GetPolicyIdentities(
+                    policy,
+                    representative);
+                if (identities.Count > 0) {
+                    candidate = new PolicyCandidate(group, policy, identities);
                     break;
                 }
             }
@@ -138,39 +141,60 @@ public static class EventOccurrenceEngine {
                 retained.Add(group);
                 continue;
             }
-            string key = candidate.Policy.Name + "\0" + candidate.Policy.Version + "\0" + candidate.Identity;
-            if (!semantic.TryGetValue(key, out List<PolicyCandidate>? values)) {
-                values = new List<PolicyCandidate>();
-                semantic.Add(key, values);
-            }
-            values.Add(candidate);
+            candidates.Add(candidate);
         }
-        foreach (List<PolicyCandidate> candidates in semantic.Values) {
-            PolicyCandidate[] ordered = candidates
-                .OrderBy(static candidate => candidate.FirstEventUtc)
-                .ThenBy(static candidate => candidate.Group.Identity, StringComparer.Ordinal)
-                .ToArray();
-            var partition = new List<PolicyCandidate>();
-            DateTime partitionStart = default;
-            foreach (PolicyCandidate candidate in ordered) {
-                if (partition.Count > 0 && candidate.FirstEventUtc - partitionStart > window) {
-                    retained.Add(CreateSemanticGroup(partition));
-                    partition.Clear();
+        PolicyCandidate[] orderedCandidates = candidates
+            .OrderBy(static candidate => candidate.FirstEventUtc)
+            .ThenBy(static candidate => candidate.Group.Identity, StringComparer.Ordinal)
+            .ToArray();
+        var union = new CandidateUnion(orderedCandidates);
+        var byIdentity = new SortedDictionary<string, List<int>>(StringComparer.Ordinal);
+        for (int index = 0; index < orderedCandidates.Length; index++) {
+            PolicyCandidate candidate = orderedCandidates[index];
+            foreach (EventOccurrencePolicyIdentity identity in candidate.Identities) {
+                string key = candidate.Policy.Name + "\0" + candidate.Policy.Version + "\0" + identity.Identity;
+                if (!byIdentity.TryGetValue(key, out List<int>? values)) {
+                    values = new List<int>();
+                    byIdentity.Add(key, values);
                 }
-                if (partition.Count == 0) {
-                    partitionStart = candidate.FirstEventUtc;
-                }
-                partition.Add(candidate);
-            }
-            if (partition.Count > 0) {
-                retained.Add(CreateSemanticGroup(partition));
+                values.Add(index);
             }
         }
+        foreach (List<int> values in byIdentity.Values) {
+            int cluster = values[0];
+            for (int index = 1; index < values.Count; index++) {
+                int next = values[index];
+                cluster = union.TryUnion(cluster, next, window)
+                    ? union.Find(cluster)
+                    : next;
+            }
+        }
+        retained.AddRange(Enumerable.Range(0, orderedCandidates.Length)
+            .GroupBy(union.Find)
+            .OrderBy(static group => group.Key)
+            .Select(group => CreateSemanticGroup(group
+                .Select(index => orderedCandidates[index])
+                .ToArray())));
         return retained;
     }
 
+    private static IReadOnlyList<EventOccurrencePolicyIdentity> GetPolicyIdentities(
+        IEventOccurrencePolicy policy,
+        EventReportRow representative) {
+
+        if (policy is IMultiIdentityEventOccurrencePolicy multiIdentity) {
+            return multiIdentity.GetIdentities(representative);
+        }
+        return policy.TryGetIdentity(representative, out string identity, out string reason)
+            ? new[] { new EventOccurrencePolicyIdentity(identity, reason) }
+            : Array.Empty<EventOccurrencePolicyIdentity>();
+    }
+
     private static WorkingGroup CreateSemanticGroup(IReadOnlyList<PolicyCandidate> candidates) {
-        PolicyCandidate first = candidates[0];
+        PolicyCandidate first = candidates
+            .OrderBy(static candidate => candidate.FirstEventUtc)
+            .ThenBy(static candidate => candidate.Group.Identity, StringComparer.Ordinal)
+            .First();
         EventReportRow[] observations = candidates
             .SelectMany(static candidate => candidate.Group.Observations)
             .OrderBy(static observation => observation.TimeCreated)
@@ -181,8 +205,16 @@ public static class EventOccurrenceEngine {
         return new WorkingGroup(
             first.Policy.Name,
             first.Policy.Version,
-            first.Reason,
-            first.Identity,
+            string.Join(" ", candidates
+                .SelectMany(static candidate => candidate.Identities)
+                .Select(static identity => identity.Reason)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static reason => reason, StringComparer.Ordinal)),
+            string.Join("\u001f", candidates
+                .SelectMany(static candidate => candidate.Identities)
+                .Select(static identity => identity.Identity)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static identity => identity, StringComparer.Ordinal)),
             observations);
     }
 
@@ -368,19 +400,60 @@ public static class EventOccurrenceEngine {
         internal PolicyCandidate(
             WorkingGroup group,
             IEventOccurrencePolicy policy,
-            string identity,
-            string reason) {
+            IReadOnlyList<EventOccurrencePolicyIdentity> identities) {
 
             Group = group;
             Policy = policy;
-            Identity = identity;
-            Reason = reason;
+            Identities = identities;
         }
 
         internal WorkingGroup Group { get; }
         internal IEventOccurrencePolicy Policy { get; }
-        internal string Identity { get; }
-        internal string Reason { get; }
+        internal IReadOnlyList<EventOccurrencePolicyIdentity> Identities { get; }
         internal DateTime FirstEventUtc => Group.Observations.Min(static observation => observation.TimeCreated).ToUniversalTime();
+        internal DateTime LastEventUtc => Group.Observations.Max(static observation => observation.TimeCreated).ToUniversalTime();
+    }
+
+    private sealed class CandidateUnion {
+        private readonly int[] _parents;
+        private readonly DateTime[] _starts;
+        private readonly DateTime[] _ends;
+
+        internal CandidateUnion(IReadOnlyList<PolicyCandidate> candidates) {
+            _parents = Enumerable.Range(0, candidates.Count).ToArray();
+            _starts = candidates.Select(static candidate => candidate.FirstEventUtc).ToArray();
+            _ends = candidates.Select(static candidate => candidate.LastEventUtc).ToArray();
+        }
+
+        internal int Find(int index) {
+            while (_parents[index] != index) {
+                _parents[index] = _parents[_parents[index]];
+                index = _parents[index];
+            }
+            return index;
+        }
+
+        internal bool TryUnion(int left, int right, TimeSpan window) {
+            int leftRoot = Find(left);
+            int rightRoot = Find(right);
+            if (leftRoot == rightRoot) {
+                return true;
+            }
+            DateTime start = _starts[leftRoot] <= _starts[rightRoot]
+                ? _starts[leftRoot]
+                : _starts[rightRoot];
+            DateTime end = _ends[leftRoot] >= _ends[rightRoot]
+                ? _ends[leftRoot]
+                : _ends[rightRoot];
+            if (end - start > window) {
+                return false;
+            }
+            int retained = Math.Min(leftRoot, rightRoot);
+            int merged = Math.Max(leftRoot, rightRoot);
+            _parents[merged] = retained;
+            _starts[retained] = start;
+            _ends[retained] = end;
+            return true;
+        }
     }
 }

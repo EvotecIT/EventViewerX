@@ -1,6 +1,6 @@
 namespace EventViewerX.Reporting;
 
-internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy {
+internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccurrencePolicy {
     private static readonly string[] CausalFields = {
         "OperationCorrelationId",
         "ApplicationCorrelationId",
@@ -14,14 +14,28 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
 
     public string Name => "causal-identifier";
 
-    public int Version => 4;
+    public int Version => 5;
 
     public bool TryGetIdentity(EventReportRow observation, out string identity, out string reason) {
+        EventOccurrencePolicyIdentity? first = GetIdentities(observation).FirstOrDefault();
+        if (first != null) {
+            identity = first.Identity;
+            reason = first.Reason;
+            return true;
+        }
+        identity = string.Empty;
+        reason = string.Empty;
+        return false;
+    }
+
+    public IReadOnlyList<EventOccurrencePolicyIdentity> GetIdentities(EventReportRow observation) {
+        var identities = new List<EventOccurrencePolicyIdentity>();
+        var emitted = new HashSet<string>(StringComparer.Ordinal);
         if (observation.RelatedActivityId is Guid relatedActivityId && relatedActivityId != Guid.Empty) {
-            return CreateIdentity(observation, "ActivityId", relatedActivityId.ToString("D"), out identity, out reason);
+            AddIdentity(observation, "ActivityId", relatedActivityId.ToString("D"), identities, emitted);
         }
         if (observation.ActivityId is Guid activityId && activityId != Guid.Empty) {
-            return CreateIdentity(observation, "ActivityId", activityId.ToString("D"), out identity, out reason);
+            AddIdentity(observation, "ActivityId", activityId.ToString("D"), identities, emitted);
         }
         foreach (string field in CausalFields) {
             if (!TryGetPayloadValue(observation, field, out object? raw)) {
@@ -31,19 +45,17 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
             if (value.Length == 0 || value == "-" || value == Guid.Empty.ToString()) {
                 continue;
             }
-            return CreateIdentity(
+            AddIdentity(
                 observation,
                 string.Equals(field, "RelatedActivityId", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(field, "ActivityID", StringComparison.OrdinalIgnoreCase)
                     ? "ActivityId"
                     : field,
                 value,
-                out identity,
-                out reason);
+                identities,
+                emitted);
         }
-        identity = string.Empty;
-        reason = string.Empty;
-        return false;
+        return identities;
     }
 
     private static bool TryGetPayloadValue(
@@ -64,23 +76,26 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
         return matched.Key != null;
     }
 
-    private static bool CreateIdentity(
+    private static void AddIdentity(
         EventReportRow observation,
         string field,
         string value,
-        out string identity,
-        out string reason) {
+        ICollection<EventOccurrencePolicyIdentity> identities,
+        ISet<string> emitted) {
 
         string producer = string.IsNullOrWhiteSpace(observation.Provider)
             ? observation.Type
             : observation.Provider;
-        identity = string.Join(
+        string identity = string.Join(
             "\0",
             producer.Trim().ToUpperInvariant(),
             observation.SourceComputer.Trim().ToUpperInvariant(),
             field.ToUpperInvariant(),
             value.ToUpperInvariant());
-        reason = $"Shared {field} value '{value}' from '{producer}'.";
-        return true;
+        if (emitted.Add(identity)) {
+            identities.Add(new EventOccurrencePolicyIdentity(
+                identity,
+                $"Shared {field} value '{value}' from '{producer}'."));
+        }
     }
 }

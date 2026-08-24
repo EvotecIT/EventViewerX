@@ -14,8 +14,8 @@ namespace PSEventViewer;
 /// </example>
 /// <example>
 ///   <summary>Create an hourly stored trend</summary>
-///   <code>Measure-EVXEvent -FromStore C:\EventViewerX\events.db -Type AuthenticationHealth -Bucket Hour -GroupBy Type</code>
-///   <para>Uses SQLite pushdown when the selected fields and UTC bucket can preserve the shared semantics.</para>
+///   <code>Measure-EVXEvent -FromStore C:\EventViewerX\events.db -Preset AuthenticationHealth -Bucket Hour -GroupBy Type</code>
+///   <para>Applies the exact weak-authentication preset predicate and uses SQLite pushdown only when the selected fields preserve the shared semantics.</para>
 /// </example>
 /// <example>
 ///   <summary>Count distinct source computers</summary>
@@ -41,6 +41,10 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
     /// <summary>Stored built-in event types to include.</summary>
     [Parameter(ParameterSetName = "Store")]
     public EventType[] Type { get; set; } = Array.Empty<EventType>();
+
+    /// <summary>Stored monitoring preset whose event types and exact semantic predicate are applied together.</summary>
+    [Parameter(ParameterSetName = "Store")]
+    public EventMonitoringPreset? Preset { get; set; }
 
     /// <summary>Stored definition names to include.</summary>
     [Parameter(ParameterSetName = "Store")]
@@ -145,17 +149,24 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
     protected override async Task EndProcessingAsync() {
         EventAggregationDefinition definition = CreateDefinition();
         if (ParameterSetName == "Store") {
-            if (Type.Length > 0 && DefinitionName.Length > 0) {
-                throw new PSArgumentException("Type and DefinitionName are mutually exclusive.", nameof(DefinitionName));
+            int selectors = (Type.Length > 0 ? 1 : 0) +
+                            (DefinitionName.Length > 0 ? 1 : 0) +
+                            (Preset.HasValue ? 1 : 0);
+            if (selectors > 1) {
+                throw new PSArgumentException(
+                    "Type, DefinitionName, and Preset are mutually exclusive stored selectors.");
             }
-            var query = new EventStoreQuery {
-                Types = Type.Length == 0 ? null : Type,
-                DefinitionNames = DefinitionName.Length == 0 ? null : DefinitionName,
-                StartTime = StartTime,
-                EndTime = EndTime,
-                SourceComputers = SourceComputer.Length == 0 ? null : SourceComputer,
-                MaxEvents = 0
-            };
+            EventStoreQuery query = Preset.HasValue
+                ? EventStoreQuery.ForPreset(Preset.Value)
+                : new EventStoreQuery();
+            if (!Preset.HasValue && Type.Length > 0) {
+                query.Types = Type;
+            }
+            query.DefinitionNames = DefinitionName.Length == 0 ? null : DefinitionName;
+            query.StartTime = StartTime;
+            query.EndTime = EndTime;
+            query.SourceComputers = SourceComputer.Length == 0 ? null : SourceComputer;
+            query.MaxEvents = 0;
             if (Explain.IsPresent) {
                 EventStoreAggregationPlan plan = await new EventStore(FromStore!)
                     .PlanAggregationAsync(query, definition, CancelToken)

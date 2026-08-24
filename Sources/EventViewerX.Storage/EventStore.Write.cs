@@ -6,6 +6,10 @@ using EventViewerX.Reporting;
 namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
+    private static readonly HashSet<string> DerivedReportTypes = new(
+        new[] { "EventStoreSummary", "EventAggregation", "EventOccurrence" },
+        StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Stores one normalized report and optional checkpoint in a single transaction.</summary>
     public Task<EventStoreWriteResult> WriteAsync(
         EventReport report,
@@ -48,17 +52,18 @@ public sealed partial class EventStore {
         EventStoreCheckpoint? expectedCheckpointSnapshot =
             SnapshotCheckpoint(expectedCheckpoint);
         EventReportRow[] rows = report.Rows.ToArray();
-        if (rows.Any(static row => string.Equals(
-                row.Type,
-                "EventStoreSummary",
-                StringComparison.OrdinalIgnoreCase))) {
+        EventReportSectionSchema[] incomingSchemas = report.Sections
+            .Select(EventReportSectionSchema.FromSection)
+            .ToArray();
+        string? derivedReportType = rows.Select(static row => row.Type)
+            .Concat(incomingSchemas.Select(static schema => schema.Name))
+            .FirstOrDefault(DerivedReportTypes.Contains);
+        if (derivedReportType != null) {
             throw new InvalidDataException(
-                "Derived EventStoreSummary reports cannot be written back into EventStore history. " +
+                $"Derived {derivedReportType} reports cannot be written back into EventStore history. " +
                 "Store source events and regenerate summaries from them.");
         }
-        EventReportSectionSchema[] schemas = NormalizeIncomingSchemas(report.Sections
-            .Select(EventReportSectionSchema.FromSection)
-            .ToArray());
+        EventReportSectionSchema[] schemas = NormalizeIncomingSchemas(incomingSchemas);
         var schemaNames = new HashSet<string>(schemas.Select(static schema => schema.Name),
             StringComparer.OrdinalIgnoreCase);
         if (rows.Any(row => !schemaNames.Contains(row.Type) &&

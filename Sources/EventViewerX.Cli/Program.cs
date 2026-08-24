@@ -204,7 +204,10 @@ internal static partial class Program {
         EventDefinition? definition = options.Get("definition") is string definitionPath
             ? EventDefinition.Load(definitionPath)
             : null;
-        EventPredicate? predicate = CombinePredicates(preset?.Predicate, ParsePredicate(options.Get("where")));
+        EventStoreQuery query = preset == null
+            ? new EventStoreQuery()
+            : EventStoreQuery.ForPreset(preset.Preset);
+        EventPredicate? predicate = CombinePredicates(query.Predicate, ParsePredicate(options.Get("where")));
         if (predicate != null) {
             predicate = definition != null
                 ? EventPredicateBuilder.ForDefinition(definition).Normalize(predicate)
@@ -214,26 +217,25 @@ internal static partial class Program {
                         : EventPredicateBuilder.ForTypes(types).Normalize(predicate)
                     : predicate;
         }
-        return new EventStoreQuery {
-            Types = types.Length == 0 ? null : types,
-            DefinitionNames = definition == null
-                ? NullWhenEmpty(options.GetMany("definition-name"))
-                : new[] { definition.Name },
-            DefinitionSchemas = definition == null
-                ? null
-                : new[] { EventReportSectionSchema.FromDefinition(definition) },
-            StartTime = start,
-            EndTime = ParseDate(options.Get("end")),
-            EventIds = ParseInts(options.GetMany("event-id")),
-            RecordIds = ParseLongs(options.GetMany("record-id")),
-            SourceComputers = NullWhenEmpty(options.GetMany("source")),
-            SourceLogs = NullWhenEmpty(options.GetMany("log")),
-            Providers = NullWhenEmpty(options.GetMany("provider")),
-            Predicate = predicate,
-            MaxEvents = options.GetLong("max"),
-            MaxCandidates = options.GetLong("max-candidates", 100000),
-            Oldest = options.Has("oldest")
-        };
+        query.Types = types.Length == 0 ? null : types;
+        query.DefinitionNames = definition == null
+            ? NullWhenEmpty(options.GetMany("definition-name"))
+            : new[] { definition.Name };
+        query.DefinitionSchemas = definition == null
+            ? null
+            : new[] { EventReportSectionSchema.FromDefinition(definition) };
+        query.StartTime = start;
+        query.EndTime = ParseDate(options.Get("end"));
+        query.EventIds = ParseInts(options.GetMany("event-id"));
+        query.RecordIds = ParseLongs(options.GetMany("record-id"));
+        query.SourceComputers = NullWhenEmpty(options.GetMany("source"));
+        query.SourceLogs = NullWhenEmpty(options.GetMany("log"));
+        query.Providers = NullWhenEmpty(options.GetMany("provider"));
+        query.Predicate = predicate;
+        query.MaxEvents = options.GetLong("max");
+        query.MaxCandidates = options.GetLong("max-candidates", 100000);
+        query.Oldest = options.Has("oldest");
+        return query;
     }
 
     private static async Task WriteStoreIfRequestedAsync(EventReport report, CliArguments options) {

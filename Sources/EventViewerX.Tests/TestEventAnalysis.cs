@@ -428,7 +428,7 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, semantic.Groups.Count);
         EventOccurrenceGroup occurrence = semantic.Groups.Single(static group => group.ObservationCount == 2);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
-        Assert.Equal(4, occurrence.PolicyVersion);
+        Assert.Equal(5, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 
@@ -467,6 +467,55 @@ public sealed class TestEventAnalysis {
         EventOccurrenceGroup group = Assert.Single(result.Groups);
         Assert.Equal(2, group.ObservationCount);
         Assert.Equal("causal-identifier", group.PolicyName);
+    }
+
+    [Fact]
+    public void SemanticGroupingUnionsBothActivityIdentifiersAcrossCausalChains() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        Guid parentActivity = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        Guid childActivity = Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d");
+        EventReportRow parent = CreateRow(1, new Dictionary<string, object?>(), timestamp);
+        EventReportRow child = CreateRow(2, new Dictionary<string, object?>(), timestamp.AddSeconds(2));
+        EventReportRow grandchild = CreateRow(3, new Dictionary<string, object?>(), timestamp.AddSeconds(4));
+        parent.ActivityId = parentActivity;
+        child.ActivityId = childActivity;
+        child.RelatedActivityId = parentActivity;
+        grandchild.RelatedActivityId = childActivity;
+
+        EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { grandchild, parent, child },
+            new EventOccurrenceOptions {
+                Mode = EventDuplicateMode.Semantic,
+                Window = TimeSpan.FromSeconds(10)
+            }).Groups);
+
+        Assert.Equal(3, group.ObservationCount);
+        Assert.Equal(5, group.PolicyVersion);
+    }
+
+    [Fact]
+    public void SemanticCausalChainsRemainBoundedByTheOccurrenceWindow() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        Guid parentActivity = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        Guid childActivity = Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d");
+        EventReportRow parent = CreateRow(1, new Dictionary<string, object?>(), timestamp);
+        EventReportRow child = CreateRow(2, new Dictionary<string, object?>(), timestamp.AddSeconds(9));
+        EventReportRow grandchild = CreateRow(3, new Dictionary<string, object?>(), timestamp.AddSeconds(18));
+        parent.ActivityId = parentActivity;
+        child.ActivityId = childActivity;
+        child.RelatedActivityId = parentActivity;
+        grandchild.RelatedActivityId = childActivity;
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] { grandchild, child, parent },
+            new EventOccurrenceOptions {
+                Mode = EventDuplicateMode.Semantic,
+                Window = TimeSpan.FromSeconds(10)
+            });
+
+        Assert.Equal(2, result.Groups.Count);
+        Assert.Contains(result.Groups, static group => group.ObservationCount == 2);
+        Assert.Contains(result.Groups, static group => group.ObservationCount == 1);
     }
 
     [Fact]
