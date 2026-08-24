@@ -116,8 +116,30 @@ public sealed class TestEventAnalysis {
         Assert.Equal(
             new[] { "ACCOUNTDISABLE", "SCRIPT" },
             Assert.IsType<string[]>(numeric.Value));
-        Assert.Equal(2, numeric.NormalizerVersion);
-        Assert.Equal(2, textual.NormalizerVersion);
+        Assert.Equal(3, numeric.NormalizerVersion);
+        Assert.Equal(3, textual.NormalizerVersion);
+    }
+
+    [Fact]
+    public void TextualNoneAndZeroUserAccountControlShareCanonicalIdentity() {
+        EventNormalizedValue numeric = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["UserAccountControl"] = "0"
+            }))["UserAccountControl"];
+        EventNormalizedValue textual = EventValueNormalizationEngine.Normalize(CreateRow(
+            2,
+            new Dictionary<string, object?> {
+                ["UserAccountControl"] = " none "
+            }))["UserAccountControl"];
+
+        Assert.Equal(
+            EventAggregationEngine.Canonicalize(numeric.Value),
+            EventAggregationEngine.Canonicalize(textual.Value));
+        Assert.Empty(Assert.IsType<string[]>(textual.Value));
+        Assert.Equal("NONE", textual.DisplayValue);
+        Assert.Equal(EventNormalizationOutcome.Normalized, textual.Outcome);
+        Assert.Equal(3, textual.NormalizerVersion);
     }
 
     [Fact]
@@ -470,6 +492,47 @@ public sealed class TestEventAnalysis {
         Assert.Equal("causal-identifier", occurrence.PolicyName);
         Assert.Equal(7, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
+    }
+
+    [Fact]
+    public void OccurrenceRepresentativeScoresRawValuesForExternallyConstructedRows() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        var sparse = new EventReportRow {
+            TimeCreated = timestamp,
+            Type = "SyntheticSecurityEvent",
+            EventId = 5136,
+            RecordId = 17,
+            Provider = "Microsoft-Windows-Security-Auditing",
+            SourceLog = "Security",
+            ContainerLog = "Security",
+            SourceComputer = "dc1.ad.evotec.xyz",
+            CollectorComputer = "dc1.ad.evotec.xyz",
+            Values = new Dictionary<string, object?> { ["ObjectDN"] = "CN=Policy,DC=example,DC=com" }
+        };
+        var rich = new EventReportRow {
+            TimeCreated = timestamp,
+            Type = sparse.Type,
+            EventId = sparse.EventId,
+            RecordId = sparse.RecordId,
+            Provider = sparse.Provider,
+            SourceLog = sparse.SourceLog,
+            ContainerLog = "ForwardedEvents",
+            SourceComputer = sparse.SourceComputer,
+            CollectorComputer = "wec1.ad.evotec.xyz",
+            Values = new Dictionary<string, object?> {
+                ["ObjectDN"] = "CN=Policy,DC=example,DC=com",
+                ["AttributeLDAPDisplayName"] = "displayName",
+                ["AttributeValue"] = "Baseline"
+            }
+        };
+
+        EventOccurrenceGroup occurrence = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { sparse, rich },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport }).Groups);
+
+        Assert.Same(rich, occurrence.Representative);
+        Assert.Empty(sparse.NormalizedValues);
+        Assert.Empty(rich.NormalizedValues);
     }
 
     [Fact]

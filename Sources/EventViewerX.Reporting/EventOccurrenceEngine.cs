@@ -253,14 +253,22 @@ public static class EventOccurrenceEngine {
     }
 
     private static EventReportRow SelectRepresentative(IReadOnlyList<EventReportRow> observations) => observations
-        .OrderByDescending(static observation => observation.NormalizedValues.Count(static value =>
-            value.Value.Value != null && value.Value.DisplayValue.Length > 0))
+        .OrderByDescending(CountRepresentativeEvidence)
         .ThenByDescending(static observation => IsDirect(observation))
         .ThenBy(static observation => observation.TimeCreated)
         .ThenBy(static observation => observation.SourceComputer, StringComparer.OrdinalIgnoreCase)
         .ThenBy(static observation => observation.RecordId)
         .ThenBy(CreateObservationFingerprint, StringComparer.Ordinal)
         .First();
+
+    private static int CountRepresentativeEvidence(EventReportRow observation) {
+        IReadOnlyDictionary<string, EventNormalizedValue> values = observation.NormalizedValues.Count == 0 &&
+            observation.Values.Count > 0
+                ? EventValueNormalizationEngine.Normalize(observation)
+                : observation.NormalizedValues;
+        return values.Count(static value =>
+            value.Value.Value != null && value.Value.DisplayValue.Length > 0);
+    }
 
     private static bool TryGetTransportIdentity(EventReportRow observation, out string identity) {
         if (!observation.RecordId.HasValue || string.IsNullOrWhiteSpace(observation.SourceComputer) ||

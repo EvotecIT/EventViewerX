@@ -20,7 +20,7 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
 
     public string Name => "user-account-control";
 
-    public int Version => 2;
+    public int Version => 3;
 
     public bool CanNormalize(EventValueContext context) =>
         context.FieldName.IndexOf("UserAccountControl", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -34,6 +34,16 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
             return EventValueNormalizer.Unchanged(context);
         }
         if (!TryParse(raw, out long mask)) {
+            if (string.Equals(raw, "NONE", StringComparison.OrdinalIgnoreCase)) {
+                return EventValueNormalizer.Create(
+                    context,
+                    Array.Empty<string>(),
+                    "NONE",
+                    EventNormalizedValueKind.FlagSet,
+                    Name,
+                    Version,
+                    EventNormalizationOutcome.Normalized);
+            }
             if (raw.IndexOf(',') >= 0 || Flags.Any(flag => raw.IndexOf(flag.Value, StringComparison.OrdinalIgnoreCase) >= 0)) {
                 string[] names = raw.Split(',')
                     .Select(static value => value.Trim())
