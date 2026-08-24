@@ -4,6 +4,15 @@ namespace EventViewerX.Storage;
 
 /// <summary>Defines a bounded query over locally stored normalized event rows.</summary>
 public sealed class EventStoreQuery {
+    /// <summary>Creates a detached stored selector that keeps a monitoring preset's event types and semantic predicate together.</summary>
+    public static EventStoreQuery ForPreset(EventMonitoringPreset preset) {
+        EventMonitoringPresetDefinition definition = EventMonitoringPresetCatalog.Get(preset);
+        return new EventStoreQuery {
+            Types = definition.Types.ToArray(),
+            Predicate = definition.Predicate?.Clone()
+        };
+    }
+
     /// <summary>Built-in typed definitions to include. Mutually exclusive with DefinitionNames and DefinitionSchemas.</summary>
     public IReadOnlyList<EventType>? Types { get; set; }
     /// <summary>Built-in or custom stable definition names to include. Mutually exclusive with Types.</summary>
@@ -78,7 +87,9 @@ public sealed class EventStoreQuery {
         EventPredicate? predicate = Predicate?.Clone();
         predicate?.Validate();
         if (predicate != null && types != null && types.Length > 0) {
-            predicate = EventPredicateBuilder.ForTypes(types).Normalize(predicate);
+            predicate = IsEnrichedGroupPolicySelection(types)
+                ? EventReportSectionSchema.FromGroupPolicyAudit().CreatePredicateBuilder().Normalize(predicate)
+                : EventPredicateBuilder.ForTypes(types).Normalize(predicate);
         }
         return new EventStoreQuery {
             Types = types,
@@ -100,9 +111,15 @@ public sealed class EventStoreQuery {
 
     internal string[] ResolveDefinitionNames() => (DefinitionNames ?? Array.Empty<string>())
         .Concat(EventTypeCatalog.Expand(Types ?? Array.Empty<EventType>())
-            .Select(static type => type.ToString()))
+            .SelectMany(static type => type == EventType.GroupPolicyDirectoryAudit
+                ? new[] { type.ToString(), "GroupPolicyAudit" }
+                : new[] { type.ToString() }))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
+
+    /// <summary>Returns true when the stored selector addresses the enriched persistent Group Policy audit surface.</summary>
+    public static bool IsEnrichedGroupPolicySelection(IReadOnlyList<EventType>? types) =>
+        types is { Count: 1 } && types[0] == EventType.GroupPolicyDirectoryAudit;
 
     /// <summary>Trims and deduplicates optional case-insensitive text selectors.</summary>
     internal static string[]? NormalizeTextValues(IReadOnlyList<string>? values) {

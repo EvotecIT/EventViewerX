@@ -68,7 +68,8 @@ public static class EventReportHtmlRenderer {
         page.AddMetric(metric => metric.Title("Result limit").Value(report.ScanLimitReached ? "Reached" : "Complete")
             .Icon(report.ScanLimitReached ? TablerIconType.AlertTriangle : TablerIconType.ShieldCheck)
             .State(report.ScanLimitReached ? MonitoringHealthState.Warning : MonitoringHealthState.Healthy)
-            .Change(report.ScanLimitReached ? "More matching candidates may exist" : "No truncation detected"));
+            .Change(report.CompletenessDiagnostic ??
+                    (report.ScanLimitReached ? "More matching candidates may exist" : "No truncation detected")));
 
         page.Grid(grid => {
             var breakdown = new MonitoringConnectionBreakdown()
@@ -227,6 +228,10 @@ public static class EventReportHtmlRenderer {
         if (!string.IsNullOrWhiteSpace(message)) {
             record.Detail("Message excerpt", message.Length <= 320 ? message : message.Substring(0, 319) + "…", "Message");
         }
+        string rawValues = EventReportTableProjection.FormatRawDetails(row, separator: "; ");
+        if (!string.IsNullOrWhiteSpace(rawValues)) {
+            record.Detail("Raw values", rawValues, "Normalization");
+        }
     }
 
     private static int FindRowIndex(IReadOnlyList<EventReportRow> rows, EventReportRow row) {
@@ -262,7 +267,7 @@ public static class EventReportHtmlRenderer {
     }
 
     private static string? BuildSortValue(object? value) => value switch {
-        DateTime date => date.ToUniversalTime().Ticks.ToString("D19"),
+        DateTime date => EventAggregationEngine.NormalizeDateTimeUtc(date).Ticks.ToString("D19"),
         DateTimeOffset date => date.UtcTicks.ToString("D19"),
         IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
         _ => null

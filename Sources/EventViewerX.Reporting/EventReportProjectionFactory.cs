@@ -5,6 +5,36 @@ namespace EventViewerX.Reporting;
 
 internal static class EventReportProjectionFactory {
     private static readonly ConcurrentDictionary<(Type RecordType, EventType EventType), TypedProjectionPlan> TypedPlans = new();
+    private static readonly EventReportSectionDefinition GroupPolicyAuditSection = CreateSectionDefinition(
+        EventReportSectionKind.Custom,
+        "GroupPolicyAudit",
+        "Group Policy audit",
+        "Group Policy directory changes enriched with event-time and current persistent context.",
+        new[] {
+            Column<GroupPolicyAuditEventKind>(nameof(GroupPolicyAuditRecord.Kind)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ObjectDistinguishedName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.OldObjectDistinguishedName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.NewObjectDistinguishedName)),
+            Column<Guid?>(nameof(GroupPolicyAuditRecord.ObjectGuid)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ObjectClass)),
+            Column<string>(nameof(GroupPolicyAuditRecord.AttributeName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.AttributeValue)),
+            Column<string>(nameof(GroupPolicyAuditRecord.OperationType)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ActorSid)),
+            Column<string>(nameof(GroupPolicyAuditRecord.Actor)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ActorLogonId)),
+            Column<string>(nameof(GroupPolicyAuditRecord.DirectoryServiceName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.DirectoryServiceType)),
+            Column<string>(nameof(GroupPolicyAuditRecord.OperationCorrelationId)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ApplicationCorrelationId)),
+            Column<Guid?>(nameof(GroupPolicyAuditRecord.GroupPolicyId)),
+            Column<GroupPolicyAuditTargetKind>(nameof(GroupPolicyAuditRecord.TargetKind)),
+            Column<EventContextState>(nameof(GroupPolicyAuditRecord.ContextState)),
+            Column<string>(nameof(GroupPolicyAuditRecord.GroupPolicyNameAtEventTime)),
+            Column<string>(nameof(GroupPolicyAuditRecord.GroupPolicyLastKnownName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.GroupPolicyCurrentName)),
+            Column<string>(nameof(GroupPolicyAuditRecord.ContextReason))
+        });
     private static readonly HashSet<string> RoutingMembers = new(StringComparer.Ordinal) {
         nameof(IEventRule.EventIds),
         nameof(IEventRule.LogName),
@@ -41,6 +71,54 @@ internal static class EventReportProjectionFactory {
                 StringComparer.OrdinalIgnoreCase));
         return new EventReportProjection(row, CreateGenericDefinition());
     }
+
+    internal static EventReportProjection Create(GroupPolicyAuditRecord record) {
+        var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+            [nameof(record.Kind)] = record.Kind,
+            [nameof(record.ObjectDistinguishedName)] = record.ObjectDistinguishedName,
+            [nameof(record.OldObjectDistinguishedName)] = record.OldObjectDistinguishedName,
+            [nameof(record.NewObjectDistinguishedName)] = record.NewObjectDistinguishedName,
+            [nameof(record.ObjectGuid)] = record.ObjectGuid,
+            [nameof(record.ObjectClass)] = record.ObjectClass,
+            [nameof(record.AttributeName)] = record.AttributeName,
+            [nameof(record.AttributeValue)] = record.AttributeValue,
+            [nameof(record.OperationType)] = record.OperationType,
+            [nameof(record.ActorSid)] = record.ActorSid,
+            [nameof(record.Actor)] = record.Actor,
+            [nameof(record.ActorLogonId)] = record.ActorLogonId,
+            [nameof(record.DirectoryServiceName)] = record.DirectoryServiceName,
+            [nameof(record.DirectoryServiceType)] = record.DirectoryServiceType,
+            [nameof(record.OperationCorrelationId)] = record.OperationCorrelationId,
+            [nameof(record.ApplicationCorrelationId)] = record.ApplicationCorrelationId,
+            [nameof(record.GroupPolicyId)] = record.GroupPolicyId,
+            [nameof(record.TargetKind)] = record.TargetKind,
+            [nameof(record.ContextState)] = record.ContextState,
+            [nameof(record.GroupPolicyNameAtEventTime)] = record.GroupPolicyNameAtEventTime,
+            [nameof(record.GroupPolicyLastKnownName)] = record.GroupPolicyLastKnownName,
+            [nameof(record.GroupPolicyCurrentName)] = record.GroupPolicyCurrentName,
+            [nameof(record.ContextReason)] = record.ContextReason
+        };
+        var row = new EventReportRow {
+            TimeCreated = record.TimeCreatedUtc,
+            Type = "GroupPolicyAudit",
+            EventId = record.EventId,
+            RecordId = record.RecordId,
+            ActivityId = record.ActivityId,
+            RelatedActivityId = record.RelatedActivityId,
+            Provider = "Microsoft-Windows-Security-Auditing",
+            SourceLog = record.OriginalLogName,
+            ContainerLog = record.ContainerLogName,
+            SourceKind = record.QuerySourceKind,
+            SourceComputer = record.SourceComputer,
+            CollectorComputer = record.QueryTarget,
+            Message = record.Message,
+            Values = values
+        };
+        EventValueNormalizationEngine.Populate(row);
+        return new EventReportProjection(row, GroupPolicyAuditSection);
+    }
+
+    internal static EventReportSectionDefinition CreateGroupPolicyAuditDefinition() => GroupPolicyAuditSection;
 
     internal static EventReportSectionDefinition Create(EventType type) {
         EventTypeDefinition definition = EventTypeCatalog.GetDefinition(type);
@@ -112,10 +190,17 @@ internal static class EventReportProjectionFactory {
             $"{kind}:{name}:{signature}", name, displayName, description, kind, columns);
     }
 
+    private static EventReportColumn Column<T>(string name) => new(
+        name,
+        EventReportTableProjection.SplitWords(name),
+        typeof(T));
+
     private static EventReportRow CreateRow(
         EventObject source,
         string type,
-        IReadOnlyDictionary<string, object?> values) => new() {
+        IReadOnlyDictionary<string, object?> values) {
+
+        var row = new EventReportRow {
             TimeCreated = source.TimeCreated,
             Type = type,
             EventId = source.Id,
@@ -128,9 +213,14 @@ internal static class EventReportProjectionFactory {
             CollectorComputer = source.CollectorComputer,
             Level = source.LevelDisplayName,
             LevelValue = source.Level,
+            ActivityId = source.ActivityId,
+            RelatedActivityId = source.RelatedActivityId,
             Message = source.Message,
             Values = values
         };
+        EventValueNormalizationEngine.Populate(row);
+        return row;
+    }
 
     private static TypedProjectionPlan BuildPlan(Type recordType, EventTypeDefinition definition) {
         ReportMember[] members = BuildMembers(recordType);

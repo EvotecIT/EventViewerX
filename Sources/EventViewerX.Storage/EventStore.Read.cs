@@ -186,6 +186,7 @@ public sealed partial class EventStore {
             long scanned = 0;
             long offset = 0;
             bool scanLimitReached = false;
+            bool resultLimitReached = false;
             bool completed = false;
             while (!completed) {
                 long remainingCandidates = command.CandidateLimit > 0
@@ -194,7 +195,7 @@ public sealed partial class EventStore {
                 long pageLimit = command.CandidateLimit > 0
                     ? Math.Min(StoredReadPageSize, remainingCandidates + 1)
                     : snapshot.MaxEvents > 0
-                        ? Math.Min(StoredReadPageSize, snapshot.MaxEvents - rows.Count)
+                        ? Math.Min(StoredReadPageSize, GetResultProbeLimit(snapshot.MaxEvents, rows.Count))
                         : StoredReadPageSize;
                 if (pageLimit <= 0) {
                     break;
@@ -227,11 +228,12 @@ public sealed partial class EventStore {
                         !EventPredicateEvaluator.Matches(snapshot.Predicate, row.ToPredicateDictionary())) {
                         continue;
                     }
-                    rows.Add(row);
                     if (snapshot.MaxEvents > 0 && rows.Count >= snapshot.MaxEvents) {
+                        resultLimitReached = true;
                         completed = true;
                         break;
                     }
+                    rows.Add(row);
                 }
                 if (candidates.Count < pageLimit) {
                     break;
@@ -265,8 +267,32 @@ public sealed partial class EventStore {
                 title,
                 coverage,
                 eventsScanned: scanned,
-                scanLimitReached: scanLimitReached);
+                scanLimitReached: scanLimitReached || resultLimitReached,
+                completenessDiagnostic: CreateReadCompletenessDiagnostic(
+                    snapshot.MaxEvents,
+                    scanLimitReached,
+                    resultLimitReached));
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? CreateReadCompletenessDiagnostic(
+        long maximum,
+        bool scanLimitReached,
+        bool resultLimitReached) {
+
+        var reasons = new List<string>();
+        if (scanLimitReached) {
+            reasons.Add("The stored candidate scan limit was reached");
+        }
+        if (resultLimitReached) {
+            reasons.Add($"The stored result limit MaxEvents {maximum:N0} was reached; additional matching events exist");
+        }
+        return reasons.Count == 0 ? null : string.Join(". ", reasons) + ".";
+    }
+
+    private static long GetResultProbeLimit(long maximum, long selectedCount) {
+        long remaining = maximum - selectedCount;
+        return remaining == long.MaxValue ? long.MaxValue : remaining + 1L;
     }
 
     private static QueryCommand BuildReadCommand(
@@ -280,7 +306,8 @@ public sealed partial class EventStore {
             ? checked((int)Math.Min(query.MaxCandidates, int.MaxValue - 1))
             : 0;
         string sql = @"SELECT definition_name, event_time_utc, event_id, record_id, provider,
-source_log, container_log, source_computer, collector_computer, level, level_value, message, values_json, transport_kind
+source_log, container_log, source_computer, collector_computer, level, level_value,
+activity_id, related_activity_id, message, values_json, transport_kind
 FROM evx_events";
         if (filter.Clauses.Count > 0) {
             sql += " WHERE " + string.Join(" AND ", filter.Clauses);
@@ -351,6 +378,9 @@ FROM evx_events";
         var schemas = loadedSchemas
             .Where(schema => MatchesText(definitionNames, schema.Name))
             .ToList();
+        bool enrichedGroupPolicySelection =
+            definitionNames.Contains(nameof(EventType.GroupPolicyDirectoryAudit), StringComparer.OrdinalIgnoreCase) &&
+            definitionNames.Contains("GroupPolicyAudit", StringComparer.OrdinalIgnoreCase);
         EventReportSectionSchema[] normalizedSupplied = NormalizeIncomingSchemas(
             suppliedSchemas ?? Array.Empty<EventReportSectionSchema>());
         foreach (EventReportSectionSchema supplied in normalizedSupplied) {
@@ -377,6 +407,12 @@ FROM evx_events";
                 schemas.Select(static schema => schema.Name),
                 StringComparer.OrdinalIgnoreCase);
             foreach (string definitionName in definitionNames) {
+                if (enrichedGroupPolicySelection && string.Equals(
+                        definitionName,
+                        nameof(EventType.GroupPolicyDirectoryAudit),
+                        StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
                 if (known.Contains(definitionName) ||
                     !BuiltInDefinitions.TryGetValue(definitionName, out EventTypeDefinition? definition) ||
                     definition.IsComposite) {
@@ -384,6 +420,10 @@ FROM evx_events";
                 }
                 schemas.Add(EventReportSectionSchema.FromType(definition.Type));
                 known.Add(definition.Name);
+            }
+            if (enrichedGroupPolicySelection && !known.Contains("GroupPolicyAudit")) {
+                EventReportSectionSchema groupPolicySchema = EventReportSectionSchema.FromGroupPolicyAudit();
+                schemas.Add(groupPolicySchema);
             }
         }
         PredicatePushdownPolicy pushdown = schemas.Any(static schema => schema.Kind == EventReportSectionKind.Generic)
@@ -412,12 +452,31 @@ FROM evx_events";
             CollectorComputer = record.GetString(8),
             Level = record.GetString(9),
             LevelValue = record.IsDBNull(10) ? null : record.GetByte(10),
-            Message = record.GetString(11),
-            Values = DeserializeValues(record.GetString(12), schema),
-            SourceKind = record.GetInt32(13) == 2
+            ActivityId = ReadGuid(record, 11, definitionName, "activity_id"),
+            RelatedActivityId = ReadGuid(record, 12, definitionName, "related_activity_id"),
+            Message = record.GetString(13),
+            Values = DeserializeValues(record.GetString(14), schema),
+            SourceKind = record.GetInt32(15) == 2
                 ? EventLogQuerySourceKind.File
                 : EventLogQuerySourceKind.Channel
         };
+    }
+
+    private static Guid? ReadGuid(
+        IDataRecord record,
+        int ordinal,
+        string definitionName,
+        string fieldName) {
+
+        if (record.IsDBNull(ordinal)) {
+            return null;
+        }
+        string value = record.GetString(ordinal);
+        if (Guid.TryParse(value, out Guid parsed)) {
+            return parsed;
+        }
+        throw new InvalidDataException(
+            $"Stored field '{definitionName}.{fieldName}' is not a valid GUID.");
     }
 
     private static IReadOnlyDictionary<string, object?> DeserializeValues(
@@ -465,22 +524,23 @@ FROM evx_events";
         EventPredicate? predicate,
         IReadOnlyList<EventReportSectionSchema> schemas) {
 
-        if (predicate == null || schemas.Count != 1 ||
-            schemas[0].Kind == EventReportSectionKind.Generic) {
+        if (predicate == null) {
             return predicate;
         }
-        EventReportSectionSchema schema = schemas[0];
-        EventPredicateBuilder builder = EventPredicateBuilder.ForFields(
-            schema.Name,
-            schema.Columns.Select(static column => new KeyValuePair<string, Type>(
-                column.Name,
-                EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName))),
-            schema.DisplayName,
-            schema.Columns.ToDictionary(
-                static column => column.Name,
-                static column => column.Aliases ?? Array.Empty<string>(),
-                StringComparer.OrdinalIgnoreCase));
-        return builder.Normalize(predicate);
+        EventReportSectionSchema? schema = schemas.Count == 1
+            ? schemas[0]
+            : schemas.Count == 2 && schemas.Any(static candidate => string.Equals(
+                candidate.Name,
+                nameof(EventType.GroupPolicyDirectoryAudit),
+                StringComparison.OrdinalIgnoreCase))
+                ? schemas.FirstOrDefault(static candidate => string.Equals(
+                    candidate.Name,
+                    "GroupPolicyAudit",
+                    StringComparison.OrdinalIgnoreCase))
+                : null;
+        return schema == null || schema.Kind == EventReportSectionKind.Generic
+            ? predicate
+            : schema.CreatePredicateBuilder().Normalize(predicate);
     }
 
     private static object? ConvertDeclaredJson(

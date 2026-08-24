@@ -142,6 +142,23 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void AuthenticationMonitoringRetainsBroadAuthenticationAndLdapCoverage() {
+        IReadOnlyList<EventType> types = EventReadinessScenarioCatalog.GetTypes(
+            EventReadinessScenario.AuthenticationMonitoring);
+        EventType[] leaves = EventTypeCatalog.Expand(types).ToArray();
+
+        Assert.Contains(EventType.ADUserLogon, leaves);
+        Assert.Contains(EventType.ADUserLogonFailed, leaves);
+        Assert.Contains(EventType.ADUserLockouts, leaves);
+        Assert.Contains(EventType.ADUserUnlocked, leaves);
+        Assert.Contains(EventType.ADUserPrivilegeUse, leaves);
+        Assert.Contains(EventType.KerberosTicketFailure, leaves);
+        Assert.Contains(EventType.KerberosPolicyChange, leaves);
+        Assert.Contains(EventType.ADLdapBindingSummary, leaves);
+        Assert.Contains(EventType.ADLdapBindingDetails, leaves);
+    }
+
+    [Fact]
     public void RemoteCredentialIsNotPassedToTheDefaultLocalProbe() {
         var evidence = new FakeEvidenceProvider {
             TargetResult = LocalTargetResult(),

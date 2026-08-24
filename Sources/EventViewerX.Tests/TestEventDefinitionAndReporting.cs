@@ -82,6 +82,9 @@ public sealed class TestEventDefinitionAndReporting {
     [InlineData("activedirectoryauthentication")]
     [InlineData("Generic")]
     [InlineData("EventStoreSummary")]
+    [InlineData("EventAggregation")]
+    [InlineData("EventOccurrence")]
+    [InlineData("GroupPolicyAudit")]
     public void CustomDefinitionsRejectReservedBuiltInTypeNames(string name) {
         EventDefinition definition = CreateDefinition();
         definition.Name = name;
@@ -113,6 +116,23 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Equal("TargetUserName", definition.Fields[0].SourceName);
         Assert.Equal("Who", builder.Field("Who").Name);
         Assert.Equal("Who", builder.Field(" Account ").Name);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CustomDefinitionsRejectReservedOutputMetadataFieldsAndAliases(bool useFieldName) {
+        EventDefinition definition = CreateDefinition();
+        if (useFieldName) {
+            definition.Fields[0].Name = EventDefinition.OutputMetadataFieldName;
+        } else {
+            definition.Fields[0].Aliases = new[] { EventDefinition.OutputMetadataFieldName };
+        }
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(definition.Validate);
+
+        Assert.Contains(EventDefinition.OutputMetadataFieldName, exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reserved", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -307,6 +327,12 @@ public sealed class TestEventDefinitionAndReporting {
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "event-provenance.csv");
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "coverage.csv");
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "manifest.json");
+            ZipArchiveEntry provenanceCsv = Assert.Single(
+                csvArchive.Entries,
+                static entry => entry.FullName == "event-provenance.csv");
+            using (var provenanceReader = new StreamReader(provenanceCsv.Open())) {
+                Assert.Contains("Raw Values", provenanceReader.ReadLine(), StringComparison.Ordinal);
+            }
             ZipArchiveEntry successfulCsv = Assert.Single(
                 csvArchive.Entries,
                 static entry => entry.FullName == "ADUserLogon.csv");
@@ -587,6 +613,48 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void CsvRawCompanionHeadersCannotCollideWithDeclaredHeaders() {
+        var row = new EventReportRow {
+            Type = "HeaderCollision",
+            Values = new Dictionary<string, object?> {
+                ["OperationType"] = "%%14674",
+                ["ExistingRaw"] = "domain value"
+            }
+        };
+        EventValueNormalizationEngine.Populate(row);
+        var schema = new EventReportSectionSchema {
+            Name = "HeaderCollision",
+            DisplayName = "Header collision",
+            Kind = EventReportSectionKind.Custom,
+            Columns = new[] {
+                new EventReportColumnSchema {
+                    Name = "OperationType",
+                    DisplayName = "Status",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                },
+                new EventReportColumnSchema {
+                    Name = "ExistingRaw",
+                    DisplayName = "Status Raw",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                }
+            }
+        };
+        EventReport report = EventReportEngine.CreateStored(new[] { row }, new[] { schema });
+        string path = Path.Combine(Path.GetTempPath(), $"evx-csv-header-{Guid.NewGuid():N}.csv");
+
+        try {
+            EventReportCsvRenderer.Save(report, path);
+            string header = File.ReadLines(path).First();
+
+            Assert.Equal(3, header.Split(',').Length);
+            Assert.Contains("Status Raw", header, StringComparison.Ordinal);
+            Assert.Contains("Status Raw (2)", header, StringComparison.Ordinal);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void DefinitionSnapshotFreezesMutableSourcesFieldsAndRecordIds() {
         EventDefinition definition = CreateDefinition();
         var query = new EventDefinitionQuery(definition) {
@@ -703,6 +771,76 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Single(report.Coverage);
         Assert.Equal("Offline", report.Coverage[0].MachineName);
         Assert.Equal(fixture, report.Coverage[0].LogName);
+    }
+
+    [Fact]
+    public async Task GenericAndCustomReportsExposeResultLimitIncompleteness() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventReportRequest genericRequest = EventReportRequest.ForFiles(fixture);
+        genericRequest.MaxEvents = 1;
+        EventDefinition definition = new() {
+            Name = "ServiceStartTypeChange",
+            Sources = new[] {
+                new EventDefinitionSource {
+                    LogName = "System",
+                    EventIds = new[] { 7040 },
+                    ProviderNames = new[] { "Service Control Manager" }
+                }
+            }
+        };
+        EventReportRequest customRequest = EventReportRequest.ForDefinition(definition);
+        customRequest.Paths = new[] { fixture };
+        customRequest.MaxEvents = 1;
+
+        EventReport generic = await EventReportEngine.QueryAsync(genericRequest);
+        EventReport custom = await EventReportEngine.QueryAsync(customRequest);
+
+        Assert.Single(generic.Rows);
+        Assert.Single(custom.Rows);
+        Assert.Equal(2, generic.EventsScanned);
+        Assert.Equal(2, custom.EventsScanned);
+        Assert.True(generic.ScanLimitReached);
+        Assert.True(custom.ScanLimitReached);
+        Assert.Contains("MaxEvents", generic.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.Contains("MaxEvents", custom.CompletenessDiagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReportExportsRetainTheCompletenessDiagnostic() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        EventReportRequest request = EventReportRequest.ForFiles(fixture);
+        request.MaxEvents = 1;
+        EventReport source = await EventReportEngine.QueryAsync(request);
+        string diagnostic = Assert.IsType<string>(source.CompletenessDiagnostic);
+        string excelPath = Path.Combine(Path.GetTempPath(), $"evx-completeness-{Guid.NewGuid():N}.xlsx");
+        string bundlePath = Path.Combine(Path.GetTempPath(), $"evx-completeness-{Guid.NewGuid():N}.zip");
+        try {
+            string html = EventReportHtmlRenderer.Render(source);
+            EventReportExcelRenderer.Save(source, excelPath);
+            EventReportCsvRenderer.Save(source, bundlePath);
+
+            Assert.Contains(diagnostic, html, StringComparison.Ordinal);
+            using (ZipArchive workbook = ZipFile.OpenRead(excelPath)) {
+                string workbookXml = string.Join("\n", workbook.Entries
+                    .Where(static entry => entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                    .Select(static entry => {
+                        using StreamReader reader = new(entry.Open());
+                        return reader.ReadToEnd();
+                    }));
+                Assert.Contains(diagnostic, workbookXml, StringComparison.Ordinal);
+            }
+            using (ZipArchive bundle = ZipFile.OpenRead(bundlePath)) {
+                ZipArchiveEntry manifest = Assert.Single(bundle.Entries, static entry =>
+                    string.Equals(entry.FullName, "manifest.json", StringComparison.Ordinal));
+                using StreamReader reader = new(manifest.Open());
+                Assert.Contains(diagnostic, reader.ReadToEnd(), StringComparison.Ordinal);
+            }
+        } finally {
+            File.Delete(excelPath);
+            File.Delete(bundlePath);
+        }
     }
 
     [Fact]

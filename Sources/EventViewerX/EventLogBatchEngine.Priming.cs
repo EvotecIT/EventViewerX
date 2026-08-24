@@ -35,7 +35,7 @@ public static partial class EventLogBatchEngine {
         Task[] workers =
             Enumerable
                 .Range(0, workerCount)
-                .Select(_ => Task.Run(() => {
+                .Select(_ => Task.Factory.StartNew(() => {
                     try {
                         while (true) {
                             fatalCancellation.Token
@@ -59,7 +59,7 @@ public static partial class EventLogBatchEngine {
                             fatalCancellation);
                         throw;
                     }
-                }, CancellationToken.None))
+                }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default))
                 .ToArray();
 
         try {

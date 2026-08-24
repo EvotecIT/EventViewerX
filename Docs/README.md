@@ -43,6 +43,16 @@ Returns registered provider metadata or EventViewerX provider packages.
 
 The default set supports local and remote provider discovery. Package sets inspect a portable .evxprovider file or list machine-wide EventViewerX-managed installations.
 
+### [Get-EVXRequirement](Get-EVXRequirement.md)
+Returns event channels, IDs, audit policies, and configuration requirements.
+
+Uses the same compiled requirement catalog intended for readiness checks and generated onboarding guidance.
+
+### [Get-EVXTarget](Get-EVXTarget.md)
+Discovers local or explicitly selected Active Directory event targets.
+
+Returns the local machine by default. Current-domain, current-forest, named-domain, named-forest, and trusted-forest discovery are opt-in and preserve per-domain successes and failures.
+
 ### [Get-EVXWatcher](Get-EVXWatcher.md)
 Retrieves information about active EVX watchers.
 
@@ -54,6 +64,13 @@ Installs or upgrades a portable custom Windows event provider package.
 Verifies package hashes and signatures before changing machine state, enforces schema and version compatibility, stages resources under ProgramData, registers the manifest, verifies Windows metadata and channels, and rolls back to the previous provider if activation fails.
 
 The target machine does not require the Windows SDK, Visual Studio, a C# compiler, generated source, or package build tools.
+
+### [Measure-EVXEvent](Measure-EVXEvent.md)
+Computes bounded event counts, distinct values, first/last observations, rates, and time trends.
+
+Uses the shared deterministic aggregation contract for pipeline events and safe SQLite pushdown for stored history.
+
+A single EventReport preserves its source-coverage evidence. Individual pipeline rows have unknown completeness because a pipeline cannot prove that it contains the complete source query.
 
 ### [New-EVXCollectorSubscription](New-EVXCollectorSubscription.md)
 Creates a typed collector- or source-initiated WEC subscription definition.
@@ -133,6 +150,11 @@ Executes a metadata-only query through the same owned native reader used by Get-
 Validates a custom Windows event provider definition.
 
 Checks provider identity, channels, event versions, field references, maps, localization, Windows limits, and schema compatibility before any native build tools or machine registration are used.
+
+### [Test-EVXReadiness](Test-EVXReadiness.md)
+Assesses EventViewerX prerequisites without changing Windows configuration.
+
+Composes explicit target discovery, native Event Log probes, effective local audit policy, observed-event evidence, and safe provider configuration checks. Permission-limited evidence remains Unknown instead of being guessed.
 
 ### [Uninstall-EVXProviderPackage](Uninstall-EVXProviderPackage.md)
 Unregisters an EventViewerX-managed custom event provider.

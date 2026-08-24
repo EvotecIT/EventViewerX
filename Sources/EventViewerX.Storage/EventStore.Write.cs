@@ -6,6 +6,10 @@ using EventViewerX.Reporting;
 namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
+    private static readonly HashSet<string> DerivedReportTypes = new(
+        new[] { "EventStoreSummary", "EventAggregation", "EventOccurrence" },
+        StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Stores one normalized report and optional checkpoint in a single transaction.</summary>
     public Task<EventStoreWriteResult> WriteAsync(
         EventReport report,
@@ -48,17 +52,18 @@ public sealed partial class EventStore {
         EventStoreCheckpoint? expectedCheckpointSnapshot =
             SnapshotCheckpoint(expectedCheckpoint);
         EventReportRow[] rows = report.Rows.ToArray();
-        if (rows.Any(static row => string.Equals(
-                row.Type,
-                "EventStoreSummary",
-                StringComparison.OrdinalIgnoreCase))) {
+        EventReportSectionSchema[] incomingSchemas = report.Sections
+            .Select(EventReportSectionSchema.FromSection)
+            .ToArray();
+        string? derivedReportType = rows.Select(static row => row.Type)
+            .Concat(incomingSchemas.Select(static schema => schema.Name))
+            .FirstOrDefault(DerivedReportTypes.Contains);
+        if (derivedReportType != null) {
             throw new InvalidDataException(
-                "Derived EventStoreSummary reports cannot be written back into EventStore history. " +
+                $"Derived {derivedReportType} reports cannot be written back into EventStore history. " +
                 "Store source events and regenerate summaries from them.");
         }
-        EventReportSectionSchema[] schemas = NormalizeIncomingSchemas(report.Sections
-            .Select(EventReportSectionSchema.FromSection)
-            .ToArray());
+        EventReportSectionSchema[] schemas = NormalizeIncomingSchemas(incomingSchemas);
         var schemaNames = new HashSet<string>(schemas.Select(static schema => schema.Name),
             StringComparer.OrdinalIgnoreCase);
         if (rows.Any(row => !schemaNames.Contains(row.Type) &&
@@ -235,6 +240,8 @@ public sealed partial class EventStore {
             ["$collectorComputer"] = row.CollectorComputer ?? string.Empty,
             ["$level"] = row.Level ?? string.Empty,
             ["$levelValue"] = row.LevelValue,
+            ["$activityId"] = row.ActivityId?.ToString("D"),
+            ["$relatedActivityId"] = row.RelatedActivityId?.ToString("D"),
             ["$message"] = row.Message ?? string.Empty,
             ["$values"] = JsonSerializer.Serialize(row.Values, JsonOptions),
             ["$inserted"] = insertedAt
@@ -257,7 +264,7 @@ public sealed partial class EventStore {
         long? recordId) {
 
         string identity = string.Join("\0", new[] {
-            CreateOriginalEventKey(candidate, definitionName),
+            CreateOriginalEventKey(candidate, definitionName, recordId),
             recordId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             NormalizeSqliteNoCaseIdentity(candidate.ContainerLog),
             NormalizeSqliteNoCaseIdentity(candidate.CollectorComputer)
@@ -266,29 +273,65 @@ public sealed partial class EventStore {
     }
 
     private static string CreateOriginalEventKey(EventReportRow row, string definitionName) {
-        string identity = string.Join("\0", new[] {
-            NormalizeSqliteNoCaseIdentity(row.SourceComputer),
-            NormalizeSqliteNoCaseIdentity(row.SourceLog),
-            row.EventId.ToString(CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(row.Provider),
+        string identity = CreateOriginalEventIdentity(
+            row.SourceComputer,
+            row.SourceLog,
+            row.EventId,
+            row.Provider,
             row.TimeCreated.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(definitionName),
-            CreateSemanticIdentity(row.Values)
-        });
+            definitionName,
+            row.RecordId,
+            row.ActivityId?.ToString("D"),
+            row.RelatedActivityId?.ToString("D"),
+            CreateSemanticIdentity(row.Values));
         return CreateSha256(identity);
     }
 
-    private static string CreateOriginalEventKey(StoredIdentityCandidate candidate, string definitionName) {
-        string identity = string.Join("\0", new[] {
-            NormalizeSqliteNoCaseIdentity(candidate.SourceComputer),
-            NormalizeSqliteNoCaseIdentity(candidate.SourceLog),
-            candidate.EventId.ToString(CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(candidate.Provider),
+    private static string CreateOriginalEventKey(
+        StoredIdentityCandidate candidate,
+        string definitionName,
+        long? recordId) {
+
+        string identity = CreateOriginalEventIdentity(
+            candidate.SourceComputer,
+            candidate.SourceLog,
+            candidate.EventId,
+            candidate.Provider,
             candidate.TimeCreatedUtc,
-            NormalizeSqliteNoCaseIdentity(definitionName),
-            CreateSemanticIdentity(candidate.Values)
-        });
+            definitionName,
+            recordId,
+            candidate.ActivityId,
+            candidate.RelatedActivityId,
+            CreateSemanticIdentity(candidate.Values));
         return CreateSha256(identity);
+    }
+
+    private static string CreateOriginalEventIdentity(
+        string? sourceComputer,
+        string? sourceLog,
+        int eventId,
+        string? provider,
+        string timeCreatedUtc,
+        string definitionName,
+        long? recordId,
+        string? activityId,
+        string? relatedActivityId,
+        string semanticIdentity) {
+
+        var components = new List<string> {
+            NormalizeSqliteNoCaseIdentity(sourceComputer),
+            NormalizeSqliteNoCaseIdentity(sourceLog),
+            eventId.ToString(CultureInfo.InvariantCulture),
+            NormalizeSqliteNoCaseIdentity(provider),
+            timeCreatedUtc,
+            NormalizeSqliteNoCaseIdentity(definitionName)
+        };
+        if (!recordId.HasValue) {
+            components.Add(activityId ?? string.Empty);
+            components.Add(relatedActivityId ?? string.Empty);
+        }
+        components.Add(semanticIdentity);
+        return string.Join("\0", components);
     }
 
     private static string CreateSha256(string identity) {
@@ -386,11 +429,11 @@ ON CONFLICT(definition_name) DO UPDATE SET
 INSERT OR IGNORE INTO evx_events
     (event_key, original_event_key, transport_kind, definition_name, event_time_utc, event_id, record_id, provider,
      source_log, container_log, source_computer, collector_computer, level,
-     level_value, message, values_json, inserted_utc)
+     level_value, activity_id, related_activity_id, message, values_json, inserted_utc)
 SELECT
     $key, $originalKey, $transportKind, $definition, $time, $eventId, $recordId, $provider,
      $sourceLog, $containerLog, $sourceComputer, $collectorComputer, $level,
-     $levelValue, $message, $values, $inserted
+     $levelValue, $activityId, $relatedActivityId, $message, $values, $inserted
 WHERE $transportKind = 2 OR NOT EXISTS (
     SELECT 1
     FROM evx_events
@@ -421,6 +464,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
             string containerLog,
             string sourceComputer,
             string collectorComputer,
+            string? activityId,
+            string? relatedActivityId,
             IReadOnlyDictionary<string, JsonElement> values) {
 
             TimeCreatedUtc = timeCreatedUtc;
@@ -430,6 +475,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
             ContainerLog = containerLog;
             SourceComputer = sourceComputer;
             CollectorComputer = collectorComputer;
+            ActivityId = activityId;
+            RelatedActivityId = relatedActivityId;
             Values = values;
         }
 
@@ -440,6 +487,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
         internal string ContainerLog { get; }
         internal string SourceComputer { get; }
         internal string CollectorComputer { get; }
+        internal string? ActivityId { get; }
+        internal string? RelatedActivityId { get; }
         internal IReadOnlyDictionary<string, JsonElement> Values { get; }
     }
 

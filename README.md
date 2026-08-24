@@ -62,7 +62,7 @@ The `master` branch is the active home of PSEventViewer and EventViewerX.
 - Use native bookmarks, durable record checkpoints, subscriptions, watchers,
   provider and channel catalogs, classic log management, WEC subscription
   management, and both classic and manifest event writing.
-- Query 80 built-in typed event definitions and 10 composite workflows such as
+- Query built-in typed event definitions and composite workflows such as
   failed logons, lockouts, group changes, Kerberos failures, AAD Connect
   health, IIS failures, and OS crashes.
 - Turn the same normalized result into responsive HTML, an Excel workbook, or
@@ -97,6 +97,11 @@ targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
   schema shared by query, reports, watchers, WEC, C#, and `evx.exe`.
 - [Troubleshooting](Docs/Troubleshooting.md): performance, permissions,
   remoting, message resources, EVTX, checkpoints, and provider deployment.
+- [Migrating to 4.0](Docs/Migration-4.0.md): replace legacy schedules safely,
+  use presets, aggregation, persistent Group Policy context, and interpret
+  completeness evidence.
+- [Roadmap](ROADMAP.md): the 4.0 release gate, active contracts, and deliberately
+  deferred product decisions.
 - [Documentation index](Docs/README.md),
   [event query benchmark contract](Benchmarks/EventLogParsing/README.md), and
   [local history benchmark contract](Benchmarks/EventStore/README.md).
@@ -136,6 +141,19 @@ Get-EVXEvent -LogName Security -MachineName DC01, DC02 `
 # Query reusable event types. The type owns its logs, providers, IDs, and projection.
 Get-EVXEvent -Type ADUserLogonFailed, ADUserLockouts `
     -MachineName DC01, DC02 -TimePeriod Last24Hours -MaxEvents 500
+
+# Built-in authentication-health monitoring: NTLMv1, weak Kerberos, and LDAP signing.
+Get-EVXEvent -Preset AuthenticationHealth -TimePeriod Last24Hours
+
+# Preserve event-derived GPO name history without scanning AD or SYSVOL.
+Show-EVXEvent -Type GroupPolicyDirectoryAudit `
+    -ContextStorePath C:\ProgramData\EventViewerX\context.db `
+    -TimePeriod Last30Days -HtmlPath .\GroupPolicy-Audit.html
+
+# Build a bounded daily trend and render it through the normal report surface.
+Get-EVXEvent -Preset AuthenticationHealth -TimePeriod Last7Days |
+    Measure-EVXEvent -GroupBy Type,SourceComputer -Bucket Day -Top 10 |
+    Show-EVXEvent -HtmlPath .\Authentication-Trend.html
 
 # Discover the domain fields, build an exact typed predicate, and inspect its fast path.
 $typed = New-EVXFilter -Type ADUserLogonFailed

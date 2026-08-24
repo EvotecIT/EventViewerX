@@ -1,6 +1,8 @@
 using System.Diagnostics.Eventing.Reader;
 using System.Security.Principal;
 using EventViewerX;
+using EventViewerX.Reporting;
+using EventViewerX.Storage;
 using Xunit;
 
 namespace EventViewerX.Tests;
@@ -61,6 +63,91 @@ public sealed class TestGroupPolicyAudit {
         Assert.Equal("EVOTEC\\alice", record.Actor);
         Assert.Equal("S-1-5-21-1-2-3-1105", record.ActorSid);
         Assert.Equal("{operation-correlation}", record.OperationCorrelationId);
+    }
+
+    [Fact]
+    public void GroupPolicyProjectionRetainsSystemActivityMetadata() {
+        Guid activityId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        Guid relatedActivityId = Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d");
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(CreateSource(
+            5136,
+            "WEC01",
+            "ForwardedEvents",
+            "groupPolicyContainer",
+            "displayName",
+            "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            activityId: activityId,
+            relatedActivityId: relatedActivityId,
+            readMode: EventReadMode.StructuredDataAndMessage));
+
+        EventReportRow row = EventReportEngine.CreateRow(record);
+
+        Assert.Equal(activityId, record.ActivityId);
+        Assert.Equal(relatedActivityId, record.RelatedActivityId);
+        Assert.Equal("Group Policy provider message.", record.Message);
+        Assert.Equal(activityId, row.ActivityId);
+        Assert.Equal(relatedActivityId, row.RelatedActivityId);
+        Assert.Equal(record.Message, row.Message);
+    }
+
+    [Fact]
+    public async Task ReportProjectionKeepsOneSchemaAcrossUnknownAndResolvedContext() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        EventObject source = CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline");
+        GroupPolicyAuditRecord unknown = GroupPolicyAuditEngine.CreateRecord(source);
+        GroupPolicyAuditRecord resolved = await GroupPolicyAuditEngine.CreateRecordAsync(
+            source,
+            new InMemoryEventContextStore());
+
+        EventReportProjection unknownProjection = EventReportProjectionFactory.Create(unknown);
+        EventReportProjection resolvedProjection = EventReportProjectionFactory.Create(resolved);
+
+        Assert.Equal(unknownProjection.Section.Key, resolvedProjection.Section.Key);
+        Assert.Equal("Domain controllers baseline", resolved.GroupPolicyNameAtEventTime);
+        Assert.Equal(
+            typeof(string),
+            unknownProjection.Section.Columns.Single(static column =>
+                column.Name == nameof(GroupPolicyAuditRecord.GroupPolicyNameAtEventTime)).ValueType);
+    }
+
+    [Fact]
+    public async Task GroupPolicyTypeSelectorIncludesThePersistentAuditIdentity() {
+        const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(CreateSource(
+            5136,
+            "AD1.ad.evotec.xyz",
+            "Security",
+            "groupPolicyContainer",
+            "displayName",
+            $"CN={{{gpoId}}},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            attributeValue: "Domain controllers baseline"));
+        EventReport report = EventReportEngine.Create(new object[] { record });
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-gpo-store-{Guid.NewGuid():N}.db");
+        try {
+            Assert.Equal("GroupPolicyAudit", Assert.Single(report.Rows).Type);
+            Assert.Equal("GroupPolicyAudit", Assert.Single(report.Sections).Name);
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+
+            EventReport restored = await store.ReadReportAsync(new EventStoreQuery {
+                Types = new[] { EventType.GroupPolicyDirectoryAudit }
+            });
+
+            Assert.Single(restored.Rows);
+        } finally {
+            foreach (string candidate in new[] { path, path + "-wal", path + "-shm" }) {
+                if (File.Exists(candidate)) {
+                    File.Delete(candidate);
+                }
+            }
+        }
     }
 
     [Theory]
@@ -555,6 +642,57 @@ public sealed class TestGroupPolicyAudit {
             "Security"));
     }
 
+    [Fact]
+    public void ReportCoveragePreservesCollectorLogAndOfflineFailures() {
+        string offline = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.evtx");
+        var offlineQuery = new GroupPolicyAuditQuery { Paths = new[] { offline } };
+        var offlineFailure = new EventLogQueryTargetFailure(
+            "Offline",
+            offline,
+            EventLogRemoteQueryFailureKind.LogNotFound,
+            "Missing fixture.");
+        var collectorQuery = new GroupPolicyAuditQuery {
+            MachineNames = new[] { "wec01" },
+            CollectorLogName = "ForwardedEvents"
+        };
+        var collectorFailure = new EventLogQueryTargetFailure(
+            "wec01",
+            "ForwardedEvents",
+            EventLogRemoteQueryFailureKind.AccessDenied,
+            "Denied.");
+
+        EventReportCoverage offlineCoverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(offlineQuery, new[] { offlineFailure }));
+        EventReportCoverage collectorCoverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(collectorQuery, new[] { collectorFailure }));
+
+        Assert.False(offlineCoverage.Succeeded);
+        Assert.Equal(EventLogRemoteQueryFailureKind.LogNotFound.ToString(), offlineCoverage.Status);
+        Assert.Equal(Path.GetFullPath(offline), offlineCoverage.LogName);
+        Assert.False(collectorCoverage.Succeeded);
+        Assert.Equal("ForwardedEvents", collectorCoverage.LogName);
+        Assert.Equal(EventLogRemoteQueryFailureKind.AccessDenied.ToString(), collectorCoverage.Status);
+    }
+
+    [Fact]
+    public void EmptyMachineSelectionRetainsLocalFailureCoverage() {
+        var query = new GroupPolicyAuditQuery {
+            MachineNames = Array.Empty<string?>()
+        };
+        var failure = new EventLogQueryTargetFailure(
+            Environment.MachineName,
+            "Security",
+            EventLogRemoteQueryFailureKind.AccessDenied,
+            "Denied.");
+
+        EventReportCoverage coverage = Assert.Single(
+            GroupPolicyAuditReportEngine.BuildCoverage(query, new[] { failure }));
+
+        Assert.Equal(Environment.MachineName, coverage.MachineName, ignoreCase: true);
+        Assert.False(coverage.Succeeded);
+        Assert.Equal(EventLogRemoteQueryFailureKind.AccessDenied.ToString(), coverage.Status);
+    }
+
     private static EventObject CreateSource(
         int eventId,
         string queriedMachine,
@@ -567,7 +705,10 @@ public sealed class TestGroupPolicyAudit {
         string? bookmarkXml = null,
         string attributeValue = "value",
         string operationType = "%%14674",
-        DateTime? timeCreatedUtc = null) {
+        DateTime? timeCreatedUtc = null,
+        Guid? activityId = null,
+        Guid? relatedActivityId = null,
+        EventReadMode readMode = EventReadMode.StructuredData) {
 
         string xml = $$"""
             <Event>
@@ -597,7 +738,10 @@ public sealed class TestGroupPolicyAudit {
             providerName,
             originalLogName,
             bookmarkXml,
-            timeCreatedUtc);
+            timeCreatedUtc,
+            activityId,
+            relatedActivityId,
+            readMode);
     }
 
     private static EventObject CreateMovedSource(string oldObjectDn, string newObjectDn) {
@@ -638,12 +782,23 @@ public sealed class TestGroupPolicyAudit {
         string providerName,
         string originalLogName,
         string? bookmarkXml,
-        DateTime? timeCreatedUtc) {
+        DateTime? timeCreatedUtc,
+        Guid? activityId = null,
+        Guid? relatedActivityId = null,
+        EventReadMode readMode = EventReadMode.StructuredData) {
 
         return new EventObject(
-            new SyntheticEventRecord(eventId, xml, providerName, originalLogName, bookmarkXml, timeCreatedUtc),
+            new SyntheticEventRecord(
+                eventId,
+                xml,
+                providerName,
+                originalLogName,
+                bookmarkXml,
+                timeCreatedUtc,
+                activityId,
+                relatedActivityId),
             queriedMachine,
-            EventReadMode.StructuredData,
+            readMode,
             includeBookmark: !string.IsNullOrWhiteSpace(bookmarkXml)) {
             ContainerLog = container,
             GatheredLogName = container
@@ -657,6 +812,8 @@ public sealed class TestGroupPolicyAudit {
         private readonly string _logName;
         private readonly string? _bookmarkXml;
         private readonly DateTime _timeCreatedUtc;
+        private readonly Guid? _activityId;
+        private readonly Guid? _relatedActivityId;
 
         internal SyntheticEventRecord(
             int eventId,
@@ -664,7 +821,9 @@ public sealed class TestGroupPolicyAudit {
             string providerName,
             string logName,
             string? bookmarkXml,
-            DateTime? timeCreatedUtc) {
+            DateTime? timeCreatedUtc,
+            Guid? activityId,
+            Guid? relatedActivityId) {
 
             _eventId = eventId;
             _xml = xml;
@@ -672,6 +831,8 @@ public sealed class TestGroupPolicyAudit {
             _logName = logName;
             _bookmarkXml = bookmarkXml;
             _timeCreatedUtc = timeCreatedUtc ?? new DateTime(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc);
+            _activityId = activityId;
+            _relatedActivityId = relatedActivityId;
         }
 
         public override string ProviderName => _providerName;
@@ -686,8 +847,8 @@ public sealed class TestGroupPolicyAudit {
         public override string OpcodeDisplayName => string.Empty;
         public override string TaskDisplayName => string.Empty;
         public override Guid? ProviderId => null;
-        public override Guid? ActivityId => null;
-        public override Guid? RelatedActivityId => null;
+        public override Guid? ActivityId => _activityId;
+        public override Guid? RelatedActivityId => _relatedActivityId;
         public override int? ProcessId => 1;
         public override int? ThreadId => 1;
         public override string LevelDisplayName => "Information";
@@ -700,8 +861,8 @@ public sealed class TestGroupPolicyAudit {
         public override EventBookmark Bookmark => string.IsNullOrWhiteSpace(_bookmarkXml)
             ? null!
             : new EventBookmark(_bookmarkXml);
-        public override string FormatDescription() => string.Empty;
-        public override string FormatDescription(IEnumerable<object> values) => string.Empty;
+        public override string FormatDescription() => "Group Policy provider message.";
+        public override string FormatDescription(IEnumerable<object> values) => FormatDescription();
         public override string ToXml() => _xml;
     }
 

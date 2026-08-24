@@ -54,6 +54,30 @@ public static partial class EventTypeCatalog {
                 EventType.KerberosTicketFailure,
                 EventType.KerberosPolicyChange
             },
+            [EventType.AuthenticationHealth] = new[] {
+                EventType.ADUserLogonNTLMv1,
+                EventType.KerberosTGTRequest,
+                EventType.KerberosServiceTicket,
+                EventType.ADLdapBindingSummary,
+                EventType.ADLdapBindingDetails
+            },
+            [EventType.ScheduledTaskActivity] = new[] {
+                EventType.ScheduledTaskCreated,
+                EventType.ScheduledTaskDeleted,
+                EventType.ScheduledTaskEnabled,
+                EventType.ScheduledTaskDisabled,
+                EventType.ScheduledTaskUpdated
+            },
+            [EventType.FirewallRuleActivity] = new[] {
+                EventType.FirewallRuleAdded,
+                EventType.FirewallRuleChange,
+                EventType.FirewallRuleDeleted
+            },
+            [EventType.DefenderSecurity] = new[] {
+                EventType.DefenderThreatDetected,
+                EventType.DefenderThreatAction,
+                EventType.DefenderConfigurationChanged
+            },
             [EventType.OperatingSystemLifecycle] = new[] {
                 EventType.OSStartup,
                 EventType.OSStartupSecurity,
@@ -66,14 +90,14 @@ public static partial class EventTypeCatalog {
             },
             [EventType.WindowsSecurityChanges] = new[] {
                 EventType.AuditPolicyChange,
-                EventType.FirewallRuleChange,
+                EventType.FirewallRuleActivity,
+                EventType.DefenderSecurity,
                 EventType.BitLockerKeyChange,
                 EventType.BitLockerSuspended,
                 EventType.DeviceDisabled,
                 EventType.DeviceRecognized,
                 EventType.ObjectDeletion,
-                EventType.ScheduledTaskCreated,
-                EventType.ScheduledTaskDeleted,
+                EventType.ScheduledTaskActivity,
                 EventType.LogsClearedSecurity,
                 EventType.LogsClearedOther,
                 EventType.LogsFullSecurity
@@ -92,7 +116,7 @@ public static partial class EventTypeCatalog {
             },
             [EventType.NetworkSecurity] = new[] {
                 EventType.NetworkAccessAuthenticationPolicy,
-                EventType.FirewallRuleChange,
+                EventType.FirewallRuleActivity,
                 EventType.ADSMBServerAuditV1,
                 EventType.NetworkMonitorDriverLoaded,
                 EventType.NetworkPromiscuousMode,
@@ -255,7 +279,9 @@ public static partial class EventTypeCatalog {
         }
         if (name.StartsWith("OS", StringComparison.Ordinal) ||
             name.StartsWith("Windows", StringComparison.Ordinal) ||
-            name.StartsWith("Logs", StringComparison.Ordinal)) {
+            name.StartsWith("Logs", StringComparison.Ordinal) ||
+            name.StartsWith("ScheduledTask", StringComparison.Ordinal) ||
+            name.StartsWith("Defender", StringComparison.Ordinal)) {
             return "Windows";
         }
         if (name.Contains("Network", StringComparison.Ordinal) ||

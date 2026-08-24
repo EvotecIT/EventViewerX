@@ -4,7 +4,8 @@ namespace EventViewerX.Reporting;
 public sealed class EventReport {
     internal EventReport(string title, DateTime generatedAt, TimeSpan queryDuration,
         IReadOnlyList<EventReportRow> rows, IReadOnlyList<EventReportSection> sections,
-        IReadOnlyList<EventReportCoverage> coverage, long scanned, bool scanLimitReached) {
+        IReadOnlyList<EventReportCoverage> coverage, long scanned, bool scanLimitReached,
+        string? completenessDiagnostic = null) {
         Title = title;
         GeneratedAt = generatedAt;
         QueryDuration = queryDuration;
@@ -13,6 +14,7 @@ public sealed class EventReport {
         Coverage = coverage;
         EventsScanned = scanned;
         ScanLimitReached = scanLimitReached;
+        CompletenessDiagnostic = completenessDiagnostic;
     }
 
     /// <summary>Report title.</summary>
@@ -31,4 +33,6 @@ public sealed class EventReport {
     public long EventsScanned { get; }
     /// <summary>Whether the typed candidate cap was reached.</summary>
     public bool ScanLimitReached { get; }
+    /// <summary>Specific reason the report is not exhaustive, when one is available.</summary>
+    public string? CompletenessDiagnostic { get; }
 }

@@ -102,7 +102,7 @@ public static class EventReportCsvRenderer {
                         EventReportTableProjection.ProjectProvenance(report.Rows),
                         new[] {
                             "Time Created", "Type", "Event ID", "Level", "Source Computer",
-                            "Source Log", "Provider", "Record ID", "Message", "Container Log",
+                            "Source Log", "Provider", "Record ID", "Message", "Raw Values", "Container Log",
                             "Collector Computer"
                         },
                         options);
@@ -136,6 +136,7 @@ public static class EventReportCsvRenderer {
                     EventCount = report.Rows.Count,
                     report.EventsScanned,
                     report.ScanLimitReached,
+                    report.CompletenessDiagnostic,
                     Sections = sectionFiles.Select(static item => new {
                         item.Section.Name,
                         item.Section.DisplayName,
@@ -156,9 +157,33 @@ public static class EventReportCsvRenderer {
         List<Dictionary<string, object?>> rows = EventReportTableProjection.Project(section);
         IReadOnlyDictionary<string, string> displayNames =
             EventReportTableProjection.CreateUniqueDisplayNames(section.Columns);
-        string[] headers = section.Columns.Select(column => displayNames[column.Name]).ToArray();
-        writer.WriteRows(headers, rows.Select(row =>
-            section.Columns.Select(column => row.TryGetValue(column.Name, out object? value) ? value : null).ToArray()));
+        EventReportColumn[] rawColumns = section.Columns.Where(column => section.Rows.Any(row =>
+            row.NormalizedValues.TryGetValue(column.Name, out EventNormalizedValue? value) &&
+            value.Outcome != EventNormalizationOutcome.Unchanged)).ToArray();
+        var usedHeaders = new HashSet<string>(displayNames.Values, StringComparer.OrdinalIgnoreCase);
+        IReadOnlyDictionary<string, string> rawHeaders = rawColumns.ToDictionary(
+            static column => column.Name,
+            column => CreateUniqueHeader(displayNames[column.Name] + " Raw", usedHeaders),
+            StringComparer.OrdinalIgnoreCase);
+        string[] headers = section.Columns.Select(column => displayNames[column.Name])
+            .Concat(rawColumns.Select(column => rawHeaders[column.Name]))
+            .ToArray();
+        writer.WriteRows(headers, rows.Select((row, index) =>
+            section.Columns.Select(column => row.TryGetValue(column.Name, out object? value) ? value : null)
+                .Concat(rawColumns.Select(column => section.Rows[index].Values.TryGetValue(
+                    column.Name,
+                    out object? raw) ? raw : null))
+                .ToArray()));
+    }
+
+    private static string CreateUniqueHeader(string requested, ISet<string> usedHeaders) {
+        string candidate = requested;
+        int suffix = 2;
+        while (!usedHeaders.Add(candidate)) {
+            candidate = requested + " (" + suffix.ToString(CultureInfo.InvariantCulture) + ")";
+            suffix++;
+        }
+        return candidate;
     }
 
     private static void WriteDictionaries(

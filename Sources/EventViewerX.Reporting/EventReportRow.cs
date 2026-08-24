@@ -44,10 +44,20 @@ public sealed class EventReportRow {
     public string Level { get; set; } = string.Empty;
     /// <summary>Numeric Windows event level used by exact predicates.</summary>
     public byte? LevelValue { get; set; }
+    /// <summary>Windows system activity identifier used for same-producer causal grouping.</summary>
+    public Guid? ActivityId { get; set; }
+    /// <summary>Windows system related-activity identifier used for same-producer causal grouping.</summary>
+    public Guid? RelatedActivityId { get; set; }
     /// <summary>Rendered provider message.</summary>
     public string Message { get; set; } = string.Empty;
     /// <summary>Type-specific projected values.</summary>
     public IReadOnlyDictionary<string, object?> Values { get; set; } = new Dictionary<string, object?>();
+
+    /// <summary>
+    /// Deterministic canonical views of type-specific values. Raw evidence remains in <see cref="Values"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, EventNormalizedValue> NormalizedValues { get; internal set; } =
+        new Dictionary<string, EventNormalizedValue>();
 
     /// <summary>Flattens common and type-specific fields for serialization and transport adapters.</summary>
     public IReadOnlyDictionary<string, object?> ToDictionary() {
@@ -64,12 +74,67 @@ public sealed class EventReportRow {
             [nameof(CollectorComputer)] = CollectorComputer,
             [nameof(Level)] = Level,
             [nameof(LevelValue)] = LevelValue,
+            [nameof(ActivityId)] = ActivityId,
+            [nameof(RelatedActivityId)] = RelatedActivityId,
             [nameof(Message)] = Message
         };
         foreach (KeyValuePair<string, object?> value in Values) {
             if (!result.ContainsKey(value.Key)) {
                 result[value.Key] = value.Value;
             }
+        }
+        if (string.Equals(Type, "Generic", StringComparison.OrdinalIgnoreCase)) {
+            foreach (KeyValuePair<string, object?> value in Values) {
+                if (!IsPayloadActivityField(value.Key) || !IsCommonFieldName(value.Key)) {
+                    continue;
+                }
+                result[AllocateProviderField(result, value.Key + "_ProviderField")] = value.Value;
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Flattens common fields and canonical type-specific values for grouping and aggregation.
+    /// Use <see cref="ToDictionary()"/> when raw projected values are required.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> ToNormalizedDictionary() {
+        var result = ToDictionary().ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        AddCommonAliases(result);
+        foreach (KeyValuePair<string, EventNormalizedValue> value in NormalizedValues) {
+            if (string.Equals(Type, "Generic", StringComparison.OrdinalIgnoreCase) &&
+                IsCommonFieldName(value.Key)) {
+                continue;
+            }
+            result[value.Key] = value.Value.Value;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Flattens one homogeneous report section using canonical values while retaining the section's
+    /// declared field contract.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> ToNormalizedDictionary(EventReportSection section) {
+        if (section == null) {
+            throw new ArgumentNullException(nameof(section));
+        }
+        var result = ToNormalizedDictionary().ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        if (section.Kind == EventReportSectionKind.Generic) {
+            return result;
+        }
+        foreach (EventReportColumn column in section.Columns) {
+            result[column.Name] = NormalizedValues.TryGetValue(column.Name, out EventNormalizedValue? normalized)
+                ? normalized.Value
+                : Values.TryGetValue(column.Name, out object? value)
+                    ? value
+                    : null;
         }
         return result;
     }
@@ -129,4 +194,35 @@ public sealed class EventReportRow {
     }
 
     internal static bool IsCommonFieldName(string name) => CommonFieldNames.Contains(name);
+
+    private static bool IsPayloadActivityField(string name) =>
+        string.Equals(name, nameof(ActivityId), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, nameof(RelatedActivityId), StringComparison.OrdinalIgnoreCase);
+
+    private static string AllocateProviderField(
+        IReadOnlyDictionary<string, object?> values,
+        string preferredName) {
+
+        string name = preferredName;
+        int suffix = 2;
+        while (values.ContainsKey(name)) {
+            name = preferredName + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            suffix++;
+        }
+        return name;
+    }
+
+    private void AddCommonAliases(IDictionary<string, object?> result) {
+        result["TypeName"] = Type;
+        result["Id"] = EventId;
+        result["EventRecordId"] = RecordId;
+        result["ProviderName"] = Provider;
+        result["SourceLogName"] = SourceLog;
+        result["LogName"] = SourceLog;
+        result["ContainerLogName"] = ContainerLog;
+        result["MachineName"] = SourceComputer;
+        result["Computer"] = SourceComputer;
+        result["When"] = TimeCreated;
+        result["LevelDisplayName"] = Level;
+    }
 }

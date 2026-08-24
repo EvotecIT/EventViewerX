@@ -101,11 +101,40 @@ public sealed class TestEventTypeDefinitions {
         Assert.Contains("TimeCreated", collector, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ScheduledTaskUpdatedPrefersCurrentTaskXmlAndRetainsLegacyFallback() {
+        var currentSnapshot = new EventObject(
+            new ForwardedSecurityEventRecord(4702),
+            "DC01",
+            EventReadMode.Metadata);
+        currentSnapshot.Data["TaskContent"] = "<Task version=\"legacy\" />";
+        currentSnapshot.Data["TaskContentNew"] = "<Task version=\"current\" />";
+        var legacySnapshot = new EventObject(
+            new ForwardedSecurityEventRecord(4702),
+            "DC01",
+            EventReadMode.Metadata);
+        legacySnapshot.Data["TaskContent"] = "<Task version=\"legacy\" />";
+
+        var current = Assert.IsType<Rules.Windows.ScheduledTaskUpdated>(
+            EventTypeCatalog.CreateEventRule(currentSnapshot, new[] { EventType.ScheduledTaskUpdated }));
+        var legacy = Assert.IsType<Rules.Windows.ScheduledTaskUpdated>(
+            EventTypeCatalog.CreateEventRule(legacySnapshot, new[] { EventType.ScheduledTaskUpdated }));
+
+        Assert.Equal("<Task version=\"current\" />", current.TaskContent);
+        Assert.Equal("<Task version=\"legacy\" />", legacy.TaskContent);
+    }
+
     private sealed class ForwardedSecurityEventRecord : EventRecord {
+        private readonly int _id;
+
+        internal ForwardedSecurityEventRecord(int id = 4625) {
+            _id = id;
+        }
+
         public override string ProviderName => "Microsoft-Windows-Security-Auditing";
         public override string LogName => "Security";
         public override string MachineName => "source-dc.ad.evotec.xyz";
-        public override int Id => 4625;
+        public override int Id => _id;
         public override byte? Level => 0;
         public override int? Task => 12544;
         public override long? Keywords => 0;

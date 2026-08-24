@@ -31,6 +31,87 @@ Describe 'Show-EVXEvent' {
         $Report.Sections[0].Columns.Name | Should -Contain 'EventId'
     }
 
+    It 'rejects context authorization without a persistent context store' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+
+        {
+            Show-EVXEvent `
+                -Type OSStartup `
+                -Path $FixturePath `
+                -ContextAuthorization 'authorized-partition' `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
+    }
+
+    It 'rejects mixed direct and collector context targets before opening the store' {
+        $ContextPath = Join-Path $TestDrive 'mixed-report-context.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -MachineName 'dc1.example.com' `
+                -Collector 'wec1.example.com' `
+                -ContextStorePath $ContextPath `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*Collector and -MachineName cannot be used together with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'validates occurrence options before opening persistent context' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'invalid-occurrence-context.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $FixturePath `
+                -ContextStorePath $ContextPath `
+                -DuplicateMode Semantic `
+                -OccurrenceWindow ([TimeSpan]::FromSeconds(-1)) `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*Window*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'rejects derived aggregation storage before writing another destination' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $StorePath = Join-Path $TestDrive 'derived-aggregation.db'
+        $HtmlPath = Join-Path $TestDrive 'derived-aggregation.html'
+        $Aggregation = Get-EVXEvent -Path $FixturePath -MaxEvents 2 |
+            Measure-EVXEvent -GroupBy ProviderName
+
+        {
+            $Aggregation | Show-EVXEvent `
+                -StorePath $StorePath `
+                -HtmlPath $HtmlPath `
+                -ErrorAction Stop
+        } | Should -Throw '*derived output*'
+
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+        Test-Path -LiteralPath $HtmlPath | Should -BeFalse
+    }
+
+    It 'rejects derived occurrence storage before writing another destination' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $StorePath = Join-Path $TestDrive 'derived-occurrence.db'
+        $CsvPath = Join-Path $TestDrive 'derived-occurrence.csv'
+
+        {
+            Get-EVXEvent -Path $FixturePath -MaxEvents 2 |
+                Show-EVXEvent `
+                    -DuplicateMode Transport `
+                    -StorePath $StorePath `
+                    -CsvPath $CsvPath `
+                    -ErrorAction Stop
+        } | Should -Throw '*derived output*'
+
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+        Test-Path -LiteralPath $CsvPath | Should -BeFalse
+    }
+
     It 'renders HTML, Excel, email, and the report from one supplied snapshot' {
         $Event = Get-EVXEvent -LogName System -MaxEvents 1 -ReadMode StructuredDataAndMessage |
             Select-Object -First 1
@@ -178,6 +259,45 @@ Describe 'Show-EVXEvent' {
             Should -Be @('BITS')
         $Summary.Sections[0].Name | Should -Be 'EventStoreSummary'
         $Summary.Sections[0].Columns.Name | Should -Contain 'Count'
+    }
+
+    It 'uses the enriched Group Policy schema for stored type aliases' {
+        $StorePath = Join-Path $TestDrive 'stored-gpo-audit.db'
+        $Row = [EventViewerX.Reporting.EventReportRow]::new()
+        $Row.TimeCreated = [datetime]::SpecifyKind([datetime]'2026-08-23T10:00:00', [DateTimeKind]::Utc)
+        $Row.Type = 'GroupPolicyAudit'
+        $Row.EventId = 5136
+        $Row.RecordId = 42
+        $Row.Provider = 'Microsoft-Windows-Security-Auditing'
+        $Row.SourceLog = 'Security'
+        $Row.ContainerLog = 'ForwardedEvents'
+        $Row.SourceComputer = 'dc1.ad.evotec.xyz'
+        $Row.CollectorComputer = 'wec1.ad.evotec.xyz'
+        $Values = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+        $Values['Actor'] = 'AD\alice'
+        $Values['GroupPolicyNameAtEventTime'] = 'Workstation Baseline'
+        $Row.Values = $Values
+        $Report = [EventViewerX.Reporting.EventReportEngine]::CreateStored(
+            [EventViewerX.Reporting.EventReportRow[]]@($Row),
+            [EventViewerX.Reporting.EventReportSectionSchema[]]@(
+                [EventViewerX.Reporting.EventReportSectionSchema]::FromGroupPolicyAudit()))
+        $null = [EventViewerX.Storage.EventStore]::new($StorePath).WriteAsync($Report).GetAwaiter().GetResult()
+
+        $Matched = Show-EVXEvent `
+            -FromStore $StorePath `
+            -Type GroupPolicyDirectoryAudit `
+            -Where { $_.Actor -eq 'AD\alice' } `
+            -PassThru
+
+        $Matched.Rows.Count | Should -Be 1
+        $Matched.Rows[0].Values['GroupPolicyNameAtEventTime'] | Should -Be 'Workstation Baseline'
+        {
+            Show-EVXEvent `
+                -FromStore $StorePath `
+                -Type GroupPolicyDirectoryAudit `
+                -Where { $_.Who -eq 'alice' } `
+                -PassThru
+        } | Should -Throw "*Field 'Who' is not available*"
     }
 
     It 'renders empty stored custom CSV with the supplied definition schema' {
@@ -354,5 +474,22 @@ Describe 'Show-EVXEvent' {
         Test-Path -LiteralPath $FromStore | Should -BeFalse
         Test-Path -LiteralPath $StorePath | Should -BeFalse
         Test-Path -LiteralPath $HtmlPath | Should -BeFalse
+    }
+
+    It 'rejects occurrence persistence before querying persistent context' {
+        $ContextStorePath = Join-Path $TestDrive 'not-created-context.db'
+        $StorePath = Join-Path $TestDrive 'not-created-occurrence-copy.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -ContextStorePath $ContextStorePath `
+                -DuplicateMode Semantic `
+                -StorePath $StorePath `
+                -PassThru
+        } | Should -Throw '*Occurrence rows are derived output*'
+
+        Test-Path -LiteralPath $ContextStorePath | Should -BeFalse
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 }

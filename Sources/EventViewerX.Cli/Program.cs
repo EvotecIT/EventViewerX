@@ -25,6 +25,7 @@ internal static partial class Program {
             return options.Command switch {
                 "query" => await QueryAsync(options).ConfigureAwait(false),
                 "report" => await ReportAsync(options).ConfigureAwait(false),
+                "measure" => await MeasureAsync(options).ConfigureAwait(false),
                 "watch" => await WatchAsync(options).ConfigureAwait(false),
                 "store" => await StoreAsync(options).ConfigureAwait(false),
                 "collector" => Collector(options),
@@ -44,6 +45,7 @@ internal static partial class Program {
 
     private static async Task<int> QueryAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: false);
+        ValidateOccurrenceOptions(options);
         if (options.Get("store") is string storePath) {
             EventStoreQuery storedQuery = CreateStoreQuery(options);
             if (options.Has("explain")) {
@@ -58,7 +60,12 @@ internal static partial class Program {
             EventReport stored = await new EventStore(storePath)
                 .ReadReportAsync(storedQuery, options.Get("title"))
                 .ConfigureAwait(false);
-            return WriteRows(stored);
+            return WriteRows(ApplyOccurrenceGrouping(stored, options));
+        }
+        if (options.Get("context-store") != null) {
+            EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
+            await WriteStoreIfRequestedAsync(contextual, options).ConfigureAwait(false);
+            return WriteRows(ApplyOccurrenceGrouping(contextual, options));
         }
         EventReportRequest request = CreateRequest(options);
         CollectionCheckpointContext? checkpoint =
@@ -91,11 +98,12 @@ internal static partial class Program {
         } else {
             await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
         }
-        return WriteRows(report);
+        return WriteRows(ApplyOccurrenceGrouping(report, options));
     }
 
     private static async Task<int> ReportAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: true);
+        ValidateOccurrenceOptions(options);
         EventReport report;
         if (options.Get("store") is string storePath) {
             var store = new EventStore(storePath);
@@ -107,9 +115,12 @@ internal static partial class Program {
                     options.Get("title")).ConfigureAwait(false)
                 : await store.ReadReportAsync(query, options.Get("title")).ConfigureAwait(false);
         } else {
-            report = await EventReportEngine.QueryAsync(CreateRequest(options)).ConfigureAwait(false);
+            report = options.Get("context-store") != null
+                ? await QueryGroupPolicyReportAsync(options).ConfigureAwait(false)
+                : await EventReportEngine.QueryAsync(CreateRequest(options)).ConfigureAwait(false);
             await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
         }
+        report = ApplyOccurrenceGrouping(report, options);
         bool written = false;
         EventEmailPackage? emailPackage = null;
         if (options.Get("html") is string html) {
@@ -183,37 +194,48 @@ internal static partial class Program {
             start = DateTime.Now.Subtract(TimeSpan.Parse(since, CultureInfo.InvariantCulture));
         }
         EventType[] types = ParseTypes(options.GetMany("type"));
+        EventMonitoringPresetDefinition? preset = ParsePreset(options.Get("preset"));
+        if (preset != null) {
+            if (types.Length > 0 || options.Get("definition") != null || options.GetMany("definition-name").Length > 0) {
+                throw new ArgumentException("--preset is mutually exclusive with --type, --definition, and --definition-name.");
+            }
+            types = preset.Types.ToArray();
+        }
         EventDefinition? definition = options.Get("definition") is string definitionPath
             ? EventDefinition.Load(definitionPath)
             : null;
-        EventPredicate? predicate = ParsePredicate(options.Get("where"));
+        EventStoreQuery query = preset == null
+            ? new EventStoreQuery()
+            : EventStoreQuery.ForPreset(preset.Preset);
+        EventPredicate? predicate = CombinePredicates(query.Predicate, ParsePredicate(options.Get("where")));
         if (predicate != null) {
             predicate = definition != null
                 ? EventPredicateBuilder.ForDefinition(definition).Normalize(predicate)
                 : types.Length > 0
-                    ? EventPredicateBuilder.ForTypes(types).Normalize(predicate)
+                    ? EventStoreQuery.IsEnrichedGroupPolicySelection(types)
+                        ? EventReportSectionSchema.FromGroupPolicyAudit().CreatePredicateBuilder().Normalize(predicate)
+                        : EventPredicateBuilder.ForTypes(types).Normalize(predicate)
                     : predicate;
         }
-        return new EventStoreQuery {
-            Types = types.Length == 0 ? null : types,
-            DefinitionNames = definition == null
-                ? NullWhenEmpty(options.GetMany("definition-name"))
-                : new[] { definition.Name },
-            DefinitionSchemas = definition == null
-                ? null
-                : new[] { EventReportSectionSchema.FromDefinition(definition) },
-            StartTime = start,
-            EndTime = ParseDate(options.Get("end")),
-            EventIds = ParseInts(options.GetMany("event-id")),
-            RecordIds = ParseLongs(options.GetMany("record-id")),
-            SourceComputers = NullWhenEmpty(options.GetMany("source")),
-            SourceLogs = NullWhenEmpty(options.GetMany("log")),
-            Providers = NullWhenEmpty(options.GetMany("provider")),
-            Predicate = predicate,
-            MaxEvents = options.GetLong("max"),
-            MaxCandidates = options.GetLong("max-candidates", 100000),
-            Oldest = options.Has("oldest")
-        };
+        query.Types = types.Length == 0 ? null : types;
+        query.DefinitionNames = definition == null
+            ? NullWhenEmpty(options.GetMany("definition-name"))
+            : new[] { definition.Name };
+        query.DefinitionSchemas = definition == null
+            ? null
+            : new[] { EventReportSectionSchema.FromDefinition(definition) };
+        query.StartTime = start;
+        query.EndTime = ParseDate(options.Get("end"));
+        query.EventIds = ParseInts(options.GetMany("event-id"));
+        query.RecordIds = ParseLongs(options.GetMany("record-id"));
+        query.SourceComputers = NullWhenEmpty(options.GetMany("source"));
+        query.SourceLogs = NullWhenEmpty(options.GetMany("log"));
+        query.Providers = NullWhenEmpty(options.GetMany("provider"));
+        query.Predicate = predicate;
+        query.MaxEvents = options.GetLong("max");
+        query.MaxCandidates = options.GetLong("max-candidates", 100000);
+        query.Oldest = options.Has("oldest");
+        return query;
     }
 
     private static async Task WriteStoreIfRequestedAsync(EventReport report, CliArguments options) {
@@ -232,6 +254,9 @@ internal static partial class Program {
 
     private static void ValidateQuerySource(CliArguments options, bool allowSummary) {
         bool stored = options.Get("store") != null;
+        if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
+            throw new ArgumentException("--machine and --collector are mutually exclusive target modes.");
+        }
         if (options.Has("explain") && options.Get("write-store") != null) {
             throw new ArgumentException(
                 "--explain cannot be combined with --write-store because explanation does not read or persist events.");
@@ -241,6 +266,24 @@ internal static partial class Program {
             throw new ArgumentException(
                 "--store cannot be combined with --path, --machine, or --collector. " +
                 "Use --type, --definition, --definition-name, --log, --source, and --provider to filter stored rows.");
+        }
+        if (options.Get("context-store") != null) {
+            if (options.Has("explain")) {
+                throw new ArgumentException(
+                    "--explain cannot be combined with --context-store because contextual Group Policy queries update persistent context while reading the complete timeline.");
+            }
+            EventType[] contextTypes = ParseTypes(options.GetMany("type"));
+            if (stored || contextTypes.Length != 1 || contextTypes[0] != EventType.GroupPolicyDirectoryAudit) {
+                throw new ArgumentException("--context-store requires exactly --type GroupPolicyDirectoryAudit and a live or offline source.");
+            }
+            if (options.Get("preset") != null || options.Get("definition") != null || options.Get("log") != null ||
+                options.Get("where") != null || options.GetMany("event-id").Length > 0 ||
+                options.GetMany("record-id").Length > 0 || options.Has("resolve-dns") || options.Get("checkpoint") != null) {
+                throw new ArgumentException(
+                    "--context-store cannot be combined with --preset, --definition, --log, --where, --event-id, --record-id, --resolve-dns, or --checkpoint.");
+            }
+        } else if (options.Get("context-authorization") != null) {
+            throw new ArgumentException("--context-authorization requires --context-store.");
         }
         if (stored && options.Get("definition") != null && options.GetMany("type").Length > 0) {
             throw new ArgumentException("--store accepts either --type or --definition metadata, not both.");
@@ -253,6 +296,11 @@ internal static partial class Program {
             options.GetMany("definition-name").Length > 0) {
             throw new ArgumentException(
                 "--type and --definition-name are mutually exclusive stored definition selectors.");
+        }
+        if (options.Get("preset") != null &&
+            (options.GetMany("type").Length > 0 || options.Get("definition") != null ||
+             options.GetMany("definition-name").Length > 0 || options.Get("log") != null)) {
+            throw new ArgumentException("--preset is mutually exclusive with --type, --definition, --definition-name, and --log.");
         }
         if (stored && options.Get("write-store") != null) {
             throw new ArgumentException("--write-store is only valid for live or offline event-log ingestion.");
@@ -270,7 +318,7 @@ internal static partial class Program {
             throw new ArgumentException(
                 "--definition-name, --source, --provider, and --summary require --store.");
         }
-        bool typedSource = options.Get("definition") != null || options.GetMany("type").Length > 0;
+        bool typedSource = options.Get("definition") != null || options.GetMany("type").Length > 0 || options.Get("preset") != null;
         if (!stored && !typedSource && options.Get("where") != null) {
             throw new ArgumentException(
                 "--where requires --type or --definition for live and offline event-log queries. " +
@@ -284,20 +332,29 @@ internal static partial class Program {
         if (!allowSummary && options.Get("summary") != null) {
             throw new ArgumentException("--summary is available through the report command.");
         }
+        if (options.Get("summary") != null &&
+            ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
+            throw new ArgumentException(
+                "--summary cannot be combined with --duplicates because stored summary rows are already derived data.");
+        }
     }
 
     private static EventReportRequest CreateRequest(CliArguments options) {
         bool hasDefinition = options.Get("definition") != null;
         bool hasTypes = options.GetMany("type").Length > 0;
+        bool hasPreset = options.Get("preset") != null;
         bool hasPaths = options.GetMany("path").Length > 0;
         bool hasLog = options.Get("log") != null;
-        int logicalDefinitions = new[] { hasDefinition, hasTypes, hasLog }.Count(static value => value);
+        int logicalDefinitions = new[] { hasDefinition, hasTypes, hasPreset, hasLog }.Count(static value => value);
         if (logicalDefinitions > 1 || logicalDefinitions == 0 && !hasPaths || hasLog && hasPaths) {
-            throw new ArgumentException("query and report require one of --type, --definition, --log, or standalone --path; --path may accompany --type or --definition.");
+            throw new ArgumentException("query, report, and measure require one of --preset, --type, --definition, --log, or standalone --path; --path may accompany a typed selection.");
         }
         EventReportRequest request;
+        EventMonitoringPresetDefinition? preset = ParsePreset(options.Get("preset"));
         if (options.Get("definition") is string path) {
             request = EventReportRequest.ForDefinition(EventDefinition.Load(path));
+        } else if (preset != null) {
+            request = EventReportRequest.ForTypes(preset.Types.ToArray());
         } else if (options.GetMany("type").Length > 0) {
             request = EventReportRequest.ForTypes(ParseTypes(options.GetMany("type")));
         } else if (options.GetMany("path").Length > 0) {
@@ -305,7 +362,7 @@ internal static partial class Program {
         } else {
             request = EventReportRequest.ForLog(options.Require("log"));
         }
-        if (hasPaths && (hasTypes || hasDefinition)) {
+        if (hasPaths && (hasTypes || hasDefinition || hasPreset)) {
             request.Paths = options.GetMany("path");
         }
         request.EventIds = ParseInts(options.GetMany("event-id"));
@@ -323,9 +380,29 @@ internal static partial class Program {
         request.Oldest = options.Has("oldest");
         request.ResolveDns = options.Has("resolve-dns");
         request.Title = options.Get("title");
-        request.Predicate = ParsePredicate(options.Get("where"));
+        request.Predicate = CombinePredicates(preset?.Predicate, ParsePredicate(options.Get("where")));
         return request;
     }
+
+    private static T ParseEnum<T>(string? value, T fallback, string option) where T : struct, Enum =>
+        string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : Enum.TryParse(value, ignoreCase: true, out T parsed) && Enum.IsDefined(parsed)
+                ? parsed
+                : throw new ArgumentException($"{option} has an unsupported value '{value}'.");
+
+    private static EventMonitoringPresetDefinition? ParsePreset(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+        if (!Enum.TryParse(value, ignoreCase: true, out EventMonitoringPreset preset) || !Enum.IsDefined(preset)) {
+            throw new ArgumentException($"Unknown monitoring preset '{value}'.");
+        }
+        return EventMonitoringPresetCatalog.Get(preset);
+    }
+
+    private static EventPredicate? CombinePredicates(EventPredicate? first, EventPredicate? second) =>
+        first == null ? second : second == null ? first.Clone() : EventPredicate.AllOf(first.Clone(), second);
 
     private static EventPredicate? ParsePredicate(string? value) {
         if (string.IsNullOrWhiteSpace(value)) {
@@ -492,11 +569,11 @@ internal static partial class Program {
             }
         }
         foreach (EventReportRow row in report.Rows) {
-            IReadOnlyDictionary<string, object?> output = sectionsByRow.TryGetValue(
+            sectionsByRow.TryGetValue(
                 row,
-                out EventReportSection? section)
-                ? row.ToDictionary(section)
-                : row.ToDictionary();
+                out EventReportSection? section);
+            IReadOnlyDictionary<string, object?> output =
+                EventReportJsonProjection.Project(row, section);
             Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
         }
         return 0;
@@ -521,18 +598,31 @@ internal static partial class Program {
         switch (options.Command) {
             case "query":
                 options.ValidateAllowed(
-                    "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
+                    "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "resolve-dns", "title", "where", "explain",
-                    "store", "write-store", "checkpoint");
+                    "store", "write-store", "checkpoint", "context-store", "context-authorization",
+                    "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "report":
                 options.ValidateAllowed(
-                    "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
+                    "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "resolve-dns", "title",
                     "html", "excel", "csv", "email-html", "mail-profile", "email-rows", "drawer-placement", "where",
-                    "store", "write-store", "summary");
+                    "store", "write-store", "summary", "context-store", "context-authorization",
+                    "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
+                break;
+            case "measure":
+                // occurrence options are applied before aggregation and retain one deterministic representative per group.
+                options.ValidateAllowed(
+                    "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
+                    "machine", "collector", "source", "provider", "start", "end", "since", "max",
+                    "max-candidates", "concurrency", "oldest", "resolve-dns", "title", "where", "store", "explain",
+                    "group-by", "bucket", "timezone", "measure", "top", "top-scope", "ranking-measure",
+                    "window-start", "window-end", "maximum-groups", "maximum-distinct", "maximum-state-bytes",
+                    "html", "excel", "csv", "context-store", "context-authorization",
+                    "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "watch":
                 options.ValidateAllowed(
@@ -585,8 +675,9 @@ internal static partial class Program {
     private static int Help() {
         Console.WriteLine("EventViewerX 4.0\n\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
+            "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +

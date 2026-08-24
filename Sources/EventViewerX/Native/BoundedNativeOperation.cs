@@ -104,13 +104,21 @@ internal static class BoundedNativeOperation {
         }
 
         Task<T> task;
+        long completedAfterMilliseconds = long.MaxValue;
         try {
             var completion = new TaskCompletionSource<T>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() => {
                 try {
-                    completion.TrySetResult(operation());
+                    T result = operation();
+                    Volatile.Write(
+                        ref completedAfterMilliseconds,
+                        timeoutBudget.ElapsedMilliseconds);
+                    completion.TrySetResult(result);
                 } catch (Exception ex) {
+                    Volatile.Write(
+                        ref completedAfterMilliseconds,
+                        timeoutBudget.ElapsedMilliseconds);
                     completion.TrySetException(ex);
                 } finally {
                     operationLease?.Dispose();
@@ -142,6 +150,12 @@ internal static class BoundedNativeOperation {
                 remainingTimeout,
                 cancellationToken);
         } catch (AggregateException) {
+            if (Volatile.Read(ref completedAfterMilliseconds) > timeoutMilliseconds) {
+                ObserveLateResult(
+                    task,
+                    lateResultCleanup);
+                throw new TimeoutException(timeoutMessage);
+            }
             return task.GetAwaiter().GetResult();
         } catch (OperationCanceledException) {
             ObserveLateResult(
@@ -150,7 +164,13 @@ internal static class BoundedNativeOperation {
             throw;
         }
 
-        if (completed) {
+        if (completed && Volatile.Read(ref completedAfterMilliseconds) <= timeoutMilliseconds) {
+            if (cancellationToken.IsCancellationRequested) {
+                ObserveLateResult(
+                    task,
+                    lateResultCleanup);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             return task.GetAwaiter().GetResult();
         }
 

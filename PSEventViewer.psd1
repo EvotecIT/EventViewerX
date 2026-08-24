@@ -1,7 +1,7 @@
 ﻿@{
     AliasesToExport       = @('Find-WinEvent', 'Get-EVXFilter', 'Write-EVXEntry')
     Author                = 'Przemyslaw Klys'
-    CmdletsToExport       = @('Clear-EVXLog', 'Export-EVXEvent', 'Get-EVXCollectorSubscription', 'Get-EVXEvent', 'Get-EVXLog', 'Get-EVXPowerShellScript', 'Get-EVXProvider', 'Get-EVXRequirement', 'Get-EVXTarget', 'Get-EVXWatcher', 'Install-EVXProviderPackage', 'New-EVXCollectorSubscription', 'New-EVXFilter', 'New-EVXLog', 'New-EVXProviderPackage', 'New-EVXSource', 'Remove-EVXLog', 'Remove-EVXSource', 'Reset-EVXEventCheckpoint', 'Set-EVXCollectorSubscription', 'Set-EVXLog', 'Show-EVXEvent', 'Start-EVXWatcher', 'Stop-EVXWatcher', 'Test-EVXLog', 'Test-EVXProviderDefinition', 'Test-EVXReadiness', 'Uninstall-EVXProviderPackage', 'Update-EVXLogArchive', 'Write-EVXEvent')
+    CmdletsToExport       = @('Clear-EVXLog', 'Export-EVXEvent', 'Get-EVXCollectorSubscription', 'Get-EVXEvent', 'Get-EVXLog', 'Get-EVXPowerShellScript', 'Get-EVXProvider', 'Get-EVXRequirement', 'Get-EVXTarget', 'Get-EVXWatcher', 'Install-EVXProviderPackage', 'Measure-EVXEvent', 'New-EVXCollectorSubscription', 'New-EVXFilter', 'New-EVXLog', 'New-EVXProviderPackage', 'New-EVXSource', 'Remove-EVXLog', 'Remove-EVXSource', 'Reset-EVXEventCheckpoint', 'Set-EVXCollectorSubscription', 'Set-EVXLog', 'Show-EVXEvent', 'Start-EVXWatcher', 'Stop-EVXWatcher', 'Test-EVXLog', 'Test-EVXProviderDefinition', 'Test-EVXReadiness', 'Uninstall-EVXProviderPackage', 'Update-EVXLogArchive', 'Write-EVXEvent')
     CompanyName           = 'Evotec'
     CompatiblePSEditions  = @('Desktop', 'Core')
     Copyright             = '(c) 2011 - 2026 Przemyslaw Klys @ Evotec. All rights reserved.'

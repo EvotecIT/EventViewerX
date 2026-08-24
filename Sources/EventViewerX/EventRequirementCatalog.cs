@@ -36,8 +36,13 @@ public static class EventRequirementCatalog {
             },
             [EventType.AuditPolicyChange] = new[] { Audit("audit-policy-change", "Audit Audit Policy Change", EventAuditOutcome.Success, "Target computer", "audit-audit-policy-change") },
             [EventType.FirewallRuleChange] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },
+            [EventType.FirewallRuleAdded] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },
+            [EventType.FirewallRuleDeleted] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },
             [EventType.ScheduledTaskCreated] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
             [EventType.ScheduledTaskDeleted] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
+            [EventType.ScheduledTaskEnabled] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
+            [EventType.ScheduledTaskDisabled] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
+            [EventType.ScheduledTaskUpdated] = new[] { Audit("other-object-access", "Audit Other Object Access Events", EventAuditOutcome.Success, "Target computer", "audit-other-object-access-events") },
             [EventType.ADSMBServerAuditV1] = Smb1Auditing(),
             [EventType.NetworkAccessAuthenticationPolicy] = NetworkPolicyServerAuditing(),
             [EventType.CertificateIssued] = CertificateIssuance(),
@@ -59,6 +64,7 @@ public static class EventRequirementCatalog {
             [EventType.ADComputerChangeDetailed] = DirectoryChanges(),
             [EventType.ADOrganizationalUnitChangeDetailed] = DirectoryChanges(),
             [EventType.ADOtherChangeDetailed] = DirectoryChanges(),
+            [EventType.GroupPolicyDirectoryAudit] = DirectoryChanges(),
             [EventType.ADLdapBindingDetails] = new[] {
                 Configuration(
                     "ntds-ldap-interface-events-2",

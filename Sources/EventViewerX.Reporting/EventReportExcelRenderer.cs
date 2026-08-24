@@ -61,7 +61,8 @@ public static class EventReportExcelRenderer {
                 ("First event", firstEvent?.ToString("u") ?? "No matching events"),
                 ("Last event", lastEvent?.ToString("u") ?? "No matching events"),
                 ("Healthy sources", report.Coverage.Count(static item => item.Succeeded)),
-                ("Failed sources", report.Coverage.Count(static item => !item.Succeeded))
+                ("Failed sources", report.Coverage.Count(static item => !item.Succeeded)),
+                ("Completeness detail", report.CompletenessDiagnostic ?? "No truncation detected")
             }, columns: 2);
         List<Dictionary<string, object?>> typeRows = report.Sections
                 .OrderByDescending(static section => section.Rows.Count)
@@ -209,7 +210,7 @@ public static class EventReportExcelRenderer {
         List<Dictionary<string, object?>> rows = EventReportTableProjection.ProjectProvenance(report.Rows);
         string[] columns = {
             "Time Created", "Type", "Event ID", "Level", "Source Computer", "Source Log",
-            "Provider", "Record ID", "Message", "Container Log", "Collector Computer"
+            "Provider", "Record ID", "Message", "Raw Values", "Container Log", "Collector Computer"
         };
         string range = provenance.TableFrom(rows, "Event provenance",
             configure: options => {

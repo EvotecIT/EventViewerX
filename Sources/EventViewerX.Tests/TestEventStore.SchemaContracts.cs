@@ -110,6 +110,38 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
+    public async Task ExistingStoresAcquireNullableActivityMetadataColumns() {
+        string path = CreateStorePath();
+        try {
+            await new EventStore(path).WriteAsync(CreateReport((
+                new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc),
+                42,
+                "alice")));
+            using (var sqlite = new SQLite { BusyTimeoutMs = 10000 }) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN activity_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN related_activity_id;");
+            }
+
+            var migratedStore = new EventStore(path);
+            EventReport report = await migratedStore.ReadReportAsync(new EventStoreQuery());
+
+            Assert.Single(report.Rows);
+            Assert.Null(report.Rows[0].ActivityId);
+            Assert.Null(report.Rows[0].RelatedActivityId);
+            using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession verification = verificationClient.OpenSession(path);
+            IReadOnlyList<string> columns = verification.QueryAsList(
+                "PRAGMA table_info(evx_events);",
+                static record => record.GetString(1));
+            Assert.Contains("activity_id", columns);
+            Assert.Contains("related_activity_id", columns);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentInitializersSerializeLegacyIdentityMigration() {
         string path = CreateStorePath();
         try {
@@ -573,7 +605,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
-    public async Task DerivedSummaryReportsCannotBeWrittenBackIntoEventHistory() {
+    public async Task DerivedReportsCannotBeWrittenBackIntoEventHistory() {
         string path = CreateStorePath();
         try {
             var store = new EventStore(path);
@@ -586,15 +618,68 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             EventReport summary = await store.CreateSummaryReportAsync(
                 new EventStoreQuery(),
                 EventStoreSummaryPeriod.Day);
+            EventReport source = await store.ReadReportAsync(new EventStoreQuery());
+            EventReport aggregation = EventAggregationReportFactory.Create(
+                EventAggregationEngine.Aggregate(source, new EventAggregationDefinition()));
+            EventReport occurrence = EventOccurrenceReportFactory.Create(
+                EventOccurrenceEngine.Group(
+                    source.Rows,
+                    new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport }),
+                source);
 
-            InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-                store.WriteAsync(summary));
+            foreach (EventReport derived in new[] { summary, aggregation, occurrence }) {
+                InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                    store.WriteAsync(derived));
 
-            Assert.Contains("summary", exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("derived", exception.Message, StringComparison.OrdinalIgnoreCase);
+            }
             Assert.Equal(2, (await store.ReadReportAsync(new EventStoreQuery())).Rows.Count);
         } finally {
             DeleteStore(path);
         }
+    }
+
+    [Fact]
+    public async Task EmptyDerivedSchemasCannotSeedEventHistory() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = EventReportEngine.CreateStored(
+                Array.Empty<EventReportRow>(),
+                new[] {
+                    new EventReportSectionSchema {
+                        Name = "EventAggregation",
+                        Kind = EventReportSectionKind.Custom,
+                        Columns = Array.Empty<EventReportColumnSchema>()
+                    }
+                });
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new EventStore(path).WriteAsync(report));
+
+            Assert.False(File.Exists(path));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public void StoredAuthenticationHealthPresetRetainsItsSemanticPredicate() {
+        EventStoreQuery query = EventStoreQuery.ForPreset(
+            EventMonitoringPreset.AuthenticationHealth);
+        EventPredicate predicate = EventPredicateBuilder.ForTypes(query.Types!)
+            .Normalize(Assert.IsType<EventPredicate>(query.Predicate));
+
+        Assert.Equal(
+            new[] { EventType.AuthenticationHealth },
+            Assert.IsAssignableFrom<IReadOnlyList<EventType>>(query.Types));
+        Assert.False(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosServiceTicket),
+            ["WeakEncryptionAlgorithm"] = false
+        }));
+        Assert.True(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosServiceTicket),
+            ["WeakEncryptionAlgorithm"] = true
+        }));
     }
 
     private static EventReportSectionSchema CreateSchema(string name, string column) => new() {

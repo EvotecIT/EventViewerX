@@ -19,15 +19,19 @@ public sealed class GroupPolicyAuditRecord {
             ? source.TimeCreated
             : source.TimeCreated.ToUniversalTime();
         RecordId = source.RecordId;
+        ActivityId = source.ActivityId;
+        RelatedActivityId = source.RelatedActivityId;
         SourceComputer = source.SourceComputer;
         QueryTarget = string.IsNullOrWhiteSpace(source.CollectorComputer)
             ? Environment.MachineName
             : source.CollectorComputer;
+        QuerySourceKind = source.QuerySourceKind;
         OriginalLogName = source.OriginalLogName;
         ContainerLogName = string.IsNullOrWhiteSpace(source.ContainerLogName)
             ? source.GatheredLogName
             : source.ContainerLogName;
         BookmarkXml = source.BookmarkXml;
+        Message = source.Message;
         OldObjectDistinguishedName = Value(record, "OldObjectDistinguishedName");
         NewObjectDistinguishedName = Value(record, "NewObjectDistinguishedName");
         ObjectDistinguishedName = FirstValue(
@@ -68,11 +72,20 @@ public sealed class GroupPolicyAuditRecord {
     /// <summary>Record identifier exposed by the event.</summary>
     public long? RecordId { get; }
 
+    /// <summary>Windows system activity identifier retained from the source event.</summary>
+    public Guid? ActivityId { get; }
+
+    /// <summary>Windows system related-activity identifier retained from the source event.</summary>
+    public Guid? RelatedActivityId { get; }
+
     /// <summary>Domain controller that emitted the event.</summary>
     public string SourceComputer { get; }
 
     /// <summary>Computer or offline file from which the event was queried.</summary>
     public string QueryTarget { get; }
+
+    /// <summary>Whether the record came from a live channel or an offline event-log file.</summary>
+    public EventLogQuerySourceKind QuerySourceKind { get; }
 
     /// <summary>Original event channel, normally Security.</summary>
     public string OriginalLogName { get; }
@@ -82,6 +95,9 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Portable bookmark for the container position.</summary>
     public string? BookmarkXml { get; }
+
+    /// <summary>Provider-rendered source event message.</summary>
+    public string Message { get; }
 
     /// <summary>Affected directory object distinguished name.</summary>
     public string ObjectDistinguishedName { get; }

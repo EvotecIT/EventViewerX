@@ -11,6 +11,7 @@ public sealed partial class CmdletGetEVXEvent {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -61,6 +62,7 @@ public sealed partial class CmdletGetEVXEvent {
     [Credential]
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -71,6 +73,7 @@ public sealed partial class CmdletGetEVXEvent {
     /// <summary>Authentication package used for remote Windows Event Log sessions.</summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Hashtable")]
@@ -115,6 +118,7 @@ public sealed partial class CmdletGetEVXEvent {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]
@@ -145,6 +149,7 @@ public sealed partial class CmdletGetEVXEvent {
     /// </summary>
     [Parameter(Mandatory = false, ParameterSetName = "Channel")]
     [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
     [Parameter(Mandatory = false, ParameterSetName = "Path")]

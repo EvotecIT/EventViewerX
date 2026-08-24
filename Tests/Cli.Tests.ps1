@@ -9,9 +9,12 @@ Describe 'evx portable host' {
         $Definitions = @(& $script:CliPath types | ForEach-Object { $_ | ConvertFrom-Json })
 
         $LASTEXITCODE | Should -Be 0
-        $Definitions.Count | Should -Be 90
-        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 80
-        @($Definitions | Where-Object IsComposite).Count | Should -Be 10
+        $Definitions.Count | Should -Be ([Enum]::GetValues([EventViewerX.EventType]).Count)
+        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 89
+        @($Definitions | Where-Object IsComposite).Count | Should -Be 14
+        $Definitions.Name | Should -Contain 'GroupPolicyDirectoryAudit'
+        $Definitions.Name | Should -Contain 'AuthenticationHealth'
+        $Definitions.Name | Should -Contain 'DefenderSecurity'
     }
 
     It 'queries offline files without PowerShell module startup' {
@@ -23,6 +26,16 @@ Describe 'evx portable host' {
         $Rows[0].Type | Should -Be 'Generic'
         $Rows[0].SourceLog | Should -Be 'System'
         $Rows[0].Message | Should -Not -BeNullOrEmpty
+    }
+
+    It 'emits canonical aliases and normalization evidence in query JSON' {
+        $Row = & $script:CliPath query --path $script:FixturePath --max 1 |
+            ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Row.ProviderName | Should -Be $Row.Provider
+        $Row.TypeName | Should -Be $Row.Type
+        $Row._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
     }
 
     It 'renders HTML and Excel from one query and composes a Mailozaurr delivery' {
@@ -142,6 +155,64 @@ Describe 'evx portable host' {
         Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 
+    It 'rejects contextual explanation before creating persistent state' {
+        $ContextPath = Join-Path $TestDrive 'context-explain-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --explain 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--explain cannot be combined with --context-store'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'rejects mixed direct and collector targets before opening persistent context' {
+        $ContextPath = Join-Path $TestDrive 'context-mixed-targets-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --machine source01.ad.evotec.xyz `
+                --collector collector01.ad.evotec.xyz 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--machine and --collector are mutually exclusive'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'validates live measure definitions before opening persistent context' {
+        $ContextPath = Join-Path $TestDrive 'context-invalid-measure-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath measure `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --timezone 'Invalid/EventViewerX-Zone' 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'time zone|timezone|not found'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'rejects live-only controls for stored queries before opening history' {
         $StorePath = Join-Path $TestDrive 'stored-live-options-rejected.db'
         $PreviousErrorActionPreference = $ErrorActionPreference
@@ -163,6 +234,115 @@ Describe 'evx portable host' {
         $ConcurrencyExitCode | Should -Be 1
         [string] $ResolveDnsOutput | Should -Match 'live event-source options'
         [string] $ConcurrencyOutput | Should -Match 'live event-source options'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
+    It 'uses managed occurrence grouping before aggregating stored history' {
+        $StorePath = Join-Path $TestDrive 'occurrence-measure.db'
+        $null = & $script:CliPath query `
+            --path $script:FixturePath `
+            --oldest `
+            --max 4 `
+            --write-store $StorePath
+
+        $Result = & $script:CliPath measure `
+            --store $StorePath `
+            --duplicates Transport `
+            --group-by Type | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Result.ExecutionMode | Should -Be 'Managed'
+        $Result.InputRows | Should -Be 4
+        $Result.Rows[0].Measures.Count | Should -Be 4
+        $Result.Rows[0].Group.Type | Should -Be 'Generic'
+    }
+
+    It 'validates occurrence aggregation definitions before explain output or store creation' {
+        $StorePath = Join-Path $TestDrive 'invalid-occurrence-explain.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath measure `
+                --store $StorePath `
+                --duplicates Semantic `
+                --explain `
+                --measure 'Rate::PerHour:01:00:00' 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'unbucketed Rate'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
+    It 'validates query occurrence options before opening persistent output' {
+        $StorePath = Join-Path $TestDrive 'invalid-query-occurrence.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath query `
+                --path $script:FixturePath `
+                --duplicates NotAMode `
+                --write-store $StorePath 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match '--duplicates has an unsupported value'
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
+
+    It 'emits an explicit metadata record when occurrence bounds fail closed' {
+        $Result = & $script:CliPath query `
+            --path $script:FixturePath `
+            --oldest `
+            --max 4 `
+            --duplicates Transport `
+            --maximum-occurrence-observations 1 | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Result.ResultKind | Should -Be 'ResultMetadata'
+        $Result.IsComplete | Should -BeFalse
+        $Result.Diagnostic | Should -Match 'MaximumObservations'
+    }
+
+    It 'writes aggregation completeness evidence into a plain CSV' {
+        $CsvPath = Join-Path $TestDrive 'bounded-aggregation.csv'
+
+        $null = & $script:CliPath measure `
+            --path $script:FixturePath `
+            --max 4 `
+            --group-by RecordId `
+            --maximum-groups 1 `
+            --csv $CsvPath
+        $Rows = @(Import-Csv -LiteralPath $CsvPath)
+
+        $LASTEXITCODE | Should -Be 0
+        $Rows | Should -HaveCount 1
+        $Rows[0].'Result kind' | Should -Be 'ResultMetadata'
+        $Rows[0].'Aggregation complete' | Should -Be 'False'
+        $Rows[0].Diagnostic | Should -Match 'MaximumGroups'
+        $Rows[0].'Input rows' | Should -Be '2'
+    }
+
+    It 'rejects occurrence grouping over already-derived stored summaries' {
+        $StorePath = Join-Path $TestDrive 'summary-occurrence-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath report `
+                --store $StorePath `
+                --summary Day `
+                --duplicates Semantic `
+                --html (Join-Path $TestDrive 'not-created.html') 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'already derived data'
         Test-Path -LiteralPath $StorePath | Should -BeFalse
     }
 
@@ -315,6 +495,45 @@ Describe 'evx portable host' {
         @($Plan.Steps | Where-Object Expression -Like 'EventId *').Stage | Should -Contain 'Managed'
     }
 
+    It 'queries stored Group Policy aliases through the enriched schema' {
+        $StorePath = Join-Path $TestDrive 'cli-gpo-audit.db'
+        $PredicatePath = Join-Path $TestDrive 'cli-gpo-audit-predicate.json'
+        $Row = [EventViewerX.Reporting.EventReportRow]::new()
+        $Row.TimeCreated = [datetime]::SpecifyKind([datetime]'2026-08-23T10:00:00', [DateTimeKind]::Utc)
+        $Row.Type = 'GroupPolicyAudit'
+        $Row.EventId = 5136
+        $Row.RecordId = 42
+        $Row.Provider = 'Microsoft-Windows-Security-Auditing'
+        $Row.SourceLog = 'Security'
+        $Row.ContainerLog = 'ForwardedEvents'
+        $Row.SourceComputer = 'dc1.ad.evotec.xyz'
+        $Row.CollectorComputer = 'wec1.ad.evotec.xyz'
+        $Values = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+        $Values['Actor'] = 'AD\alice'
+        $Values['GroupPolicyNameAtEventTime'] = 'Workstation Baseline'
+        $Row.Values = $Values
+        $Report = [EventViewerX.Reporting.EventReportEngine]::CreateStored(
+            [EventViewerX.Reporting.EventReportRow[]]@($Row),
+            [EventViewerX.Reporting.EventReportSectionSchema[]]@(
+                [EventViewerX.Reporting.EventReportSectionSchema]::FromGroupPolicyAudit()))
+        $null = [EventViewerX.Storage.EventStore]::new($StorePath).WriteAsync($Report).GetAwaiter().GetResult()
+        @{
+            Field = 'Actor'
+            Operator = 'Equal'
+            Values = @('AD\alice')
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PredicatePath -Encoding UTF8
+
+        $Rows = @(& $script:CliPath query `
+                --store $StorePath `
+                --type GroupPolicyDirectoryAudit `
+                --where $PredicatePath |
+                ForEach-Object { $_ | ConvertFrom-Json })
+
+        $LASTEXITCODE | Should -Be 0
+        $Rows.Count | Should -Be 1
+        $Rows[0].GroupPolicyNameAtEventTime | Should -Be 'Workstation Baseline'
+    }
+
     It 'normalizes stored custom predicates with their definition metadata' {
         $DefinitionPath = Join-Path $TestDrive 'stored-alias-definition.json'
         $PredicatePath = Join-Path $TestDrive 'stored-alias-predicate.json'
@@ -424,6 +643,11 @@ Describe 'evx portable host' {
                     Source = 'Constant'
                     SourceName = 'domain-provider'
                 }
+                @{
+                    Name = 'Normalization'
+                    Source = 'Constant'
+                    SourceName = 'domain-normalization'
+                }
             )
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $DefinitionPath -Encoding UTF8
 
@@ -444,8 +668,12 @@ Describe 'evx portable host' {
         $StoredRows | Should -HaveCount 1
         $LiveRows[0].EventId | Should -Be 'domain-event-id'
         $LiveRows[0].Provider | Should -Be 'domain-provider'
+        $LiveRows[0].Normalization | Should -Be 'domain-normalization'
+        $LiveRows[0]._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
         $StoredRows[0].EventId | Should -Be 'domain-event-id'
         $StoredRows[0].Provider | Should -Be 'domain-provider'
+        $StoredRows[0].Normalization | Should -Be 'domain-normalization'
+        $StoredRows[0]._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
     }
 
     It 'removes an already absent collector subscription idempotently' {

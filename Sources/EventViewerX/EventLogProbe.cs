@@ -222,36 +222,12 @@ public static class EventLogProbe {
             throw new TimeoutException(
                 "The probe deadline was reached before the optional stage started.");
         }
-        Task<T> operation = Task.Run(stage);
-        Task completed = Task.WhenAny(
-                operation,
-                Task.Delay(
-                    remaining,
-                    cancellationToken))
-            .GetAwaiter()
-            .GetResult();
-        if (!ReferenceEquals(
-                completed,
-                operation)) {
-            _ = operation.ContinueWith(
-                static failed => {
-                    _ = failed.Exception;
-                },
-                CancellationToken.None,
-                TaskContinuationOptions
-                    .OnlyOnFaulted |
-                TaskContinuationOptions
-                    .ExecuteSynchronously,
-                TaskScheduler.Default);
-            cancellationToken.ThrowIfCancellationRequested();
-            throw new TimeoutException(
-                "The probe deadline was reached during the optional stage.");
-        }
-        T result = operation
-            .GetAwaiter()
-            .GetResult();
-        cancellationToken.ThrowIfCancellationRequested();
-        return result;
+        int timeoutMilliseconds = checked((int)Math.Ceiling(remaining.TotalMilliseconds));
+        return BoundedNativeOperation.Execute(
+            stage,
+            timeoutMilliseconds,
+            "The probe deadline was reached during the optional stage.",
+            cancellationToken);
     }
 
     internal static long? TryRunOptionalRecordCountStage(

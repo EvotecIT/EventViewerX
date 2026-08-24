@@ -5,6 +5,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
+[Collection("NativeOperationLifetime")]
 public sealed class TestEventLogExporter {
     [Fact]
     public void JsonLinesExportIsDeterministicAndMachineReadable() {

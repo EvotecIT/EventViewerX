@@ -10,6 +10,194 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task RecordlessRowsWithDifferentSystemActivityMetadataRemainDistinct() {
+        string path = CreateStorePath();
+        try {
+            EventReportRow first = CreateStoredActivityRow(
+                1,
+                Guid.Parse("d708180e-f236-4b18-bedd-53ac5ed45266"),
+                relatedActivityId: null);
+            EventReportRow second = CreateStoredActivityRow(
+                1,
+                Guid.Parse("458e53d3-748e-4892-b8f3-7cf56d226bd3"),
+                relatedActivityId: null);
+            first.RecordId = null;
+            second.RecordId = null;
+            var store = new EventStore(path);
+
+            EventStoreWriteResult written = await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { first, second },
+                new[] { EventReportSectionSchema.CreateGeneric() }));
+            EventReport stored = await store.ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.Equal(2, written.Inserted);
+            Assert.Equal(2, stored.Rows.Count);
+            Assert.Equal(2, stored.Rows.Select(static row => row.ActivityId).Distinct().Count());
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task ActivityAwareIdentityMigrationRekeysPopulatedStores() {
+        string path = CreateStorePath();
+        try {
+            EventReportRow row = CreateStoredActivityRow(
+                1,
+                Guid.Parse("82758911-d9f7-454c-a14d-0fab838a84d2"),
+                relatedActivityId: null);
+            row.RecordId = null;
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { row },
+                new[] { EventReportSectionSchema.CreateGeneric() }));
+            using (var sqlite = new SQLite()) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery(
+                    "UPDATE evx_events SET event_key = 'legacy-key', original_event_key = 'legacy-original';");
+                session.ExecuteNonQuery(
+                    "UPDATE evx_store_metadata SET event_identity_version = 1 WHERE singleton_id = 1;");
+            }
+
+            new EventStore(path).Initialize();
+
+            using var verificationSqlite = new SQLite();
+            using SQLiteSession verification = verificationSqlite.OpenSession(path);
+            Assert.Equal(2L, Convert.ToInt64(
+                verification.ExecuteScalar(
+                    "SELECT event_identity_version FROM evx_store_metadata WHERE singleton_id = 1;"),
+                CultureInfo.InvariantCulture));
+            Assert.NotEqual("legacy-key", Convert.ToString(
+                verification.ExecuteScalar("SELECT event_key FROM evx_events LIMIT 1;"),
+                CultureInfo.InvariantCulture));
+            Assert.NotEqual("legacy-original", Convert.ToString(
+                verification.ExecuteScalar("SELECT original_event_key FROM evx_events LIMIT 1;"),
+                CultureInfo.InvariantCulture));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task ActivityAwareIdentityMigrationDoesNotDuplicateRecordBasedRows() {
+        string path = CreateStorePath();
+        try {
+            EventReportRow row = CreateStoredActivityRow(
+                1,
+                Guid.Parse("82758911-d9f7-454c-a14d-0fab838a84d2"),
+                relatedActivityId: Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06"));
+            EventReport report = EventReportEngine.CreateStored(
+                new[] { row },
+                new[] { EventReportSectionSchema.CreateGeneric() });
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            using (var sqlite = new SQLite()) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery(
+                    "UPDATE evx_events SET activity_id = NULL, related_activity_id = NULL, " +
+                    "event_key = 'legacy-key', original_event_key = 'legacy-original';");
+                session.ExecuteNonQuery(
+                    "UPDATE evx_store_metadata SET event_identity_version = 1 WHERE singleton_id = 1;");
+            }
+
+            var migratedStore = new EventStore(path);
+            migratedStore.Initialize();
+            EventStoreWriteResult duplicate = await migratedStore.WriteAsync(report);
+            EventReport stored = await migratedStore.ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.Equal(0, duplicate.Inserted);
+            Assert.Equal(1, duplicate.Duplicates);
+            Assert.Single(stored.Rows);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StoredRowsRetainSystemActivityMetadataForSemanticGrouping() {
+        string path = CreateStorePath();
+        Guid parentActivity = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        try {
+            EventReportRow parent = CreateStoredActivityRow(1, parentActivity, relatedActivityId: null);
+            EventReportRow child = CreateStoredActivityRow(
+                2,
+                Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d"),
+                parentActivity);
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { parent, child },
+                new[] { EventReportSectionSchema.CreateGeneric() }));
+
+            EventReport stored = await store.ReadReportAsync(new EventStoreQuery { Oldest = true });
+            EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+                stored.Rows,
+                new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+            Assert.Equal(parentActivity, stored.Rows[0].ActivityId);
+            Assert.Equal(parentActivity, stored.Rows[1].RelatedActivityId);
+            Assert.Equal(2, group.ObservationCount);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task GroupPolicyStoreAliasUsesTheEnrichedPredicateSchema() {
+        string path = CreateStorePath();
+        try {
+            var row = new EventReportRow {
+                TimeCreated = new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc),
+                Type = "GroupPolicyAudit",
+                EventId = 5136,
+                RecordId = 42,
+                Provider = "Microsoft-Windows-Security-Auditing",
+                SourceLog = "Security",
+                ContainerLog = "ForwardedEvents",
+                SourceComputer = "dc1.ad.evotec.xyz",
+                CollectorComputer = "wec1.ad.evotec.xyz",
+                Values = new Dictionary<string, object?> {
+                    ["Actor"] = "AD\\alice",
+                    ["GroupPolicyNameAtEventTime"] = "Workstation Baseline"
+                }
+            };
+            var rawRow = new EventReportRow {
+                TimeCreated = row.TimeCreated.AddSeconds(1),
+                Type = nameof(EventType.GroupPolicyDirectoryAudit),
+                EventId = 5136,
+                RecordId = 43,
+                Provider = row.Provider,
+                SourceLog = row.SourceLog,
+                ContainerLog = row.ContainerLog,
+                SourceComputer = row.SourceComputer,
+                CollectorComputer = row.CollectorComputer,
+                Values = new Dictionary<string, object?>()
+            };
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { row, rawRow },
+                new[] {
+                    EventReportSectionSchema.FromGroupPolicyAudit(),
+                    EventReportSectionSchema.FromType(EventType.GroupPolicyDirectoryAudit)
+                }));
+
+            EventReport matched = await store.ReadReportAsync(new EventStoreQuery {
+                Types = new[] { EventType.GroupPolicyDirectoryAudit },
+                Predicate = EventPredicate.Compare("Actor", EventPredicateOperator.Equal, "AD\\alice")
+            });
+            ArgumentException rejected = await Assert.ThrowsAsync<ArgumentException>(() => store.ReadReportAsync(
+                new EventStoreQuery {
+                    Types = new[] { EventType.GroupPolicyDirectoryAudit },
+                    Predicate = EventPredicate.Compare("Who", EventPredicateOperator.Equal, "alice")
+                }));
+
+            Assert.Single(matched.Rows);
+            Assert.Contains("not available", rejected.Message, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public void BuiltInStoreQueriesNormalizePredicatesBeforePlanning() {
         var query = new EventStoreQuery {
             Types = new[] { EventType.ADUserLogonFailed },
@@ -818,7 +1006,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task ManagedStoredReadsStopPagingAfterMaxEventsWithoutMaterializingLaterRows() {
+    public async Task ManagedStoredReadsProbeOneAdditionalMatchWithoutMaterializingLaterRows() {
         string path = CreateStorePath();
         try {
             var store = new EventStore(path);
@@ -836,13 +1024,36 @@ public sealed partial class TestEventStore {
 
             EventReport report = await store.ReadReportAsync(new EventStoreQuery {
                 DefinitionNames = new[] { "StoredLogon" },
-                Predicate = EventPredicate.Compare("User", EventPredicateOperator.Equal, "user-1"),
+                Predicate = EventPredicate.Compare("User", EventPredicateOperator.IsNotNull),
                 MaxEvents = 1,
                 Oldest = true
             });
 
             Assert.Equal("user-1", Assert.Single(report.Rows).Values["User"]);
-            Assert.Equal(1, report.EventsScanned);
+            Assert.Equal(2, report.EventsScanned);
+            Assert.True(report.ScanLimitReached);
+            Assert.Contains("stored result limit", report.CompletenessDiagnostic, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StoredReadsAcceptLongMaxValueAsAnEffectivelyUnlimitedResultBound() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport(
+                (new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc), 42, "alice"),
+                (new DateTime(2026, 8, 1, 2, 0, 0, DateTimeKind.Utc), 43, "bob")));
+
+            EventReport report = await store.ReadReportAsync(new EventStoreQuery {
+                MaxEvents = long.MaxValue,
+                Oldest = true
+            });
+
+            Assert.Equal(2, report.Rows.Count);
+            Assert.False(report.ScanLimitReached);
         } finally {
             DeleteStore(path);
         }
@@ -1153,6 +1364,24 @@ public sealed partial class TestEventStore {
     private static EventReport CreateReport(params (DateTime Time, long RecordId, string User)[] events) {
         return CreateReportFromTransport(events, "WEC01", "ForwardedEvents");
     }
+
+    private static EventReportRow CreateStoredActivityRow(
+        long recordId,
+        Guid? activityId,
+        Guid? relatedActivityId) => new() {
+        TimeCreated = new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc).AddSeconds(recordId),
+        Type = "Generic",
+        EventId = 1000 + (int)recordId,
+        RecordId = recordId,
+        Provider = "Contoso-Activity-Provider",
+        SourceLog = "Application",
+        ContainerLog = "ForwardedEvents",
+        SourceComputer = "source1.ad.evotec.xyz",
+        CollectorComputer = "wec1.ad.evotec.xyz",
+        ActivityId = activityId,
+        RelatedActivityId = relatedActivityId,
+        Values = new Dictionary<string, object?>()
+    };
 
     private static EventReport CreateReportForDefinition(
         string definitionName,

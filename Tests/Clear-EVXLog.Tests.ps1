@@ -25,7 +25,15 @@ Describe 'Clear-EVXLog cmdlet' {
             $request.SourceName = $script:provider
             $request.Message = 'test'
             $request.EventId = 1000
-            [EventViewerX.ClassicEventLogManager]::Write($request)
+            try {
+                [EventViewerX.ClassicEventLogManager]::Write($request)
+            } catch {
+                if ($_.Exception.Message -match 'Access is denied|may not have write access') {
+                    Set-ItResult -Skipped -Because 'The runner token cannot write to the newly registered classic event source.'
+                    return
+                }
+                throw
+            }
 
             $backup = Join-Path $TestDrive 'EVXClearTestLog.evtx'
             $result = Clear-EVXLog -LogName $script:log -BackupPath $backup -Confirm:$false

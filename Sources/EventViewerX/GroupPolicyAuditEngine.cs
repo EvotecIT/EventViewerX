@@ -43,7 +43,7 @@ public static class GroupPolicyAuditEngine {
             MaxCandidates = snapshot.MaxCandidates,
             MaxConcurrency = snapshot.MaxConcurrency,
             Oldest = snapshot.Oldest,
-            ReadMode = EventReadMode.StructuredData,
+            ReadMode = EventReadMode.StructuredDataAndMessage,
             IncludeBookmark = true,
             Credential = snapshot.Credential,
             Authentication = snapshot.Authentication,

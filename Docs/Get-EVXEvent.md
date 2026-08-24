@@ -28,7 +28,12 @@ Get-EVXEvent -Path <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-Rec
 
 ### Type
 ```powershell
-Get-EVXEvent -Type <EventType[]> [-Path <string[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+```
+
+### Preset
+```powershell
+Get-EVXEvent [-Preset] <EventMonitoringPreset> [-Path <string[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Definition
@@ -128,7 +133,7 @@ Authentication package used for remote Windows Event Log sessions.
 
 ```yaml
 Type: EventLogAuthentication
-Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values: Default, Negotiate, Kerberos, Ntlm
 
@@ -177,7 +182,7 @@ Maximum number of projected events buffered between parallel readers and the Pow
 
 ```yaml
 Type: Int32
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -194,7 +199,40 @@ The selected Type still owns each event's original source channel and identifier
 
 ```yaml
 Type: List`1
-Parameter Sets: TypedFilter, Type, Definition
+Parameter Sets: TypedFilter, Type, Preset, Definition
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ContextAuthorization
+Caller-authorized partition used to resolve non-shareable imported Group Policy context. Requires ContextStorePath.
+
+```yaml
+Type: String
+Parameter Sets: Type
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ContextStorePath
+SQLite file that preserves Group Policy names and identity history across runs.
+This requires exactly -Type GroupPolicyDirectoryAudit and does not scan Active Directory or SYSVOL.
+
+```yaml
+Type: String
+Parameter Sets: Type
 Aliases: None
 Possible values:
 
@@ -211,7 +249,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -227,7 +265,7 @@ Credentials used for remote channel or structured queries.
 
 ```yaml
 Type: PSCredential
-Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -259,7 +297,7 @@ Returns definition and field metadata without querying event sources.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Path, Type, Definition
+Parameter Sets: TypedFilter, Path, Type, Preset, Definition
 Aliases: None
 Possible values:
 
@@ -275,7 +313,7 @@ Disables parallel processing of queries.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -291,7 +329,7 @@ Maximum number of reverse-DNS requests that may overlap. Results and checkpoints
 
 ```yaml
 Type: Int32
-Parameter Sets: Type
+Parameter Sets: Type, Preset
 Aliases: None
 Possible values:
 
@@ -307,7 +345,7 @@ Whole-request timeout in milliseconds for each optional reverse-DNS request, inc
 
 ```yaml
 Type: Int32
-Parameter Sets: Type
+Parameter Sets: Type, Preset
 Aliases: None
 Possible values:
 
@@ -323,7 +361,7 @@ End time for the event query.
 
 ```yaml
 Type: DateTime
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider
 Aliases: DateTo
 Possible values:
 
@@ -355,7 +393,7 @@ Specific event record identifiers to retrieve.
 
 ```yaml
 Type: Int64[]
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider
 Aliases: RecordId
 Possible values:
 
@@ -371,7 +409,7 @@ Expands event data into individual properties.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: Expand
 Possible values:
 
@@ -387,7 +425,7 @@ Returns the native/managed predicate plan without querying event sources.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Path, Type, Definition
+Parameter Sets: TypedFilter, Path, Type, Preset, Definition
 Aliases: None
 Possible values:
 
@@ -405,7 +443,7 @@ so deterministic English is preferred without discarding locally available messa
 
 ```yaml
 Type: CultureInfo
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -522,7 +560,7 @@ default because bookmark creation adds native handle and render work per record.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -586,7 +624,7 @@ Computer names against which to run the query.
 
 ```yaml
 Type: List`1
-Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: ComputerName, ServerName
 Possible values:
 
@@ -602,7 +640,7 @@ Maximum number of independent event sources opened concurrently.
 
 ```yaml
 Type: Int32
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: NumberOfThreads
 Possible values:
 
@@ -618,7 +656,7 @@ Maximum number of events to return.
 
 ```yaml
 Type: Int64
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -636,7 +674,7 @@ one initial lookahead per machine/XPath chunk plus bounded page prefetch; those 
 
 ```yaml
 Type: Int64
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -653,7 +691,7 @@ For example, use en-US for deterministic English output.
 
 ```yaml
 Type: CultureInfo
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -669,7 +707,7 @@ Filters events by matching their formatted message against the provided regular 
 
 ```yaml
 Type: Regex
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -717,7 +755,7 @@ Reads events from oldest to newest when querying files.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -733,7 +771,7 @@ Path to an event log file for offline analysis.
 
 ```yaml
 Type: String[]
-Parameter Sets: Path, Type, Definition
+Parameter Sets: Path, Type, Preset, Definition
 Aliases: PSPath
 Possible values:
 
@@ -741,6 +779,22 @@ Required: True
 Position: named
 Default value: None
 Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -Preset
+Built-in monitoring preset combining canonical event types with exact semantic filtering.
+
+```yaml
+Type: EventMonitoringPreset
+Parameter Sets: Preset
+Aliases: None
+Possible values: AuthenticationHealth, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity
+
+Required: True
+Position: 0
+Default value: None
+Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
@@ -768,7 +822,7 @@ Typed queries default to StructuredDataAndMessage; other query sets default to M
 
 ```yaml
 Type: EventReadMode
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values: Metadata, Message, StructuredData, RawXml, Full, StructuredDataAndMessage
 
@@ -784,7 +838,7 @@ Path to a file storing last processed record ID.
 
 ```yaml
 Type: String
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -800,7 +854,7 @@ Identifier used when persisting record IDs to allow multiple jobs to share a fil
 
 ```yaml
 Type: String
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -817,7 +871,7 @@ event and never remove the event from the pipeline.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: Type
+Parameter Sets: Type, Preset
 Aliases: None
 Possible values:
 
@@ -835,7 +889,7 @@ Settings.QuerySessionTimeoutMs for reading.
 
 ```yaml
 Type: Int32
-Parameter Sets: TypedFilter, Channel, Type, Definition, Provider, Hashtable, Xml
+Parameter Sets: TypedFilter, Channel, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
@@ -851,7 +905,7 @@ Start time for the event query.
 
 ```yaml
 Type: DateTime
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider
 Aliases: DateFrom
 Possible values:
 
@@ -867,7 +921,7 @@ Relative time period for filtering events.
 
 ```yaml
 Type: TimePeriod
-Parameter Sets: TypedFilter, Channel, Path, Type, Definition, Provider
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider
 Aliases: None
 Possible values: PastHour, CurrentHour, PastDay, CurrentDay, PastMonth, CurrentMonth, PastQuarter, CurrentQuarter, Last3Days, Last7Days, Last14Days, Last1Hour, Last2Hours, Last3Hours, Last6Hours, Last12Hours, Last16Hours, Last24Hours, Today, Yesterday, Everything, TillLastMonday, TillLastTuesday, TillLastWednesday, TillLastThursday, TillLastFriday, TillLastSaturday, TillLastSunday, Last15Minutes, Last30Minutes
 
@@ -901,10 +955,10 @@ One or more built-in typed event definitions to query. Each type owns its source
 Type: EventType[]
 Parameter Sets: Type
 Aliases: NamedEvent, NamedEvents
-Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth
+Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth, ScheduledTaskEnabled, ScheduledTaskDisabled, ScheduledTaskUpdated, FirewallRuleAdded, FirewallRuleDeleted, DefenderThreatDetected, DefenderThreatAction, DefenderConfigurationChanged, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity, AuthenticationHealth, GroupPolicyDirectoryAudit
 
 Required: True
-Position: named
+Position: 0
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -931,7 +985,7 @@ Reusable typed EventPredicate, predicate JSON, or predicate JSON file.
 
 ```yaml
 Type: Object
-Parameter Sets: Type, Definition
+Parameter Sets: Type, Preset, Definition
 Aliases: None
 Possible values:
 
@@ -955,6 +1009,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 - `EventViewerX.EventObject`
 - `EventViewerX.EventTypeRecord`
+- `EventViewerX.GroupPolicyAuditRecord`
 - `EventViewerX.CustomEventRecord`
 
 ## RELATED LINKS

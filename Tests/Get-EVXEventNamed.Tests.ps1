@@ -5,7 +5,7 @@ Describe 'Get-EVXEvent - Type' {
         $Parameter.Aliases | Should -Contain 'NamedEvents'
     }
 
-    It 'exposes opt-in DNS enrichment only on the Type parameter set' {
+    It 'exposes opt-in DNS enrichment on typed and preset queries' {
         $Command = Get-Command Get-EVXEvent
         $Command.Parameters.Keys | Should -Contain 'ResolveDns'
         $Command.Parameters.Keys | Should -Contain 'DnsTimeoutMs'
@@ -14,9 +14,9 @@ Describe 'Get-EVXEvent - Type' {
         $ResolveDnsSets = @($Command.Parameters['ResolveDns'].ParameterSets.Keys)
         $DnsTimeoutSets = @($Command.Parameters['DnsTimeoutMs'].ParameterSets.Keys)
         $DnsConcurrencySets = @($Command.Parameters['DnsMaxConcurrency'].ParameterSets.Keys)
-        $ResolveDnsSets | Should -Be @('Type')
-        $DnsTimeoutSets | Should -Be @('Type')
-        $DnsConcurrencySets | Should -Be @('Type')
+        $ResolveDnsSets | Sort-Object | Should -Be @('Preset', 'Type')
+        $DnsTimeoutSets | Sort-Object | Should -Be @('Preset', 'Type')
+        $DnsConcurrencySets | Sort-Object | Should -Be @('Preset', 'Type')
     }
 
     It 'exposes native remote, failure, bookmark, and Int64 scan controls without no-op filters' {
@@ -42,6 +42,80 @@ Describe 'Get-EVXEvent - Type' {
         {
             $null = @(Get-EVXEvent -Type OSStartup -Path $Fixture -MaxEvents 1 -ErrorAction Stop)
         } | Should -Not -Throw
+    }
+
+    It 'rejects message filtering before opening persistent Group Policy context' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'message-filter-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $Fixture `
+                -ContextStorePath $ContextPath `
+                -MessageRegex 'policy' `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextStorePath cannot be combined with*MessageRegex*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'rejects context authorization without a persistent context store' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+
+        {
+            Get-EVXEvent `
+                -Type OSStartup `
+                -Path $Fixture `
+                -ContextAuthorization 'authorized-partition' `
+                -ErrorAction Stop
+        } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
+    }
+
+    It 'rejects contextual explain before opening the persistent store' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'explain-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $Fixture `
+                -ContextStorePath $ContextPath `
+                -Explain `
+                -ErrorAction Stop
+        } | Should -Throw '*Explain is not supported with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'rejects mixed direct and collector context targets before opening the store' {
+        $ContextPath = Join-Path $TestDrive 'mixed-target-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -MachineName 'dc1.example.com' `
+                -Collector 'wec1.example.com' `
+                -ContextStorePath $ContextPath `
+                -ErrorAction Stop
+        } | Should -Throw '*Collector and -MachineName cannot be used together with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'continues independent persistent-context collector targets by default' {
+        $ContextPath = Join-Path $TestDrive 'collector-continuation-context.db'
+        $Errors = @()
+
+        $null = @(Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Collector '192.0.2.1', '192.0.2.2' `
+                -ContextStorePath $ContextPath `
+                -SessionTimeoutMs 500 `
+                -MaxEventsScanned 1 `
+                -ErrorAction SilentlyContinue `
+                -ErrorVariable +Errors)
+
+        @($Errors.FullyQualifiedErrorId |
+                Where-Object { $_ -eq 'EVXEventTypeTargetFailed,PSEventViewer.CmdletGetEVXEvent' }).Count |
+            Should -Be 2
     }
 
     It 'rejects credentials when any event-type target is local' {

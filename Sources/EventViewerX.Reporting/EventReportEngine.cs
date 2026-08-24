@@ -15,6 +15,7 @@ public static class EventReportEngine {
         List<EventReportCoverage> coverage;
         long scanned = 0;
         bool scanLimitReached = false;
+        bool resultLimitReached = false;
 
         if (request.Types != null && request.Types.Count > 0) {
             var info = new EventTypeQueryExecutionInfo();
@@ -25,6 +26,7 @@ public static class EventReportEngine {
             }
             scanned = info.EventsScanned;
             scanLimitReached = info.ScanLimitReached;
+            resultLimitReached = info.ResultLimitReached;
             coverage = BuildTypedCoverage(request, info);
         } else if (request.Definition != null) {
             projections = new List<EventReportProjection>();
@@ -54,10 +56,11 @@ public static class EventReportEngine {
             }
             scanned = info.EventsScanned;
             scanLimitReached = info.ScanLimitReached;
+            resultLimitReached = info.ResultLimitReached;
             coverage = BuildCustomCoverage(request, info);
         } else {
-            (projections, coverage) = await QueryGenericAsync(request, cancellationToken);
-            scanned = projections.Count;
+            (projections, coverage, resultLimitReached) = await QueryGenericAsync(request, cancellationToken);
+            scanned = projections.Count + (resultLimitReached ? 1L : 0L);
         }
         stopwatch.Stop();
         string title = string.IsNullOrWhiteSpace(request.Title)
@@ -77,7 +80,8 @@ public static class EventReportEngine {
             EventReportSectionBuilder.Build(projections, emptyDefinitions),
             coverage,
             scanned,
-            scanLimitReached);
+            scanLimitReached || resultLimitReached,
+            CreateResultLimitDiagnostic(request.MaxEvents, scanLimitReached, resultLimitReached));
     }
 
     /// <summary>Creates a report snapshot from previously queried EventViewerX objects without reading logs again.</summary>
@@ -115,7 +119,8 @@ public static class EventReportEngine {
         IEnumerable<EventReportCoverage>? coverage = null,
         DateTime? generatedAt = null,
         long? eventsScanned = null,
-        bool scanLimitReached = false) {
+        bool scanLimitReached = false,
+        string? completenessDiagnostic = null) {
 
         if (rows == null) {
             throw new ArgumentNullException(nameof(rows));
@@ -161,6 +166,7 @@ public static class EventReportEngine {
                     nameof(rows));
             }
             NormalizeStoredValues(row, matchingSchemas[0]);
+            EventValueNormalizationEngine.Populate(row);
         }
         var sections = new List<EventReportSection>();
         foreach (EventReportSectionSchema schema in schemaSnapshot) {
@@ -206,7 +212,8 @@ public static class EventReportEngine {
             sections,
             coverageSnapshot,
             eventsScanned ?? rowSnapshot.LongLength,
-            scanLimitReached);
+            scanLimitReached,
+            completenessDiagnostic);
     }
 
     /// <summary>Normalizes one generic, built-in typed, or custom event without querying the event log.</summary>
@@ -219,9 +226,10 @@ public static class EventReportEngine {
             EventTypeRecord typed => EventReportProjectionFactory.Create(typed),
             EventObject source => EventReportProjectionFactory.Create(source),
             CustomEventRecord custom => EventReportProjectionFactory.Create(custom),
+            GroupPolicyAuditRecord groupPolicy => EventReportProjectionFactory.Create(groupPolicy),
             null => throw new ArgumentNullException(nameof(input)),
             _ => throw new ArgumentException(
-                $"Unsupported report input type '{input.GetType().FullName}'. Expected EventObject, EventTypeRecord, or CustomEventRecord.",
+                $"Unsupported report input type '{input.GetType().FullName}'. Expected EventObject, EventTypeRecord, CustomEventRecord, or GroupPolicyAuditRecord.",
                 nameof(input))
         };
     }
@@ -243,6 +251,8 @@ public static class EventReportEngine {
             CollectorComputer = row.CollectorComputer,
             Level = row.Level,
             LevelValue = row.LevelValue,
+            ActivityId = row.ActivityId,
+            RelatedActivityId = row.RelatedActivityId,
             Message = row.Message,
             Values = (row.Values ?? throw new ArgumentException(
                 "Stored rows must provide a values collection.", nameof(row))).ToDictionary(
@@ -404,7 +414,7 @@ public static class EventReportEngine {
         };
     }
 
-    private static async Task<(List<EventReportProjection> Rows, List<EventReportCoverage> Coverage)> QueryGenericAsync(
+    private static async Task<(List<EventReportProjection> Rows, List<EventReportCoverage> Coverage, bool ResultLimitReached)> QueryGenericAsync(
         EventReportRequest request, CancellationToken cancellationToken) {
         (DateTime? startTime, DateTime? endTime) = EventTimeRange.Resolve(request.StartTime, request.EndTime, request.TimePeriod);
         EventFilter filter = new() {
@@ -430,7 +440,7 @@ public static class EventReportEngine {
                 };
             }).ToArray();
             EventLogBatchQuery fileBatch = EventLogBatchQuery.ForFiles(files);
-            fileBatch.MaxEvents = request.MaxEvents;
+            fileBatch.MaxEvents = GetProbeLimit(request.MaxEvents);
             fileBatch.MaxConcurrency = request.MaxConcurrency;
             var fileRows = new List<EventReportProjection>();
             await foreach (EventObject record in EventLogEngine.ReadBatchAsync(fileBatch, cancellationToken)) {
@@ -443,7 +453,8 @@ public static class EventReportEngine {
                 Status = "Succeeded",
                 Detail = string.Empty
             }).ToList();
-            return (fileRows, fileCoverage);
+            bool fileResultLimitReached = request.MaxEvents > 0 && fileRows.Count > request.MaxEvents;
+            return (TrimToResultLimit(fileRows, request.MaxEvents), fileCoverage, fileResultLimitReached);
         }
         string?[] targets = request.MachineNames == null || request.MachineNames.Count == 0
             ? new string?[] { null }
@@ -467,7 +478,7 @@ public static class EventReportEngine {
             };
         }).ToArray();
         EventLogBatchQuery batch = EventLogBatchQuery.ForChannels(channels);
-        batch.MaxEvents = request.MaxEvents;
+        batch.MaxEvents = GetProbeLimit(request.MaxEvents);
         batch.MaxConcurrency = request.MaxConcurrency;
         batch.ContinueOnError = request.ContinueOnRemoteFailure;
         batch.FailureHandler = failure => {
@@ -500,8 +511,32 @@ public static class EventReportEngine {
                 Detail = failure?.Exception.Message ?? string.Empty
             };
         }).ToList();
-        return (rows, coverage);
+        bool channelResultLimitReached = request.MaxEvents > 0 && rows.Count > request.MaxEvents;
+        return (TrimToResultLimit(rows, request.MaxEvents), coverage, channelResultLimitReached);
     }
+
+    private static long GetProbeLimit(long maximum) => maximum > 0 && maximum < long.MaxValue
+        ? maximum + 1
+        : maximum;
+
+    private static List<EventReportProjection> TrimToResultLimit(
+        List<EventReportProjection> rows,
+        long maximum) {
+
+        if (maximum > 0 && rows.Count > maximum) {
+            rows.RemoveRange(checked((int)maximum), rows.Count - checked((int)maximum));
+        }
+        return rows;
+    }
+
+    private static string? CreateResultLimitDiagnostic(
+        long maximum,
+        bool scanLimitReached,
+        bool resultLimitReached) => EventCompletenessDiagnostic.Compose(
+            scanLimitReached ? "The source candidate scan limit was reached" : null,
+            resultLimitReached
+                ? $"The result limit MaxEvents {maximum:N0} was reached; additional matching events exist"
+                : null);
 
     private static List<EventReportCoverage> BuildCustomCoverage(
         EventReportRequest request,

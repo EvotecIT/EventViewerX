@@ -237,8 +237,7 @@ public class TestNamedEventDnsEnrichment {
     }
 
     [Fact]
-    public async Task ConcurrentEnrichmentPreservesSourceAndCheckpointOrder() {
-        var observedRecordIds = new List<long?>();
+    public async Task ConcurrentEnrichmentPreservesSourceOrder() {
         var projectedRecordIds = new List<long?>();
         EventObject[] sourceEvents = {
             CreateSmbEventObject("10.0.0.21", 21),
@@ -262,18 +261,16 @@ public class TestNamedEventDnsEnrichment {
                            new List<EventType> { EventType.ADSMBServerAuditV1 },
                            enricher,
                            () => true,
-                           source => observedRecordIds.Add(source.RecordId),
                            CancellationToken.None)) {
             projectedRecordIds.Add(projection.Source.RecordId);
         }
 
         Assert.Equal(new long?[] { 21, 22, 23 }, projectedRecordIds);
-        Assert.Equal(projectedRecordIds, observedRecordIds);
     }
 
     [Fact]
-    public async Task DependencySwallowedCancellationNeverReachesCheckpointObserver() {
-        var observedRecordIds = new List<long?>();
+    public async Task DependencySwallowedCancellationNeverYieldsAProjection() {
+        bool projected = false;
         using var cancellation = new CancellationTokenSource();
         using var enricher = new EventEnricher(
             new EventEnrichmentOptions { ResolveDns = true },
@@ -291,12 +288,45 @@ public class TestNamedEventDnsEnrichment {
                                new List<EventType> { EventType.ADSMBServerAuditV1 },
                                enricher,
                                () => true,
-                               source => observedRecordIds.Add(source.RecordId),
                                cancellation.Token)) {
+                projected = true;
             }
         });
 
-        Assert.Empty(observedRecordIds);
+        Assert.False(projected);
+    }
+
+    [Fact]
+    public void ResultLimitProofDoesNotAdvanceTheTypedCheckpointObserver() {
+        EventObject firstSource = CreateSmbEventObject("10.0.0.21", 21);
+        EventObject secondSource = CreateSmbEventObject("10.0.0.22", 22);
+        var observedRecordIds = new List<long?>();
+        var info = new EventTypeQueryExecutionInfo();
+        info.Reset(maxEventsScanned: 0);
+        long emitted = 0;
+
+        EventTypeEngine.EventTypeProjectionDisposition first = EventTypeEngine.ClassifyProjectionForEmission(
+            new EventTypeEngine.EventTypeProjection(firstSource, new SMBServerAudit(firstSource)),
+            typedPredicate: null,
+            resultPredicate: null,
+            maxEvents: 1,
+            ref emitted,
+            info,
+            source => observedRecordIds.Add(source.RecordId));
+        EventTypeEngine.EventTypeProjectionDisposition second = EventTypeEngine.ClassifyProjectionForEmission(
+            new EventTypeEngine.EventTypeProjection(secondSource, new SMBServerAudit(secondSource)),
+            typedPredicate: null,
+            resultPredicate: null,
+            maxEvents: 1,
+            ref emitted,
+            info,
+            source => observedRecordIds.Add(source.RecordId));
+
+        Assert.Equal(EventTypeEngine.EventTypeProjectionDisposition.Emit, first);
+        Assert.Equal(EventTypeEngine.EventTypeProjectionDisposition.Stop, second);
+        Assert.Equal(new long?[] { 21 }, observedRecordIds);
+        Assert.Equal(1, info.EventsEmitted);
+        Assert.True(info.ResultLimitReached);
     }
 
     [Fact]

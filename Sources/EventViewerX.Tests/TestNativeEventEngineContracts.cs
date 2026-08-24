@@ -317,6 +317,68 @@ public sealed class TestNativeEventEngineContracts {
     }
 
     [Fact]
+    public void CompletedNativeResultIsCleanedWhenAcceptanceObservesCancellation() {
+        using var completed = new ManualResetEventSlim();
+        using var cleaned = new ManualResetEventSlim();
+        using var cancellation = new CancellationTokenSource();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            Native.BoundedNativeOperation.Execute(
+                () => {
+                    completed.Set();
+                    return new object();
+                },
+                5000,
+                "operation timed out",
+                cancellation.Token,
+                _ => cleaned.Set(),
+                operationAccepted: () => {
+                    Assert.True(completed.Wait(5000));
+                    cancellation.Cancel();
+                }));
+
+        Assert.True(
+            cleaned.Wait(5000),
+            "The completed native result was not cleaned after cancellation won acceptance.");
+    }
+
+    [Fact]
+    public void BoundedNativeOperationRejectsResultsCompletedAfterItsAbsoluteDeadline() {
+        using var cleaned = new ManualResetEventSlim();
+
+        Assert.Throws<TimeoutException>(() =>
+            Native.BoundedNativeOperation.Execute(
+                () => {
+                    Thread.Sleep(150);
+                    return new object();
+                },
+                50,
+                "operation timed out",
+                CancellationToken.None,
+                _ => cleaned.Set()));
+
+        Assert.True(
+            cleaned.Wait(5000),
+            "The result completed after the absolute deadline was not cleaned.");
+    }
+
+    [Fact]
+    public void BoundedNativeOperationClassifiesLateFaultsAsTimeouts() {
+        TimeoutException exception = Assert.Throws<TimeoutException>(() =>
+            Native.BoundedNativeOperation.Execute<object>(
+                () => {
+                    Thread.Sleep(75);
+                    throw new InvalidOperationException("late native failure");
+                },
+                50,
+                "operation timed out",
+                CancellationToken.None,
+                operationAccepted: () => Thread.Sleep(150)));
+
+        Assert.Equal("operation timed out", exception.Message);
+    }
+
+    [Fact]
     public void BookmarkMaterializationIsExplicitForQueryProjections() {
         if (!OperatingSystem.IsWindows()) return;
         string path = GetFixturePath();

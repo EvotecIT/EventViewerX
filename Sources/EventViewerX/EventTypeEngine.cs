@@ -88,25 +88,54 @@ public static partial class EventTypeEngine {
                             enricher,
                             candidateCounter
                                 .TryRecordCandidate,
-                           query.CandidateObserver,
                            cancellationToken)) {
-            EventTypeRecord? target = projection.Target;
-            if (target == null ||
-                (typedPredicate != null &&
-                 !typedPredicate(target)) ||
-                (query.ResultPredicate != null &&
-                 !query.ResultPredicate(target))) {
-                continue;
-            }
-
-            emitted++;
-            info.EventsEmitted = emitted;
-            yield return target;
-            if (query.MaxEvents > 0 &&
-                emitted >= query.MaxEvents) {
+            EventTypeProjectionDisposition disposition = ClassifyProjectionForEmission(
+                projection,
+                typedPredicate,
+                query.ResultPredicate,
+                query.MaxEvents,
+                ref emitted,
+                info,
+                query.CandidateObserver);
+            if (disposition == EventTypeProjectionDisposition.Stop) {
                 yield break;
             }
+            if (disposition == EventTypeProjectionDisposition.Emit) {
+                yield return projection.Target!;
+            }
         }
+    }
+
+    internal static EventTypeProjectionDisposition ClassifyProjectionForEmission(
+        EventTypeProjection projection,
+        Func<EventTypeRecord, bool>? typedPredicate,
+        Func<EventTypeRecord, bool>? resultPredicate,
+        long maxEvents,
+        ref long emitted,
+        EventTypeQueryExecutionInfo executionInfo,
+        Action<EventObject>? candidateObserver) {
+
+        EventTypeRecord? target = projection.Target;
+        if (target == null ||
+            typedPredicate != null && !typedPredicate(target) ||
+            resultPredicate != null && !resultPredicate(target)) {
+            candidateObserver?.Invoke(projection.Source);
+            return EventTypeProjectionDisposition.Skip;
+        }
+        if (maxEvents > 0 && emitted >= maxEvents) {
+            executionInfo.ResultLimitReached = true;
+            return EventTypeProjectionDisposition.Stop;
+        }
+        candidateObserver?.Invoke(projection.Source);
+        emitted++;
+        executionInfo.EventsEmitted = emitted;
+        return EventTypeProjectionDisposition.Emit;
+    }
+
+    internal enum EventTypeProjectionDisposition {
+        Skip,
+        Emit,
+        Stop
     }
 
     internal static Dictionary<string, HashSet<int>>
