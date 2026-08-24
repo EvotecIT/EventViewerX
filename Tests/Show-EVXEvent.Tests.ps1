@@ -44,6 +44,21 @@ Describe 'Show-EVXEvent' {
         } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
     }
 
+    It 'rejects mixed direct and collector context targets before opening the store' {
+        $ContextPath = Join-Path $TestDrive 'mixed-report-context.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -MachineName 'dc1.example.com' `
+                -Collector 'wec1.example.com' `
+                -ContextStorePath $ContextPath `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*Collector and -MachineName cannot be used together with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'renders HTML, Excel, email, and the report from one supplied snapshot' {
         $Event = Get-EVXEvent -LogName System -MaxEvents 1 -ReadMode StructuredDataAndMessage |
             Select-Object -First 1

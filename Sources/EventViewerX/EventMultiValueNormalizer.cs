@@ -15,7 +15,7 @@ internal sealed class EventMultiValueNormalizer : IEventValueNormalizer {
     public int Version => 1;
 
     public bool CanNormalize(EventValueContext context) =>
-        context.RawValue is IEnumerable && context.RawValue is not string ||
+        context.RawValue is IEnumerable<string> ||
         TextCollectionFields.Contains(context.FieldName);
 
     public EventNormalizedValue Normalize(EventValueContext context) {

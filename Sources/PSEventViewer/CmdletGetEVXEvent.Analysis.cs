@@ -19,6 +19,15 @@ public sealed partial class CmdletGetEVXEvent {
     }
 
     private async Task ProcessGroupPolicyContextAsync() {
+        if (Explain.IsPresent) {
+            throw new PSArgumentException(
+                "Explain is not supported with ContextStorePath because persistent Group Policy context requires execution to resolve and checkpoint its complete timeline.",
+                nameof(Explain));
+        }
+        if (Collector != null && MachineName != null) {
+            throw new PSArgumentException(
+                "-Collector and -MachineName cannot be used together with ContextStorePath. Use -Collector for ForwardedEvents or -MachineName for direct source queries.");
+        }
         if (Type.Length != 1 || Type[0] != EventType.GroupPolicyDirectoryAudit) {
             throw new PSArgumentException(
                 "ContextStorePath requires exactly -Type GroupPolicyDirectoryAudit so the persistent context engine owns the complete Group Policy directory-audit timeline.",

@@ -18,12 +18,26 @@ internal sealed class AggregationState {
             static measure => measure.OutputName!,
             static measure => new MeasureState(measure),
             StringComparer.OrdinalIgnoreCase);
-        EstimatedBytes = 256 + group.Identity.Length * 2L + bucket.Identity.Length * 2L;
+        EstimatedBytes = EstimateBytes(group.Identity, bucket.Identity, measures);
     }
 
     internal AggregationGroup Group { get; }
     internal AggregationBucketRange Bucket { get; }
     internal long EstimatedBytes { get; }
+
+    internal static long EstimateBytes(
+        string groupIdentity,
+        string bucketIdentity,
+        IReadOnlyList<EventAggregationMeasure> measures) {
+
+        long bytes = checked(256L + groupIdentity.Length * 2L + bucketIdentity.Length * 2L);
+        foreach (EventAggregationMeasure measure in measures) {
+            bytes = checked(bytes + 192L +
+                (measure.OutputName?.Length ?? 0) * 2L +
+                (measure.Field?.Length ?? 0) * 2L);
+        }
+        return bytes;
+    }
 
     internal void MergeGroupDisplay(AggregationGroup candidate) => Group.MergeDisplay(candidate);
 

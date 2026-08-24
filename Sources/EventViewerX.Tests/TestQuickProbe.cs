@@ -9,6 +9,7 @@ using System.Threading;
 using Xunit;
 
 namespace EventViewerX.Tests {
+    [Collection("NativeOperationLifetime")]
     public class TestQuickProbe {
         private static readonly string DeterministicUnavailableHost =
             new string('x', 256);

@@ -2,6 +2,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
+[Collection("NativeOperationLifetime")]
 public sealed class TestEventTargetResolver {
     [Fact]
     public void DefaultRequestReturnsOnlyLocalMachineWithoutDirectoryDiscovery() {

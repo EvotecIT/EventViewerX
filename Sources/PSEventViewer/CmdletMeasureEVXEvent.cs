@@ -26,7 +26,9 @@ namespace PSEventViewer;
 [OutputType(typeof(EventStoreAggregationPlan))]
 [Cmdlet(VerbsDiagnostic.Measure, "EVXEvent", DefaultParameterSetName = "Input")]
 public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
-    private readonly List<object> _input = new();
+    private object? _firstInput;
+    private bool _hasFirstInput;
+    private EventAggregationAccumulator? _accumulator;
 
     /// <summary>Event rows, typed EventViewerX records, or one EventReport to aggregate. Supply an EventReport alone to preserve its completeness envelope.</summary>
     [Parameter(Mandatory = true, ValueFromPipeline = true, ParameterSetName = "Input")]
@@ -119,7 +121,22 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
             while (value is PSObject wrapper && wrapper.BaseObject != value) {
                 value = wrapper.BaseObject;
             }
-            _input.Add(value);
+            if (!_hasFirstInput) {
+                _firstInput = value;
+                _hasFirstInput = true;
+                return Task.CompletedTask;
+            }
+            if (_firstInput is EventReport || value is EventReport) {
+                throw new PSArgumentException(
+                    "An EventReport must be supplied as the only pipeline input.",
+                    nameof(InputObject));
+            }
+            _accumulator ??= CreatePipelineAccumulator(_firstInput!);
+            if (_accumulator.CanAcceptRows) {
+                _accumulator.Add(value is EventReportRow row
+                    ? row
+                    : EventReportEngine.CreateRow(value));
+            }
         }
         return Task.CompletedTask;
     }
@@ -153,24 +170,32 @@ public sealed class CmdletMeasureEVXEvent : AsyncPSCmdlet {
             return;
         }
         EventAggregationResult result;
-        if (_input.Count == 1 && _input[0] is EventReport existingReport) {
+        if (_hasFirstInput && _accumulator == null && _firstInput is EventReport existingReport) {
             result = EventAggregationEngine.Aggregate(existingReport, definition);
         } else {
-            if (_input.Any(static item => item is EventReport)) {
-                throw new PSArgumentException(
-                    "An EventReport must be supplied as the only pipeline input.",
-                    nameof(InputObject));
+            if (_accumulator == null) {
+                _accumulator = EventAggregationEngine.CreateAccumulator(
+                    definition,
+                    EventAggregationInputCompleteness.Unknown);
+                if (_hasFirstInput) {
+                    _accumulator.Add(_firstInput is EventReportRow row
+                        ? row
+                        : EventReportEngine.CreateRow(_firstInput!));
+                }
             }
-            EventReportRow[] rows = _input.Select(static item => item is EventReportRow row
-                    ? row
-                    : EventReportEngine.CreateRow(item))
-                .ToArray();
-            result = EventAggregationEngine.Aggregate(
-                rows,
-                definition,
-                EventAggregationInputCompleteness.Unknown);
+            result = _accumulator.Complete();
         }
         WriteObject(result);
+    }
+
+    private EventAggregationAccumulator CreatePipelineAccumulator(object first) {
+        EventAggregationAccumulator accumulator = EventAggregationEngine.CreateAccumulator(
+            CreateDefinition(),
+            EventAggregationInputCompleteness.Unknown);
+        accumulator.Add(first is EventReportRow row
+            ? row
+            : EventReportEngine.CreateRow(first));
+        return accumulator;
     }
 
     private EventAggregationDefinition CreateDefinition() => new() {

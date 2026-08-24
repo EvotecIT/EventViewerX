@@ -162,6 +162,37 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task SqliteStateBudgetIncludesEveryMeasure() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice")));
+            EventAggregationMeasure[] measures = Enumerable.Range(1, 10)
+                .Select(index => new EventAggregationMeasure {
+                    Operation = EventAggregationOperation.Count,
+                    OutputName = $"Count{index}"
+                })
+                .ToArray();
+            var definition = new EventAggregationDefinition {
+                Measures = measures,
+                MaximumStateBytes = 1000
+            };
+
+            EventAggregationResult pushed = await store.AggregateAsync(
+                new EventStoreQuery(),
+                definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.False(pushed.AggregationComplete);
+            Assert.Equal(1, pushed.InputRows);
+            Assert.Contains("MaximumStateBytes", pushed.Diagnostic, StringComparison.Ordinal);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task SqliteGroupBoundFailureRetainsEvaluatedInputRows() {
         string path = CreateStorePath();
         try {

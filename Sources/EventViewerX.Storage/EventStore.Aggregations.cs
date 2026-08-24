@@ -411,7 +411,10 @@ public sealed partial class EventStore {
                 ? start.Value.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture) + "/" +
                   end.Value.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture)
                 : string.Empty;
-            bytes = checked(bytes + 256L + groupIdentity.Length * 2L + bucketIdentity.Length * 2L);
+            bytes = checked(bytes + AggregationState.EstimateBytes(
+                groupIdentity,
+                bucketIdentity,
+                definition.Measures));
         }
         return bytes;
     }

@@ -317,6 +317,26 @@ public sealed class TestNativeEventEngineContracts {
     }
 
     [Fact]
+    public void BoundedNativeOperationRejectsResultsCompletedAfterItsAbsoluteDeadline() {
+        using var cleaned = new ManualResetEventSlim();
+
+        Assert.Throws<TimeoutException>(() =>
+            Native.BoundedNativeOperation.Execute(
+                () => {
+                    Thread.Sleep(150);
+                    return new object();
+                },
+                50,
+                "operation timed out",
+                CancellationToken.None,
+                _ => cleaned.Set()));
+
+        Assert.True(
+            cleaned.Wait(5000),
+            "The result completed after the absolute deadline was not cleaned.");
+    }
+
+    [Fact]
     public void BookmarkMaterializationIsExplicitForQueryProjections() {
         if (!OperatingSystem.IsWindows()) return;
         string path = GetFixturePath();

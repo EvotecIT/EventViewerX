@@ -4,6 +4,12 @@ namespace EventViewerX.Reporting;
 
 /// <summary>Executes bounded, deterministic managed aggregations over normalized event rows.</summary>
 public static partial class EventAggregationEngine {
+    /// <summary>Creates a bounded streaming accumulator for source rows whose query completeness is not known.</summary>
+    public static EventAggregationAccumulator CreateAccumulator(
+        EventAggregationDefinition definition,
+        EventAggregationInputCompleteness inputCompleteness = EventAggregationInputCompleteness.Unknown) =>
+        new(definition, inputCompleteness, inputDiagnostic: null);
+
     /// <summary>Aggregates a report while preserving its source-completeness evidence.</summary>
     public static EventAggregationResult Aggregate(EventReport report, EventAggregationDefinition definition) {
         if (report == null) {
@@ -34,106 +40,19 @@ public static partial class EventAggregationEngine {
         if (rows == null) {
             throw new ArgumentNullException(nameof(rows));
         }
-        if (!Enum.IsDefined(typeof(EventAggregationInputCompleteness), inputCompleteness)) {
-            throw new ArgumentOutOfRangeException(nameof(inputCompleteness));
-        }
-        EventAggregationDefinition snapshot = ValidateAndSnapshot(definition);
-        long inputRows = 0;
-        try {
-            var states = new Dictionary<string, AggregationState>(StringComparer.Ordinal);
-            var rankingStates = new Dictionary<string, AggregationState>(StringComparer.Ordinal);
-            bool requiresGlobalRanking = snapshot.Top > 0 &&
-                snapshot.Bucket != EventAggregationBucket.None &&
-                snapshot.TopScope == EventAggregationTopScope.GlobalGroup;
-            EventAggregationMeasure[] rankingMeasures = requiresGlobalRanking
-                ? snapshot.Measures.Where(measure => string.Equals(
-                    measure.OutputName,
-                    snapshot.RankingMeasure,
-                    StringComparison.OrdinalIgnoreCase)).ToArray()
-                : Array.Empty<EventAggregationMeasure>();
-            if (rankingMeasures.Length == 1 &&
-                rankingMeasures[0].Operation == EventAggregationOperation.Rate) {
-                rankingMeasures = new[] {
-                    new EventAggregationMeasure {
-                        Operation = EventAggregationOperation.Count,
-                        OutputName = rankingMeasures[0].OutputName,
-                        Nulls = rankingMeasures[0].Nulls
-                    }
-                };
+        var accumulator = new EventAggregationAccumulator(
+            definition,
+            inputCompleteness,
+            inputDiagnostic);
+        foreach (EventReportRow row in rows) {
+            if (!accumulator.Add(row)) {
+                break;
             }
-            long stateBytes = 0;
-            foreach (EventReportRow row in rows) {
-                if (row == null) {
-                    throw new ArgumentException("Aggregation input cannot contain null rows.", nameof(rows));
-                }
-                inputRows = checked(inputRows + 1);
-                IReadOnlyDictionary<string, object?> values = row.ToNormalizedDictionary();
-                if (!TryCreateGroup(snapshot, values, out AggregationGroup group)) {
-                    continue;
-                }
-                AggregationBucketRange bucket = CreateBucket(snapshot, row.TimeCreated);
-                string stateKey = bucket.Identity + "\0" + group.Identity;
-                AggregationState state = GetOrCreate(
-                    states,
-                    stateKey,
-                    group,
-                    bucket,
-                    snapshot,
-                    ref stateBytes);
-                stateBytes += state.Add(row, values, snapshot.MaximumDistinctValues);
-                if (requiresGlobalRanking) {
-                    AggregationState ranking = GetOrCreate(
-                        rankingStates,
-                        group.Identity,
-                        group,
-                        AggregationBucketRange.None,
-                        snapshot,
-                        ref stateBytes,
-                        rankingMeasures);
-                    stateBytes += ranking.Add(row, values, snapshot.MaximumDistinctValues);
-                }
-                if (stateBytes > snapshot.MaximumStateBytes) {
-                    throw new AggregationBoundException(
-                        $"Aggregation state exceeded MaximumStateBytes {snapshot.MaximumStateBytes:N0}.");
-                }
-            }
-            IReadOnlyList<AggregationState> selected = ApplyTop(states.Values, rankingStates, snapshot);
-            EventAggregationRow[] resultRows = selected
-                .OrderBy(static state => state.Bucket.StartUtc)
-                .ThenBy(static state => state.Group.Identity, StringComparer.Ordinal)
-                .Select(state => state.CreateRow(snapshot))
-                .ToArray();
-            string? completenessDiagnostic = inputCompleteness switch {
-                EventAggregationInputCompleteness.Unknown =>
-                    "Aggregation is exhaustive for supplied rows, but source-query completeness is unknown.",
-                EventAggregationInputCompleteness.Incomplete =>
-                    "Aggregation is exhaustive for supplied rows, but at least one source query was incomplete.",
-                _ => null
-            };
-            string? diagnostic = EventCompletenessDiagnostic.Compose(
-                inputDiagnostic,
-                completenessDiagnostic);
-            return new EventAggregationResult(
-                snapshot,
-                resultRows,
-                inputCompleteness,
-                aggregationComplete: true,
-                diagnostic,
-                EventAggregationExecutionMode.Managed,
-                inputRows);
-        } catch (AggregationBoundException exception) {
-            return new EventAggregationResult(
-                snapshot,
-                Array.Empty<EventAggregationRow>(),
-                inputCompleteness,
-                aggregationComplete: false,
-                EventCompletenessDiagnostic.Compose(exception.Message, inputDiagnostic),
-                EventAggregationExecutionMode.Managed,
-                inputRows);
         }
+        return accumulator.Complete();
     }
 
-    private static AggregationState GetOrCreate(
+    internal static AggregationState GetOrCreate(
         IDictionary<string, AggregationState> states,
         string key,
         AggregationGroup group,
@@ -156,7 +75,7 @@ public static partial class EventAggregationEngine {
         return state;
     }
 
-    private static IReadOnlyList<AggregationState> ApplyTop(
+    internal static IReadOnlyList<AggregationState> ApplyTop(
         IEnumerable<AggregationState> states,
         IReadOnlyDictionary<string, AggregationState> rankingStates,
         EventAggregationDefinition definition) {

@@ -492,6 +492,10 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     }
 
     private void ValidateGroupPolicyContextSelection() {
+        if (Collector != null && MachineName != null) {
+            throw new PSArgumentException(
+                "-Collector and -MachineName cannot be used together with ContextStorePath. Use -Collector for ForwardedEvents or -MachineName for direct source queries.");
+        }
         if (Type.Length != 1 || Type[0] != EventType.GroupPolicyDirectoryAudit) {
             throw new PSArgumentException(
                 "ContextStorePath requires exactly -Type GroupPolicyDirectoryAudit so the persistent context engine owns the complete Group Policy directory-audit timeline.",

@@ -71,6 +71,35 @@ Describe 'Get-EVXEvent - Type' {
         } | Should -Throw '*ContextAuthorization requires ContextStorePath*'
     }
 
+    It 'rejects contextual explain before opening the persistent store' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'explain-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $Fixture `
+                -ContextStorePath $ContextPath `
+                -Explain `
+                -ErrorAction Stop
+        } | Should -Throw '*Explain is not supported with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
+    It 'rejects mixed direct and collector context targets before opening the store' {
+        $ContextPath = Join-Path $TestDrive 'mixed-target-context.db'
+
+        {
+            Get-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -MachineName 'dc1.example.com' `
+                -Collector 'wec1.example.com' `
+                -ContextStorePath $ContextPath `
+                -ErrorAction Stop
+        } | Should -Throw '*Collector and -MachineName cannot be used together with ContextStorePath*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'continues independent persistent-context collector targets by default' {
         $ContextPath = Join-Path $TestDrive 'collector-continuation-context.db'
         $Errors = @()

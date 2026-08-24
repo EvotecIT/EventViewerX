@@ -98,6 +98,40 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void StructuredGroupPolicyLinkCollectionsRetainDistinctEvidence() {
+        var firstLinks = new List<GroupPolicyLinks> {
+            new() {
+                DisplayName = "Baseline",
+                Guid = "11111111-1111-1111-1111-111111111111",
+                DistinguishedName = "CN={11111111-1111-1111-1111-111111111111},CN=Policies,DC=example,DC=com",
+                IsEnabled = true
+            }
+        };
+        var secondLinks = new List<GroupPolicyLinks> {
+            new() {
+                DisplayName = "Baseline",
+                Guid = "22222222-2222-2222-2222-222222222222",
+                DistinguishedName = "CN={22222222-2222-2222-2222-222222222222},CN=Policies,DC=example,DC=com",
+                IsEnabled = true
+            }
+        };
+        EventNormalizedValue first = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> { ["GroupPolicyLink"] = firstLinks }))["GroupPolicyLink"];
+        EventNormalizedValue second = EventValueNormalizationEngine.Normalize(CreateRow(
+            2,
+            new Dictionary<string, object?> { ["GroupPolicyLink"] = secondLinks }))["GroupPolicyLink"];
+
+        Assert.Equal(EventNormalizationOutcome.Unchanged, first.Outcome);
+        Assert.Same(firstLinks, first.Value);
+        Assert.NotEqual(
+            EventAggregationEngine.Canonicalize(first.Value),
+            EventAggregationEngine.Canonicalize(second.Value));
+        Assert.Contains("11111111-1111-1111-1111-111111111111", first.DisplayValue, StringComparison.Ordinal);
+        Assert.DoesNotContain("EventViewerX.GroupPolicyLinks", first.DisplayValue, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DirectoryOperationReportsOnlyExactCanonicalRepresentationAsUnchanged() {
         IReadOnlyDictionary<string, EventNormalizedValue> normalized =
             EventValueNormalizationEngine.Normalize(CreateRow(
@@ -953,6 +987,43 @@ public sealed class TestEventAnalysis {
         Assert.Equal(1, result.InputRows);
         Assert.Equal(1, enumerated);
         Assert.Contains("MaximumStateBytes", result.Diagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AggregationStateBudgetIncludesEveryMeasure() {
+        EventAggregationMeasure[] measures = Enumerable.Range(1, 10)
+            .Select(index => new EventAggregationMeasure {
+                Operation = EventAggregationOperation.Count,
+                OutputName = $"Count{index}"
+            })
+            .ToArray();
+
+        EventAggregationResult result = EventAggregationEngine.Aggregate(
+            new[] { CreateRow(1, new Dictionary<string, object?>()) },
+            new EventAggregationDefinition {
+                Measures = measures,
+                MaximumStateBytes = 1000
+            });
+
+        Assert.False(result.AggregationComplete);
+        Assert.Equal(1, result.InputRows);
+        Assert.Contains("MaximumStateBytes", result.Diagnostic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AggregationAccumulatorConsumesRowsIncrementally() {
+        EventAggregationAccumulator accumulator = EventAggregationEngine.CreateAccumulator(
+            new EventAggregationDefinition(),
+            EventAggregationInputCompleteness.Unknown);
+
+        Assert.True(accumulator.Add(CreateRow(1, new Dictionary<string, object?>())));
+        Assert.True(accumulator.Add(CreateRow(2, new Dictionary<string, object?>())));
+        EventAggregationResult result = accumulator.Complete();
+
+        Assert.Equal(2, result.InputRows);
+        Assert.Equal(2L, Assert.Single(result.Rows).Measures["Count"]);
+        Assert.Throws<InvalidOperationException>(() =>
+            accumulator.Add(CreateRow(3, new Dictionary<string, object?>())));
     }
 
     [Fact]

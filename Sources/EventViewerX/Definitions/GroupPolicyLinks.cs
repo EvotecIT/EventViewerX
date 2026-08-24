@@ -12,4 +12,8 @@ public class GroupPolicyLinks {
     public string DistinguishedName { get; set; } = string.Empty;
     /// <summary>Indicates whether the link is enabled.</summary>
     public bool IsEnabled { get; set; }
+
+    /// <summary>Returns a stable, human-readable representation used by reports and grouping.</summary>
+    public override string ToString() =>
+        $"Name={DisplayName}; GUID={Guid}; DistinguishedName={DistinguishedName}; Enabled={IsEnabled}";
 }

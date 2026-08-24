@@ -4,7 +4,7 @@ using System.Text;
 namespace EventViewerX.Reporting;
 
 public static partial class EventAggregationEngine {
-    private static bool TryCreateGroup(
+    internal static bool TryCreateGroup(
         EventAggregationDefinition definition,
         IReadOnlyDictionary<string, object?> values,
         out AggregationGroup group) {
@@ -24,7 +24,7 @@ public static partial class EventAggregationEngine {
         return true;
     }
 
-    private static AggregationBucketRange CreateBucket(
+    internal static AggregationBucketRange CreateBucket(
         EventAggregationDefinition definition,
         DateTime timestamp) {
 
