@@ -25,6 +25,9 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
     public EventNormalizedValue Normalize(EventValueContext context) {
         string formatted = EventValueNormalizer.Format(context.RawValue);
         string raw = formatted.Trim();
+        if (raw.Length == 0) {
+            return EventValueNormalizer.Unchanged(context);
+        }
         string field = context.FieldName;
         if (EndsWith(field, "Sid")) {
             string canonical = raw.ToUpperInvariant();

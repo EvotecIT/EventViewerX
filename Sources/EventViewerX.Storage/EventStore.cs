@@ -47,6 +47,7 @@ public sealed partial class EventStore {
             ValidateSchemaVersion(session.ExecuteScalar(
                 "SELECT schema_version FROM evx_store_metadata WHERE singleton_id = 1;"));
             EnsureEventIdentitySchema(session);
+            EnsureActivityMetadataSchema(session);
             EnsureCheckpointIdentitySchema(session);
             _initialized = true;
         }
@@ -103,6 +104,22 @@ public sealed partial class EventStore {
         session.ExecuteNonQuery(
             "CREATE INDEX IF NOT EXISTS ix_evx_events_original_transport " +
             "ON evx_events (original_event_key, transport_kind);");
+    }
+
+    private static void EnsureActivityMetadataSchema(SQLiteSession session) {
+        session.RunInTransaction(transaction => {
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET schema_version = schema_version WHERE singleton_id = 1;");
+            IReadOnlyList<string> columns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_events);",
+                static record => record.GetString(1));
+            if (!columns.Contains("activity_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN activity_id TEXT NULL;");
+            }
+            if (!columns.Contains("related_activity_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN related_activity_id TEXT NULL;");
+            }
+        });
     }
 
     private static void MigrateEventIdentity(SQLiteSession session) {
@@ -201,6 +218,8 @@ CREATE TABLE IF NOT EXISTS evx_events (
     collector_computer TEXT NOT NULL,
     level TEXT NOT NULL,
     level_value INTEGER NULL,
+    activity_id TEXT NULL,
+    related_activity_id TEXT NULL,
     message TEXT NOT NULL,
     values_json TEXT NOT NULL,
     inserted_utc TEXT NOT NULL

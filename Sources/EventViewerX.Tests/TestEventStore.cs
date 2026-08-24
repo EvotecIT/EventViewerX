@@ -10,6 +10,90 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task StoredRowsRetainSystemActivityMetadataForSemanticGrouping() {
+        string path = CreateStorePath();
+        Guid parentActivity = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        try {
+            EventReportRow parent = CreateStoredActivityRow(1, parentActivity, relatedActivityId: null);
+            EventReportRow child = CreateStoredActivityRow(
+                2,
+                Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d"),
+                parentActivity);
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { parent, child },
+                new[] { EventReportSectionSchema.CreateGeneric() }));
+
+            EventReport stored = await store.ReadReportAsync(new EventStoreQuery { Oldest = true });
+            EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+                stored.Rows,
+                new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+            Assert.Equal(parentActivity, stored.Rows[0].ActivityId);
+            Assert.Equal(parentActivity, stored.Rows[1].RelatedActivityId);
+            Assert.Equal(2, group.ObservationCount);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task GroupPolicyStoreAliasUsesTheEnrichedPredicateSchema() {
+        string path = CreateStorePath();
+        try {
+            var row = new EventReportRow {
+                TimeCreated = new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc),
+                Type = "GroupPolicyAudit",
+                EventId = 5136,
+                RecordId = 42,
+                Provider = "Microsoft-Windows-Security-Auditing",
+                SourceLog = "Security",
+                ContainerLog = "ForwardedEvents",
+                SourceComputer = "dc1.ad.evotec.xyz",
+                CollectorComputer = "wec1.ad.evotec.xyz",
+                Values = new Dictionary<string, object?> {
+                    ["Actor"] = "AD\\alice",
+                    ["GroupPolicyNameAtEventTime"] = "Workstation Baseline"
+                }
+            };
+            var rawRow = new EventReportRow {
+                TimeCreated = row.TimeCreated.AddSeconds(1),
+                Type = nameof(EventType.GroupPolicyDirectoryAudit),
+                EventId = 5136,
+                RecordId = 43,
+                Provider = row.Provider,
+                SourceLog = row.SourceLog,
+                ContainerLog = row.ContainerLog,
+                SourceComputer = row.SourceComputer,
+                CollectorComputer = row.CollectorComputer,
+                Values = new Dictionary<string, object?>()
+            };
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.CreateStored(
+                new[] { row, rawRow },
+                new[] {
+                    EventReportSectionSchema.FromGroupPolicyAudit(),
+                    EventReportSectionSchema.FromType(EventType.GroupPolicyDirectoryAudit)
+                }));
+
+            EventReport matched = await store.ReadReportAsync(new EventStoreQuery {
+                Types = new[] { EventType.GroupPolicyDirectoryAudit },
+                Predicate = EventPredicate.Compare("Actor", EventPredicateOperator.Equal, "AD\\alice")
+            });
+            ArgumentException rejected = await Assert.ThrowsAsync<ArgumentException>(() => store.ReadReportAsync(
+                new EventStoreQuery {
+                    Types = new[] { EventType.GroupPolicyDirectoryAudit },
+                    Predicate = EventPredicate.Compare("Who", EventPredicateOperator.Equal, "alice")
+                }));
+
+            Assert.Single(matched.Rows);
+            Assert.Contains("not available", rejected.Message, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public void BuiltInStoreQueriesNormalizePredicatesBeforePlanning() {
         var query = new EventStoreQuery {
             Types = new[] { EventType.ADUserLogonFailed },
@@ -1176,6 +1260,24 @@ public sealed partial class TestEventStore {
     private static EventReport CreateReport(params (DateTime Time, long RecordId, string User)[] events) {
         return CreateReportFromTransport(events, "WEC01", "ForwardedEvents");
     }
+
+    private static EventReportRow CreateStoredActivityRow(
+        long recordId,
+        Guid? activityId,
+        Guid? relatedActivityId) => new() {
+        TimeCreated = new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc).AddSeconds(recordId),
+        Type = "Generic",
+        EventId = 1000 + (int)recordId,
+        RecordId = recordId,
+        Provider = "Contoso-Activity-Provider",
+        SourceLog = "Application",
+        ContainerLog = "ForwardedEvents",
+        SourceComputer = "source1.ad.evotec.xyz",
+        CollectorComputer = "wec1.ad.evotec.xyz",
+        ActivityId = activityId,
+        RelatedActivityId = relatedActivityId,
+        Values = new Dictionary<string, object?>()
+    };
 
     private static EventReport CreateReportForDefinition(
         string definitionName,

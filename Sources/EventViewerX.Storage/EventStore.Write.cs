@@ -235,6 +235,8 @@ public sealed partial class EventStore {
             ["$collectorComputer"] = row.CollectorComputer ?? string.Empty,
             ["$level"] = row.Level ?? string.Empty,
             ["$levelValue"] = row.LevelValue,
+            ["$activityId"] = row.ActivityId?.ToString("D"),
+            ["$relatedActivityId"] = row.RelatedActivityId?.ToString("D"),
             ["$message"] = row.Message ?? string.Empty,
             ["$values"] = JsonSerializer.Serialize(row.Values, JsonOptions),
             ["$inserted"] = insertedAt
@@ -386,11 +388,11 @@ ON CONFLICT(definition_name) DO UPDATE SET
 INSERT OR IGNORE INTO evx_events
     (event_key, original_event_key, transport_kind, definition_name, event_time_utc, event_id, record_id, provider,
      source_log, container_log, source_computer, collector_computer, level,
-     level_value, message, values_json, inserted_utc)
+     level_value, activity_id, related_activity_id, message, values_json, inserted_utc)
 SELECT
     $key, $originalKey, $transportKind, $definition, $time, $eventId, $recordId, $provider,
      $sourceLog, $containerLog, $sourceComputer, $collectorComputer, $level,
-     $levelValue, $message, $values, $inserted
+     $levelValue, $activityId, $relatedActivityId, $message, $values, $inserted
 WHERE $transportKind = 2 OR NOT EXISTS (
     SELECT 1
     FROM evx_events

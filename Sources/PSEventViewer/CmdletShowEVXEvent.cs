@@ -286,7 +286,9 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             EventPredicateBuilder? storedBuilder = storedDefinition != null
                 ? EventPredicateBuilder.ForDefinition(storedDefinition)
                 : Type.Length > 0
-                    ? EventPredicateBuilder.ForTypes(Type)
+                    ? EventStoreQuery.IsEnrichedGroupPolicySelection(Type)
+                        ? EventReportSectionSchema.FromGroupPolicyAudit().CreatePredicateBuilder()
+                        : EventPredicateBuilder.ForTypes(Type)
                     : null;
             IReadOnlyList<string>? storedDefinitionNames = ResolveStoredDefinitionNames(
                 Definition,

@@ -103,6 +103,8 @@ internal static class EventReportProjectionFactory {
             Type = "GroupPolicyAudit",
             EventId = record.EventId,
             RecordId = record.RecordId,
+            ActivityId = record.ActivityId,
+            RelatedActivityId = record.RelatedActivityId,
             Provider = "Microsoft-Windows-Security-Auditing",
             SourceLog = record.OriginalLogName,
             ContainerLog = record.ContainerLogName,

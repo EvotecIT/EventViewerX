@@ -66,6 +66,28 @@ public sealed class TestGroupPolicyAudit {
     }
 
     [Fact]
+    public void GroupPolicyProjectionRetainsSystemActivityMetadata() {
+        Guid activityId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        Guid relatedActivityId = Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d");
+        GroupPolicyAuditRecord record = GroupPolicyAuditEngine.CreateRecord(CreateSource(
+            5136,
+            "WEC01",
+            "ForwardedEvents",
+            "groupPolicyContainer",
+            "displayName",
+            "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
+            activityId: activityId,
+            relatedActivityId: relatedActivityId));
+
+        EventReportRow row = EventReportEngine.CreateRow(record);
+
+        Assert.Equal(activityId, record.ActivityId);
+        Assert.Equal(relatedActivityId, record.RelatedActivityId);
+        Assert.Equal(activityId, row.ActivityId);
+        Assert.Equal(relatedActivityId, row.RelatedActivityId);
+    }
+
+    [Fact]
     public async Task ReportProjectionKeepsOneSchemaAcrossUnknownAndResolvedContext() {
         const string gpoId = "FB6A0E91-F93D-4428-B29D-2FDCC3A95425";
         EventObject source = CreateSource(
@@ -680,7 +702,9 @@ public sealed class TestGroupPolicyAudit {
         string? bookmarkXml = null,
         string attributeValue = "value",
         string operationType = "%%14674",
-        DateTime? timeCreatedUtc = null) {
+        DateTime? timeCreatedUtc = null,
+        Guid? activityId = null,
+        Guid? relatedActivityId = null) {
 
         string xml = $$"""
             <Event>
@@ -710,7 +734,9 @@ public sealed class TestGroupPolicyAudit {
             providerName,
             originalLogName,
             bookmarkXml,
-            timeCreatedUtc);
+            timeCreatedUtc,
+            activityId,
+            relatedActivityId);
     }
 
     private static EventObject CreateMovedSource(string oldObjectDn, string newObjectDn) {
@@ -751,10 +777,20 @@ public sealed class TestGroupPolicyAudit {
         string providerName,
         string originalLogName,
         string? bookmarkXml,
-        DateTime? timeCreatedUtc) {
+        DateTime? timeCreatedUtc,
+        Guid? activityId = null,
+        Guid? relatedActivityId = null) {
 
         return new EventObject(
-            new SyntheticEventRecord(eventId, xml, providerName, originalLogName, bookmarkXml, timeCreatedUtc),
+            new SyntheticEventRecord(
+                eventId,
+                xml,
+                providerName,
+                originalLogName,
+                bookmarkXml,
+                timeCreatedUtc,
+                activityId,
+                relatedActivityId),
             queriedMachine,
             EventReadMode.StructuredData,
             includeBookmark: !string.IsNullOrWhiteSpace(bookmarkXml)) {
@@ -770,6 +806,8 @@ public sealed class TestGroupPolicyAudit {
         private readonly string _logName;
         private readonly string? _bookmarkXml;
         private readonly DateTime _timeCreatedUtc;
+        private readonly Guid? _activityId;
+        private readonly Guid? _relatedActivityId;
 
         internal SyntheticEventRecord(
             int eventId,
@@ -777,7 +815,9 @@ public sealed class TestGroupPolicyAudit {
             string providerName,
             string logName,
             string? bookmarkXml,
-            DateTime? timeCreatedUtc) {
+            DateTime? timeCreatedUtc,
+            Guid? activityId,
+            Guid? relatedActivityId) {
 
             _eventId = eventId;
             _xml = xml;
@@ -785,6 +825,8 @@ public sealed class TestGroupPolicyAudit {
             _logName = logName;
             _bookmarkXml = bookmarkXml;
             _timeCreatedUtc = timeCreatedUtc ?? new DateTime(2026, 8, 18, 10, 0, 0, DateTimeKind.Utc);
+            _activityId = activityId;
+            _relatedActivityId = relatedActivityId;
         }
 
         public override string ProviderName => _providerName;
@@ -799,8 +841,8 @@ public sealed class TestGroupPolicyAudit {
         public override string OpcodeDisplayName => string.Empty;
         public override string TaskDisplayName => string.Empty;
         public override Guid? ProviderId => null;
-        public override Guid? ActivityId => null;
-        public override Guid? RelatedActivityId => null;
+        public override Guid? ActivityId => _activityId;
+        public override Guid? RelatedActivityId => _relatedActivityId;
         public override int? ProcessId => 1;
         public override int? ThreadId => 1;
         public override string LevelDisplayName => "Information";

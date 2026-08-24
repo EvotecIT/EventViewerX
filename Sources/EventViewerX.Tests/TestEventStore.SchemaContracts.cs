@@ -110,6 +110,38 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
+    public async Task ExistingStoresAcquireNullableActivityMetadataColumns() {
+        string path = CreateStorePath();
+        try {
+            await new EventStore(path).WriteAsync(CreateReport((
+                new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc),
+                42,
+                "alice")));
+            using (var sqlite = new SQLite { BusyTimeoutMs = 10000 }) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN activity_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN related_activity_id;");
+            }
+
+            var migratedStore = new EventStore(path);
+            EventReport report = await migratedStore.ReadReportAsync(new EventStoreQuery());
+
+            Assert.Single(report.Rows);
+            Assert.Null(report.Rows[0].ActivityId);
+            Assert.Null(report.Rows[0].RelatedActivityId);
+            using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
+            using SQLiteSession verification = verificationClient.OpenSession(path);
+            IReadOnlyList<string> columns = verification.QueryAsList(
+                "PRAGMA table_info(evx_events);",
+                static record => record.GetString(1));
+            Assert.Contains("activity_id", columns);
+            Assert.Contains("related_activity_id", columns);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentInitializersSerializeLegacyIdentityMigration() {
         string path = CreateStorePath();
         try {

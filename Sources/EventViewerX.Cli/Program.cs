@@ -209,7 +209,9 @@ internal static partial class Program {
             predicate = definition != null
                 ? EventPredicateBuilder.ForDefinition(definition).Normalize(predicate)
                 : types.Length > 0
-                    ? EventPredicateBuilder.ForTypes(types).Normalize(predicate)
+                    ? EventStoreQuery.IsEnrichedGroupPolicySelection(types)
+                        ? EventReportSectionSchema.FromGroupPolicyAudit().CreatePredicateBuilder().Normalize(predicate)
+                        : EventPredicateBuilder.ForTypes(types).Normalize(predicate)
                     : predicate;
         }
         return new EventStoreQuery {

@@ -19,6 +19,8 @@ public sealed class GroupPolicyAuditRecord {
             ? source.TimeCreated
             : source.TimeCreated.ToUniversalTime();
         RecordId = source.RecordId;
+        ActivityId = source.ActivityId;
+        RelatedActivityId = source.RelatedActivityId;
         SourceComputer = source.SourceComputer;
         QueryTarget = string.IsNullOrWhiteSpace(source.CollectorComputer)
             ? Environment.MachineName
@@ -68,6 +70,12 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Record identifier exposed by the event.</summary>
     public long? RecordId { get; }
+
+    /// <summary>Windows system activity identifier retained from the source event.</summary>
+    public Guid? ActivityId { get; }
+
+    /// <summary>Windows system related-activity identifier retained from the source event.</summary>
+    public Guid? RelatedActivityId { get; }
 
     /// <summary>Domain controller that emitted the event.</summary>
     public string SourceComputer { get; }

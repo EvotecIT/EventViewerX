@@ -36,6 +36,10 @@ public sealed class EventReportSectionSchema {
     public static EventReportSectionSchema FromType(EventType type) =>
         FromDefinition(EventReportProjectionFactory.Create(type));
 
+    /// <summary>Creates the enriched persistent Group Policy audit schema.</summary>
+    public static EventReportSectionSchema FromGroupPolicyAudit() =>
+        FromDefinition(EventReportProjectionFactory.CreateGroupPolicyAuditDefinition());
+
     /// <summary>Creates the authoritative report schema for one validated custom event definition.</summary>
     public static EventReportSectionSchema FromDefinition(EventDefinition definition) =>
         FromDefinition(EventReportProjectionFactory.Create(definition));
@@ -43,6 +47,18 @@ public sealed class EventReportSectionSchema {
     /// <summary>Creates the stable native-metadata schema used by an empty generic report.</summary>
     public static EventReportSectionSchema CreateGeneric() =>
         FromDefinition(EventReportProjectionFactory.CreateGenericDefinition());
+
+    /// <summary>Creates a predicate builder for this detached schema.</summary>
+    public EventPredicateBuilder CreatePredicateBuilder() => EventPredicateBuilder.ForFields(
+        Name,
+        Columns.Select(static column => new KeyValuePair<string, Type>(
+            column.Name,
+            EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName))),
+        DisplayName,
+        Columns.ToDictionary(
+            static column => column.Name,
+            static column => column.Aliases ?? Array.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase));
 
     private static EventReportSectionSchema FromDefinition(EventReportSectionDefinition definition) => new() {
         Name = definition.Name,

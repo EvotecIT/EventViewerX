@@ -56,7 +56,6 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
             fractionTicks = parsedTicks;
             isLossless = fraction.Length <= 7 || fraction.Substring(7).All(static digit => digit == '0');
         }
-        local = DateTime.SpecifyKind(local.AddTicks(fractionTicks), DateTimeKind.Unspecified);
         string zone = match.Groups["zone"].Value;
         TimeSpan zoneOffset = TimeSpan.Zero;
         if (zone != "Z") {
@@ -69,6 +68,7 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
                 (offsetHours * 60 + offsetMinutes) * (zone[0] == '-' ? -1 : 1));
         }
         try {
+            local = DateTime.SpecifyKind(local.AddTicks(fractionTicks), DateTimeKind.Unspecified);
             return Create(
                 context,
                 new DateTimeOffset(local, zoneOffset).UtcDateTime,

@@ -5,27 +5,26 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
         "OperationCorrelationId",
         "ApplicationCorrelationId",
         "CorrelationId",
+        "RelatedActivityId",
         "ActivityId",
         "ActivityID",
-        "RelatedActivityId",
         "TransactionId",
         "BatchId"
     };
 
     public string Name => "causal-identifier";
 
-    public int Version => 3;
+    public int Version => 4;
 
     public bool TryGetIdentity(EventReportRow observation, out string identity, out string reason) {
-        if (observation.ActivityId is Guid activityId && activityId != Guid.Empty) {
-            return CreateIdentity(observation, "ActivityId", activityId.ToString("D"), out identity, out reason);
-        }
         if (observation.RelatedActivityId is Guid relatedActivityId && relatedActivityId != Guid.Empty) {
             return CreateIdentity(observation, "ActivityId", relatedActivityId.ToString("D"), out identity, out reason);
         }
-        IReadOnlyDictionary<string, object?> values = observation.ToNormalizedDictionary();
+        if (observation.ActivityId is Guid activityId && activityId != Guid.Empty) {
+            return CreateIdentity(observation, "ActivityId", activityId.ToString("D"), out identity, out reason);
+        }
         foreach (string field in CausalFields) {
-            if (!values.TryGetValue(field, out object? raw)) {
+            if (!TryGetPayloadValue(observation, field, out object? raw)) {
                 continue;
             }
             string value = Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
@@ -45,6 +44,24 @@ internal sealed class CausalIdentifierOccurrencePolicy : IEventOccurrencePolicy 
         identity = string.Empty;
         reason = string.Empty;
         return false;
+    }
+
+    private static bool TryGetPayloadValue(
+        EventReportRow observation,
+        string field,
+        out object? value) {
+
+        if (observation.NormalizedValues.TryGetValue(field, out EventNormalizedValue? normalized)) {
+            value = normalized.Value;
+            return true;
+        }
+        if (observation.Values.TryGetValue(field, out value)) {
+            return true;
+        }
+        KeyValuePair<string, object?> matched = observation.Values.FirstOrDefault(item =>
+            string.Equals(item.Key, field, StringComparison.OrdinalIgnoreCase));
+        value = matched.Value;
+        return matched.Key != null;
     }
 
     private static bool CreateIdentity(

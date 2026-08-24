@@ -476,6 +476,45 @@ Describe 'evx portable host' {
         @($Plan.Steps | Where-Object Expression -Like 'EventId *').Stage | Should -Contain 'Managed'
     }
 
+    It 'queries stored Group Policy aliases through the enriched schema' {
+        $StorePath = Join-Path $TestDrive 'cli-gpo-audit.db'
+        $PredicatePath = Join-Path $TestDrive 'cli-gpo-audit-predicate.json'
+        $Row = [EventViewerX.Reporting.EventReportRow]::new()
+        $Row.TimeCreated = [datetime]::SpecifyKind([datetime]'2026-08-23T10:00:00', [DateTimeKind]::Utc)
+        $Row.Type = 'GroupPolicyAudit'
+        $Row.EventId = 5136
+        $Row.RecordId = 42
+        $Row.Provider = 'Microsoft-Windows-Security-Auditing'
+        $Row.SourceLog = 'Security'
+        $Row.ContainerLog = 'ForwardedEvents'
+        $Row.SourceComputer = 'dc1.ad.evotec.xyz'
+        $Row.CollectorComputer = 'wec1.ad.evotec.xyz'
+        $Values = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+        $Values['Actor'] = 'AD\alice'
+        $Values['GroupPolicyNameAtEventTime'] = 'Workstation Baseline'
+        $Row.Values = $Values
+        $Report = [EventViewerX.Reporting.EventReportEngine]::CreateStored(
+            [EventViewerX.Reporting.EventReportRow[]]@($Row),
+            [EventViewerX.Reporting.EventReportSectionSchema[]]@(
+                [EventViewerX.Reporting.EventReportSectionSchema]::FromGroupPolicyAudit()))
+        $null = [EventViewerX.Storage.EventStore]::new($StorePath).WriteAsync($Report).GetAwaiter().GetResult()
+        @{
+            Field = 'Actor'
+            Operator = 'Equal'
+            Values = @('AD\alice')
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $PredicatePath -Encoding UTF8
+
+        $Rows = @(& $script:CliPath query `
+                --store $StorePath `
+                --type GroupPolicyDirectoryAudit `
+                --where $PredicatePath |
+                ForEach-Object { $_ | ConvertFrom-Json })
+
+        $LASTEXITCODE | Should -Be 0
+        $Rows.Count | Should -Be 1
+        $Rows[0].GroupPolicyNameAtEventTime | Should -Be 'Workstation Baseline'
+    }
+
     It 'normalizes stored custom predicates with their definition metadata' {
         $DefinitionPath = Join-Path $TestDrive 'stored-alias-definition.json'
         $PredicatePath = Join-Path $TestDrive 'stored-alias-predicate.json'

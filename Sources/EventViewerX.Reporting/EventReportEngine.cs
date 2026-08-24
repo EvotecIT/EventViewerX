@@ -251,6 +251,8 @@ public static class EventReportEngine {
             CollectorComputer = row.CollectorComputer,
             Level = row.Level,
             LevelValue = row.LevelValue,
+            ActivityId = row.ActivityId,
+            RelatedActivityId = row.RelatedActivityId,
             Message = row.Message,
             Values = (row.Values ?? throw new ArgumentException(
                 "Stored rows must provide a values collection.", nameof(row))).ToDictionary(

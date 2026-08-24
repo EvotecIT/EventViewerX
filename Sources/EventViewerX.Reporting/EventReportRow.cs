@@ -83,6 +83,14 @@ public sealed class EventReportRow {
                 result[value.Key] = value.Value;
             }
         }
+        if (string.Equals(Type, "Generic", StringComparison.OrdinalIgnoreCase)) {
+            foreach (KeyValuePair<string, object?> value in Values) {
+                if (!IsPayloadActivityField(value.Key) || !IsCommonFieldName(value.Key)) {
+                    continue;
+                }
+                result[AllocateProviderField(result, value.Key + "_ProviderField")] = value.Value;
+            }
+        }
         return result;
     }
 
@@ -186,6 +194,23 @@ public sealed class EventReportRow {
     }
 
     internal static bool IsCommonFieldName(string name) => CommonFieldNames.Contains(name);
+
+    private static bool IsPayloadActivityField(string name) =>
+        string.Equals(name, nameof(ActivityId), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, nameof(RelatedActivityId), StringComparison.OrdinalIgnoreCase);
+
+    private static string AllocateProviderField(
+        IReadOnlyDictionary<string, object?> values,
+        string preferredName) {
+
+        string name = preferredName;
+        int suffix = 2;
+        while (values.ContainsKey(name)) {
+            name = preferredName + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            suffix++;
+        }
+        return name;
+    }
 
     private void AddCommonAliases(IDictionary<string, object?> result) {
         result["TypeName"] = Type;

@@ -244,6 +244,45 @@ Describe 'Show-EVXEvent' {
         $Summary.Sections[0].Columns.Name | Should -Contain 'Count'
     }
 
+    It 'uses the enriched Group Policy schema for stored type aliases' {
+        $StorePath = Join-Path $TestDrive 'stored-gpo-audit.db'
+        $Row = [EventViewerX.Reporting.EventReportRow]::new()
+        $Row.TimeCreated = [datetime]::SpecifyKind([datetime]'2026-08-23T10:00:00', [DateTimeKind]::Utc)
+        $Row.Type = 'GroupPolicyAudit'
+        $Row.EventId = 5136
+        $Row.RecordId = 42
+        $Row.Provider = 'Microsoft-Windows-Security-Auditing'
+        $Row.SourceLog = 'Security'
+        $Row.ContainerLog = 'ForwardedEvents'
+        $Row.SourceComputer = 'dc1.ad.evotec.xyz'
+        $Row.CollectorComputer = 'wec1.ad.evotec.xyz'
+        $Values = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+        $Values['Actor'] = 'AD\alice'
+        $Values['GroupPolicyNameAtEventTime'] = 'Workstation Baseline'
+        $Row.Values = $Values
+        $Report = [EventViewerX.Reporting.EventReportEngine]::CreateStored(
+            [EventViewerX.Reporting.EventReportRow[]]@($Row),
+            [EventViewerX.Reporting.EventReportSectionSchema[]]@(
+                [EventViewerX.Reporting.EventReportSectionSchema]::FromGroupPolicyAudit()))
+        $null = [EventViewerX.Storage.EventStore]::new($StorePath).WriteAsync($Report).GetAwaiter().GetResult()
+
+        $Matched = Show-EVXEvent `
+            -FromStore $StorePath `
+            -Type GroupPolicyDirectoryAudit `
+            -Where { $_.Actor -eq 'AD\alice' } `
+            -PassThru
+
+        $Matched.Rows.Count | Should -Be 1
+        $Matched.Rows[0].Values['GroupPolicyNameAtEventTime'] | Should -Be 'Workstation Baseline'
+        {
+            Show-EVXEvent `
+                -FromStore $StorePath `
+                -Type GroupPolicyDirectoryAudit `
+                -Where { $_.Who -eq 'alice' } `
+                -PassThru
+        } | Should -Throw "*Field 'Who' is not available*"
+    }
+
     It 'renders empty stored custom CSV with the supplied definition schema' {
         $DefinitionPath = Join-Path $TestDrive 'empty-stored-definition.json'
         $StorePath = Join-Path $TestDrive 'empty-stored-events.db'

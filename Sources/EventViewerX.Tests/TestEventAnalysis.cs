@@ -184,6 +184,24 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void AbsentOptionalIdentityValuesRemainUnchanged() {
+        var row = CreateRow(1, new Dictionary<string, object?> {
+            ["ObjectGuid"] = null,
+            ["ActorSid"] = string.Empty
+        });
+
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(row);
+
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["ObjectGuid"].Outcome);
+        Assert.Null(normalized["ObjectGuid"].Value);
+        Assert.Empty(normalized["ObjectGuid"].Warnings);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["ActorSid"].Outcome);
+        Assert.Equal(string.Empty, normalized["ActorSid"].Value);
+        Assert.Empty(normalized["ActorSid"].Warnings);
+    }
+
+    [Fact]
     public void ActiveDirectoryGeneralizedTimeUsesItsOwnUtcContract() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["WhenCreated"] = "20260823101530.125Z",
@@ -244,6 +262,19 @@ public sealed class TestEventAnalysis {
         Assert.Equal("not-generalized-time", value.RawValue);
         Assert.Equal(EventNormalizationOutcome.Malformed, value.Outcome);
         Assert.Equal("active-directory-generalized-time", value.Normalizer);
+        Assert.NotEmpty(value.Warnings);
+    }
+
+    [Fact]
+    public void GeneralizedTimeOverflowRetainsMalformedEvidence() {
+        EventNormalizedValue value = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["WhenCreated"] = "99991231235959.9-1400"
+            }))["WhenCreated"];
+
+        Assert.Equal("99991231235959.9-1400", value.RawValue);
+        Assert.Equal(EventNormalizationOutcome.Malformed, value.Outcome);
         Assert.NotEmpty(value.Warnings);
     }
 
@@ -334,7 +365,7 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, semantic.Groups.Count);
         EventOccurrenceGroup occurrence = semantic.Groups.Single(static group => group.ObservationCount == 2);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
-        Assert.Equal(3, occurrence.PolicyVersion);
+        Assert.Equal(4, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 
@@ -363,6 +394,7 @@ public sealed class TestEventAnalysis {
         created.ActivityId = activityId;
         completed.EventId = 4702;
         completed.Type = "ScheduledTaskUpdated";
+        completed.ActivityId = Guid.Parse("4ce61f98-73d6-4e2e-bf3c-3390e20e100d");
         completed.RelatedActivityId = activityId;
 
         EventOccurrenceResult result = EventOccurrenceEngine.Group(
@@ -384,6 +416,30 @@ public sealed class TestEventAnalysis {
             new[] { child, parent },
             new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
 
+        Assert.Equal(2, group.ObservationCount);
+    }
+
+    [Fact]
+    public void GenericPayloadActivityIdentifiersRemainVisibleAndGroupable() {
+        const string activityId = "7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06";
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> {
+            ["ActivityId"] = activityId,
+            ["ActivityId_ProviderField"] = "existing"
+        });
+        EventReportRow second = CreateRow(2, new Dictionary<string, object?> {
+            ["RelatedActivityId"] = activityId
+        });
+        first.Type = "Generic";
+        second.Type = "Generic";
+
+        IReadOnlyDictionary<string, object?> projected = EventReportJsonProjection.Project(first);
+        EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { second, first },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+        Assert.Null(projected[nameof(EventReportRow.ActivityId)]);
+        Assert.Equal("existing", projected["ActivityId_ProviderField"]);
+        Assert.Equal(activityId, projected["ActivityId_ProviderField2"]?.ToString());
         Assert.Equal(2, group.ObservationCount);
     }
 

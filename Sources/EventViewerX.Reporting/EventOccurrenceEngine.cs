@@ -256,6 +256,8 @@ public static class EventOccurrenceEngine {
             new KeyValuePair<string, object?>(nameof(EventReportRow.CollectorComputer), observation.CollectorComputer),
             new KeyValuePair<string, object?>(nameof(EventReportRow.Level), observation.Level),
             new KeyValuePair<string, object?>(nameof(EventReportRow.LevelValue), observation.LevelValue),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.ActivityId), observation.ActivityId),
+            new KeyValuePair<string, object?>(nameof(EventReportRow.RelatedActivityId), observation.RelatedActivityId),
             new KeyValuePair<string, object?>(nameof(EventReportRow.Message), observation.Message)
         };
         string input = string.Join("\n", common
