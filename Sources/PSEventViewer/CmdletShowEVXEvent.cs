@@ -261,6 +261,21 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     /// <inheritdoc />
     protected override async Task EndProcessingAsync() {
         ValidateContextAuthorizationSelection();
+        EventOccurrenceOptions? occurrenceOptions = null;
+        if (DuplicateMode != EventDuplicateMode.None) {
+            if (!Enum.IsDefined(typeof(EventDuplicateMode), DuplicateMode)) {
+                throw new PSArgumentException(
+                    $"DuplicateMode '{DuplicateMode}' is not defined.",
+                    nameof(DuplicateMode));
+            }
+            occurrenceOptions = new EventOccurrenceOptions {
+                Mode = DuplicateMode,
+                Window = OccurrenceWindow,
+                MaximumObservations = MaximumOccurrenceObservations,
+                MaximumGroups = MaximumOccurrenceGroups
+            };
+            EventOccurrenceEngine.ValidateOptions(occurrenceOptions);
+        }
         if (SummaryPeriod.HasValue && !string.IsNullOrWhiteSpace(StorePath)) {
             throw new PSArgumentException(
                 "SummaryPeriod and StorePath cannot be combined because derived summary rows are not durable event history. " +
@@ -421,18 +436,13 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
         }
 
         EventOccurrenceResult? occurrences = null;
-        if (DuplicateMode != EventDuplicateMode.None) {
+        if (occurrenceOptions != null) {
             if (aggregation != null || SummaryPeriod.HasValue) {
                 throw new PSArgumentException(
                     "DuplicateMode applies to source observations before aggregation or stored summaries, not to already-derived rows.",
                     nameof(DuplicateMode));
             }
-            occurrences = EventOccurrenceEngine.Group(report.Rows, new EventOccurrenceOptions {
-                Mode = DuplicateMode,
-                Window = OccurrenceWindow,
-                MaximumObservations = MaximumOccurrenceObservations,
-                MaximumGroups = MaximumOccurrenceGroups
-            });
+            occurrences = EventOccurrenceEngine.Group(report.Rows, occurrenceOptions);
             report = EventOccurrenceReportFactory.Create(occurrences, report, Title);
         }
 

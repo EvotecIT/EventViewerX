@@ -324,6 +324,12 @@ public sealed class TestEventDefinitionAndReporting {
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "event-provenance.csv");
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "coverage.csv");
             Assert.Contains(csvArchive.Entries, static entry => entry.FullName == "manifest.json");
+            ZipArchiveEntry provenanceCsv = Assert.Single(
+                csvArchive.Entries,
+                static entry => entry.FullName == "event-provenance.csv");
+            using (var provenanceReader = new StreamReader(provenanceCsv.Open())) {
+                Assert.Contains("Raw Values", provenanceReader.ReadLine(), StringComparison.Ordinal);
+            }
             ZipArchiveEntry successfulCsv = Assert.Single(
                 csvArchive.Entries,
                 static entry => entry.FullName == "ADUserLogon.csv");

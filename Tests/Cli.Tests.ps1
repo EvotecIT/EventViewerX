@@ -194,6 +194,25 @@ Describe 'evx portable host' {
         Test-Path -LiteralPath $ContextPath | Should -BeFalse
     }
 
+    It 'validates live measure definitions before opening persistent context' {
+        $ContextPath = Join-Path $TestDrive 'context-invalid-measure-rejected.db'
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath measure `
+                --type GroupPolicyDirectoryAudit `
+                --path $script:FixturePath `
+                --context-store $ContextPath `
+                --timezone 'Invalid/EventViewerX-Zone' 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'time zone|timezone|not found'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'rejects live-only controls for stored queries before opening history' {
         $StorePath = Join-Path $TestDrive 'stored-live-options-rejected.db'
         $PreviousErrorActionPreference = $ErrorActionPreference

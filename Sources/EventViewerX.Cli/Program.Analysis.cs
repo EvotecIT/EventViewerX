@@ -9,6 +9,7 @@ internal static partial class Program {
         ValidateQuerySource(options, allowSummary: false);
         ValidateOccurrenceOptions(options);
         EventAggregationDefinition definition = CreateAggregationDefinition(options);
+        _ = EventAggregationEngine.CreateAccumulator(definition);
         EventAggregationResult result;
         if (options.Get("store") is string storePath) {
             EventStoreQuery query = CreateStoreQuery(options);
@@ -18,7 +19,6 @@ internal static partial class Program {
                 "--duplicates");
             if (duplicateMode != EventDuplicateMode.None) {
                 if (options.Has("explain")) {
-                    _ = EventAggregationEngine.CreateAccumulator(definition);
                     return WriteJson(new {
                         ExecutionMode = EventAggregationExecutionMode.Managed,
                         Reason = "Occurrence grouping must retain source observations before aggregation, so stored pushdown is disabled."

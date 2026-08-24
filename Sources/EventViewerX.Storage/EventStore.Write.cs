@@ -275,6 +275,8 @@ public sealed partial class EventStore {
             NormalizeSqliteNoCaseIdentity(row.Provider),
             row.TimeCreated.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             NormalizeSqliteNoCaseIdentity(definitionName),
+            row.ActivityId?.ToString("D") ?? string.Empty,
+            row.RelatedActivityId?.ToString("D") ?? string.Empty,
             CreateSemanticIdentity(row.Values)
         });
         return CreateSha256(identity);
@@ -288,6 +290,8 @@ public sealed partial class EventStore {
             NormalizeSqliteNoCaseIdentity(candidate.Provider),
             candidate.TimeCreatedUtc,
             NormalizeSqliteNoCaseIdentity(definitionName),
+            candidate.ActivityId ?? string.Empty,
+            candidate.RelatedActivityId ?? string.Empty,
             CreateSemanticIdentity(candidate.Values)
         });
         return CreateSha256(identity);
@@ -423,6 +427,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
             string containerLog,
             string sourceComputer,
             string collectorComputer,
+            string? activityId,
+            string? relatedActivityId,
             IReadOnlyDictionary<string, JsonElement> values) {
 
             TimeCreatedUtc = timeCreatedUtc;
@@ -432,6 +438,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
             ContainerLog = containerLog;
             SourceComputer = sourceComputer;
             CollectorComputer = collectorComputer;
+            ActivityId = activityId;
+            RelatedActivityId = relatedActivityId;
             Values = values;
         }
 
@@ -442,6 +450,8 @@ ON CONFLICT(consumer, computer, container) DO UPDATE SET
         internal string ContainerLog { get; }
         internal string SourceComputer { get; }
         internal string CollectorComputer { get; }
+        internal string? ActivityId { get; }
+        internal string? RelatedActivityId { get; }
         internal IReadOnlyDictionary<string, JsonElement> Values { get; }
     }
 

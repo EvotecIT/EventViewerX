@@ -102,7 +102,7 @@ public static class EventReportCsvRenderer {
                         EventReportTableProjection.ProjectProvenance(report.Rows),
                         new[] {
                             "Time Created", "Type", "Event ID", "Level", "Source Computer",
-                            "Source Log", "Provider", "Record ID", "Message", "Container Log",
+                            "Source Log", "Provider", "Record ID", "Message", "Raw Values", "Container Log",
                             "Collector Computer"
                         },
                         options);

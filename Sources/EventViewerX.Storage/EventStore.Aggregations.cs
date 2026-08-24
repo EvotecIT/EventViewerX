@@ -97,88 +97,94 @@ public sealed partial class EventStore {
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
+        EventAggregationResult? pushed = await session
+            .RunInTransactionAsync<EventAggregationResult?>(async (transaction, token) => {
+                if (await ContainsNonAsciiAggregationTextAsync(
+                        transaction,
+                        filter,
+                        aggregation,
+                        token).ConfigureAwait(false)) {
+                    return null;
+                }
 
-        if (await ContainsNonAsciiAggregationTextAsync(
-                session,
-                filter,
-                aggregation,
-                cancellationToken).ConfigureAwait(false)) {
+                object? inputValue = await transaction.ExecuteScalarAsync(
+                    BuildCountSql(filter),
+                    filter.Parameters,
+                    token).ConfigureAwait(false);
+                long inputRows = Convert.ToInt64(inputValue, CultureInfo.InvariantCulture);
+                if (inputRows == 0) {
+                    return new EventAggregationResult(
+                        aggregation,
+                        Array.Empty<EventAggregationRow>(),
+                        EventAggregationInputCompleteness.Complete,
+                        aggregationComplete: true,
+                        diagnostic: null,
+                        EventAggregationExecutionMode.SqlitePushdown,
+                        inputRows: 0);
+                }
+
+                _ = TryGetBoundedGroupingIndex(aggregation, out string? groupingIndex);
+                SqlAggregationCommand command = BuildAggregationCommand(
+                    filter,
+                    aggregation,
+                    groupingIndex);
+                IReadOnlyList<EventAggregationRow> pushedRows = await transaction.QueryAsListAsync(
+                    command.Sql,
+                    record => MapAggregationRow(record, aggregation, command),
+                    command.Parameters,
+                    cancellationToken: token).ConfigureAwait(false);
+                if (pushedRows.Count > aggregation.MaximumGroups) {
+                    return new EventAggregationResult(
+                        aggregation,
+                        Array.Empty<EventAggregationRow>(),
+                        EventAggregationInputCompleteness.Complete,
+                        aggregationComplete: false,
+                        $"Aggregation state exceeded MaximumGroups {aggregation.MaximumGroups:N0}.",
+                        EventAggregationExecutionMode.SqlitePushdown,
+                        inputRows);
+                }
+                if (pushedRows.Any(row => aggregation.Measures.Any(measure =>
+                        measure.Operation == EventAggregationOperation.DistinctCount &&
+                        Convert.ToInt64(row.Measures[measure.OutputName!], CultureInfo.InvariantCulture) >
+                        aggregation.MaximumDistinctValues))) {
+                    return new EventAggregationResult(
+                        aggregation,
+                        Array.Empty<EventAggregationRow>(),
+                        EventAggregationInputCompleteness.Complete,
+                        aggregationComplete: false,
+                        $"A distinct measure exceeded MaximumDistinctValues {aggregation.MaximumDistinctValues:N0}.",
+                        EventAggregationExecutionMode.SqlitePushdown,
+                        inputRows);
+                }
+                long stateBytes = EstimateAggregationStateBytes(pushedRows, aggregation);
+                if (stateBytes > aggregation.MaximumStateBytes) {
+                    return new EventAggregationResult(
+                        aggregation,
+                        Array.Empty<EventAggregationRow>(),
+                        EventAggregationInputCompleteness.Complete,
+                        aggregationComplete: false,
+                        $"Aggregation state exceeded MaximumStateBytes {aggregation.MaximumStateBytes:N0}.",
+                        EventAggregationExecutionMode.SqlitePushdown,
+                        inputRows);
+                }
+                EventAggregationRow[] selected = ApplyStoredTop(pushedRows, aggregation);
+                return new EventAggregationResult(
+                    aggregation,
+                    selected,
+                    EventAggregationInputCompleteness.Complete,
+                    aggregationComplete: true,
+                    diagnostic: null,
+                    EventAggregationExecutionMode.SqlitePushdown,
+                    inputRows);
+            }, cancellationToken).ConfigureAwait(false);
+        if (pushed == null) {
             return await AggregateManagedStreamingAsync(
                     snapshot,
                     aggregation,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        object? inputValue = await session.ExecuteScalarAsync(
-            BuildCountSql(filter),
-            filter.Parameters,
-            cancellationToken).ConfigureAwait(false);
-        long inputRows = Convert.ToInt64(inputValue, CultureInfo.InvariantCulture);
-        if (inputRows == 0) {
-            return new EventAggregationResult(
-                aggregation,
-                Array.Empty<EventAggregationRow>(),
-                EventAggregationInputCompleteness.Complete,
-                aggregationComplete: true,
-                diagnostic: null,
-                EventAggregationExecutionMode.SqlitePushdown,
-                inputRows: 0);
-        }
-
-        _ = TryGetBoundedGroupingIndex(aggregation, out string? groupingIndex);
-        SqlAggregationCommand command = BuildAggregationCommand(
-            filter,
-            aggregation,
-            groupingIndex);
-        IReadOnlyList<EventAggregationRow> pushedRows = await session.QueryAsListAsync(
-            command.Sql,
-            record => MapAggregationRow(record, aggregation, command),
-            command.Parameters,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (pushedRows.Count > aggregation.MaximumGroups) {
-            return new EventAggregationResult(
-                aggregation,
-                Array.Empty<EventAggregationRow>(),
-                EventAggregationInputCompleteness.Complete,
-                aggregationComplete: false,
-                $"Aggregation state exceeded MaximumGroups {aggregation.MaximumGroups:N0}.",
-                EventAggregationExecutionMode.SqlitePushdown,
-                inputRows);
-        }
-        if (pushedRows.Any(row => aggregation.Measures.Any(measure =>
-                measure.Operation == EventAggregationOperation.DistinctCount &&
-                Convert.ToInt64(row.Measures[measure.OutputName!], CultureInfo.InvariantCulture) >
-                aggregation.MaximumDistinctValues))) {
-            return new EventAggregationResult(
-                aggregation,
-                Array.Empty<EventAggregationRow>(),
-                EventAggregationInputCompleteness.Complete,
-                aggregationComplete: false,
-                $"A distinct measure exceeded MaximumDistinctValues {aggregation.MaximumDistinctValues:N0}.",
-                EventAggregationExecutionMode.SqlitePushdown,
-                inputRows);
-        }
-        long stateBytes = EstimateAggregationStateBytes(pushedRows, aggregation);
-        if (stateBytes > aggregation.MaximumStateBytes) {
-            return new EventAggregationResult(
-                aggregation,
-                Array.Empty<EventAggregationRow>(),
-                EventAggregationInputCompleteness.Complete,
-                aggregationComplete: false,
-                $"Aggregation state exceeded MaximumStateBytes {aggregation.MaximumStateBytes:N0}.",
-                EventAggregationExecutionMode.SqlitePushdown,
-                inputRows);
-        }
-        EventAggregationRow[] selected = ApplyStoredTop(pushedRows, aggregation);
-        return new EventAggregationResult(
-            aggregation,
-            selected,
-            EventAggregationInputCompleteness.Complete,
-            aggregationComplete: true,
-            diagnostic: null,
-            EventAggregationExecutionMode.SqlitePushdown,
-            inputRows);
+        return pushed;
     }
 
     private static string? GetManagedAggregationReason(

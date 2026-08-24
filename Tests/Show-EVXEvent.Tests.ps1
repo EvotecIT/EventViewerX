@@ -59,6 +59,23 @@ Describe 'Show-EVXEvent' {
         Test-Path -LiteralPath $ContextPath | Should -BeFalse
     }
 
+    It 'validates occurrence options before opening persistent context' {
+        $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $ContextPath = Join-Path $TestDrive 'invalid-occurrence-context.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -Path $FixturePath `
+                -ContextStorePath $ContextPath `
+                -DuplicateMode Semantic `
+                -OccurrenceWindow ([TimeSpan]::FromSeconds(-1)) `
+                -PassThru `
+                -ErrorAction Stop
+        } | Should -Throw '*Window*'
+        Test-Path -LiteralPath $ContextPath | Should -BeFalse
+    }
+
     It 'rejects derived aggregation storage before writing another destination' {
         $FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
         $StorePath = Join-Path $TestDrive 'derived-aggregation.db'

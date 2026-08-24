@@ -46,8 +46,8 @@ public sealed partial class EventStore {
             session.ExecuteNonQuery(SchemaSql);
             ValidateSchemaVersion(session.ExecuteScalar(
                 "SELECT schema_version FROM evx_store_metadata WHERE singleton_id = 1;"));
-            EnsureEventIdentitySchema(session);
             EnsureActivityMetadataSchema(session);
+            EnsureEventIdentitySchema(session);
             EnsureCheckpointIdentitySchema(session);
             _initialized = true;
         }
@@ -84,21 +84,34 @@ public sealed partial class EventStore {
             // EventStore instances and processes must not act on the same stale column snapshot.
             transaction.ExecuteNonQuery(
                 "UPDATE evx_store_metadata SET schema_version = schema_version WHERE singleton_id = 1;");
+            IReadOnlyList<string> metadataColumns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_store_metadata);",
+                static record => record.GetString(1));
+            if (!metadataColumns.Contains("event_identity_version", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_store_metadata ADD COLUMN event_identity_version INTEGER NOT NULL DEFAULT 1;");
+            }
             IReadOnlyList<string> columns = transaction.QueryAsList(
                 "PRAGMA table_info(evx_events);",
                 static record => record.GetString(1));
             bool originalKeyMissing = !columns.Contains("original_event_key", StringComparer.OrdinalIgnoreCase);
             bool transportKindMissing = !columns.Contains("transport_kind", StringComparer.OrdinalIgnoreCase);
-            if (originalKeyMissing || transportKindMissing) {
-                if (originalKeyMissing) {
-                    transaction.ExecuteNonQuery(
-                        "ALTER TABLE evx_events ADD COLUMN original_event_key TEXT NOT NULL DEFAULT ''; ");
-                }
-                if (transportKindMissing) {
-                    transaction.ExecuteNonQuery(
-                        "ALTER TABLE evx_events ADD COLUMN transport_kind INTEGER NOT NULL DEFAULT 2;");
-                }
+            if (originalKeyMissing) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_events ADD COLUMN original_event_key TEXT NOT NULL DEFAULT ''; ");
+            }
+            if (transportKindMissing) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_events ADD COLUMN transport_kind INTEGER NOT NULL DEFAULT 2;");
+            }
+            int identityVersion = Convert.ToInt32(
+                transaction.ExecuteScalar(
+                    "SELECT event_identity_version FROM evx_store_metadata WHERE singleton_id = 1;"),
+                CultureInfo.InvariantCulture);
+            if (originalKeyMissing || transportKindMissing || identityVersion < 2) {
                 MigrateEventIdentity(transaction);
+                transaction.ExecuteNonQuery(
+                    "UPDATE evx_store_metadata SET event_identity_version = 2 WHERE singleton_id = 1;");
             }
         });
         session.ExecuteNonQuery(
@@ -125,7 +138,8 @@ public sealed partial class EventStore {
     private static void MigrateEventIdentity(SQLiteSession session) {
         IReadOnlyList<LegacyIdentityRow> rows = session.QueryAsList(
             @"SELECT event_key, definition_name, event_time_utc, event_id, record_id, provider,
-                     source_log, container_log, source_computer, collector_computer, values_json
+                     source_log, container_log, source_computer, collector_computer,
+                     activity_id, related_activity_id, values_json
               FROM evx_events;",
             static record => new LegacyIdentityRow(
                 record.GetString(0),
@@ -138,7 +152,9 @@ public sealed partial class EventStore {
                 record.GetString(7),
                 record.GetString(8),
                 record.GetString(9),
-                JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(record.GetString(10), JsonOptions) ??
+                record.IsDBNull(10) ? null : record.GetString(10),
+                record.IsDBNull(11) ? null : record.GetString(11),
+                JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(record.GetString(12), JsonOptions) ??
                     new Dictionary<string, JsonElement>()));
         foreach (LegacyIdentityRow row in rows) {
             var candidate = new StoredIdentityCandidate(
@@ -149,6 +165,8 @@ public sealed partial class EventStore {
                 row.ContainerLog,
                 row.SourceComputer,
                 row.CollectorComputer,
+                row.ActivityId,
+                row.RelatedActivityId,
                 row.Values);
             string originalKey = CreateOriginalEventKey(candidate, row.DefinitionName);
             EventTransportKind transport = GetTransportKind(
@@ -188,6 +206,7 @@ public sealed partial class EventStore {
 CREATE TABLE IF NOT EXISTS evx_store_metadata (
     singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version INTEGER NOT NULL,
+    event_identity_version INTEGER NOT NULL DEFAULT 2,
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_store_metadata (singleton_id, schema_version, created_utc)
@@ -260,6 +279,8 @@ CREATE TABLE IF NOT EXISTS evx_checkpoints (
             string containerLog,
             string sourceComputer,
             string collectorComputer,
+            string? activityId,
+            string? relatedActivityId,
             IReadOnlyDictionary<string, JsonElement> values) {
 
             EventKey = eventKey;
@@ -272,6 +293,8 @@ CREATE TABLE IF NOT EXISTS evx_checkpoints (
             ContainerLog = containerLog;
             SourceComputer = sourceComputer;
             CollectorComputer = collectorComputer;
+            ActivityId = activityId;
+            RelatedActivityId = relatedActivityId;
             Values = values;
         }
 
@@ -285,6 +308,8 @@ CREATE TABLE IF NOT EXISTS evx_checkpoints (
         internal string ContainerLog { get; }
         internal string SourceComputer { get; }
         internal string CollectorComputer { get; }
+        internal string? ActivityId { get; }
+        internal string? RelatedActivityId { get; }
         internal IReadOnlyDictionary<string, JsonElement> Values { get; }
     }
 }
