@@ -31,13 +31,16 @@ public static class EventOccurrenceEngine {
         options ??= new EventOccurrenceOptions();
         Validate(options);
         var bounded = new List<EventReportRow>(Math.Min(options.MaximumObservations, 4096));
+        long observationsEvaluated = 0;
         foreach (EventReportRow observation in observations) {
             if (observation == null) {
                 throw new ArgumentException("Observations cannot contain null rows.", nameof(observations));
             }
+            observationsEvaluated++;
             if (bounded.Count >= options.MaximumObservations) {
                 return Incomplete(
-                    $"Observation count exceeds MaximumObservations {options.MaximumObservations:N0}.");
+                    $"Observation count exceeds MaximumObservations {options.MaximumObservations:N0}.",
+                    observationsEvaluated);
             }
             bounded.Add(observation);
         }
@@ -50,14 +53,19 @@ public static class EventOccurrenceEngine {
             : transport;
         if (grouped.Count > options.MaximumGroups) {
             return Incomplete(
-                $"Occurrence group count {grouped.Count:N0} exceeds MaximumGroups {options.MaximumGroups:N0}.");
+                $"Occurrence group count {grouped.Count:N0} exceeds MaximumGroups {options.MaximumGroups:N0}.",
+                observationsEvaluated);
         }
         EventOccurrenceGroup[] results = grouped
             .Select(CreateResult)
             .OrderBy(static group => group.Representative.TimeCreated)
             .ThenBy(static group => group.Identity, StringComparer.Ordinal)
             .ToArray();
-        return new EventOccurrenceResult(results, isComplete: true, diagnostic: null);
+        return new EventOccurrenceResult(
+            results,
+            isComplete: true,
+            diagnostic: null,
+            observationsEvaluated);
     }
 
     private static List<WorkingGroup> CreateSingletons(IReadOnlyList<EventReportRow> source) =>
@@ -365,8 +373,8 @@ public static class EventOccurrenceEngine {
             .Select(static value => value.ToString("x2", CultureInfo.InvariantCulture)));
     }
 
-    private static EventOccurrenceResult Incomplete(string diagnostic) =>
-        new(Array.Empty<EventOccurrenceGroup>(), isComplete: false, diagnostic);
+    private static EventOccurrenceResult Incomplete(string diagnostic, long observationsEvaluated) =>
+        new(Array.Empty<EventOccurrenceGroup>(), isComplete: false, diagnostic, observationsEvaluated);
 
     private static void Validate(EventOccurrenceOptions options) {
         if (!Enum.IsDefined(typeof(EventDuplicateMode), options.Mode)) {

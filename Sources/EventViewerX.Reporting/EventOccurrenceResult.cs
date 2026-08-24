@@ -5,11 +5,13 @@ public sealed class EventOccurrenceResult {
     internal EventOccurrenceResult(
         IReadOnlyList<EventOccurrenceGroup> groups,
         bool isComplete,
-        string? diagnostic) {
+        string? diagnostic,
+        long observationsEvaluated) {
 
         Groups = groups;
         IsComplete = isComplete;
         Diagnostic = diagnostic;
+        ObservationsEvaluated = observationsEvaluated;
     }
 
     /// <summary>Derived occurrence groups, empty when a safety bound is exceeded.</summary>
@@ -20,4 +22,10 @@ public sealed class EventOccurrenceResult {
 
     /// <summary>Reason an incomplete result was withheld.</summary>
     public string? Diagnostic { get; }
+
+    /// <summary>
+    /// Number of source observations evaluated, including the single proof observation that establishes
+    /// a <see cref="EventOccurrenceOptions.MaximumObservations"/> overflow.
+    /// </summary>
+    public long ObservationsEvaluated { get; }
 }

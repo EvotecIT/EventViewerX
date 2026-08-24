@@ -1409,7 +1409,31 @@ public sealed class TestEventAnalysis {
 
         Assert.False(result.IsComplete);
         Assert.Equal(3, enumerated);
+        Assert.Equal(3, result.ObservationsEvaluated);
         Assert.Contains("MaximumObservations", result.Diagnostic, StringComparison.Ordinal);
+
+        EventReport report = EventOccurrenceReportFactory.Create(result);
+        Assert.Equal(3, report.EventsScanned);
+    }
+
+    [Fact]
+    public void OccurrenceGroupBoundRetainsEvaluatedObservationCountWithoutSourceReport() {
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] {
+                CreateRow(1, new Dictionary<string, object?>()),
+                CreateRow(2, new Dictionary<string, object?>())
+            },
+            new EventOccurrenceOptions {
+                Mode = EventDuplicateMode.None,
+                MaximumGroups = 1
+            });
+
+        Assert.False(result.IsComplete);
+        Assert.Equal(2, result.ObservationsEvaluated);
+        Assert.Contains("MaximumGroups", result.Diagnostic, StringComparison.Ordinal);
+
+        EventReport report = EventOccurrenceReportFactory.Create(result);
+        Assert.Equal(2, report.EventsScanned);
     }
 
     [Fact]

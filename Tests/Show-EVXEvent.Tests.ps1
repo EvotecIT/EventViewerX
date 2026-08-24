@@ -475,4 +475,21 @@ Describe 'Show-EVXEvent' {
         Test-Path -LiteralPath $StorePath | Should -BeFalse
         Test-Path -LiteralPath $HtmlPath | Should -BeFalse
     }
+
+    It 'rejects occurrence persistence before querying persistent context' {
+        $ContextStorePath = Join-Path $TestDrive 'not-created-context.db'
+        $StorePath = Join-Path $TestDrive 'not-created-occurrence-copy.db'
+
+        {
+            Show-EVXEvent `
+                -Type GroupPolicyDirectoryAudit `
+                -ContextStorePath $ContextStorePath `
+                -DuplicateMode Semantic `
+                -StorePath $StorePath `
+                -PassThru
+        } | Should -Throw '*Occurrence rows are derived output*'
+
+        Test-Path -LiteralPath $ContextStorePath | Should -BeFalse
+        Test-Path -LiteralPath $StorePath | Should -BeFalse
+    }
 }

@@ -282,6 +282,11 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
                 "Store source events first, then render summaries from that store.",
                 nameof(StorePath));
         }
+        if (occurrenceOptions != null && !string.IsNullOrWhiteSpace(StorePath)) {
+            throw new PSArgumentException(
+                "Occurrence rows are derived output and cannot be written into event history. Store source events instead.",
+                nameof(StorePath));
+        }
         EventReport report;
         EventAggregationResult? aggregation = null;
         if (ParameterSetName == "Input") {
@@ -446,10 +451,9 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             report = EventOccurrenceReportFactory.Create(occurrences, report, Title);
         }
 
-        if (!string.IsNullOrWhiteSpace(StorePath) &&
-            (aggregation != null || occurrences != null)) {
+        if (!string.IsNullOrWhiteSpace(StorePath) && aggregation != null) {
             throw new PSArgumentException(
-                "Aggregation and occurrence rows are derived output and cannot be written into event history. Store source events instead.",
+                "Aggregation rows are derived output and cannot be written into event history. Store source events instead.",
                 nameof(StorePath));
         }
 

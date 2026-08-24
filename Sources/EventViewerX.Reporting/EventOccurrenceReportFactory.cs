@@ -91,8 +91,7 @@ public static class EventOccurrenceReportFactory {
             string.IsNullOrWhiteSpace(title) ? "EventViewerX occurrences" : title,
             coverage: sourceReport?.Coverage,
             generatedAt: sourceReport?.GeneratedAt,
-            eventsScanned: sourceReport?.EventsScanned ??
-                result.Groups.Sum(static group => (long)group.ObservationCount),
+            eventsScanned: sourceReport?.EventsScanned ?? result.ObservationsEvaluated,
             scanLimitReached: !isComplete,
             completenessDiagnostic: diagnostic);
     }
