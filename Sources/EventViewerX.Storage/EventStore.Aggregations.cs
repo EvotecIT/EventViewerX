@@ -530,7 +530,9 @@ public sealed partial class EventStore {
         }
         object value = record.GetValue(index);
         return field.ValueKind switch {
-            StoredAggregationValueKind.Integer => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+            StoredAggregationValueKind.Int32 => Convert.ToInt32(value, CultureInfo.InvariantCulture),
+            StoredAggregationValueKind.Int64 => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+            StoredAggregationValueKind.Byte => Convert.ToByte(value, CultureInfo.InvariantCulture),
             StoredAggregationValueKind.DateTime => ParseUtc(Convert.ToString(value, CultureInfo.InvariantCulture)!),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture)
         };
@@ -591,15 +593,15 @@ public sealed partial class EventStore {
         var fields = new Dictionary<string, StoredAggregationField>(StringComparer.OrdinalIgnoreCase);
         Add("definition_name", StoredAggregationValueKind.Text, "Type", "TypeName");
         Add("event_time_utc", StoredAggregationValueKind.DateTime, "TimeCreated", "When");
-        Add("event_id", StoredAggregationValueKind.Integer, "EventId", "Id");
-        Add("record_id", StoredAggregationValueKind.Integer, "RecordId", "EventRecordId");
+        Add("event_id", StoredAggregationValueKind.Int32, "EventId", "Id");
+        Add("record_id", StoredAggregationValueKind.Int64, "RecordId", "EventRecordId");
         Add("provider", StoredAggregationValueKind.Text, "Provider", "ProviderName");
         Add("source_log", StoredAggregationValueKind.Text, "SourceLog", "SourceLogName", "LogName");
         Add("container_log", StoredAggregationValueKind.Text, "ContainerLog", "ContainerLogName");
         Add("source_computer", StoredAggregationValueKind.Text, "SourceComputer", "MachineName", "Computer");
         Add("collector_computer", StoredAggregationValueKind.Text, "CollectorComputer");
         Add("level", StoredAggregationValueKind.Text, "Level", "LevelDisplayName");
-        Add("level_value", StoredAggregationValueKind.Integer, "LevelValue");
+        Add("level_value", StoredAggregationValueKind.Byte, "LevelValue");
         Add("message", StoredAggregationValueKind.Text, "Message");
         return fields;
 
@@ -623,7 +625,9 @@ public sealed partial class EventStore {
 
     private enum StoredAggregationValueKind {
         Text,
-        Integer,
+        Int32,
+        Int64,
+        Byte,
         DateTime
     }
 

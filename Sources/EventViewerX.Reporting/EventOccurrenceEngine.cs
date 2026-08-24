@@ -126,12 +126,11 @@ public static class EventOccurrenceEngine {
         var candidates = new List<PolicyCandidate>();
         var retained = new List<WorkingGroup>();
         foreach (WorkingGroup group in source) {
-            EventReportRow representative = SelectRepresentative(group.Observations);
             PolicyCandidate? candidate = null;
             foreach (IEventOccurrencePolicy policy in Policies) {
                 IReadOnlyList<EventOccurrencePolicyIdentity> identities = GetPolicyIdentities(
                     policy,
-                    representative);
+                    group.Observations);
                 if (identities.Count > 0) {
                     candidate = new PolicyCandidate(group, policy, identities);
                     break;
@@ -180,14 +179,24 @@ public static class EventOccurrenceEngine {
 
     private static IReadOnlyList<EventOccurrencePolicyIdentity> GetPolicyIdentities(
         IEventOccurrencePolicy policy,
-        EventReportRow representative) {
+        IReadOnlyList<EventReportRow> observations) {
 
-        if (policy is IMultiIdentityEventOccurrencePolicy multiIdentity) {
-            return multiIdentity.GetIdentities(representative);
+        var identities = new SortedDictionary<string, EventOccurrencePolicyIdentity>(StringComparer.Ordinal);
+        foreach (EventReportRow observation in observations) {
+            IReadOnlyList<EventOccurrencePolicyIdentity> current =
+                policy is IMultiIdentityEventOccurrencePolicy multiIdentity
+                    ? multiIdentity.GetIdentities(observation)
+                    : policy.TryGetIdentity(observation, out string singleIdentity, out string reason)
+                        ? new[] { new EventOccurrencePolicyIdentity(singleIdentity, reason) }
+                        : Array.Empty<EventOccurrencePolicyIdentity>();
+            foreach (EventOccurrencePolicyIdentity policyIdentity in current) {
+                if (!identities.TryGetValue(policyIdentity.Identity, out EventOccurrencePolicyIdentity? existing) ||
+                    string.CompareOrdinal(policyIdentity.Reason, existing.Reason) < 0) {
+                    identities[policyIdentity.Identity] = policyIdentity;
+                }
+            }
         }
-        return policy.TryGetIdentity(representative, out string identity, out string reason)
-            ? new[] { new EventOccurrencePolicyIdentity(identity, reason) }
-            : Array.Empty<EventOccurrencePolicyIdentity>();
+        return identities.Values.ToArray();
     }
 
     private static WorkingGroup CreateSemanticGroup(IReadOnlyList<PolicyCandidate> candidates) {

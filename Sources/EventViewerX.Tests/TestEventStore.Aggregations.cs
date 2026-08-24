@@ -6,6 +6,28 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task SqlitePushdownPreservesNativeEventIdGroupType() {
+        string path = CreateStorePath();
+        try {
+            EventReport report = CreateReport(
+                (new DateTime(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc), 1, "Alice"));
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            var definition = new EventAggregationDefinition { GroupBy = new[] { "EventId" } };
+
+            EventAggregationResult pushed = await store.AggregateAsync(new EventStoreQuery(), definition);
+            EventAggregationResult managed = EventAggregationEngine.Aggregate(report, definition);
+
+            Assert.Equal(EventAggregationExecutionMode.SqlitePushdown, pushed.ExecutionMode);
+            Assert.IsType<int>(Assert.Single(pushed.Rows).Group["EventId"]);
+            Assert.IsType<int>(Assert.Single(managed.Rows).Group["EventId"]);
+            Assert.Equal(managed.Rows[0].Group["EventId"], pushed.Rows[0].Group["EventId"]);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task StoreAwareAggregationPlanMatchesUnicodeFallbackOwner() {
         string asciiPath = CreateStorePath();
         string unicodePath = CreateStorePath();

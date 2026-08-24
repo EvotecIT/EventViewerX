@@ -363,6 +363,19 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void UnspecifiedActiveDirectoryFileTimeUsesFixedUtcSemantics() {
+        DateTime unspecified = new(2026, 8, 23, 10, 15, 30, DateTimeKind.Unspecified);
+
+        EventNormalizedValue normalized = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> { ["LastLogon"] = unspecified }))["LastLogon"];
+
+        Assert.Equal(DateTime.SpecifyKind(unspecified, DateTimeKind.Utc), normalized.Value);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized.Outcome);
+        Assert.Equal("2026-08-23T10:15:30.0000000Z", normalized.DisplayValue);
+    }
+
+    [Fact]
     public void MissingActiveDirectoryFileTimeValuesRemainUnchanged() {
         IReadOnlyDictionary<string, EventNormalizedValue> normalized =
             EventValueNormalizationEngine.Normalize(CreateRow(
@@ -466,6 +479,42 @@ public sealed class TestEventAnalysis {
 
         EventOccurrenceGroup group = Assert.Single(result.Groups);
         Assert.Equal(2, group.ObservationCount);
+        Assert.Equal("causal-identifier", group.PolicyName);
+    }
+
+    [Fact]
+    public void SemanticGroupingInspectsCausalIdentityOnEveryTransportCopy() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        Guid activityId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        EventReportRow direct = CreateRow(
+            1,
+            new Dictionary<string, object?>(),
+            timestamp,
+            source: "dc1.ad.evotec.xyz",
+            collector: "dc1.ad.evotec.xyz",
+            container: "Security");
+        EventReportRow forwarded = CreateRow(
+            1,
+            new Dictionary<string, object?>(),
+            timestamp,
+            source: "dc1.ad.evotec.xyz",
+            collector: "wec1.ad.evotec.xyz",
+            container: "ForwardedEvents");
+        EventReportRow related = CreateRow(
+            2,
+            new Dictionary<string, object?>(),
+            timestamp.AddSeconds(1),
+            source: "dc1.ad.evotec.xyz",
+            collector: "dc1.ad.evotec.xyz",
+            container: "Security");
+        forwarded.ActivityId = activityId;
+        related.RelatedActivityId = activityId;
+
+        EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { direct, forwarded, related },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+        Assert.Equal(3, group.ObservationCount);
         Assert.Equal("causal-identifier", group.PolicyName);
     }
 

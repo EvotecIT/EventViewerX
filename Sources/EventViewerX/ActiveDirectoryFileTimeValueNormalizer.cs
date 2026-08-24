@@ -24,7 +24,11 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
             return EventValueNormalizer.Unchanged(context);
         }
         if (context.RawValue is DateTime date) {
-            DateTime utc = date.ToUniversalTime();
+            DateTime utc = date.Kind switch {
+                DateTimeKind.Utc => date,
+                DateTimeKind.Local => date.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(date, DateTimeKind.Utc)
+            };
             return EventValueNormalizer.Create(
                 context,
                 utc,
