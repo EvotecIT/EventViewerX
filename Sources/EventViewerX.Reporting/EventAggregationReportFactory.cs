@@ -96,7 +96,8 @@ public static class EventAggregationReportFactory {
             new[] { schema },
             string.IsNullOrWhiteSpace(title) ? "EventViewerX aggregation" : title,
             eventsScanned: result.InputRows,
-            scanLimitReached: !result.IsComplete);
+            scanLimitReached: !result.IsComplete,
+            completenessDiagnostic: result.Diagnostic);
     }
 
     private static EventReportColumnSchema Column(string name, string displayName, Type type) => new() {

@@ -150,6 +150,12 @@ internal static class BoundedNativeOperation {
                 remainingTimeout,
                 cancellationToken);
         } catch (AggregateException) {
+            if (Volatile.Read(ref completedAfterMilliseconds) > timeoutMilliseconds) {
+                ObserveLateResult(
+                    task,
+                    lateResultCleanup);
+                throw new TimeoutException(timeoutMessage);
+            }
             return task.GetAwaiter().GetResult();
         } catch (OperationCanceledException) {
             ObserveLateResult(

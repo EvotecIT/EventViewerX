@@ -31,6 +31,9 @@ internal sealed class DirectoryOperationValueNormalizer : IEventValueNormalizer 
     public EventNormalizedValue Normalize(EventValueContext context) {
         string formatted = EventValueNormalizer.Format(context.RawValue);
         string raw = formatted.Trim();
+        if (raw.Length == 0) {
+            return EventValueNormalizer.Unchanged(context);
+        }
         if (Operations.TryGetValue(raw, out string? value)) {
             return EventValueNormalizer.Create(
                 context,

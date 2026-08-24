@@ -363,6 +363,22 @@ public sealed class TestNativeEventEngineContracts {
     }
 
     [Fact]
+    public void BoundedNativeOperationClassifiesLateFaultsAsTimeouts() {
+        TimeoutException exception = Assert.Throws<TimeoutException>(() =>
+            Native.BoundedNativeOperation.Execute<object>(
+                () => {
+                    Thread.Sleep(75);
+                    throw new InvalidOperationException("late native failure");
+                },
+                50,
+                "operation timed out",
+                CancellationToken.None,
+                operationAccepted: () => Thread.Sleep(150)));
+
+        Assert.Equal("operation timed out", exception.Message);
+    }
+
+    [Fact]
     public void BookmarkMaterializationIsExplicitForQueryProjections() {
         if (!OperatingSystem.IsWindows()) return;
         string path = GetFixturePath();

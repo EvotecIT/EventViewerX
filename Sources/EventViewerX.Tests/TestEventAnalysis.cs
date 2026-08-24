@@ -258,6 +258,28 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void MissingDirectoryAndGeneralizedTimeValuesRemainUnchanged() {
+        EventReportRow row = CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["OperationType"] = null,
+                ["WhenCreated"] = " "
+            });
+        row.Type = nameof(EventType.GroupPolicyDirectoryAudit);
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(row);
+
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["OperationType"].Outcome);
+        Assert.Null(normalized["OperationType"].Value);
+        Assert.Equal("identity", normalized["OperationType"].Normalizer);
+        Assert.Empty(normalized["OperationType"].Warnings);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["WhenCreated"].Outcome);
+        Assert.Equal(" ", normalized["WhenCreated"].Value);
+        Assert.Equal("identity", normalized["WhenCreated"].Normalizer);
+        Assert.Empty(normalized["WhenCreated"].Warnings);
+    }
+
+    [Fact]
     public void MultiValueCanonicalCasingIsIndependentOfInputOrder() {
         EventNormalizedValue forward = EventValueNormalizationEngine.Normalize(CreateRow(
             1,
@@ -1180,6 +1202,7 @@ public sealed class TestEventAnalysis {
         Assert.Equal(false, metadata.Values["AggregationComplete"]);
         Assert.Equal(bounded.Diagnostic, metadata.Values["Diagnostic"]);
         Assert.Equal(bounded.InputRows, metadata.Values["InputRows"]);
+        Assert.Equal(bounded.Diagnostic, report.CompletenessDiagnostic);
     }
 
     [Fact]

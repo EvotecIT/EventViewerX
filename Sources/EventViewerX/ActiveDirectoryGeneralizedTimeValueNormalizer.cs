@@ -36,6 +36,9 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
             return Create(context, offset.UtcDateTime, EventNormalizationOutcome.Normalized);
         }
         string raw = EventValueNormalizer.Format(context.RawValue).Trim();
+        if (raw.Length == 0) {
+            return EventValueNormalizer.Unchanged(context);
+        }
         Match match = GeneralizedTime.Match(raw);
         if (!match.Success || !DateTime.TryParseExact(
                 match.Groups["date"].Value,
