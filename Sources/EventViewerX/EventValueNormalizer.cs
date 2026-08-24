@@ -39,11 +39,17 @@ internal static class EventValueNormalizer {
 
     internal static string Format(object? value) => value switch {
         null => string.Empty,
-        DateTime date => date.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+        DateTime date => ToDeterministicUtc(date).ToString("O", CultureInfo.InvariantCulture),
         DateTimeOffset date => date.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
         IEnumerable values when value is not string => string.Join(", ", Enumerate(values)),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
         _ => value.ToString() ?? string.Empty
+    };
+
+    private static DateTime ToDeterministicUtc(DateTime value) => value.Kind switch {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
     };
 
     private static EventNormalizedValueKind ResolveKind(object? value) => value switch {

@@ -447,8 +447,10 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
                     "DuplicateMode applies to source observations before aggregation or stored summaries, not to already-derived rows.",
                     nameof(DuplicateMode));
             }
-            occurrences = EventOccurrenceEngine.Group(report.Rows, occurrenceOptions);
-            report = EventOccurrenceReportFactory.Create(occurrences, report, Title);
+            EventReport sourceReport = report;
+            occurrences = EventOccurrenceEngine.Group(sourceReport.Rows, occurrenceOptions);
+            report = EventOccurrenceReportFactory.Create(occurrences, sourceReport, Title);
+            occurrences = EventOccurrenceReportFactory.ComposeSourceCompleteness(occurrences, sourceReport);
         }
 
         if (!string.IsNullOrWhiteSpace(StorePath) && aggregation != null) {

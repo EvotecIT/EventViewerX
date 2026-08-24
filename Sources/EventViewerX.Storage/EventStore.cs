@@ -181,7 +181,7 @@ public sealed partial class EventStore {
                     row.ActivityId,
                     row.RelatedActivityId,
                     row.Values);
-                string originalKey = CreateOriginalEventKey(candidate, row.DefinitionName);
+                string originalKey = CreateOriginalEventKey(candidate, row.DefinitionName, row.RecordId);
                 EventTransportKind transport = GetTransportKind(
                     EventLogQuerySourceKind.Auto,
                     row.SourceLog,

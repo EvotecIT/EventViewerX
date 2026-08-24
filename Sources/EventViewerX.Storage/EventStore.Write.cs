@@ -264,7 +264,7 @@ public sealed partial class EventStore {
         long? recordId) {
 
         string identity = string.Join("\0", new[] {
-            CreateOriginalEventKey(candidate, definitionName),
+            CreateOriginalEventKey(candidate, definitionName, recordId),
             recordId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             NormalizeSqliteNoCaseIdentity(candidate.ContainerLog),
             NormalizeSqliteNoCaseIdentity(candidate.CollectorComputer)
@@ -273,33 +273,65 @@ public sealed partial class EventStore {
     }
 
     private static string CreateOriginalEventKey(EventReportRow row, string definitionName) {
-        string identity = string.Join("\0", new[] {
-            NormalizeSqliteNoCaseIdentity(row.SourceComputer),
-            NormalizeSqliteNoCaseIdentity(row.SourceLog),
-            row.EventId.ToString(CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(row.Provider),
+        string identity = CreateOriginalEventIdentity(
+            row.SourceComputer,
+            row.SourceLog,
+            row.EventId,
+            row.Provider,
             row.TimeCreated.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(definitionName),
-            row.ActivityId?.ToString("D") ?? string.Empty,
-            row.RelatedActivityId?.ToString("D") ?? string.Empty,
-            CreateSemanticIdentity(row.Values)
-        });
+            definitionName,
+            row.RecordId,
+            row.ActivityId?.ToString("D"),
+            row.RelatedActivityId?.ToString("D"),
+            CreateSemanticIdentity(row.Values));
         return CreateSha256(identity);
     }
 
-    private static string CreateOriginalEventKey(StoredIdentityCandidate candidate, string definitionName) {
-        string identity = string.Join("\0", new[] {
-            NormalizeSqliteNoCaseIdentity(candidate.SourceComputer),
-            NormalizeSqliteNoCaseIdentity(candidate.SourceLog),
-            candidate.EventId.ToString(CultureInfo.InvariantCulture),
-            NormalizeSqliteNoCaseIdentity(candidate.Provider),
+    private static string CreateOriginalEventKey(
+        StoredIdentityCandidate candidate,
+        string definitionName,
+        long? recordId) {
+
+        string identity = CreateOriginalEventIdentity(
+            candidate.SourceComputer,
+            candidate.SourceLog,
+            candidate.EventId,
+            candidate.Provider,
             candidate.TimeCreatedUtc,
-            NormalizeSqliteNoCaseIdentity(definitionName),
-            candidate.ActivityId ?? string.Empty,
-            candidate.RelatedActivityId ?? string.Empty,
-            CreateSemanticIdentity(candidate.Values)
-        });
+            definitionName,
+            recordId,
+            candidate.ActivityId,
+            candidate.RelatedActivityId,
+            CreateSemanticIdentity(candidate.Values));
         return CreateSha256(identity);
+    }
+
+    private static string CreateOriginalEventIdentity(
+        string? sourceComputer,
+        string? sourceLog,
+        int eventId,
+        string? provider,
+        string timeCreatedUtc,
+        string definitionName,
+        long? recordId,
+        string? activityId,
+        string? relatedActivityId,
+        string semanticIdentity) {
+
+        var components = new List<string> {
+            NormalizeSqliteNoCaseIdentity(sourceComputer),
+            NormalizeSqliteNoCaseIdentity(sourceLog),
+            eventId.ToString(CultureInfo.InvariantCulture),
+            NormalizeSqliteNoCaseIdentity(provider),
+            timeCreatedUtc,
+            NormalizeSqliteNoCaseIdentity(definitionName)
+        };
+        if (!recordId.HasValue) {
+            components.Add(activityId ?? string.Empty);
+            components.Add(relatedActivityId ?? string.Empty);
+        }
+        components.Add(semanticIdentity);
+        return string.Join("\0", components);
     }
 
     private static string CreateSha256(string identity) {

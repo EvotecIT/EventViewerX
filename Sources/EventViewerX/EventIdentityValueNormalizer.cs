@@ -61,7 +61,9 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
                     EventNormalizedValueKind.ObjectIdentifier,
                     Name,
                     Version,
-                    EventNormalizationOutcome.Unchanged)
+                    string.Equals(formatted, raw, StringComparison.Ordinal)
+                        ? EventNormalizationOutcome.Unchanged
+                        : EventNormalizationOutcome.Normalized)
                 : Malformed(context, raw, EventNormalizedValueKind.ObjectIdentifier, "OID");
         }
         string distinguishedName = NormalizeDistinguishedName(formatted);

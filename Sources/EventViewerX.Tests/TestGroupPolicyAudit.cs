@@ -77,14 +77,17 @@ public sealed class TestGroupPolicyAudit {
             "displayName",
             "CN={FB6A0E91-F93D-4428-B29D-2FDCC3A95425},CN=Policies,CN=System,DC=ad,DC=evotec,DC=xyz",
             activityId: activityId,
-            relatedActivityId: relatedActivityId));
+            relatedActivityId: relatedActivityId,
+            readMode: EventReadMode.StructuredDataAndMessage));
 
         EventReportRow row = EventReportEngine.CreateRow(record);
 
         Assert.Equal(activityId, record.ActivityId);
         Assert.Equal(relatedActivityId, record.RelatedActivityId);
+        Assert.Equal("Group Policy provider message.", record.Message);
         Assert.Equal(activityId, row.ActivityId);
         Assert.Equal(relatedActivityId, row.RelatedActivityId);
+        Assert.Equal(record.Message, row.Message);
     }
 
     [Fact]
@@ -704,7 +707,8 @@ public sealed class TestGroupPolicyAudit {
         string operationType = "%%14674",
         DateTime? timeCreatedUtc = null,
         Guid? activityId = null,
-        Guid? relatedActivityId = null) {
+        Guid? relatedActivityId = null,
+        EventReadMode readMode = EventReadMode.StructuredData) {
 
         string xml = $$"""
             <Event>
@@ -736,7 +740,8 @@ public sealed class TestGroupPolicyAudit {
             bookmarkXml,
             timeCreatedUtc,
             activityId,
-            relatedActivityId);
+            relatedActivityId,
+            readMode);
     }
 
     private static EventObject CreateMovedSource(string oldObjectDn, string newObjectDn) {
@@ -779,7 +784,8 @@ public sealed class TestGroupPolicyAudit {
         string? bookmarkXml,
         DateTime? timeCreatedUtc,
         Guid? activityId = null,
-        Guid? relatedActivityId = null) {
+        Guid? relatedActivityId = null,
+        EventReadMode readMode = EventReadMode.StructuredData) {
 
         return new EventObject(
             new SyntheticEventRecord(
@@ -792,7 +798,7 @@ public sealed class TestGroupPolicyAudit {
                 activityId,
                 relatedActivityId),
             queriedMachine,
-            EventReadMode.StructuredData,
+            readMode,
             includeBookmark: !string.IsNullOrWhiteSpace(bookmarkXml)) {
             ContainerLog = container,
             GatheredLogName = container
@@ -855,8 +861,8 @@ public sealed class TestGroupPolicyAudit {
         public override EventBookmark Bookmark => string.IsNullOrWhiteSpace(_bookmarkXml)
             ? null!
             : new EventBookmark(_bookmarkXml);
-        public override string FormatDescription() => string.Empty;
-        public override string FormatDescription(IEnumerable<object> values) => string.Empty;
+        public override string FormatDescription() => "Group Policy provider message.";
+        public override string FormatDescription(IEnumerable<object> values) => FormatDescription();
         public override string ToXml() => _xml;
     }
 

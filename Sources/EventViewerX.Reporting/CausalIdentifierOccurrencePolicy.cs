@@ -14,7 +14,7 @@ internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccu
 
     public string Name => "causal-identifier";
 
-    public int Version => 6;
+    public int Version => 7;
 
     public bool TryGetIdentity(EventReportRow observation, out string identity, out string reason) {
         EventOccurrencePolicyIdentity? first = GetIdentities(observation).FirstOrDefault();
@@ -41,10 +41,8 @@ internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccu
             if (!TryGetPayloadValue(observation, field, out object? raw)) {
                 continue;
             }
-            string value = raw is System.Collections.IEnumerable and not string
-                ? EventAggregationEngine.Canonicalize(raw)
-                : Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
-            if (value.Length == 0 || value == "-" || value == Guid.Empty.ToString()) {
+            string value = CanonicalizeValue(raw);
+            if (value.Length == 0 || value == "-") {
                 continue;
             }
             AddIdentity(
@@ -58,6 +56,38 @@ internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccu
                 emitted);
         }
         return identities;
+    }
+
+    private static string CanonicalizeValue(object? raw) {
+        if (raw is System.Collections.IEnumerable values and not string) {
+            var normalized = new List<object?>();
+            foreach (object? item in values) {
+                if (TryCanonicalizeGuid(item, out string canonicalGuid)) {
+                    if (canonicalGuid.Length > 0) {
+                        normalized.Add(canonicalGuid);
+                    }
+                } else {
+                    normalized.Add(item);
+                }
+            }
+            return normalized.Count switch {
+                0 => string.Empty,
+                1 => CanonicalizeValue(normalized[0]),
+                _ => EventAggregationEngine.Canonicalize(normalized)
+            };
+        }
+        string value = Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+        return TryCanonicalizeGuid(value, out string canonical) ? canonical : value;
+    }
+
+    private static bool TryCanonicalizeGuid(object? value, out string canonical) {
+        string text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+        if (Guid.TryParse(text, out Guid guid)) {
+            canonical = guid == Guid.Empty ? string.Empty : guid.ToString("D");
+            return true;
+        }
+        canonical = string.Empty;
+        return false;
     }
 
     private static bool TryGetPayloadValue(

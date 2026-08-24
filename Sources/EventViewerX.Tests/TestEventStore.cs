@@ -79,6 +79,41 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task ActivityAwareIdentityMigrationDoesNotDuplicateRecordBasedRows() {
+        string path = CreateStorePath();
+        try {
+            EventReportRow row = CreateStoredActivityRow(
+                1,
+                Guid.Parse("82758911-d9f7-454c-a14d-0fab838a84d2"),
+                relatedActivityId: Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06"));
+            EventReport report = EventReportEngine.CreateStored(
+                new[] { row },
+                new[] { EventReportSectionSchema.CreateGeneric() });
+            var store = new EventStore(path);
+            await store.WriteAsync(report);
+            using (var sqlite = new SQLite()) {
+                using SQLiteSession session = sqlite.OpenSession(path);
+                session.ExecuteNonQuery(
+                    "UPDATE evx_events SET activity_id = NULL, related_activity_id = NULL, " +
+                    "event_key = 'legacy-key', original_event_key = 'legacy-original';");
+                session.ExecuteNonQuery(
+                    "UPDATE evx_store_metadata SET event_identity_version = 1 WHERE singleton_id = 1;");
+            }
+
+            var migratedStore = new EventStore(path);
+            migratedStore.Initialize();
+            EventStoreWriteResult duplicate = await migratedStore.WriteAsync(report);
+            EventReport stored = await migratedStore.ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.Equal(0, duplicate.Inserted);
+            Assert.Equal(1, duplicate.Duplicates);
+            Assert.Single(stored.Rows);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task StoredRowsRetainSystemActivityMetadataForSemanticGrouping() {
         string path = CreateStorePath();
         Guid parentActivity = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");

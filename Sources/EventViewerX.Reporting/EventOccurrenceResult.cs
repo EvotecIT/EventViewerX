@@ -17,7 +17,7 @@ public sealed class EventOccurrenceResult {
     /// <summary>Derived occurrence groups, empty when a safety bound is exceeded.</summary>
     public IReadOnlyList<EventOccurrenceGroup> Groups { get; }
 
-    /// <summary>Whether every supplied observation was grouped within all configured bounds.</summary>
+    /// <summary>Whether every source observation was available and grouped within all configured bounds.</summary>
     public bool IsComplete { get; }
 
     /// <summary>Reason an incomplete result was withheld.</summary>

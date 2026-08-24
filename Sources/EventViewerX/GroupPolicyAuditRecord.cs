@@ -31,6 +31,7 @@ public sealed class GroupPolicyAuditRecord {
             ? source.GatheredLogName
             : source.ContainerLogName;
         BookmarkXml = source.BookmarkXml;
+        Message = source.Message;
         OldObjectDistinguishedName = Value(record, "OldObjectDistinguishedName");
         NewObjectDistinguishedName = Value(record, "NewObjectDistinguishedName");
         ObjectDistinguishedName = FirstValue(
@@ -94,6 +95,9 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Portable bookmark for the container position.</summary>
     public string? BookmarkXml { get; }
+
+    /// <summary>Provider-rendered source event message.</summary>
+    public string Message { get; }
 
     /// <summary>Affected directory object distinguished name.</summary>
     public string ObjectDistinguishedName { get; }

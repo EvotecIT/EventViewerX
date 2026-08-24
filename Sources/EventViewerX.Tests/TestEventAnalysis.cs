@@ -225,6 +225,33 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void ObjectIdentifiersReportWhitespaceNormalization() {
+        EventNormalizedValue normalized = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> {
+                ["AttributeSyntaxOID"] = " 1.2.840.113556.1.4.221 "
+            }))["AttributeSyntaxOID"];
+
+        Assert.Equal("1.2.840.113556.1.4.221", normalized.Value);
+        Assert.Equal(" 1.2.840.113556.1.4.221 ", normalized.RawValue);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized.Outcome);
+        Assert.Equal(EventNormalizedValueKind.ObjectIdentifier, normalized.Kind);
+    }
+
+    [Fact]
+    public void GenericUnspecifiedDateTimeUsesFixedUtcDisplaySemantics() {
+        DateTime unspecified = new(2026, 8, 23, 10, 15, 30, DateTimeKind.Unspecified);
+
+        EventNormalizedValue normalized = EventValueNormalizationEngine.Normalize(CreateRow(
+            1,
+            new Dictionary<string, object?> { ["ObservedAt"] = unspecified }))["ObservedAt"];
+
+        Assert.Equal(unspecified, normalized.Value);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized.Outcome);
+        Assert.Equal("2026-08-23T10:15:30.0000000Z", normalized.DisplayValue);
+    }
+
+    [Fact]
     public void ActiveDirectoryGeneralizedTimeUsesItsOwnUtcContract() {
         var row = CreateRow(1, new Dictionary<string, object?> {
             ["WhenCreated"] = "20260823101530.125Z",
@@ -441,7 +468,7 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, semantic.Groups.Count);
         EventOccurrenceGroup occurrence = semantic.Groups.Single(static group => group.ObservationCount == 2);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
-        Assert.Equal(6, occurrence.PolicyVersion);
+        Assert.Equal(7, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 
@@ -539,7 +566,7 @@ public sealed class TestEventAnalysis {
             }).Groups);
 
         Assert.Equal(3, group.ObservationCount);
-        Assert.Equal(6, group.PolicyVersion);
+        Assert.Equal(7, group.PolicyVersion);
     }
 
     [Fact]
@@ -586,6 +613,55 @@ public sealed class TestEventAnalysis {
 
         Assert.Equal(2, result.Groups.Count);
         Assert.All(result.Groups, static group => Assert.Equal(1, group.ObservationCount));
+    }
+
+    [Fact]
+    public void SemanticGroupingCanonicalizesGuidMembersInCausalCollections() {
+        Guid batchId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        EventReportRow typed = CreateRow(1, new Dictionary<string, object?> {
+            ["BatchId"] = new object?[] { batchId, Guid.Empty }
+        });
+        EventReportRow textual = CreateRow(2, new Dictionary<string, object?> {
+            ["BatchId"] = new[] { $"{{{batchId:D}}}" }
+        });
+
+        EventOccurrenceGroup group = Assert.Single(EventOccurrenceEngine.Group(
+            new[] { typed, textual },
+            new EventOccurrenceOptions { Mode = EventDuplicateMode.Semantic }).Groups);
+
+        Assert.Equal(2, group.ObservationCount);
+        Assert.Equal(7, group.PolicyVersion);
+    }
+
+    [Fact]
+    public void SemanticGroupingCanonicalizesScalarGuidCausalIdentifiersAndRejectsEmptyGuid() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        Guid batchId = Guid.Parse("7e2abf19-c7d2-40a9-8ec9-a5c7168e3c06");
+        EventReportRow typed = CreateRow(1, new Dictionary<string, object?> {
+            ["BatchId"] = batchId
+        }, timestamp);
+        EventReportRow textual = CreateRow(2, new Dictionary<string, object?> {
+            ["BatchId"] = $"{{{batchId:D}}}"
+        }, timestamp.AddSeconds(1));
+        EventReportRow emptyTyped = CreateRow(3, new Dictionary<string, object?> {
+            ["BatchId"] = Guid.Empty
+        }, timestamp.AddSeconds(2));
+        EventReportRow emptyTextual = CreateRow(4, new Dictionary<string, object?> {
+            ["BatchId"] = $"{{{Guid.Empty:D}}}"
+        }, timestamp.AddSeconds(3));
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] { typed, textual, emptyTyped, emptyTextual },
+            new EventOccurrenceOptions {
+                Mode = EventDuplicateMode.Semantic,
+                Window = TimeSpan.FromSeconds(10)
+            });
+
+        Assert.Equal(3, result.Groups.Count);
+        EventOccurrenceGroup causal = result.Groups.Single(static group => group.ObservationCount == 2);
+        Assert.Equal("causal-identifier", causal.PolicyName);
+        Assert.Equal(7, causal.PolicyVersion);
+        Assert.Equal(2, result.Groups.Count(static group => group.ObservationCount == 1));
     }
 
     [Fact]
@@ -1205,6 +1281,8 @@ public sealed class TestEventAnalysis {
 
         EventReport summary = EventOccurrenceReportFactory.Create(occurrences, source);
         EventReport representatives = EventOccurrenceReportFactory.CreateRepresentatives(occurrences, source);
+        EventOccurrenceResult passThrough =
+            EventOccurrenceReportFactory.ComposeSourceCompleteness(occurrences, source);
         EventAggregationResult aggregation = EventAggregationEngine.Aggregate(
             representatives,
             new EventAggregationDefinition { GroupBy = new[] { "Who" } });
@@ -1213,6 +1291,9 @@ public sealed class TestEventAnalysis {
         Assert.Equal(25, summary.EventsScanned);
         Assert.False(Assert.Single(summary.Coverage).Succeeded);
         Assert.True(representatives.ScanLimitReached);
+        Assert.False(passThrough.IsComplete);
+        Assert.Equal(occurrences.ObservationsEvaluated, passThrough.ObservationsEvaluated);
+        Assert.Contains("source query was incomplete", passThrough.Diagnostic, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Alice", Assert.Single(aggregation.Rows).Group["Who"]);
         Assert.Equal(EventAggregationInputCompleteness.Incomplete, aggregation.InputCompleteness);
     }

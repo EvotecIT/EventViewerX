@@ -97,6 +97,36 @@ public static class EventOccurrenceReportFactory {
     }
 
     /// <summary>
+    /// Applies a source report's coverage and query-limit evidence to an occurrence result returned
+    /// to programmatic callers.
+    /// </summary>
+    public static EventOccurrenceResult ComposeSourceCompleteness(
+        EventOccurrenceResult result,
+        EventReport sourceReport) {
+
+        if (result == null) {
+            throw new ArgumentNullException(nameof(result));
+        }
+        if (sourceReport == null) {
+            throw new ArgumentNullException(nameof(sourceReport));
+        }
+        bool sourceComplete = !sourceReport.ScanLimitReached &&
+            sourceReport.Coverage.All(static coverage => coverage.Succeeded);
+        if (sourceComplete) {
+            return result;
+        }
+        string? diagnostic = EventCompletenessDiagnostic.Compose(
+            result.Diagnostic,
+            sourceReport.CompletenessDiagnostic,
+            "The source query was incomplete; occurrence output cannot be treated as exhaustive.");
+        return new EventOccurrenceResult(
+            result.Groups,
+            isComplete: false,
+            diagnostic,
+            result.ObservationsEvaluated);
+    }
+
+    /// <summary>
     /// Creates a report containing one original representative row per occurrence while retaining
     /// the source schemas and completeness envelope. This is the aggregation input contract.
     /// </summary>

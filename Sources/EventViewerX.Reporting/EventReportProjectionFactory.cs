@@ -111,7 +111,7 @@ internal static class EventReportProjectionFactory {
             SourceKind = record.QuerySourceKind,
             SourceComputer = record.SourceComputer,
             CollectorComputer = record.QueryTarget,
-            Message = record.ContextReason ?? string.Empty,
+            Message = record.Message,
             Values = values
         };
         EventValueNormalizationEngine.Populate(row);

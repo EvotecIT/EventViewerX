@@ -54,6 +54,20 @@ Describe 'Event analysis PowerShell surface' {
         $Result.Groups[0].Representative.RecordId | Should -Be $Event.RecordId
     }
 
+    It 'retains direct source incompleteness in occurrence pass-through results' {
+        $Result = Show-EVXEvent `
+            -Path (Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx') `
+            -Oldest `
+            -MaxEvents 1 `
+            -DuplicateMode Transport `
+            -PassThru
+
+        $Result | Should -BeOfType ([EventViewerX.Reporting.EventOccurrenceResult])
+        $Result.IsComplete | Should -BeFalse
+        $Result.ObservationsEvaluated | Should -Be 1
+        $Result.Diagnostic | Should -Match 'source query was incomplete|MaxEvents'
+    }
+
     It 'accepts report rows directly and keeps pipeline completeness unknown' {
         $Row = [EventViewerX.Reporting.EventReportRow]::new()
         $Row.Type = 'Generic'
