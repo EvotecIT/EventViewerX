@@ -32,6 +32,17 @@ internal sealed class ActiveDirectoryFileTimeValueNormalizer : IEventValueNormal
                     ? EventNormalizationOutcome.Unchanged
                     : EventNormalizationOutcome.Normalized);
         }
+        if (context.RawValue is DateTimeOffset offset) {
+            DateTime utc = offset.UtcDateTime;
+            return EventValueNormalizer.Create(
+                context,
+                utc,
+                utc.ToString("O", CultureInfo.InvariantCulture),
+                EventNormalizedValueKind.DateTime,
+                Name,
+                Version,
+                EventNormalizationOutcome.Normalized);
+        }
         string raw = EventValueNormalizer.Format(context.RawValue).Trim();
         if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out long fileTime)) {
             return EventValueNormalizer.Create(

@@ -49,7 +49,7 @@ internal sealed class UserAccountControlValueNormalizer : IEventValueNormalizer 
                     EventNormalizedValueKind.FlagSet,
                     Name,
                     Version,
-                    EventNormalizationOutcome.Unchanged);
+                    EventNormalizationOutcome.Normalized);
             }
             return EventValueNormalizer.Create(
                 context,

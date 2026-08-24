@@ -92,6 +92,26 @@ public sealed class TestEventAnalysis {
         Assert.Equal(
             new[] { "ACCOUNTDISABLE", "FUTURE_FLAG" },
             Assert.IsType<string[]>(first.Value));
+        Assert.Equal(EventNormalizationOutcome.Normalized, first.Outcome);
+        Assert.Equal(EventNormalizationOutcome.Normalized, second.Outcome);
+        Assert.Equal("accountdisable, FUTURE_FLAG", first.RawValue);
+    }
+
+    [Fact]
+    public void DirectoryOperationReportsOnlyExactCanonicalRepresentationAsUnchanged() {
+        IReadOnlyDictionary<string, EventNormalizedValue> normalized =
+            EventValueNormalizationEngine.Normalize(CreateRow(
+                1,
+                new Dictionary<string, object?> {
+                    ["OperationType"] = " value added ",
+                    ["ActionDetail"] = "Value Deleted"
+                }));
+
+        Assert.Equal("Value Added", normalized["OperationType"].Value);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized["OperationType"].Outcome);
+        Assert.Equal(" value added ", normalized["OperationType"].RawValue);
+        Assert.Equal("Value Deleted", normalized["ActionDetail"].Value);
+        Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["ActionDetail"].Outcome);
     }
 
     [Fact]
@@ -196,17 +216,22 @@ public sealed class TestEventAnalysis {
     public void TypedActiveDirectoryFileTimeReportsUtcConversion() {
         DateTime utc = new(2026, 8, 23, 10, 15, 30, DateTimeKind.Utc);
         DateTime local = DateTime.SpecifyKind(utc, DateTimeKind.Local);
+        DateTimeOffset offset = new(2026, 8, 23, 12, 15, 30, TimeSpan.FromHours(2));
         IReadOnlyDictionary<string, EventNormalizedValue> normalized =
             EventValueNormalizationEngine.Normalize(CreateRow(
                 1,
                 new Dictionary<string, object?> {
                     ["LastLogon"] = local,
-                    ["LastLogonTimestamp"] = utc
+                    ["LastLogonTimestamp"] = utc,
+                    ["BadPasswordTime"] = offset
                 }));
 
         Assert.Equal(local.ToUniversalTime(), normalized["LastLogon"].Value);
         Assert.Equal(EventNormalizationOutcome.Normalized, normalized["LastLogon"].Outcome);
         Assert.Equal(EventNormalizationOutcome.Unchanged, normalized["LastLogonTimestamp"].Outcome);
+        Assert.Equal(offset.UtcDateTime, normalized["BadPasswordTime"].Value);
+        Assert.Equal(EventNormalizationOutcome.Normalized, normalized["BadPasswordTime"].Outcome);
+        Assert.Equal(offset, normalized["BadPasswordTime"].RawValue);
     }
 
     [Fact]

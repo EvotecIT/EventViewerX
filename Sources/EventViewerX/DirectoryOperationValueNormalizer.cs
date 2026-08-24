@@ -17,7 +17,8 @@ internal sealed class DirectoryOperationValueNormalizer : IEventValueNormalizer 
         string.Equals(context.FieldName, "ActionDetail", StringComparison.OrdinalIgnoreCase);
 
     public EventNormalizedValue Normalize(EventValueContext context) {
-        string raw = EventValueNormalizer.Format(context.RawValue).Trim();
+        string formatted = EventValueNormalizer.Format(context.RawValue);
+        string raw = formatted.Trim();
         if (Operations.TryGetValue(raw, out string? value)) {
             return EventValueNormalizer.Create(
                 context,
@@ -39,7 +40,9 @@ internal sealed class DirectoryOperationValueNormalizer : IEventValueNormalizer 
                 EventNormalizedValueKind.DirectoryOperation,
                 Name,
                 Version,
-                EventNormalizationOutcome.Unchanged);
+                string.Equals(formatted, canonical, StringComparison.Ordinal)
+                    ? EventNormalizationOutcome.Unchanged
+                    : EventNormalizationOutcome.Normalized);
         }
         return EventValueNormalizer.Create(
             context,
