@@ -82,6 +82,9 @@ public sealed class TestEventDefinitionAndReporting {
     [InlineData("activedirectoryauthentication")]
     [InlineData("Generic")]
     [InlineData("EventStoreSummary")]
+    [InlineData("EventAggregation")]
+    [InlineData("EventOccurrence")]
+    [InlineData("GroupPolicyAudit")]
     public void CustomDefinitionsRejectReservedBuiltInTypeNames(string name) {
         EventDefinition definition = CreateDefinition();
         definition.Name = name;

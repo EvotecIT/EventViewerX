@@ -267,7 +267,7 @@ public static class EventReportHtmlRenderer {
     }
 
     private static string? BuildSortValue(object? value) => value switch {
-        DateTime date => date.ToUniversalTime().Ticks.ToString("D19"),
+        DateTime date => EventAggregationEngine.NormalizeDateTimeUtc(date).Ticks.ToString("D19"),
         DateTimeOffset date => date.UtcTicks.ToString("D19"),
         IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
         _ => null

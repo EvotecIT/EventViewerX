@@ -45,8 +45,12 @@ public static partial class EventAggregationEngine {
                 StringComparison.OrdinalIgnoreCase))) {
             throw new ArgumentException($"RankingMeasure '{ranking}' does not identify a measure output.", nameof(definition));
         }
-        DateTime? start = definition.WindowStart?.ToUniversalTime();
-        DateTime? end = definition.WindowEnd?.ToUniversalTime();
+        DateTime? start = definition.WindowStart.HasValue
+            ? NormalizeDateTimeUtc(definition.WindowStart.Value)
+            : null;
+        DateTime? end = definition.WindowEnd.HasValue
+            ? NormalizeDateTimeUtc(definition.WindowEnd.Value)
+            : null;
         if (start.HasValue != end.HasValue || start.HasValue && start >= end) {
             throw new ArgumentException("WindowStart and WindowEnd must define one non-zero ordered UTC interval.", nameof(definition));
         }

@@ -39,7 +39,7 @@ public static partial class EventAggregationEngine {
                 : AggregationBucketRange.None;
         }
         TimeZoneInfo zone = TimeZoneInfo.FindSystemTimeZoneById(definition.TimeZoneId);
-        DateTime utc = timestamp.ToUniversalTime();
+        DateTime utc = NormalizeDateTimeUtc(timestamp);
         DateTimeOffset local = TimeZoneInfo.ConvertTime(new DateTimeOffset(utc), zone);
         DateTime localStart = definition.Bucket switch {
             EventAggregationBucket.Hour => new DateTime(local.Year, local.Month, local.Day, local.Hour, 0, 0, DateTimeKind.Unspecified),
@@ -111,7 +111,7 @@ public static partial class EventAggregationEngine {
                 break;
             case DateTime date:
                 type = "datetime";
-                text = date.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
+                text = NormalizeDateTimeUtc(date).Ticks.ToString(CultureInfo.InvariantCulture);
                 break;
             case DateTimeOffset date:
                 type = "datetime";
@@ -140,6 +140,27 @@ public static partial class EventAggregationEngine {
         }
         builder.Append(type.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(type)
             .Append(text.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(text).Append('|');
+    }
+
+    internal static DateTime NormalizeDateTimeUtc(DateTime value) => value.Kind switch {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    internal static bool TryParseDateTimeUtc(string value, out DateTime result) {
+        if (DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AllowWhiteSpaces |
+                DateTimeStyles.AssumeUniversal |
+                DateTimeStyles.AdjustToUniversal,
+                out DateTimeOffset parsed)) {
+            result = parsed.UtcDateTime;
+            return true;
+        }
+        result = default;
+        return false;
     }
 
     private static IEnumerable<string> EnumerateCanonical(System.Collections.IEnumerable values) {
@@ -191,7 +212,7 @@ internal sealed class AggregationGroup {
     private static string FormatDisplayIdentity(object? value) => value switch {
         null => string.Empty,
         string text => text,
-        DateTime date => date.ToUniversalTime().Ticks.ToString("D19", CultureInfo.InvariantCulture),
+        DateTime date => EventAggregationEngine.NormalizeDateTimeUtc(date).Ticks.ToString("D19", CultureInfo.InvariantCulture),
         DateTimeOffset date => date.UtcTicks.ToString("D19", CultureInfo.InvariantCulture),
         System.Collections.IDictionary dictionary =>
             "{" + string.Join("\u001f", EnumerateDisplay(dictionary)) + "}",

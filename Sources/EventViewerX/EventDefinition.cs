@@ -10,7 +10,13 @@ public sealed class EventDefinition {
 
     private static readonly JsonSerializerOptions ReadOptions = CreateJsonOptions(writeIndented: false);
     private static readonly HashSet<string> ReservedNames = new(
-        Enum.GetNames(typeof(EventType)).Concat(new[] { "Generic", "EventStoreSummary" }),
+        Enum.GetNames(typeof(EventType)).Concat(new[] {
+            "Generic",
+            "EventStoreSummary",
+            "EventAggregation",
+            "EventOccurrence",
+            "GroupPolicyAudit"
+        }),
         StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Stable machine-readable name.</summary>

@@ -428,7 +428,7 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, semantic.Groups.Count);
         EventOccurrenceGroup occurrence = semantic.Groups.Single(static group => group.ObservationCount == 2);
         Assert.Equal("causal-identifier", occurrence.PolicyName);
-        Assert.Equal(5, occurrence.PolicyVersion);
+        Assert.Equal(6, occurrence.PolicyVersion);
         Assert.Same(direct, occurrence.Representative);
     }
 
@@ -490,7 +490,7 @@ public sealed class TestEventAnalysis {
             }).Groups);
 
         Assert.Equal(3, group.ObservationCount);
-        Assert.Equal(5, group.PolicyVersion);
+        Assert.Equal(6, group.PolicyVersion);
     }
 
     [Fact]
@@ -516,6 +516,62 @@ public sealed class TestEventAnalysis {
         Assert.Equal(2, result.Groups.Count);
         Assert.Contains(result.Groups, static group => group.ObservationCount == 2);
         Assert.Contains(result.Groups, static group => group.ObservationCount == 1);
+    }
+
+    [Fact]
+    public void SemanticGroupingCanonicalizesCollectionValuedCausalIdentifiers() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> {
+            ["BatchId"] = new[] { "batch-a", "stage-1" }
+        }, timestamp);
+        EventReportRow second = CreateRow(2, new Dictionary<string, object?> {
+            ["BatchId"] = new[] { "batch-b", "stage-1" }
+        }, timestamp.AddSeconds(1));
+
+        EventOccurrenceResult result = EventOccurrenceEngine.Group(
+            new[] { first, second },
+            new EventOccurrenceOptions {
+                Mode = EventDuplicateMode.Semantic,
+                Window = TimeSpan.FromSeconds(10)
+            });
+
+        Assert.Equal(2, result.Groups.Count);
+        Assert.All(result.Groups, static group => Assert.Equal(1, group.ObservationCount));
+    }
+
+    [Fact]
+    public void AggregationDateOperandsTreatZoneLessValuesAsUtc() {
+        DateTime timestamp = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
+        EventReportRow first = CreateRow(1, new Dictionary<string, object?> {
+            ["Observed"] = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Unspecified)
+        }, timestamp);
+        EventReportRow second = CreateRow(2, new Dictionary<string, object?> {
+            ["Observed"] = "2026-01-01T01:00:00"
+        }, timestamp.AddSeconds(1));
+        var definition = new EventAggregationDefinition {
+            Measures = new[] {
+                new EventAggregationMeasure {
+                    Operation = EventAggregationOperation.FirstSeen,
+                    Field = "Observed",
+                    OutputName = "First"
+                },
+                new EventAggregationMeasure {
+                    Operation = EventAggregationOperation.LastSeen,
+                    Field = "Observed",
+                    OutputName = "Last"
+                }
+            }
+        };
+
+        EventAggregationRow row = Assert.Single(EventAggregationEngine.Aggregate(
+            new[] { first, second },
+            definition).Rows);
+
+        Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), row.Measures["First"]);
+        Assert.Equal(new DateTime(2026, 1, 1, 1, 0, 0, DateTimeKind.Utc), row.Measures["Last"]);
+        Assert.Equal(
+            EventAggregationEngine.Canonicalize(DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)),
+            EventAggregationEngine.Canonicalize(DateTime.SpecifyKind(timestamp, DateTimeKind.Unspecified)));
     }
 
     [Fact]

@@ -14,7 +14,7 @@ internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccu
 
     public string Name => "causal-identifier";
 
-    public int Version => 5;
+    public int Version => 6;
 
     public bool TryGetIdentity(EventReportRow observation, out string identity, out string reason) {
         EventOccurrencePolicyIdentity? first = GetIdentities(observation).FirstOrDefault();
@@ -41,7 +41,9 @@ internal sealed class CausalIdentifierOccurrencePolicy : IMultiIdentityEventOccu
             if (!TryGetPayloadValue(observation, field, out object? raw)) {
                 continue;
             }
-            string value = Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+            string value = raw is System.Collections.IEnumerable and not string
+                ? EventAggregationEngine.Canonicalize(raw)
+                : Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
             if (value.Length == 0 || value == "-" || value == Guid.Empty.ToString()) {
                 continue;
             }

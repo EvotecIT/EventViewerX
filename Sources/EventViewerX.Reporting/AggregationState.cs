@@ -156,18 +156,14 @@ internal sealed class AggregationState {
 
         private static DateTime ConvertDateTime(object value, string field) {
             if (value is DateTime date) {
-                return date.ToUniversalTime();
+                return EventAggregationEngine.NormalizeDateTimeUtc(date);
             }
             if (value is DateTimeOffset offset) {
                 return offset.UtcDateTime;
             }
             string text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
-            if (DateTime.TryParse(
-                    text,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.RoundtripKind,
-                    out DateTime parsed)) {
-                return parsed.ToUniversalTime();
+            if (EventAggregationEngine.TryParseDateTimeUtc(text, out DateTime parsed)) {
+                return parsed;
             }
             throw new ArgumentException($"Aggregation field '{field}' value '{text}' is not a date-time.");
         }

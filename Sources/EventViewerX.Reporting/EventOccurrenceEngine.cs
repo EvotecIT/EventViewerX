@@ -257,7 +257,7 @@ public static class EventOccurrenceEngine {
             observation.RecordId.Value.ToString(CultureInfo.InvariantCulture),
             observation.Provider.Trim().ToUpperInvariant(),
             observation.EventId.ToString(CultureInfo.InvariantCulture),
-            observation.TimeCreated.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
+            EventAggregationEngine.NormalizeDateTimeUtc(observation.TimeCreated).Ticks.ToString(CultureInfo.InvariantCulture));
         return true;
     }
 
@@ -313,7 +313,7 @@ public static class EventOccurrenceEngine {
                 break;
             case DateTime date:
                 type = "datetime";
-                text = date.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
+                text = EventAggregationEngine.NormalizeDateTimeUtc(date).Ticks.ToString(CultureInfo.InvariantCulture);
                 break;
             case DateTimeOffset date:
                 type = "datetime";
@@ -410,8 +410,12 @@ public static class EventOccurrenceEngine {
         internal WorkingGroup Group { get; }
         internal IEventOccurrencePolicy Policy { get; }
         internal IReadOnlyList<EventOccurrencePolicyIdentity> Identities { get; }
-        internal DateTime FirstEventUtc => Group.Observations.Min(static observation => observation.TimeCreated).ToUniversalTime();
-        internal DateTime LastEventUtc => Group.Observations.Max(static observation => observation.TimeCreated).ToUniversalTime();
+        internal DateTime FirstEventUtc => Group.Observations
+            .Select(static observation => EventAggregationEngine.NormalizeDateTimeUtc(observation.TimeCreated))
+            .Min();
+        internal DateTime LastEventUtc => Group.Observations
+            .Select(static observation => EventAggregationEngine.NormalizeDateTimeUtc(observation.TimeCreated))
+            .Max();
     }
 
     private sealed class CandidateUnion {
