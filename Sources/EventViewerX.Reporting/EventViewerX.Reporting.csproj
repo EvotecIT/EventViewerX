@@ -24,7 +24,7 @@
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <PackageReference Include="HtmlForgeX" Version="0.55.0" />
     <PackageReference Include="HtmlForgeX.Email" Version="1.5.0" />
-    <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Excel" Version="3.2.3" />
     <PackageReference Include="OfficeIMO.CSV" Version="3.2.4" />
   </ItemGroup>
   <ItemGroup>
