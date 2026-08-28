@@ -10,6 +10,9 @@ namespace EventViewerX.Rules.ActiveDirectory {
     /// 5141: A directory service object was moved
     /// </summary>
     public class ADOtherChangeDetailed : EventRuleBase {
+        /// <inheritdoc />
+        public override int MatchPriority => -100;
+
         /// <summary>Domain controller where the change was recorded.</summary>
         public string Computer;
 

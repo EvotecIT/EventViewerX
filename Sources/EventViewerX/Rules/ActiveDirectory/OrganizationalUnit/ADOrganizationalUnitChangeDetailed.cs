@@ -81,13 +81,13 @@ namespace EventViewerX.Rules.ActiveDirectory {
     /// <inheritdoc />
     public override EventType Type => EventType.ADOrganizationalUnitChangeDetailed;
 
-    /// <summary>Handles OU object events, ignoring the qPLik attribute noise.</summary>
+    /// <summary>Handles OU object events except gPLink changes owned by the Group Policy projection.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Check if this is an organizational unit object and not the qPLik attribute
+        // Group Policy link changes have a dedicated typed projection.
         return eventObject.TryGetDataValue("ObjectClass", out var objectClass) &&
                objectClass.Equals("organizationalUnit", StringComparison.OrdinalIgnoreCase) &&
                (!eventObject.TryGetDataValue("AttributeLDAPDisplayName", out var attrName) ||
-                !attrName.Equals("qPLik", StringComparison.OrdinalIgnoreCase));
+                !attrName.Equals("gPLink", StringComparison.OrdinalIgnoreCase));
     }
 
 

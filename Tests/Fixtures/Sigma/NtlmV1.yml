@@ -1,0 +1,17 @@
+title: NTLMv1 authentication observed
+id: dddddddd-dddd-4ddd-8ddd-dddddddddddd
+status: test
+description: Detects a successful Windows logon that negotiated NTLMv1.
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4624
+    LmPackageName: NTLM V1
+  condition: selection
+falsepositives:
+  - Approved legacy systems during a documented migration window
+tags:
+  - attack.t1557
+level: medium

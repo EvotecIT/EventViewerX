@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Represents a newly created group policy object event.
 /// </summary>
 public class GpoCreated : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 250;
+
     /// <summary>Computer on which the GPO was created.</summary>
     public string Computer;
     /// <summary>Description of the action.</summary>

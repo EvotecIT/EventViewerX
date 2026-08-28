@@ -1,0 +1,705 @@
+using System.Globalization;
+using System.Runtime.CompilerServices;
+
+namespace EventViewerX;
+
+/// <summary>Executes immutable detection plans against live or offline observation streams.</summary>
+public static class EventDetectionEngine {
+    /// <summary>Projects raw events once and streams findings without requiring storage.</summary>
+    public static IEnumerable<EventDetectionFinding> Stream(
+        IEnumerable<EventObject> events,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null) {
+
+        if (events == null) {
+            throw new ArgumentNullException(nameof(events));
+        }
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+        EventTypeProjectionPlan? projectionPlan = plan.RequiredEventTypes.Count == 0
+            ? null
+            : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
+        IEnumerable<EventObservation> observations = events.Select(source => {
+            if (source == null) {
+                throw new ArgumentException("Events cannot contain null values.", nameof(events));
+            }
+            EventTypeRecord? typed = projectionPlan == null
+                ? null
+                : EventTypeCatalog.CreateEventRule(source, projectionPlan);
+            return EventObservation.Create(source, typed);
+        });
+        return Stream(observations, plan, options);
+    }
+
+    /// <summary>Streams findings while evaluating an ordered observation sequence.</summary>
+    public static IEnumerable<EventDetectionFinding> Stream(
+        IEnumerable<EventObservation> observations,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null) {
+
+        if (observations == null) {
+            throw new ArgumentNullException(nameof(observations));
+        }
+        var evaluator = new Evaluator(plan, options);
+        foreach (EventObservation observation in observations) {
+            if (observation == null) {
+                throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
+            }
+            foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                yield return finding;
+            }
+        }
+    }
+
+    /// <summary>Streams findings from an asynchronous live or offline observation source.</summary>
+    public static async IAsyncEnumerable<EventDetectionFinding> StreamAsync(
+        IAsyncEnumerable<EventObservation> observations,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+
+        if (observations == null) {
+            throw new ArgumentNullException(nameof(observations));
+        }
+        var evaluator = new Evaluator(plan, options);
+        await foreach (EventObservation observation in observations
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false)) {
+            if (observation == null) {
+                throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
+            }
+            foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                yield return finding;
+            }
+        }
+    }
+
+    /// <summary>Projects an asynchronous raw event stream once and emits findings as they occur.</summary>
+    public static async IAsyncEnumerable<EventDetectionFinding> StreamAsync(
+        IAsyncEnumerable<EventObject> events,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+
+        if (events == null) {
+            throw new ArgumentNullException(nameof(events));
+        }
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+        EventTypeProjectionPlan? projectionPlan = plan.RequiredEventTypes.Count == 0
+            ? null
+            : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
+        var evaluator = new Evaluator(plan, options);
+        await foreach (EventObject source in events.WithCancellation(cancellationToken).ConfigureAwait(false)) {
+            if (source == null) {
+                throw new ArgumentException("Events cannot contain null values.", nameof(events));
+            }
+            EventTypeRecord? typed = projectionPlan == null
+                ? null
+                : EventTypeCatalog.CreateEventRule(source, projectionPlan);
+            EventObservation observation = EventObservation.Create(source, typed);
+            foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                yield return finding;
+            }
+        }
+    }
+
+    /// <summary>Materializes a bounded observation dry run for diagnostics and tests.</summary>
+    public static EventDetectionExecutionResult Evaluate(
+        IEnumerable<EventObservation> observations,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null) {
+
+        if (observations == null) {
+            throw new ArgumentNullException(nameof(observations));
+        }
+        EventObservation[] snapshot = observations.ToArray();
+        return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
+    }
+
+    /// <summary>Projects raw events and materializes a bounded dry run.</summary>
+    public static EventDetectionExecutionResult Evaluate(
+        IEnumerable<EventObject> events,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null) {
+
+        if (events == null) {
+            throw new ArgumentNullException(nameof(events));
+        }
+        EventObject[] snapshot = events.ToArray();
+        return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
+    }
+
+    /// <summary>Executes a reusable fixture and compares exact finding IDs and multiplicity.</summary>
+    public static EventDetectionFixtureResult TestFixture(
+        EventDetectionFixture fixture,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options = null) {
+
+        if (fixture == null) {
+            throw new ArgumentNullException(nameof(fixture));
+        }
+        string name = fixture.Name?.Trim() ?? string.Empty;
+        if (name.Length == 0) {
+            throw new ArgumentException("Fixture Name is required.", nameof(fixture));
+        }
+        EventObservation[] observations = (fixture.Observations ?? Array.Empty<EventObservation>()).ToArray();
+        string[] expected = (fixture.ExpectedRuleIds ?? Array.Empty<string>())
+            .Select(static id => id?.Trim() ?? string.Empty)
+            .ToArray();
+        if (observations.Any(static item => item == null) || expected.Any(static id => id.Length == 0)) {
+            throw new ArgumentException("Fixture observations and expected rule IDs cannot contain null or empty values.", nameof(fixture));
+        }
+        return new EventDetectionFixtureResult(name, Evaluate(observations, plan, options), expected);
+    }
+
+    private sealed class Evaluator {
+        private readonly EventDetectionPlan _plan;
+        private readonly EventDetectionEngineOptions _options;
+        private readonly Dictionary<StateKey, ThresholdState> _thresholdStates = new();
+        private readonly Dictionary<StateKey, ThresholdState> _distinctStates = new();
+        private readonly Dictionary<StateKey, TemporalState> _temporalStates = new();
+        private long _observations;
+        private int _stateObservations;
+        private long _stateBytes;
+        private bool _observationBoundReported;
+        private bool _groupBoundReported;
+        private bool _stateBoundReported;
+
+        internal Evaluator(EventDetectionPlan plan, EventDetectionEngineOptions? options) {
+            _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+            _options = SnapshotOptions(options);
+        }
+
+        internal IReadOnlyList<EventDetectionFinding> Process(EventObservation observation) {
+            _observations++;
+            if (_options.MaximumObservations > 0 && _observations > _options.MaximumObservations) {
+                if (_observationBoundReported) {
+                    return Array.Empty<EventDetectionFinding>();
+                }
+                _observationBoundReported = true;
+                return new[] { CreateIncomplete(
+                    observation,
+                    $"MaximumObservations limit of {_options.MaximumObservations} was reached.") };
+            }
+            EvictExpiredStates(observation.EventTimeUtc);
+
+            var findings = new List<EventDetectionFinding>();
+            IReadOnlyList<EventDetectionPlan.CompiledRule> candidates = _plan.GetCandidates(observation);
+            if (candidates.Count > _options.MaximumCandidateRules) {
+                findings.Add(CreateIncomplete(
+                    observation,
+                    $"MaximumCandidateRules limit of {_options.MaximumCandidateRules} was reached."));
+                return findings;
+            }
+            foreach (EventDetectionPlan.CompiledRule rule in candidates) {
+                try {
+                    if (!rule.Matches(observation) || rule.IsSuppressed(observation)) {
+                        continue;
+                    }
+                    switch (rule.Definition.Kind) {
+                        case EventDetectionRuleKind.Stateless:
+                            findings.Add(CreateFinding(rule, new[] { observation }, groupValue: null));
+                            break;
+                        case EventDetectionRuleKind.Threshold:
+                            ProcessThreshold(rule, observation, findings);
+                            break;
+                        case EventDetectionRuleKind.DistinctValue:
+                            ProcessDistinct(rule, observation, findings);
+                            break;
+                        case EventDetectionRuleKind.Temporal:
+                        case EventDetectionRuleKind.OrderedTemporal:
+                            ProcessTemporal(rule, observation, findings);
+                            break;
+                    }
+                } catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException) {
+                    findings.Add(CreateError(rule, observation, exception));
+                }
+            }
+            return findings;
+        }
+
+        private void ProcessThreshold(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings) {
+
+            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            var key = new StateKey(rule.Definition.RuleId, groupValue);
+            if (!_thresholdStates.TryGetValue(key, out ThresholdState? state)) {
+                if (!CanCreateState(observation, findings)) {
+                    return;
+                }
+                state = new ThresholdState();
+                _thresholdStates.Add(key, state);
+            }
+            state.ExpiresUtc = Later(state.ExpiresUtc, observation.EventTimeUtc + rule.Definition.Window);
+
+            PruneWindow(state.Observations, observation.EventTimeUtc, rule.Definition.Window);
+            if (!CanRetainObservation(observation, findings)) {
+                return;
+            }
+            state.Observations.Add(observation);
+            Retain(observation);
+            state.Observations.Sort(static (left, right) => left.EventTimeUtc.CompareTo(right.EventTimeUtc));
+            PruneWindow(
+                state.Observations,
+                state.Observations[state.Observations.Count - 1].EventTimeUtc,
+                rule.Definition.Window);
+            if (state.Observations.Count < rule.Definition.Threshold) {
+                return;
+            }
+
+            EventObservation[] evidence = state.Observations
+                .Skip(state.Observations.Count - rule.Definition.Threshold)
+                .ToArray();
+            findings.Add(CreateFinding(rule, evidence, groupValue));
+            Release(state.Observations);
+            state.Observations.Clear();
+            _thresholdStates.Remove(key);
+        }
+
+        private void ProcessDistinct(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings) {
+
+            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            var key = new StateKey(rule.Definition.RuleId, groupValue);
+            if (!_distinctStates.TryGetValue(key, out ThresholdState? state)) {
+                if (!CanCreateState(observation, findings)) {
+                    return;
+                }
+                state = new ThresholdState();
+                _distinctStates.Add(key, state);
+            }
+            state.ExpiresUtc = Later(state.ExpiresUtc, observation.EventTimeUtc + rule.Definition.Window);
+            PruneWindow(state.Observations, observation.EventTimeUtc, rule.Definition.Window);
+            if (!CanRetainObservation(observation, findings)) {
+                return;
+            }
+            state.Observations.Add(observation);
+            Retain(observation);
+            state.Observations.Sort(static (left, right) => left.EventTimeUtc.CompareTo(right.EventTimeUtc));
+            PruneWindow(
+                state.Observations,
+                state.Observations[state.Observations.Count - 1].EventTimeUtc,
+                rule.Definition.Window);
+            string distinctBy = rule.Definition.DistinctBy!;
+            EventObservation[] evidence = state.Observations
+                .GroupBy(item => ResolveGroupValue(distinctBy, item), StringComparer.OrdinalIgnoreCase)
+                .Select(static group => group.Last())
+                .Take(rule.Definition.Threshold)
+                .OrderBy(static item => item.EventTimeUtc)
+                .ToArray();
+            if (evidence.Length < rule.Definition.Threshold) {
+                return;
+            }
+            findings.Add(CreateFinding(rule, evidence, groupValue));
+            Release(state.Observations);
+            state.Observations.Clear();
+            _distinctStates.Remove(key);
+        }
+
+        private void ProcessTemporal(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings) {
+
+            int[] matchingSteps = rule.GetMatchingStepIndexes(observation);
+            if (matchingSteps.Length == 0) {
+                return;
+            }
+            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            var key = new StateKey(rule.Definition.RuleId, groupValue);
+            if (!_temporalStates.TryGetValue(key, out TemporalState? state)) {
+                if (!CanCreateState(observation, findings)) {
+                    return;
+                }
+                state = new TemporalState(rule.Steps.Length);
+                _temporalStates.Add(key, state);
+            }
+            state.ExpiresUtc = Later(state.ExpiresUtc, observation.EventTimeUtc + rule.Definition.Window);
+            if (rule.Definition.Kind == EventDetectionRuleKind.OrderedTemporal) {
+                ProcessOrderedTemporal(rule, observation, matchingSteps, groupValue, key, state, findings);
+            } else {
+                ProcessUnorderedTemporal(rule, observation, matchingSteps, groupValue, key, state, findings);
+            }
+        }
+
+        private void ProcessUnorderedTemporal(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            IReadOnlyList<int> matchingSteps,
+            string groupValue,
+            StateKey key,
+            TemporalState state,
+            ICollection<EventDetectionFinding> findings) {
+
+            DateTime minimum = observation.EventTimeUtc - rule.Definition.Window;
+            for (int index = 0; index < state.StepEvidence.Length; index++) {
+                EventObservation? existing = state.StepEvidence[index];
+                if (existing != null && existing.EventTimeUtc < minimum) {
+                    state.StepEvidence[index] = null;
+                    Release(existing);
+                }
+            }
+            int selected = -1;
+            foreach (int index in matchingSteps) {
+                if (state.StepEvidence[index] == null) {
+                    selected = index;
+                    break;
+                }
+            }
+            if (selected < 0 || !CanRetainObservation(observation, findings)) {
+                return;
+            }
+            state.StepEvidence[selected] = observation;
+            Retain(observation);
+            if (state.StepEvidence.Any(static item => item == null)) {
+                return;
+            }
+            EventObservation[] evidence = state.StepEvidence.Select(static item => item!).ToArray();
+            DateTime maximum = evidence.Max(static item => item.EventTimeUtc);
+            DateTime earliest = evidence.Min(static item => item.EventTimeUtc);
+            if (maximum - earliest > rule.Definition.Window) {
+                return;
+            }
+            findings.Add(CreateFinding(rule, evidence.OrderBy(static item => item.EventTimeUtc).ToArray(), groupValue));
+            Release(evidence);
+            Array.Clear(state.StepEvidence, 0, state.StepEvidence.Length);
+            _temporalStates.Remove(key);
+        }
+
+        private void ProcessOrderedTemporal(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            IReadOnlyList<int> matchingSteps,
+            string groupValue,
+            StateKey key,
+            TemporalState state,
+            ICollection<EventDetectionFinding> findings) {
+
+            if (state.OrderedEvidence.Count != 0 &&
+                observation.EventTimeUtc - state.OrderedEvidence[0].EventTimeUtc > rule.Definition.Window) {
+                Release(state.OrderedEvidence);
+                state.OrderedEvidence.Clear();
+                state.NextStep = 0;
+            }
+            if (!matchingSteps.Contains(state.NextStep)) {
+                if (!matchingSteps.Contains(0)) {
+                    return;
+                }
+                Release(state.OrderedEvidence);
+                state.OrderedEvidence.Clear();
+                state.NextStep = 0;
+            }
+            if (!CanRetainObservation(observation, findings)) {
+                return;
+            }
+            state.OrderedEvidence.Add(observation);
+            Retain(observation);
+            state.NextStep++;
+            if (state.NextStep < rule.Steps.Length) {
+                return;
+            }
+            findings.Add(CreateFinding(rule, state.OrderedEvidence.ToArray(), groupValue));
+            Release(state.OrderedEvidence);
+            state.OrderedEvidence.Clear();
+            state.NextStep = 0;
+            _temporalStates.Remove(key);
+        }
+
+        private int StateGroupCount => _thresholdStates.Count + _distinctStates.Count + _temporalStates.Count;
+
+        private void EvictExpiredStates(DateTime current) {
+            foreach (KeyValuePair<StateKey, ThresholdState> item in _thresholdStates
+                         .Where(item => item.Value.ExpiresUtc < current)
+                         .ToArray()) {
+                Release(item.Value.Observations);
+                _thresholdStates.Remove(item.Key);
+            }
+            foreach (KeyValuePair<StateKey, ThresholdState> item in _distinctStates
+                         .Where(item => item.Value.ExpiresUtc < current)
+                         .ToArray()) {
+                Release(item.Value.Observations);
+                _distinctStates.Remove(item.Key);
+            }
+            foreach (KeyValuePair<StateKey, TemporalState> item in _temporalStates
+                         .Where(item => item.Value.ExpiresUtc < current)
+                         .ToArray()) {
+                Release(item.Value.StepEvidence.Where(static observation => observation != null).Select(static observation => observation!));
+                Release(item.Value.OrderedEvidence);
+                _temporalStates.Remove(item.Key);
+            }
+        }
+
+        private static DateTime Later(DateTime left, DateTime right) => left >= right ? left : right;
+
+        private bool CanCreateState(
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings) {
+
+            if (StateGroupCount < _options.MaximumGroups) {
+                return true;
+            }
+            if (!_groupBoundReported) {
+                _groupBoundReported = true;
+                findings.Add(CreateIncomplete(
+                    observation,
+                    $"MaximumGroups limit of {_options.MaximumGroups} was reached."));
+            }
+            return false;
+        }
+
+        private bool CanRetainObservation(
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings) {
+
+            long observationBytes = EstimateObservationBytes(observation);
+            if (_stateObservations < _options.MaximumStateObservations &&
+                _stateBytes <= _options.MaximumStateBytes - observationBytes) {
+                return true;
+            }
+            if (!_stateBoundReported) {
+                _stateBoundReported = true;
+                findings.Add(CreateIncomplete(
+                    observation,
+                    $"Detection state limit was reached. MaximumStateObservations={_options.MaximumStateObservations}; " +
+                    $"MaximumStateBytes={_options.MaximumStateBytes}."));
+            }
+            return false;
+        }
+
+        private void PruneWindow(List<EventObservation> observations, DateTime current, TimeSpan window) {
+            DateTime minimum = current - window;
+            for (int index = observations.Count - 1; index >= 0; index--) {
+                if (observations[index].EventTimeUtc < minimum) {
+                    Release(observations[index]);
+                    observations.RemoveAt(index);
+                }
+            }
+        }
+
+        private void Retain(EventObservation observation) {
+            _stateObservations++;
+            _stateBytes += EstimateObservationBytes(observation);
+        }
+
+        private void Release(EventObservation observation) {
+            _stateObservations--;
+            _stateBytes -= EstimateObservationBytes(observation);
+        }
+
+        private void Release(IEnumerable<EventObservation> observations) {
+            foreach (EventObservation observation in observations) {
+                Release(observation);
+            }
+        }
+
+        private static long EstimateObservationBytes(EventObservation observation) {
+            long bytes = 256L +
+                         StringBytes(observation.Identity) +
+                         StringBytes(observation.TypeName) +
+                         StringBytes(observation.ProviderName) +
+                         StringBytes(observation.SourceLog) +
+                         StringBytes(observation.ContainerLog) +
+                         StringBytes(observation.SourceComputer) +
+                         StringBytes(observation.CollectorComputer);
+            foreach (KeyValuePair<string, object?> field in observation.Fields) {
+                bytes += 64L + StringBytes(field.Key);
+                if (field.Value is string text) {
+                    bytes += StringBytes(text);
+                }
+            }
+            return bytes;
+        }
+
+        private static long StringBytes(string? value) =>
+            value == null ? 0L : 24L + (value.Length * 2L);
+
+        private static EventDetectionFinding CreateFinding(
+            EventDetectionPlan.CompiledRule rule,
+            IReadOnlyList<EventObservation> evidence,
+            string? groupValue) {
+
+            EventDetectionRuleDefinition definition = rule.Definition;
+            var entities = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(definition.GroupBy) && groupValue != null) {
+                entities[definition.GroupBy!] = groupValue;
+            }
+            string explanation = definition.Kind switch {
+                EventDetectionRuleKind.Stateless => $"Observation matched detection rule {definition.RuleId}.",
+                EventDetectionRuleKind.DistinctValue =>
+                    $"Observed {evidence.Count} distinct {definition.DistinctBy} values within {definition.Window}.",
+                EventDetectionRuleKind.Temporal =>
+                    $"Observed all {definition.Steps.Count} temporal steps within {definition.Window}.",
+                EventDetectionRuleKind.OrderedTemporal =>
+                    $"Observed all {definition.Steps.Count} temporal steps in order within {definition.Window}.",
+                _ => $"Observed {evidence.Count} matching events within {definition.Window}."
+            };
+            return new EventDetectionFinding(
+                definition.RuleId,
+                definition.Version,
+                definition.PackId,
+                definition.PackVersion,
+                definition.SourceKind,
+                definition.SourceId,
+                definition.SourceStatus,
+                definition.SourceHash,
+                definition.License,
+                definition.Title,
+                definition.Severity,
+                definition.Confidence,
+                EventDetectionFindingStatus.Matched,
+                evidence.Min(static item => item.EventTimeUtc),
+                evidence.Max(static item => item.EventTimeUtc),
+                evidence,
+                definition.Tags,
+                definition.FalsePositives,
+                definition.References,
+                entities,
+                explanation,
+                completenessDiagnostic: null);
+        }
+
+        private static EventDetectionFinding CreateError(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            Exception exception) {
+
+            EventDetectionRuleDefinition definition = rule.Definition;
+            return new EventDetectionFinding(
+                definition.RuleId,
+                definition.Version,
+                definition.PackId,
+                definition.PackVersion,
+                definition.SourceKind,
+                definition.SourceId,
+                definition.SourceStatus,
+                definition.SourceHash,
+                definition.License,
+                definition.Title,
+                definition.Severity,
+                definition.Confidence,
+                EventDetectionFindingStatus.Error,
+                observation.EventTimeUtc,
+                observation.EventTimeUtc,
+                new[] { observation },
+                definition.Tags,
+                definition.FalsePositives,
+                definition.References,
+                new Dictionary<string, string>(),
+                $"Detection evaluation failed: {exception.Message}",
+                exception.GetType().FullName);
+        }
+
+        private static EventDetectionFinding CreateIncomplete(
+            EventObservation observation,
+            string diagnostic) {
+
+            return new EventDetectionFinding(
+                "EVX-ENGINE-BOUNDS",
+                "1.0.0",
+                string.Empty,
+                string.Empty,
+                "Engine",
+                "EVX-ENGINE-BOUNDS",
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                "Detection execution incomplete",
+                EventDetectionSeverity.Medium,
+                100,
+                EventDetectionFindingStatus.Incomplete,
+                observation.EventTimeUtc,
+                observation.EventTimeUtc,
+                new[] { observation },
+                new[] { "eventviewerx", "data-quality", "execution-bound" },
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                new Dictionary<string, string>(),
+                diagnostic,
+                diagnostic);
+        }
+
+        private static string ResolveGroupValue(string? field, EventObservation observation) {
+            if (string.IsNullOrWhiteSpace(field)) {
+                return "*";
+            }
+            if (!observation.Fields.TryGetValue(field!, out object? value) || value == null) {
+                return "<missing>";
+            }
+            return value is IFormattable formattable
+                ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty
+                : value.ToString() ?? string.Empty;
+        }
+
+        private static EventDetectionEngineOptions SnapshotOptions(EventDetectionEngineOptions? options) {
+            options ??= new EventDetectionEngineOptions();
+            if (options.MaximumObservations < 0) {
+                throw new ArgumentOutOfRangeException(nameof(options.MaximumObservations));
+            }
+            if (options.MaximumGroups <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(options.MaximumGroups));
+            }
+            if (options.MaximumStateObservations <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(options.MaximumStateObservations));
+            }
+            if (options.MaximumStateBytes <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(options.MaximumStateBytes));
+            }
+            if (options.MaximumCandidateRules <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(options.MaximumCandidateRules));
+            }
+            return new EventDetectionEngineOptions {
+                MaximumObservations = options.MaximumObservations,
+                MaximumGroups = options.MaximumGroups,
+                MaximumStateObservations = options.MaximumStateObservations,
+                MaximumStateBytes = options.MaximumStateBytes,
+                MaximumCandidateRules = options.MaximumCandidateRules
+            };
+        }
+
+        private readonly struct StateKey : IEquatable<StateKey> {
+            internal StateKey(string ruleId, string groupValue) {
+                RuleId = ruleId;
+                GroupValue = groupValue;
+            }
+
+            private string RuleId { get; }
+            private string GroupValue { get; }
+
+            public bool Equals(StateKey other) =>
+                string.Equals(RuleId, other.RuleId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(GroupValue, other.GroupValue, StringComparison.OrdinalIgnoreCase);
+
+            public override bool Equals(object? obj) => obj is StateKey other && Equals(other);
+
+            public override int GetHashCode() {
+                unchecked {
+                    return (StringComparer.OrdinalIgnoreCase.GetHashCode(RuleId) * 397) ^
+                           StringComparer.OrdinalIgnoreCase.GetHashCode(GroupValue);
+                }
+            }
+        }
+
+        private sealed class ThresholdState {
+            internal List<EventObservation> Observations { get; } = new();
+            internal DateTime ExpiresUtc { get; set; }
+        }
+
+        private sealed class TemporalState {
+            internal TemporalState(int stepCount) {
+                StepEvidence = new EventObservation?[stepCount];
+            }
+
+            internal EventObservation?[] StepEvidence { get; }
+            internal List<EventObservation> OrderedEvidence { get; } = new();
+            internal int NextStep { get; set; }
+            internal DateTime ExpiresUtc { get; set; }
+        }
+    }
+}

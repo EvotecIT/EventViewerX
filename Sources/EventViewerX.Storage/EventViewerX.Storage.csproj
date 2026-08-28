@@ -22,7 +22,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
-    <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
     <PackageReference Include="DBAClientX.SQLite" Version="1.0.8" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

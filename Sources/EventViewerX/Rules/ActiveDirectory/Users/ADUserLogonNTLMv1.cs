@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Handles NTLMv1 logon events (4624).
 /// </summary>
 public class ADUserLogonNTLMv1 : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 200;
+
     /// <summary>Machine where the logon occurred.</summary>
     public string Computer;
     /// <summary>Description of the action.</summary>

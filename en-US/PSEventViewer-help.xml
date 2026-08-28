@@ -2091,6 +2091,88 @@ already provides integrity validation.</maml:para>
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Get-EVXDetectionPack</command:name>
+      <command:verb>Get</command:verb>
+      <command:noun>EVXDetectionPack</command:noun>
+      <maml:description>
+        <maml:para>Gets the built-in versioned EventViewerX detection packs.</maml:para>
+        <maml:para>Returns signed-content-ready pack manifests with rule provenance, versions, hashes, licenses, and ATT&amp;CK tags.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Gets the built-in versioned EventViewerX detection packs.</maml:para>
+      <maml:para>Returns signed-content-ready pack manifests with rule provenance, versions, hashes, licenses, and ATT&amp;CK tags.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Get-EVXDetectionPack</maml:name>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>PackId</maml:name>
+          <maml:description>
+            <maml:para>Optional stable pack identifier wildcard.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>PackId</maml:name>
+        <maml:description>
+          <maml:para>Optional stable pack identifier wildcard.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionPack</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>List every built-in detection pack</maml:title>
+        <dev:code>Get-EVXDetectionPack</dev:code>
+        <dev:remarks>
+          <maml:para>Returns the native EventViewerX detection packs without loading Storage or Reporting.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>Select authentication packs</maml:title>
+        <dev:code>Get-EVXDetectionPack -PackId '*authentication*'</dev:code>
+        <dev:remarks>
+          <maml:para>Uses PowerShell wildcard matching against stable pack identifiers.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Get-EVXEvent</command:name>
       <command:verb>Get</command:verb>
       <command:noun>EVXEvent</command:noun>
@@ -2368,6 +2450,32 @@ For example, use en-US for deterministic English output.</maml:para>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
             <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtx</maml:name>
+          <maml:description>
+            <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtxExecutable</maml:name>
+          <maml:description>
+            <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -3337,6 +3445,32 @@ For example, use en-US for deterministic English output.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtx</maml:name>
+          <maml:description>
+            <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtxExecutable</maml:name>
+          <maml:description>
+            <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Source,Provider">
           <maml:name>ProviderName</maml:name>
           <maml:description>
@@ -3778,6 +3912,32 @@ For example, use en-US for deterministic English output.</maml:para>
           <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtx</maml:name>
+          <maml:description>
+            <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtxExecutable</maml:name>
+          <maml:description>
+            <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -4334,6 +4494,32 @@ For example, use en-US for deterministic English output.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtx</maml:name>
+          <maml:description>
+            <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtxExecutable</maml:name>
+          <maml:description>
+            <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
           <maml:name>Preset</maml:name>
           <maml:description>
@@ -4771,6 +4957,32 @@ For example, use en-US for deterministic English output.</maml:para>
           <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtx</maml:name>
+          <maml:description>
+            <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PortableEvtxExecutable</maml:name>
+          <maml:description>
+            <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -6325,12 +6537,12 @@ so deterministic English is preferred without discarding locally available messa
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Filter</maml:name>
         <maml:description>
           <maml:para>Reusable typed filter produced by New-EVXFilter or EventViewerX.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
         <dev:type>
           <maml:name>Object</maml:name>
           <maml:uri />
@@ -6569,14 +6781,40 @@ For example, use en-US for deterministic English output.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>Path to an event log file for offline analysis.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>PortableEvtx</maml:name>
+        <maml:description>
+          <maml:para>Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.&#xD;
+Provider messages are unavailable and the portable parser has a higher allocation cost.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>PortableEvtxExecutable</maml:name>
+        <maml:description>
+          <maml:para>Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.&#xD;
+The executable remains caller-owned and is never downloaded or updated by EventViewerX.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -6599,12 +6837,12 @@ For example, use en-US for deterministic English output.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Source,Provider">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Source,Provider">
         <maml:name>ProviderName</maml:name>
         <maml:description>
           <maml:para>Event provider name to filter results.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
           <maml:uri />
@@ -9008,6 +9246,180 @@ This cannot be combined with EventLogPath.</maml:para>
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Import-EVXSigmaRule</command:name>
+      <command:verb>Import</command:verb>
+      <command:noun>EVXSigmaRule</command:noun>
+      <maml:description>
+        <maml:para>Imports supported Sigma YAML as native EventViewerX detection rules.</maml:para>
+        <maml:para>The YAML adapter is separate from the detection engine because it adds a YAML dependency. Imported rules execute in the same bounded native engine as built-in rules.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Imports supported Sigma YAML as native EventViewerX detection rules.</maml:para>
+      <maml:para>The YAML adapter is separate from the detection engine because it adds a YAML dependency. Imported rules execute in the same bounded native engine as built-in rules.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="Rule">
+        <maml:name>Import-EVXSigmaRule</maml:name>
+        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>One or more Sigma YAML files to import.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <command:syntaxItem parameterSetName="Pack">
+        <maml:name>Import-EVXSigmaRule</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>AsPack</maml:name>
+          <maml:description>
+            <maml:para>Returns one versioned EventViewerX pack instead of individual rules.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PackId</maml:name>
+          <maml:description>
+            <maml:para>Stable pack identifier used with AsPack.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>One or more Sigma YAML files to import.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Version</maml:name>
+          <maml:description>
+            <maml:para>Semantic pack version used with AsPack.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>AsPack</maml:name>
+        <maml:description>
+          <maml:para>Returns one versioned EventViewerX pack instead of individual rules.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>PackId</maml:name>
+        <maml:description>
+          <maml:para>Stable pack identifier used with AsPack.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>One or more Sigma YAML files to import.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Version</maml:name>
+        <maml:description>
+          <maml:para>Semantic pack version used with AsPack.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>System.String[]</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.IEventDetectionRule</maml:name>
+        </dev:type>
+      </command:returnValue>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionPack</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Run imported Sigma rules over queried events</maml:title>
+        <dev:code>$rules = Import-EVXSigmaRule -Path .\rules\*.yml; Get-EVXEvent -LogName Security | Invoke-EVXDetection -Rule $rules</dev:code>
+        <dev:remarks>
+          <maml:para>Compiles each file once and evaluates it with the shared EventViewerX detection engine.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>Create a versioned EventViewerX pack</maml:title>
+        <dev:code>Import-EVXSigmaRule -Path .\rule.yml -AsPack -PackId contoso.windows -Version 1.0.0</dev:code>
+        <dev:remarks>
+          <maml:para>Wraps supported Sigma rules in an integrity-protected native pack.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Install-EVXProviderPackage</command:name>
       <command:verb>Install</command:verb>
       <command:noun>EVXProviderPackage</command:noun>
@@ -9184,6 +9596,318 @@ This cannot be combined with EventLogPath.</maml:para>
         <dev:code>Install-EVXProviderPackage -Path 'C:\Path'</dev:code>
         <dev:remarks>
           <maml:para></maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Invoke-EVXDetection</command:name>
+      <command:verb>Invoke</command:verb>
+      <command:noun>EVXDetection</command:noun>
+      <maml:description>
+        <maml:para>Evaluates EventViewerX events with native detection and correlation rules.</maml:para>
+        <maml:para>Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.</maml:para>
+        <maml:para>Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Evaluates EventViewerX events with native detection and correlation rules.</maml:para>
+      <maml:para>Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.</maml:para>
+      <maml:para>Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Invoke-EVXDetection</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns the effective compiled plan without evaluating input.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>IncludeBuiltIn</maml:name>
+          <maml:description>
+            <maml:para>Adds the built-in packs when explicit Rule or Pack values are supplied.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+          <maml:name>InputObject</maml:name>
+          <maml:description>
+            <maml:para>Detached EventViewerX event to evaluate.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
+          <dev:type>
+            <maml:name>EventObject</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumGroups</maml:name>
+          <maml:description>
+            <maml:para>Maximum active correlation groups.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumObservations</maml:name>
+          <maml:description>
+            <maml:para>Maximum observations evaluated. Zero is unlimited.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumStateBytes</maml:name>
+          <maml:description>
+            <maml:para>Maximum estimated correlation-state bytes.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumStateObservations</maml:name>
+          <maml:description>
+            <maml:para>Maximum observations retained across correlation state.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Pack</maml:name>
+          <maml:description>
+            <maml:para>Explicit versioned packs. When omitted, the built-in packs are used.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionPack[]</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionPack[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Rule</maml:name>
+          <maml:description>
+            <maml:para>Explicit native rules. When omitted, the built-in packs are used.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">IEventDetectionRule[]</command:parameterValue>
+          <dev:type>
+            <maml:name>IEventDetectionRule[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Tuning</maml:name>
+          <maml:description>
+            <maml:para>Environment-specific disables, severity changes, thresholds, and suppressions.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionTuning</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionTuning</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Explain</maml:name>
+        <maml:description>
+          <maml:para>Returns the effective compiled plan without evaluating input.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>IncludeBuiltIn</maml:name>
+        <maml:description>
+          <maml:para>Adds the built-in packs when explicit Rule or Pack values are supplied.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+        <maml:name>InputObject</maml:name>
+        <maml:description>
+          <maml:para>Detached EventViewerX event to evaluate.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
+        <dev:type>
+          <maml:name>EventObject</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumGroups</maml:name>
+        <maml:description>
+          <maml:para>Maximum active correlation groups.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumObservations</maml:name>
+        <maml:description>
+          <maml:para>Maximum observations evaluated. Zero is unlimited.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+        <dev:type>
+          <maml:name>Int64</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumStateBytes</maml:name>
+        <maml:description>
+          <maml:para>Maximum estimated correlation-state bytes.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+        <dev:type>
+          <maml:name>Int64</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumStateObservations</maml:name>
+        <maml:description>
+          <maml:para>Maximum observations retained across correlation state.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Pack</maml:name>
+        <maml:description>
+          <maml:para>Explicit versioned packs. When omitted, the built-in packs are used.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionPack[]</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionPack[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Rule</maml:name>
+        <maml:description>
+          <maml:para>Explicit native rules. When omitted, the built-in packs are used.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">IEventDetectionRule[]</command:parameterValue>
+        <dev:type>
+          <maml:name>IEventDetectionRule[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Tuning</maml:name>
+        <maml:description>
+          <maml:para>Environment-specific disables, severity changes, thresholds, and suppressions.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionTuning</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionTuning</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>EventViewerX.EventObject</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionFinding</maml:name>
+        </dev:type>
+      </command:returnValue>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionPlanExplanation</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Run the built-in detections</maml:title>
+        <dev:code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours | Invoke-EVXDetection</dev:code>
+        <dev:remarks>
+          <maml:para>Evaluates the built-in native packs and emits findings as typed objects.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>Apply environment tuning</maml:title>
+        <dev:code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication | Invoke-EVXDetection -Tuning $tuning</dev:code>
+        <dev:remarks>
+          <maml:para>Disables a rule without changing the versioned pack content.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>Explain the effective plan</maml:title>
+        <dev:code>Invoke-EVXDetection -Explain</dev:code>
+        <dev:remarks>
+          <maml:para>Returns selectors, state requirements, and required typed projections without processing events.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -15319,12 +16043,12 @@ This cannot be combined with EventLogPath.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>InitializeCollector</maml:name>
         <maml:description>
           <maml:para>Runs the inbox WinRM and Windows Event Collector quick configuration and verifies readiness.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">SwitchParameter</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
           <maml:name>SwitchParameter</maml:name>
           <maml:uri />
@@ -18142,12 +18866,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>Definition</maml:name>
         <maml:description>
           <maml:para>Custom JSON definition path or an EventDefinition instance.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
         <dev:type>
           <maml:name>Object</maml:name>
           <maml:uri />
@@ -18284,12 +19008,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>LogName</maml:name>
         <maml:description>
           <maml:para>Generic event channel. Mutually exclusive with Type.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
         <dev:type>
           <maml:name>String</maml:name>
           <maml:uri />
@@ -18416,12 +19140,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>One or more offline EVTX files. Type or Definition may be supplied to apply typed semantics; Path alone creates a generic report.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
           <maml:uri />
@@ -18562,12 +19286,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>Type</maml:name>
         <maml:description>
           <maml:para>Built-in leaf or composite event definitions. Each definition owns its channels and event IDs.</maml:para>
         </maml:description>
-        <command:parameterValue required="true" variableLength="false">EventType[]</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">EventType[]</command:parameterValue>
         <command:parameterValueGroup>
           <command:parameterValue required="false" variableLength="false">ADComputerCreateChange</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADComputerDeleted</command:parameterValue>
@@ -22382,6 +23106,81 @@ LogName and Path are not included because this watcher targets one LogName.</mam
         <dev:code>Test-EVXReadiness -Scenario AuthenticationMonitoring -Collector WEC01 -SubscriptionName EventViewerX-Authentication -ActiveDirectory CurrentForest</dev:code>
         <dev:remarks>
           <maml:para>Queries ForwardedEvents and, when run locally on the collector, compares explicitly discovered DCs with subscription runtime enrollment.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Test-EVXSigmaRule</command:name>
+      <command:verb>Test</command:verb>
+      <command:noun>EVXSigmaRule</command:noun>
+      <maml:description>
+        <maml:para>Validates and compiles Sigma YAML against the EventViewerX supported subset.</maml:para>
+        <maml:para>Returns structured diagnostics and native rules without executing them. Unsupported behavior is reported explicitly and is never weakened silently.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Validates and compiles Sigma YAML against the EventViewerX supported subset.</maml:para>
+      <maml:para>Returns structured diagnostics and native rules without executing them. Unsupported behavior is reported explicitly and is never weakened silently.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Test-EVXSigmaRule</maml:name>
+        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>One or more Sigma YAML files to validate.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>One or more Sigma YAML files to validate.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>System.String[]</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.Sigma.SigmaCompilationResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Validate a Sigma rule file</maml:title>
+        <dev:code>Test-EVXSigmaRule -Path .\rules\suspicious-logon.yml</dev:code>
+        <dev:remarks>
+          <maml:para>Returns the compiled rules, diagnostics, and IsSupported status.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>

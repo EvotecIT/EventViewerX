@@ -68,6 +68,10 @@ public sealed partial class CmdletGetEVXEvent {
             namedDataSuppressions.Count > 0 ||
             suppressions.Count > 0 ||
             filterChunks.Count > 1) {
+            if (_resolvedSavedEventReader != null) {
+                throw new PSNotSupportedException(
+                    "PortableEvtx does not support QueryList suppression or partitioned XPath execution. Use exact provider names and positive filters, or omit PortableEvtx to use the Windows Eventing API.");
+            }
             var structured = new List<EventLogStructuredQuery>(
                 checked(
                     paths.Count *
@@ -201,7 +205,11 @@ public sealed partial class CmdletGetEVXEvent {
                          Oldest = true,
                          ReadMode =
                              EventReadMode.Metadata,
-                         MaxEvents = nativeLimit
+                         MaxEvents = nativeLimit,
+                         SavedEventReader = _resolvedSavedEventReader,
+                         SavedEventDiagnosticHandler = _resolvedSavedEventReader != null
+                             ? WriteSavedEventDiagnostic
+                             : null
                      },
                      CancelToken)) {
             CancelToken.ThrowIfCancellationRequested();
@@ -331,6 +339,10 @@ public sealed partial class CmdletGetEVXEvent {
 
         return new EventLogFileQuery(path) {
             XPath = xpath,
+            SavedEventReader = _resolvedSavedEventReader,
+            SavedEventDiagnosticHandler = _resolvedSavedEventReader != null
+                ? WriteSavedEventDiagnostic
+                : null,
             Oldest = EffectiveOldest,
             ReadMode = ReadMode,
             MessageCulture = MessageCulture,
@@ -343,6 +355,13 @@ public sealed partial class CmdletGetEVXEvent {
             BookmarkOffset = BookmarkOffset,
             StrictBookmark = !IgnoreStaleBookmark
         };
+    }
+
+    private void WriteSavedEventDiagnostic(SavedEventReadDiagnostic diagnostic) {
+        string offset = diagnostic.FileOffset.HasValue
+            ? $" at offset 0x{diagnostic.FileOffset.Value:X}"
+            : string.Empty;
+        WriteWarning($"{diagnostic.Code}{offset}: {diagnostic.Message}");
     }
 
     private EventLogStructuredQuery CreateStructuredQuery(

@@ -13,7 +13,13 @@ public class GroupPolicyLinks {
     /// <summary>Indicates whether the link is enabled.</summary>
     public bool IsEnabled { get; set; }
 
+    /// <summary>Indicates whether the link is enforced.</summary>
+    public bool IsEnforced { get; set; }
+
+    /// <summary>Raw Active Directory gPLink option flags.</summary>
+    public int Options { get; set; }
+
     /// <summary>Returns a stable, human-readable representation used by reports and grouping.</summary>
     public override string ToString() =>
-        $"Name={DisplayName}; GUID={Guid}; DistinguishedName={DistinguishedName}; Enabled={IsEnabled}";
+        $"Name={DisplayName}; GUID={Guid}; DistinguishedName={DistinguishedName}; Options={Options}; Enabled={IsEnabled}; Enforced={IsEnforced}";
 }

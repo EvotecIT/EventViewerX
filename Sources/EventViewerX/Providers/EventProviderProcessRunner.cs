@@ -12,7 +12,8 @@ internal static class EventProviderProcessRunner {
         IEnumerable<string> arguments,
         string workingDirectory,
         TimeSpan timeout,
-        Action<Process>? processStarted = null) {
+        Action<Process>? processStarted = null,
+        CancellationToken cancellationToken = default) {
 
         string argumentText = string.Join(
             " ",
@@ -26,48 +27,15 @@ internal static class EventProviderProcessRunner {
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        using var process = new Process {
-            StartInfo = startInfo
-        };
-        if (!process.Start()) {
-            throw new InvalidOperationException(
-                $"Failed to start '{fileName}'.");
-        }
-        Task<string> output =
-            process.StandardOutput.ReadToEndAsync();
-        Task<string> error =
-            process.StandardError.ReadToEndAsync();
-        try {
-            processStarted?.Invoke(process);
-        } catch {
-            try {
-                process.Kill();
-            } catch (InvalidOperationException) {
-            } finally {
-                process.WaitForExit();
-                Task.WaitAll(output, error);
-            }
-            throw;
-        }
-        if (!process.WaitForExit(
-                checked((int)Math.Min(
-                    int.MaxValue,
-                    timeout.TotalMilliseconds)))) {
-            try {
-                process.Kill();
-            } catch (InvalidOperationException) {
-            } finally {
-                process.WaitForExit();
-                Task.WaitAll(output, error);
-            }
-            throw new TimeoutException(
-                $"Provider build tool '{fileName}' did not finish within {timeout}.");
-        }
-        Task.WaitAll(output, error);
+        BoundedProcessResult processResult = BoundedProcessRunner.RunResult(
+            startInfo,
+            timeout,
+            cancellationToken,
+            processStarted);
         return new EventProviderProcessResult {
-            ExitCode = process.ExitCode,
-            Output = output.Result,
-            Error = error.Result
+            ExitCode = processResult.ExitCode,
+            Output = processResult.Output,
+            Error = processResult.Error
         };
     }
 

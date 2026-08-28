@@ -246,6 +246,8 @@ public static class EventDefinitionEngine {
                              useOriginalChannel: true)) {
                     files.Add(new EventLogFileQuery(fullPath) {
                         XPath = xpath,
+                        SavedEventReader = query.SavedEventReader,
+                        SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
                         Oldest = query.Oldest,
                         ReadMode = query.ReadMode,
                         IncludeBookmark = query.IncludeBookmark,
@@ -482,6 +484,8 @@ public static class EventDefinitionEngine {
         EventDefinition definition = CopyDefinition(query.Definition);
         return new EventDefinitionQuery(definition) {
             Paths = query.Paths?.ToArray(),
+            SavedEventReader = query.SavedEventReader,
+            SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
             MachineNames = targets,
             CollectorLogName = string.IsNullOrWhiteSpace(query.CollectorLogName) ? null : query.CollectorLogName!.Trim(),
             StartTime = query.StartTime,

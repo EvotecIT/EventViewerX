@@ -33,8 +33,10 @@ public static partial class EventTypeEngine {
             executionInfo ??
             new EventTypeQueryExecutionInfo();
         info.Reset(query.MaxCandidates);
+        EventTypeProjectionPlan projectionPlan =
+            EventTypeCatalog.CompileProjectionPlan(query.Types);
         IReadOnlyList<EventType> resolvedTypes =
-            EventTypeCatalog.Expand(query.Types);
+            projectionPlan.ExpandedTypes;
         EventPredicate? exactPredicate = query.Predicate == null
             ? null
             : EventPredicateBuilder
@@ -84,7 +86,7 @@ public static partial class EventTypeEngine {
                            EventLogEngine.ReadBatchAsync(
                                batch,
                                cancellationToken),
-                            resolvedTypes,
+                            projectionPlan,
                             enricher,
                             candidateCounter
                                 .TryRecordCandidate,
@@ -443,6 +445,8 @@ public static partial class EventTypeEngine {
                         source.Key);
                     fileQueries.Add(new EventLogFileQuery(fullPath) {
                         XPath = xpath,
+                        SavedEventReader = query.SavedEventReader,
+                        SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
                         Oldest = query.Oldest,
                         ReadMode = query.ReadMode,
                         IncludeBookmark = query.IncludeBookmark,

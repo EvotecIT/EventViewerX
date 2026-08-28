@@ -18,6 +18,20 @@ public sealed partial class CmdletGetEVXEvent {
     /// </summary>
     protected override Task BeginProcessingAsync() {
         _eventsOutput = 0;
+        if (PortableEvtx.IsPresent && !string.IsNullOrWhiteSpace(PortableEvtxExecutable)) {
+            throw new PSArgumentException(
+                "PortableEvtx and PortableEvtxExecutable are mutually exclusive. Select one portable EVTX engine.");
+        }
+        if (PortableEvtx.IsPresent || !string.IsNullOrWhiteSpace(PortableEvtxExecutable)) {
+            if (Path.Length == 0) {
+                throw new PSArgumentException(
+                    "Portable EVTX parsing requires at least one -Path source.",
+                    nameof(Path));
+            }
+            _resolvedSavedEventReader = string.IsNullOrWhiteSpace(PortableEvtxExecutable)
+                ? _portableSavedEventReader
+                : new EvtxDumpSavedEventReader(PortableEvtxExecutable!);
+        }
         // Initialize the logger to be able to see verbose, warning, debug, error, progress, and information messages.
         var internalLogger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(internalLogger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);

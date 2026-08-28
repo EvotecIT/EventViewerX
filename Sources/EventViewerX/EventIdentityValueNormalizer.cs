@@ -13,11 +13,11 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
 
     public string Name => "event-identity";
 
-    public int Version => 2;
+    public int Version => 3;
 
     public bool CanNormalize(EventValueContext context) {
         string field = context.FieldName;
-        return EndsWith(field, "Sid") || EndsWith(field, "Guid") || EndsWith(field, "Id") && IsGuid(context.RawValue) ||
+        return IsSidField(field) || EndsWith(field, "Guid") || EndsWith(field, "Id") && IsGuid(context.RawValue) ||
                EndsWith(field, "DistinguishedName") || EndsWith(field, "ObjectDN") ||
                EndsWith(field, "OID") || EndsWith(field, "ObjectIdentifier");
     }
@@ -29,7 +29,7 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
             return EventValueNormalizer.Unchanged(context);
         }
         string field = context.FieldName;
-        if (EndsWith(field, "Sid")) {
+        if (IsSidField(field)) {
             string canonical = raw.ToUpperInvariant();
             return SidPattern.IsMatch(canonical)
                 ? EventValueNormalizer.Create(
@@ -95,6 +95,18 @@ internal sealed class EventIdentityValueNormalizer : IEventValueNormalizer {
 
     private static bool EndsWith(string value, string suffix) =>
         value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSidField(string field) {
+        if (string.Equals(field, "Sid", StringComparison.OrdinalIgnoreCase) ||
+            field.EndsWith("Sid", StringComparison.Ordinal) ||
+            field.EndsWith("SID", StringComparison.Ordinal)) {
+            return true;
+        }
+        int suffixStart = field.Length - 3;
+        return suffixStart > 0 &&
+               field[suffixStart - 1] is '_' or '-' or '.' &&
+               field.EndsWith("sid", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool IsGuid(object? value) =>
         value is Guid || Guid.TryParse(EventValueNormalizer.Format(value).Trim('{', '}'), out _);

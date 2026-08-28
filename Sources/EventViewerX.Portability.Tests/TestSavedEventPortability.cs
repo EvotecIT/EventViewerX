@@ -1,0 +1,111 @@
+using EventViewerX.Evtx;
+using Xunit;
+
+namespace EventViewerX.Portability.Tests;
+
+public sealed class TestSavedEventPortability {
+    [Fact]
+    public void EvtxDumpJsonProjectionPreservesEventIdentityAndPayload() {
+        const string json = """
+            {"Event":{"#attributes":{"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"},"System":{"Provider":{"#attributes":{"Name":"Microsoft-Windows-Security-Auditing","Guid":"{54849625-5478-4994-a5ba-3e3b0328c30d}"}},"EventID":4624,"Version":2,"Level":0,"Task":12544,"Opcode":0,"Keywords":"0x8020000000000000","TimeCreated":{"#attributes":{"SystemTime":"2026-08-28T10:11:12.1234567Z"}},"EventRecordID":42,"Execution":{"#attributes":{"ProcessID":812,"ThreadID":1216}},"Channel":"Security","Computer":"dc01.ad.evotec.xyz","Security":null},"EventData":{"TargetUserName":"alice","IpAddress":"10.0.0.15"},"UserData":{"ns0:Audit":{"ns0:Value":"preserved"}}}}
+            """;
+
+        SavedEventRecord record = EvtxDumpJsonProjector.Create(json);
+
+        Assert.Equal("Microsoft-Windows-Security-Auditing", record.ProviderName);
+        Assert.Equal(4624, record.EventId);
+        Assert.Equal(42, record.RecordId);
+        Assert.Equal("Security", record.Channel);
+        Assert.Equal("dc01.ad.evotec.xyz", record.Computer);
+        Assert.Equal(DateTime.Parse("2026-08-28T10:11:12.1234567Z").ToUniversalTime(), record.TimeCreatedUtc);
+        Assert.Equal("alice", record.Data["TargetUserName"]);
+        Assert.Equal("10.0.0.15", record.Data["IpAddress"]);
+        Assert.Contains("<Audit>", record.RawXml, StringComparison.Ordinal);
+        Assert.Contains("<Value>preserved</Value>", record.RawXml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpReaderReportsActionableExecutableFailure() {
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-{Guid.NewGuid():N}.evtx");
+        File.WriteAllBytes(path, new byte[4096]);
+        try {
+            var reader = new EvtxDumpSavedEventReader($"eventviewerx-missing-{Guid.NewGuid():N}");
+            var query = new EventLogFileQuery(path) { XPath = "*", Oldest = true };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => reader.Read(query).ToArray());
+
+            Assert.Contains("Install evtx_dump or provide its exact path", exception.Message, StringComparison.Ordinal);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ParserNeutralReaderDoesNotInvokeWindowsEventingApis() {
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-portable-{Guid.NewGuid():N}.evtx");
+        File.WriteAllBytes(path, new byte[] { 1 });
+        try {
+            var query = new EventLogFileQuery(path) {
+                SavedEventReader = new PortableFixtureReader(),
+                ReadMode = EventReadMode.StructuredData,
+                Oldest = true
+            };
+
+            EventObject result = Assert.Single(EventLogEngine.ReadFile(query));
+
+            Assert.Equal(7001, result.Id);
+            Assert.Equal(7, result.RecordId);
+            Assert.Equal("portable-host", result.SourceComputer);
+            Assert.Equal("value", result.Data["PortableField"]);
+            Assert.Equal(EventLogQuerySourceKind.File, result.QuerySourceKind);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void XmlProjectorPreservesPortableIdentityAndPayload() {
+        const string xml = """
+            <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+              <System>
+                <Provider Name="Portable-Provider" Guid="{11111111-1111-4111-8111-111111111111}" />
+                <EventID>4624</EventID><Version>2</Version><Level>0</Level><Task>12544</Task><Opcode>0</Opcode>
+                <Keywords>0x8020000000000000</Keywords>
+                <TimeCreated SystemTime="2026-08-28T10:00:00.0000000Z" />
+                <EventRecordID>42</EventRecordID><Correlation ActivityID="{22222222-2222-4222-8222-222222222222}" />
+                <Execution ProcessID="123" ThreadID="456" /><Channel>Security</Channel><Computer>dc1.example.test</Computer>
+              </System>
+              <EventData><Data Name="TargetUserName">alice</Data><Data>unnamed</Data></EventData>
+            </Event>
+            """;
+
+        SavedEventRecord record = SavedEventXmlProjector.Create(xml);
+
+        Assert.Equal(4624, record.EventId);
+        Assert.Equal(42, record.RecordId);
+        Assert.Equal("Portable-Provider", record.ProviderName);
+        Assert.Equal("Security", record.Channel);
+        Assert.Equal("alice", record.Data["TargetUserName"]);
+        Assert.Equal("unnamed", record.Data["NoNameA0"]);
+        Assert.Equal(EventMessageRenderStatus.MessageResourceUnavailable, record.MessageRenderStatus);
+    }
+
+    private sealed class PortableFixtureReader : ISavedEventReader {
+        public IEnumerable<SavedEventRecord> Read(
+            EventLogFileQuery query,
+            Action<SavedEventReadDiagnostic>? diagnosticHandler = null,
+            CancellationToken cancellationToken = default) {
+
+            yield return new SavedEventRecord {
+                ProviderName = "Portable-Fixture",
+                EventId = 7001,
+                RecordId = 7,
+                Channel = "Portable/Operational",
+                Computer = "portable-host",
+                TimeCreatedUtc = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                Data = new Dictionary<string, string> { ["PortableField"] = "value" },
+                MessageRenderStatus = EventMessageRenderStatus.MessageResourceUnavailable
+            };
+        }
+    }
+}

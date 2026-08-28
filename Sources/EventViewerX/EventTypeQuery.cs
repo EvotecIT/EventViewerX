@@ -47,6 +47,12 @@ public sealed class EventTypeQuery {
     /// </summary>
     public IReadOnlyList<string>? Paths { get; set; }
 
+    /// <summary>Optional parser-neutral reader used for every saved-event path.</summary>
+    public ISavedEventReader? SavedEventReader { get; set; }
+
+    /// <summary>Optional corruption and fidelity diagnostic sink for saved-event paths.</summary>
+    public Action<SavedEventReadDiagnostic>? SavedEventDiagnosticHandler { get; set; }
+
     /// <summary>Local or remote machines. Null or empty targets the local machine.</summary>
     public IReadOnlyList<string?>? MachineNames {
         get;

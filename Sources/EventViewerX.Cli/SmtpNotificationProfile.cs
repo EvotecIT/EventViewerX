@@ -75,6 +75,17 @@ internal sealed class SmtpNotificationProfile {
         CancellationToken cancellationToken = default) {
 
         ArgumentNullException.ThrowIfNull(package);
+        return await SendAsync(package.Html, package.PlainText, title, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<SmtpResult> SendAsync(
+        string html,
+        string plainText,
+        string title,
+        CancellationToken cancellationToken = default) {
+
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(plainText);
         Validate();
         var smtp = new Smtp {
             From = From.Trim(),
@@ -82,8 +93,8 @@ internal sealed class SmtpNotificationProfile {
             Cc = Cc.Cast<object>().ToArray(),
             Bcc = Bcc.Cast<object>().ToArray(),
             Subject = (string.IsNullOrWhiteSpace(Subject) ? "{Title}" : Subject).Replace("{Title}", title, StringComparison.Ordinal),
-            HtmlBody = package.Html,
-            TextBody = package.PlainText,
+            HtmlBody = html,
+            TextBody = plainText,
             AutoCreateMessage = true,
             Timeout = TimeoutMilliseconds,
             RetryCount = RetryCount,

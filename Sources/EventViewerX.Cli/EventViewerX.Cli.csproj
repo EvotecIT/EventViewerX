@@ -1,24 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>evx</AssemblyName>
     <VersionPrefix>4.0.0</VersionPrefix>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <IsWindows>true</IsWindows>
-    <SupportedOSPlatform>windows</SupportedOSPlatform>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
-    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
     <ProjectReference Include="..\EventViewerX.Storage\EventViewerX.Storage.csproj" />
+    <ProjectReference Include="..\EventViewerX.Detection\EventViewerX.Detection.csproj" />
+    <ProjectReference Include="..\EventViewerX.Evtx\EventViewerX.Evtx.csproj" />
     <PackageReference Include="Mailozaurr" Version="3.0.0" />
   </ItemGroup>
 </Project>

@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Represents a modified group policy object event.
 /// </summary>
 public class GpoModified : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 250;
+
     /// <summary>Computer where the modification occurred.</summary>
     public string Computer;
     /// <summary>Description of the action.</summary>

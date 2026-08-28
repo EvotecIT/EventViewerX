@@ -20,6 +20,8 @@
     </ItemGroup>
   <ItemGroup>
       <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
+      <ProjectReference Include="..\EventViewerX.Detection\EventViewerX.Detection.csproj" />
+      <ProjectReference Include="..\EventViewerX.Evtx\EventViewerX.Evtx.csproj" />
       <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
       <ProjectReference Include="..\EventViewerX.Storage\EventViewerX.Storage.csproj" />
   </ItemGroup>
@@ -30,13 +32,7 @@
       <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
   </ItemGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
-      <!-- The packaged module contains the win-x64 SQLite runtime and therefore has an explicit AMD64 contract. -->
-      <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-      <PlatformTarget>x64</PlatformTarget>
-      <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
-      <!-- PowerShell 7.0 consumes this portable managed payload; select the Windows SQLite native asset for the packaged module. -->
+      <!-- System.Data.SQLite's .NET Framework build is native-platform specific. PowerShell 7 uses the architecture-neutral netstandard payload below. -->
       <RuntimeIdentifier>win-x64</RuntimeIdentifier>
       <PlatformTarget>x64</PlatformTarget>
       <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
@@ -60,6 +56,8 @@
         <Using Include="System.Net" />
         <Using Include="System.Diagnostics" />
         <Using Include="EventViewerX" />
+        <Using Include="EventViewerX.Sigma" />
+        <Using Include="EventViewerX.Evtx" />
         <Using Include="EventViewerX.Reporting" />
         <Using Include="EventViewerX.Storage" />
     </ItemGroup>

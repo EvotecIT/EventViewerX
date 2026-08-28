@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>EventViewerX.ProjectionBenchmark</AssemblyName>
+    <RootNamespace>EventViewerX.Benchmarks</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <IsWindows>true</IsWindows>
+    <SupportedOSPlatform>windows</SupportedOSPlatform>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sources\EventViewerX\EventViewerX.csproj" />
+  </ItemGroup>
+</Project>

@@ -70,7 +70,7 @@ public sealed class TestEventAnalysis {
         Assert.NotEqual(
             EventAggregationEngine.Canonicalize(spaced.Value),
             EventAggregationEngine.Canonicalize(single.Value));
-        Assert.Equal(2, spaced.NormalizerVersion);
+        Assert.Equal(3, spaced.NormalizerVersion);
     }
 
     [Fact]

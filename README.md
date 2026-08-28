@@ -3,9 +3,37 @@
 High-performance Windows Event Log tooling for .NET and PowerShell.
 
 PSEventViewer is the thin PowerShell surface. EventViewerX is the reusable C#
-engine underneath it. Both use the Windows Event Log API directly for live,
-remote, and offline EVTX work; there is no bundled EVTX parser, EvtxECmd
-runtime, Rust engine, or provider-specific parsing dependency.
+engine underneath it. Live channels, remote sessions, WEC, provider messages,
+and Windows configuration use the Windows Event Log APIs. Saved EVTX files can
+also use an explicitly selected portable adapter.
+
+In this project, **offline** means reading a saved `.evtx` file instead of an
+active channel. The default saved-file path still uses Windows Eventing APIs.
+`EventViewerX.Evtx` is an optional dependency-backed adapter for Linux, macOS,
+and Windows; it plugs into the core `ISavedEventReader` contract and therefore
+feeds the same typed projection, detection, reporting, and storage pipeline.
+The separate package exists because it adds the third-party `evtx` parser and
+its dependencies—there is no `EventViewerX.Offline` package.
+
+Both portable adapters omit provider-formatted messages and support standard
+XPath 1.0 rather than every Windows Event Log XPath extension. The managed
+`EvtxSavedEventReader` requires no external executable, but remains opt-in
+because its current allocation cost misses the production performance gate.
+On a 31.5 MB Security fixture it preserved all 62,031 records and achieved 100%
+identity parity with Windows, but processed about 5,364 events/second with
+roughly 720 KB allocated/event versus 41,719 events/second and 3.5 KB/event for
+the Windows path. The fidelity gate also runs on Linux and reports header,
+chunk, recovery, and parser diagnostics explicitly.
+
+Archived logs that require provider template resolution are not supported by
+the managed adapter: the retained archived fixture returns zero of 653
+Windows-readable records. `EvtxDumpSavedEventReader` is the higher-fidelity
+portable option for this case and preserved all 653 records. It executes an
+explicit caller-owned `evtx_dump` path, never downloads or updates the tool,
+and normalizes its streaming JSONL into the same EVX contracts. Its JSONL
+timestamps are precise to one microsecond rather than the final 100-nanosecond
+FILETIME digit, and the retained truncated fixture is handled only by the
+managed adapter. Choose the engine for the input and keep diagnostics enabled.
 
 [![PowerShell Gallery](https://img.shields.io/powershellgallery/v/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
 [![PowerShell Gallery downloads](https://img.shields.io/powershellgallery/dt/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
@@ -65,6 +93,11 @@ The `master` branch is the active home of PSEventViewer and EventViewerX.
 - Query built-in typed event definitions and composite workflows such as
   failed logons, lockouts, group changes, Kerberos failures, AAD Connect
   health, IIS failures, and OS crashes.
+- Evaluate versioned native detections and supported Sigma rules with bounded
+  threshold, distinct-value, temporal, and ordered correlation state.
+- Preserve finding evidence, rule provenance, source coverage, and three event
+  clocks in reusable incident timelines. Short-window analysis needs no
+  database; SQLite history is optional for restart-safe and long-lookback work.
 - Turn the same normalized result into responsive HTML, an Excel workbook, or
   an email package without querying the event log again.
 
@@ -133,6 +166,16 @@ Get-EVXEvent -FilterHashtable @{
 Get-EVXEvent -Path C:\Logs\Security.evtx -Oldest `
     -ReadMode StructuredData `
     -NamedDataFilter @{ TargetUserName = 'alice' }
+
+# Explicit portable parser for Linux/macOS or parser-independent validation.
+# Provider-formatted Message is unavailable; -Oldest keeps memory bounded.
+Get-EVXEvent -Path ./Security.evtx -PortableEvtx -Oldest `
+    -ReadMode StructuredData
+
+# Higher-fidelity portable engine for archives; EVX never installs the tool.
+Get-EVXEvent -Path ./ForwardedEvents.evtx `
+    -PortableEvtxExecutable ./evtx_dump -Oldest `
+    -ReadMode StructuredData
 
 # Query several remote hosts. Healthy targets can continue when one fails.
 Get-EVXEvent -LogName Security -MachineName DC01, DC02 `
@@ -546,6 +589,17 @@ var offline = new EventLogFileQuery(@"C:\Logs\Security.evtx") {
     MessageCulture = CultureInfo.GetCultureInfo("en-US")
 };
 
+// EventViewerX.Evtx is separate because it owns the parser dependency.
+// The same query and EventObject contracts continue above this line.
+offline.SavedEventReader = new EventViewerX.Evtx.EvtxSavedEventReader();
+offline.SavedEventDiagnosticHandler = diagnostic =>
+    Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+
+// For archive/template fidelity, point EVX at a caller-managed evtx_dump.
+// This is explicit process execution; EVX does not acquire or update the tool.
+offline.SavedEventReader = new EventViewerX.Evtx.EvtxDumpSavedEventReader(
+    @"C:\Tools\evtx_dump.exe");
+
 EventExportResult exported = EventLogExporter.ExportFile(
     offline,
     @"C:\Exports\Security.jsonl",
@@ -575,6 +629,53 @@ await foreach (EventTypeRecord item in
         $"{item.TimeCreated:u} {item.TypeName} {item.MachineName}");
 }
 ```
+
+## Detection, Sigma, and correlation
+
+EventViewerX has two different kinds of rules:
+
+- Event-type rules classify one Windows event and project its payload into a
+  typed record such as `ADUserLogonFailed` or `GpoModified`.
+- Detection rules evaluate canonical observations. They can match one event or
+  correlate an ordered sequence within explicit limits. Sigma YAML is compiled
+  into these same native detection rules; it does not use a second execution
+  engine.
+
+Native detection, correlation, tuning, packs, findings, and timelines live in
+the dependency-light `EventViewerX` core package. `EventViewerX.Detection` adds
+only the Sigma YAML adapter and its YAML dependency. `EventViewerX.Storage`
+adds DbaClientX-backed SQLite history. Reporting and storage are optional
+consumers: an event stream can go directly from `Get-EVXEvent` into detection.
+
+```powershell
+# Run the built-in native packs without storage.
+Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours |
+    Invoke-EVXDetection
+
+# Validate first, then import and run supported Sigma rules.
+Test-EVXSigmaRule -Path .\Rules\SuspiciousLogon.yml
+$rules = Import-EVXSigmaRule -Path .\Rules\*.yml
+Get-EVXEvent -LogName Security -TimePeriod Last24Hours |
+    Invoke-EVXDetection -Rule $rules
+
+# Inspect the immutable plan and declared source requirements.
+Invoke-EVXDetection -Rule $rules -Explain
+Get-EVXDetectionPack | ForEach-Object { $_.GetCoverage() }
+```
+
+The CLI exposes the same path for scheduled work. `--write-findings-store` is
+optional; omit it for one-shot or short-window analysis.
+
+```powershell
+evx detect --type ActiveDirectoryAuthentication --since 1.00:00:00 `
+    --sigma .\Rules\SuspiciousLogon.yml --include-built-in `
+    --jsonl .\Findings.jsonl --report-html .\Detection.html
+```
+
+Every detection report identifies enabled pack versions and hashes, matched and
+incomplete findings, missing required channels/providers/types, execution
+limits, evidence identities, pivots, and an ordered timeline. An empty finding
+set is not reported as complete when required telemetry is absent.
 
 ## Typed reports, Excel, HTML, and email
 
@@ -667,7 +768,11 @@ evx report --type ActiveDirectoryAuthentication --collector WEC01 `
     --excel .\Authentication.xlsx --mail-profile .\smtp.json
 ```
 
-For C#, reporting is a separate, intentional package boundary:
+For C#, queries, occurrence analysis, aggregation, report rows, schemas, and
+completeness metadata are part of the core `EventViewerX` package. They work
+directly on live, WEC, or saved-event input and do not require a database.
+Install `EventViewerX.Reporting` only when HTML, Excel, CSV, email, or durable
+notification outbox artifacts are needed:
 
 ```csharp
 using EventViewerX;
@@ -753,6 +858,7 @@ evx report --type ADUserLogonFailed --record-id 123456 `
 # Continuously batch matching events and create an outbox or send mail.
 evx watch --type ActiveDirectoryAuthentication --collector WEC01 `
     --interval 00:05:00 --mail-profile C:\EVX\smtp.json `
+    --outbox C:\EVX\outbox --notification-buffer-capacity 8192 `
     --ready-file C:\EVX\ready --summary-file C:\EVX\last-run.json
 
 # Inspect or manage collector definitions without adding more PowerShell cmdlets.
@@ -767,6 +873,20 @@ evx report --store C:\EVX\events.db --type ADUserLogonFailed `
     --summary Day --html C:\Reports\FailedLogons-Daily.html
 evx store prune --path C:\EVX\events.db --before 2026-01-01T00:00:00Z
 ```
+
+Each watcher outbox delivery is published as one completed batch directory
+containing `report.html`, `email.html`, `email.txt`, and `batch.json`. A stable
+batch identifier makes a local retry idempotent, and a failed write is never
+published as a completed directory. The notification buffer is bounded (4,096
+events by default) and fails explicitly when delivery cannot keep up. SMTP
+delivery is at-least-once: an uncertain connection failure after a server has
+accepted a message can cause a retry, so downstream mail handling should tolerate
+duplicate batch subjects.
+Failed outbox deliveries use persisted bounded exponential backoff (one minute
+to one hour by default) across restarts. `--retry-delay` and
+`--maximum-retry-delay` change those bounds; `--dead-letter-after` controls when
+a repeatedly failing batch is moved aside. The summary file includes queue and
+outbox depth, oldest-pending age, retry count, and dead-letter count.
 
 In the exact-artifact, five-launch cold-start matrix, the framework-dependent
 and portable hosts reached their command in 115 ms and 116 ms median. Importing
@@ -799,7 +919,10 @@ Version 4 intentionally exposes one canonical command for each responsibility:
 | Area | Commands |
 | --- | --- |
 | Query, report, and export | `Get-EVXEvent`, `Show-EVXEvent`, `New-EVXFilter`, `Export-EVXEvent` |
+| Detection and Sigma | `Get-EVXDetectionPack`, `Invoke-EVXDetection`, `Test-EVXSigmaRule`, `Import-EVXSigmaRule` |
+| Analysis | `Measure-EVXEvent` |
 | Catalog and diagnostics | `Get-EVXLog`, `Get-EVXProvider`, `Test-EVXLog` |
+| Readiness and target discovery | `Test-EVXReadiness`, `Get-EVXRequirement`, `Get-EVXTarget` |
 | Watchers and checkpoints | `Start-EVXWatcher`, `Get-EVXWatcher`, `Stop-EVXWatcher`, `Reset-EVXEventCheckpoint` |
 | Forensic script recovery | `Get-EVXPowerShellScript` |
 | Log and source administration | `New-EVXLog`, `Set-EVXLog`, `Clear-EVXLog`, `Remove-EVXLog`, `New-EVXSource`, `Remove-EVXSource`, `Update-EVXLogArchive` |
@@ -808,7 +931,7 @@ Version 4 intentionally exposes one canonical command for each responsibility:
 | Collector subscriptions | `New-EVXCollectorSubscription`, `Get-EVXCollectorSubscription`, `Set-EVXCollectorSubscription` |
 | PowerShell recovery | `Get-EVXPowerShellScript` (`-Execution` selects execution records) |
 
-The 27 cmdlets and 80 leaf event types are intentionally different counts.
+The 35 cmdlets and 80 leaf event types are intentionally different counts.
 Cmdlets are reusable workflows; event types are catalog values within those
 workflows. Adding a type does not add another query, report, watcher, or WEC
 cmdlet. Ten composite types select coherent groups of leaf types for common
@@ -995,8 +1118,17 @@ EventViewerX uses the Windows `wevtapi` contract, DnsClientX for optional
 bounded DNS enrichment, and Microsoft/BCL packages such as
 `System.Diagnostics.EventLog`, `System.DirectoryServices` for optional Group
 Policy enrichment, and compatibility packages required by the .NET Framework
-target. PSEventViewer ships the compiled engine and cmdlets; it has no
-third-party EVTX parser or PowerShell helper-module dependency.
+target. `EventViewerX.Detection` adds YamlDotNet for Sigma import, while
+`EventViewerX.Storage` adds the DbaClientX SQLite provider. `EventViewerX.Evtx`
+adds the cross-platform managed EVTX parser dependency and the optional
+caller-owned `evtx_dump` process adapter. PSEventViewer composes those
+assemblies into one user-facing module and exposes them through
+`-PortableEvtx` and `-PortableEvtxExecutable`; it has no PowerShell helper-module
+dependency. The PowerShell 7 managed payload is architecture-neutral for
+query, detection, reporting, and portable EVTX analysis. The bundled SQLite
+native asset and the Windows PowerShell 5.1 payload are currently x64, so local
+storage workflows remain x64-only until the module ships RID-selected SQLite
+assets; this does not prevent non-storage commands from importing or running.
 
 ## Development and release
 

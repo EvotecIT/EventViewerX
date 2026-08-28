@@ -25,6 +25,11 @@ Returns normalized Windows Event Collector subscription configuration.
 
 Reads local or remote WEC subscription inventory and returns detached snapshots with normalized XML details and query definitions. Remote access uses the caller's Windows identity.
 
+### [Get-EVXDetectionPack](Get-EVXDetectionPack.md)
+Gets the built-in versioned EventViewerX detection packs.
+
+Returns signed-content-ready pack manifests with rule provenance, versions, hashes, licenses, and ATT&CK tags.
+
 ### [Get-EVXEvent](Get-EVXEvent.md)
 Enhanced event querying cmdlet that replaces and extends Get-WinEvent functionality.
 
@@ -58,12 +63,24 @@ Retrieves information about active EVX watchers.
 
 Filters by watcher Id or Name and returns watcher metadata such as log, machine, filters, and runtime state.
 
+### [Import-EVXSigmaRule](Import-EVXSigmaRule.md)
+Imports supported Sigma YAML as native EventViewerX detection rules.
+
+The YAML adapter is separate from the detection engine because it adds a YAML dependency. Imported rules execute in the same bounded native engine as built-in rules.
+
 ### [Install-EVXProviderPackage](Install-EVXProviderPackage.md)
 Installs or upgrades a portable custom Windows event provider package.
 
 Verifies package hashes and signatures before changing machine state, enforces schema and version compatibility, stages resources under ProgramData, registers the manifest, verifies Windows metadata and channels, and rolls back to the previous provider if activation fails.
 
 The target machine does not require the Windows SDK, Visual Studio, a C# compiler, generated source, or package build tools.
+
+### [Invoke-EVXDetection](Invoke-EVXDetection.md)
+Evaluates EventViewerX events with native detection and correlation rules.
+
+Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.
+
+Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.
 
 ### [Measure-EVXEvent](Measure-EVXEvent.md)
 Computes bounded event counts, distinct values, first/last observations, rates, and time trends.
@@ -155,6 +172,11 @@ Checks provider identity, channels, event versions, field references, maps, loca
 Assesses EventViewerX prerequisites without changing Windows configuration.
 
 Composes explicit target discovery, native Event Log probes, effective local audit policy, observed-event evidence, and safe provider configuration checks. Permission-limited evidence remains Unknown instead of being guessed.
+
+### [Test-EVXSigmaRule](Test-EVXSigmaRule.md)
+Validates and compiles Sigma YAML against the EventViewerX supported subset.
+
+Returns structured diagnostics and native rules without executing them. Unsupported behavior is reported explicitly and is never weakened silently.
 
 ### [Uninstall-EVXProviderPackage](Uninstall-EVXProviderPackage.md)
 Unregisters an EventViewerX-managed custom event provider.

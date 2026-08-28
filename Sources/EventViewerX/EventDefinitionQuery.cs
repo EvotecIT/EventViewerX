@@ -16,6 +16,10 @@ public sealed class EventDefinitionQuery {
     /// event identifiers, providers, and projected fields.
     /// </summary>
     public IReadOnlyList<string>? Paths { get; set; }
+    /// <summary>Optional parser-neutral reader used for every saved-event path.</summary>
+    public ISavedEventReader? SavedEventReader { get; set; }
+    /// <summary>Optional corruption and fidelity diagnostic sink for saved-event paths.</summary>
+    public Action<SavedEventReadDiagnostic>? SavedEventDiagnosticHandler { get; set; }
     /// <summary>Direct targets or collector computers.</summary>
     public IReadOnlyList<string?>? MachineNames { get; set; }
     /// <summary>Collector channel, normally ForwardedEvents.</summary>

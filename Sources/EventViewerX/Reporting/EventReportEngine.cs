@@ -33,6 +33,8 @@ public static class EventReportEngine {
             var info = new EventDefinitionQueryExecutionInfo();
             var query = new EventDefinitionQuery(request.Definition) {
                 Paths = request.Paths,
+                SavedEventReader = request.SavedEventReader,
+                SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
                 MachineNames = request.Collectors != null && request.Collectors.Count > 0 ? request.Collectors : request.MachineNames,
                 CollectorLogName = request.Collectors != null && request.Collectors.Count > 0 ? request.CollectorLogName : null,
                 StartTime = request.StartTime,
@@ -227,9 +229,11 @@ public static class EventReportEngine {
             EventObject source => EventReportProjectionFactory.Create(source),
             CustomEventRecord custom => EventReportProjectionFactory.Create(custom),
             GroupPolicyAuditRecord groupPolicy => EventReportProjectionFactory.Create(groupPolicy),
+            EventDetectionFinding finding => EventReportProjectionFactory.Create(finding),
+            EventTimelineEntry timeline => EventReportProjectionFactory.Create(timeline),
             null => throw new ArgumentNullException(nameof(input)),
             _ => throw new ArgumentException(
-                $"Unsupported report input type '{input.GetType().FullName}'. Expected EventObject, EventTypeRecord, CustomEventRecord, or GroupPolicyAuditRecord.",
+                $"Unsupported report input type '{input.GetType().FullName}'. Expected an EventViewerX event, finding, or timeline entry.",
                 nameof(input))
         };
     }
@@ -392,6 +396,8 @@ public static class EventReportEngine {
         bool collectors = request.Collectors != null && request.Collectors.Count > 0;
         return new EventTypeQuery(request.Types!) {
             Paths = request.Paths,
+            SavedEventReader = request.SavedEventReader,
+            SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
             MachineNames = collectors ? request.Collectors : request.MachineNames,
             CollectorLogName = collectors ? request.CollectorLogName : null,
             StartTime = request.StartTime,
@@ -432,6 +438,8 @@ public static class EventReportEngine {
                         fullPath));
                 return new EventLogFileQuery(fullPath) {
                     XPath = EventFilterCompiler.BuildXPath(pathFilter),
+                    SavedEventReader = request.SavedEventReader,
+                    SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
                     Oldest = request.Oldest,
                     ReadMode = EventReadMode.StructuredDataAndMessage,
                     BookmarkXml = request.BookmarkXmlResolver?.Invoke(

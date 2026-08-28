@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Linq.Expressions;
 
 namespace EventViewerX;
 
@@ -8,13 +9,15 @@ namespace EventViewerX;
 public static partial class EventTypeCatalog {
     private sealed class RuleFactoryRegistration {
         public RuleFactoryRegistration(EventType namedEvent, string logName, IReadOnlyList<int> eventIds,
-            Func<EventObject, EventTypeRecord> factory, Func<EventObject, bool>? canHandle, Type? ruleType) {
+            Func<EventObject, EventTypeRecord> factory, Func<EventObject, bool>? canHandle, Type? ruleType,
+            int matchPriority) {
             Type = namedEvent;
             LogName = logName;
             EventIds = eventIds;
             Factory = factory;
             CanHandle = canHandle;
             RuleType = ruleType;
+            MatchPriority = matchPriority;
         }
 
         public EventType Type { get; }
@@ -23,9 +26,13 @@ public static partial class EventTypeCatalog {
         public Func<EventObject, EventTypeRecord> Factory { get; }
         public Func<EventObject, bool>? CanHandle { get; }
         public Type? RuleType { get; }
+        public int MatchPriority { get; }
     }
 
     private static readonly Dictionary<EventType, Type> _reflectionRuleTypes = new();
+    private static readonly Dictionary<EventType, int> _reflectionRulePriorities = new();
+    private static readonly Dictionary<EventType, (string LogName, IReadOnlyList<int> EventIds)> _reflectionRuleSources = new();
+    private static readonly Dictionary<EventType, EventProjectorDefinition> _reflectionProjectors = new();
     private static readonly Dictionary<(int EventId, string LogName), List<Type>> _reflectionHandlers = new(EventHandlerKeyComparer.Instance);
 
     private static readonly Dictionary<EventType, Type> _explicitRuleTypes = new();
@@ -76,13 +83,15 @@ public static partial class EventTypeCatalog {
     /// <param name="factory">Factory creating a rule instance from an <see cref="EventObject"/>.</param>
     /// <param name="canHandle">Optional predicate to further validate an event before instantiation.</param>
     /// <param name="ruleType">Optional rule type used for legacy APIs returning <see cref="Type"/>.</param>
+    /// <param name="matchPriority">Relative priority used when several registered projections match one event.</param>
     public static void RegisterRuleFactory(
         EventType namedEvent,
         string logName,
         IReadOnlyList<int> eventIds,
         Func<EventObject, EventTypeRecord> factory,
         Func<EventObject, bool>? canHandle = null,
-        Type? ruleType = null) {
+        Type? ruleType = null,
+        int matchPriority = 0) {
         if (string.IsNullOrWhiteSpace(logName)) {
             throw new ArgumentException("logName cannot be null or whitespace.", nameof(logName));
         }
@@ -104,7 +113,14 @@ public static partial class EventTypeCatalog {
                 throw new InvalidOperationException("Rule factories must be registered before the first event-type query.");
             }
 
-            var reg = new RuleFactoryRegistration(namedEvent, normalizedLog, ids, factory, canHandle, ruleType);
+            var reg = new RuleFactoryRegistration(
+                namedEvent,
+                normalizedLog,
+                ids,
+                factory,
+                canHandle,
+                ruleType,
+                matchPriority);
             _ruleFactories[namedEvent] = reg;
 
             if (ruleType is not null) {
@@ -176,6 +192,11 @@ public static partial class EventTypeCatalog {
                 var instance = (EventRuleBase)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(ruleType);
 #pragma warning restore SYSLIB0050
                 _reflectionRuleTypes[instance.Type] = ruleType;
+                _reflectionRulePriorities[instance.Type] = instance.MatchPriority;
+                _reflectionRuleSources[instance.Type] = (instance.LogName, instance.EventIds.ToArray());
+                if (TryCompileReflectionProjector(instance.Type, ruleType, out EventProjectorDefinition? projector)) {
+                    _reflectionProjectors[instance.Type] = projector!;
+                }
 
                 foreach (var eventId in instance.EventIds) {
                     var key = (eventId, instance.LogName);
@@ -191,6 +212,10 @@ public static partial class EventTypeCatalog {
             var attr = ruleType.GetCustomAttribute<EventRuleAttribute>();
             if (attr != null) {
                 _reflectionRuleTypes[attr.Type] = ruleType;
+                _reflectionRuleSources[attr.Type] = (attr.LogName, attr.EventIds.ToArray());
+                if (TryCompileReflectionProjector(attr.Type, ruleType, out EventProjectorDefinition? projector)) {
+                    _reflectionProjectors[attr.Type] = projector!;
+                }
 
                 foreach (var eventId in attr.EventIds) {
                     var key = (eventId, attr.LogName);
@@ -264,59 +289,36 @@ public static partial class EventTypeCatalog {
         if (targetEventTypes == null) {
             throw new ArgumentNullException(nameof(targetEventTypes));
         }
-        var mode = _discoveryMode;
+
+        return CreateEventRule(eventObject, CompileProjectionPlan(targetEventTypes));
+    }
+
+    /// <summary>Creates an event rule instance using an immutable precompiled projection plan.</summary>
+    /// <param name="eventObject">Event to project.</param>
+    /// <param name="plan">Projection plan compiled for the owning query or watcher.</param>
+    /// <returns>The most specific matching typed record, or <see langword="null"/> when no rule matches.</returns>
+    public static EventTypeRecord? CreateEventRule(
+        EventObject eventObject,
+        EventTypeProjectionPlan plan) {
+
+        if (eventObject == null) {
+            throw new ArgumentNullException(nameof(eventObject));
+        }
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+
         EnsureInitialized();
         List<string>? failedRuleNames = null;
         List<Exception>? projectionErrors = null;
         string eventLog = eventObject.OriginalLogName;
 
-        foreach (var namedEvent in Expand(targetEventTypes)) {
-            if (mode != EventRuleDiscoveryMode.Reflection && _ruleFactories.TryGetValue(namedEvent, out var reg)) {
-                try {
-                    if (!string.Equals(reg.LogName, eventLog, StringComparison.OrdinalIgnoreCase) ||
-                        !reg.EventIds.Contains(eventObject.Id)) {
-                        continue;
-                    }
-                    if (reg.CanHandle != null && !reg.CanHandle(eventObject)) {
-                        continue;
-                    }
-
-                    var instance = reg.Factory(eventObject);
-                    if (instance is IEventRule eventRule) {
-                        if (eventRule.CanHandle(eventObject)) {
-                            return instance;
-                        }
-                        continue;
-                    }
-                    return instance;
-                } catch (Exception ex) {
-                    failedRuleNames ??= new List<string>();
-                    projectionErrors ??= new List<Exception>();
-                    failedRuleNames.Add(reg.RuleType?.FullName ?? namedEvent.ToString());
-                    projectionErrors.Add(ex);
-                    continue;
-                }
-            }
-
-            if (mode == EventRuleDiscoveryMode.ExplicitOnly) {
-                continue;
-            }
-
-            if (!_reflectionRuleTypes.TryGetValue(namedEvent, out var ruleType) || ruleType == null) {
-                continue;
-            }
-            if (!_reflectionHandlers.TryGetValue((eventObject.Id, eventLog), out List<Type>? handlers) ||
-                !handlers.Contains(ruleType)) {
-                continue;
-            }
-
+        foreach (EventProjectorDefinition projector in plan.GetCandidates(eventObject.Id, eventLog)) {
             try {
-                var constructor = ruleType.GetConstructor(new[] { typeof(EventObject) });
-                if (constructor == null) {
+                if (projector.Precondition != null && !projector.Precondition(eventObject)) {
                     continue;
                 }
-
-                var instance = (EventTypeRecord)constructor.Invoke(new object[] { eventObject });
+                EventTypeRecord instance = projector.Factory(eventObject);
 
                 if (instance is IEventRule eventRule) {
                     if (eventRule.CanHandle(eventObject)) {
@@ -328,7 +330,7 @@ public static partial class EventTypeCatalog {
             } catch (Exception ex) {
                 failedRuleNames ??= new List<string>();
                 projectionErrors ??= new List<Exception>();
-                failedRuleNames.Add(ruleType.FullName ?? ruleType.Name);
+                failedRuleNames.Add(projector.Name);
                 projectionErrors.Add(ex is TargetInvocationException { InnerException: not null }
                     ? ex.InnerException
                     : ex);
@@ -341,6 +343,155 @@ public static partial class EventTypeCatalog {
         }
 
         return null;
+    }
+
+    /// <summary>Compiles immutable source routing and specificity ordering for selected event types.</summary>
+    /// <param name="eventTypes">Leaf or composite event types to include.</param>
+    /// <returns>A reusable projection plan.</returns>
+    public static EventTypeProjectionPlan CompileProjectionPlan(IEnumerable<EventType> eventTypes) {
+        if (eventTypes == null) {
+            throw new ArgumentNullException(nameof(eventTypes));
+        }
+
+        EventType[] requested = eventTypes.ToArray();
+        var mode = _discoveryMode;
+        EnsureInitialized();
+        EventType[] expanded = Expand(requested).ToArray();
+        IReadOnlyList<EventType> ordered = GetOrderedExpandedCandidates(expanded, mode);
+        var candidateLists = new Dictionary<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>>();
+        foreach (EventType type in ordered) {
+            if (!TryGetRuleSource(type, mode, out string logName, out IReadOnlyList<int> eventIds)) {
+                continue;
+            }
+            if (!TryCreateProjector(type, mode, out EventProjectorDefinition? projector)) {
+                continue;
+            }
+            foreach (int eventId in eventIds) {
+                var key = new EventTypeProjectionPlan.SourceKey(eventId, logName);
+                if (!candidateLists.TryGetValue(key, out List<EventProjectorDefinition>? candidates)) {
+                    candidates = new List<EventProjectorDefinition>();
+                    candidateLists[key] = candidates;
+                }
+                candidates.Add(projector!);
+            }
+        }
+
+        var candidatesBySource = new Dictionary<EventTypeProjectionPlan.SourceKey, EventProjectorDefinition[]>(candidateLists.Count);
+        foreach (KeyValuePair<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>> pair in candidateLists) {
+            candidatesBySource[pair.Key] = pair.Value.ToArray();
+        }
+        return new EventTypeProjectionPlan(requested, expanded, candidatesBySource);
+    }
+
+    private static IReadOnlyList<EventType> GetOrderedExpandedCandidates(
+        IReadOnlyList<EventType> expanded,
+        EventRuleDiscoveryMode mode) {
+
+        if (expanded.Count < 2) {
+            return expanded;
+        }
+
+        bool hasPriority = false;
+        var candidates = new (EventType Type, int Index, int Priority)[expanded.Count];
+        for (int index = 0; index < expanded.Count; index++) {
+            EventType type = expanded[index];
+            int priority = GetMatchPriority(type, mode);
+            candidates[index] = (type, index, priority);
+            hasPriority |= priority != 0;
+        }
+        if (!hasPriority) {
+            return expanded;
+        }
+
+        return candidates
+            .OrderByDescending(static candidate => candidate.Priority)
+            .ThenBy(static candidate => candidate.Index)
+            .Select(static candidate => candidate.Type)
+            .ToArray();
+    }
+
+    private static int GetMatchPriority(EventType type, EventRuleDiscoveryMode mode) {
+        if (mode != EventRuleDiscoveryMode.Reflection &&
+            _ruleFactories.TryGetValue(type, out RuleFactoryRegistration? registration)) {
+            return registration.MatchPriority;
+        }
+        if (mode != EventRuleDiscoveryMode.ExplicitOnly &&
+            _reflectionRulePriorities.TryGetValue(type, out int priority)) {
+            return priority;
+        }
+        return 0;
+    }
+
+    private static bool TryGetRuleSource(
+        EventType type,
+        EventRuleDiscoveryMode mode,
+        out string logName,
+        out IReadOnlyList<int> eventIds) {
+
+        if (mode != EventRuleDiscoveryMode.Reflection &&
+            _ruleFactories.TryGetValue(type, out RuleFactoryRegistration? registration)) {
+            logName = registration.LogName;
+            eventIds = registration.EventIds;
+            return true;
+        }
+        if (mode != EventRuleDiscoveryMode.ExplicitOnly &&
+            _reflectionRuleSources.TryGetValue(type, out var source)) {
+            logName = source.LogName;
+            eventIds = source.EventIds;
+            return true;
+        }
+
+        logName = string.Empty;
+        eventIds = Array.Empty<int>();
+        return false;
+    }
+
+    private static bool TryCreateProjector(
+        EventType type,
+        EventRuleDiscoveryMode mode,
+        out EventProjectorDefinition? projector) {
+
+        if (mode != EventRuleDiscoveryMode.Reflection &&
+            _ruleFactories.TryGetValue(type, out RuleFactoryRegistration? registration)) {
+            projector = new EventProjectorDefinition(
+                type,
+                registration.RuleType?.FullName ?? type.ToString(),
+                registration.Factory,
+                registration.CanHandle);
+            return true;
+        }
+        if (mode != EventRuleDiscoveryMode.ExplicitOnly &&
+            _reflectionProjectors.TryGetValue(type, out EventProjectorDefinition? reflectionProjector)) {
+            projector = reflectionProjector;
+            return true;
+        }
+
+        projector = null;
+        return false;
+    }
+
+    private static bool TryCompileReflectionProjector(
+        EventType type,
+        Type ruleType,
+        out EventProjectorDefinition? projector) {
+
+        ConstructorInfo? constructor = ruleType.GetConstructor(new[] { typeof(EventObject) });
+        if (constructor == null) {
+            projector = null;
+            return false;
+        }
+        ParameterExpression source = Expression.Parameter(typeof(EventObject), "source");
+        NewExpression create = Expression.New(constructor, source);
+        UnaryExpression convert = Expression.Convert(create, typeof(EventTypeRecord));
+        Func<EventObject, EventTypeRecord> factory = Expression
+            .Lambda<Func<EventObject, EventTypeRecord>>(convert, source)
+            .Compile();
+        projector = new EventProjectorDefinition(
+            type,
+            ruleType.FullName ?? ruleType.Name,
+            factory,
+            precondition: null);
+        return true;
     }
 
     private static EventType GetEventTypeForRuleType(Type type) {

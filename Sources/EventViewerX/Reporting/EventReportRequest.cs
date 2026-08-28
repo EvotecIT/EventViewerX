@@ -28,6 +28,12 @@ public sealed class EventReportRequest {
     /// </summary>
     public IReadOnlyList<string>? Paths { get; set; }
 
+    /// <summary>Optional parser-neutral reader used for every saved-event path.</summary>
+    public ISavedEventReader? SavedEventReader { get; set; }
+
+    /// <summary>Optional corruption and fidelity diagnostic sink for saved-event paths.</summary>
+    public Action<SavedEventReadDiagnostic>? SavedEventDiagnosticHandler { get; set; }
+
     /// <summary>Declarative custom definition. Mutually exclusive with Types and LogName.</summary>
     public EventDefinition? Definition { get; set; }
 

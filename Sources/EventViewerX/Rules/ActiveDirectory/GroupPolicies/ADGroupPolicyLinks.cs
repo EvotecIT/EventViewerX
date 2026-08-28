@@ -47,6 +47,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// </code>
 /// </remarks>
 public class ADGroupPolicyLinks : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 300;
+
     /// <summary>Computer where the change occurred.</summary>
     public string Computer;
     /// <summary>Description of the operation (linked/unlinked).</summary>
@@ -132,9 +135,18 @@ public class ADGroupPolicyLinks : EventRuleBase {
             var matches = System.Text.RegularExpressions.Regex.Matches(ldapString, pattern);
             foreach (System.Text.RegularExpressions.Match match in matches) {
                 if (match.Success) {
+                    int options = int.TryParse(
+                        match.Groups["flag"].Value,
+                        System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out int parsedOptions)
+                        ? parsedOptions
+                        : 0;
                     var gpoLink = new GroupPolicyLinks {
                         DistinguishedName = match.Groups["dn"].Value,
-                        IsEnabled = match.Groups["flag"].Value == "0"
+                        Options = options,
+                        IsEnabled = (options & 0x1) == 0,
+                        IsEnforced = (options & 0x2) != 0
                     };
                     // parse out the GUID from the DN
                     var guidPattern = @"cn=\{(?<guid>[0-9A-Fa-f-]+)\}";

@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Represents edits made to group policy objects.
 /// </summary>
 public class ADGroupPolicyEdits : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 300;
+
     /// <summary>Computer where the edit occurred.</summary>
     public string Computer;
     /// <summary>Description of the action.</summary>

@@ -31,7 +31,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\EventViewerX.Cli.csproj'
-$cliPath = Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\bin\Release\net10.0-windows\evx.exe'
+$cliPath = Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe'
 $corePath = Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0-windows\EventViewerX.dll'
 $specPath = Join-Path $PSScriptRoot 'event-watcher-burst.benchmark.ps1'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -39,7 +39,7 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 }
 
 if (-not $SkipBuild.IsPresent) {
-    dotnet build $projectPath --configuration Release --framework net10.0-windows
+    dotnet build $projectPath --configuration Release --framework net10.0
     if ($LASTEXITCODE -ne 0) {
         throw 'The EventViewerX CLI Release build failed before the watcher benchmark.'
     }

@@ -4,6 +4,49 @@ using DBAClientX;
 namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
+    /// <summary>
+    /// Advances one durable watcher checkpoint only when its current value still matches the caller's snapshot.
+    /// </summary>
+    public async Task<EventStoreCheckpoint> AdvanceCheckpointAsync(
+        EventStoreCheckpoint checkpoint,
+        EventStoreCheckpoint? expectedCheckpoint,
+        CancellationToken cancellationToken = default) {
+
+        EventStoreCheckpoint requested = SnapshotCheckpoint(checkpoint) ??
+            throw new ArgumentNullException(nameof(checkpoint));
+        EventStoreCheckpoint? expected = SnapshotCheckpoint(expectedCheckpoint);
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        return await session.RunInTransactionAsync(async (transaction, token) => {
+            EventStoreCheckpoint canonical = await ResolveCheckpointIdentityAsync(
+                transaction,
+                requested,
+                expected,
+                compareExpected: true,
+                token).ConfigureAwait(false);
+            string updatedAt = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+            await transaction.ExecuteNonQueryAsync(
+                UpsertCheckpointSql,
+                new Dictionary<string, object?> {
+                    ["$consumer"] = canonical.Consumer,
+                    ["$computer"] = canonical.Computer,
+                    ["$container"] = canonical.Container,
+                    ["$recordId"] = canonical.RecordId,
+                    ["$bookmark"] = canonical.BookmarkXml,
+                    ["$updated"] = updatedAt
+                },
+                token).ConfigureAwait(false);
+            canonical.UpdatedAtUtc = DateTime.Parse(
+                updatedAt,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind);
+            return canonical;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Deletes one durable consumer checkpoint without removing stored events.</summary>
     public async Task<bool> DeleteCheckpointAsync(
         string consumer,

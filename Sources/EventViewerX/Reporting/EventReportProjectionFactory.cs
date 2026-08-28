@@ -35,6 +35,52 @@ internal static class EventReportProjectionFactory {
             Column<string>(nameof(GroupPolicyAuditRecord.GroupPolicyCurrentName)),
             Column<string>(nameof(GroupPolicyAuditRecord.ContextReason))
         });
+    private static readonly EventReportSectionDefinition DetectionFindingSection = CreateSectionDefinition(
+        EventReportSectionKind.Custom,
+        "DetectionFinding",
+        "Detection findings",
+        "Explainable native and Sigma findings with pack provenance and stable evidence identities.",
+        new[] {
+            Column<string>(nameof(EventDetectionFinding.RuleId)),
+            Column<string>(nameof(EventDetectionFinding.RuleVersion)),
+            Column<string>(nameof(EventDetectionFinding.PackId)),
+            Column<string>(nameof(EventDetectionFinding.PackVersion)),
+            Column<string>(nameof(EventDetectionFinding.SourceKind)),
+            Column<string>(nameof(EventDetectionFinding.SourceId)),
+            Column<string>(nameof(EventDetectionFinding.SourceStatus)),
+            Column<string>(nameof(EventDetectionFinding.SourceHash)),
+            Column<string>(nameof(EventDetectionFinding.License)),
+            Column<string>(nameof(EventDetectionFinding.Title)),
+            Column<EventDetectionSeverity>(nameof(EventDetectionFinding.Severity)),
+            Column<int>(nameof(EventDetectionFinding.Confidence)),
+            Column<EventDetectionFindingStatus>(nameof(EventDetectionFinding.Status)),
+            Column<DateTime>(nameof(EventDetectionFinding.StartTimeUtc)),
+            Column<DateTime>(nameof(EventDetectionFinding.EndTimeUtc)),
+            Column<int>("EvidenceCount"),
+            Column<string>(nameof(EventDetectionFinding.EvidenceIdentities)),
+            Column<string>(nameof(EventDetectionFinding.Tags)),
+            Column<string>(nameof(EventDetectionFinding.Entities)),
+            Column<string>(nameof(EventDetectionFinding.Explanation)),
+            Column<string>(nameof(EventDetectionFinding.FalsePositives)),
+            Column<string>(nameof(EventDetectionFinding.CompletenessDiagnostic))
+        });
+    private static readonly EventReportSectionDefinition TimelineSection = CreateSectionDefinition(
+        EventReportSectionKind.Custom,
+        "IncidentTimeline",
+        "Incident timeline",
+        "Ordered evidence and findings with source, receive, and processing clocks.",
+        new[] {
+            Column<EventTimelineEntryKind>(nameof(EventTimelineEntry.Kind)),
+            Column<string>(nameof(EventTimelineEntry.Identity)),
+            Column<string>(nameof(EventTimelineEntry.Title)),
+            Column<DateTime>(nameof(EventTimelineEntry.EventTimeUtc)),
+            Column<DateTime>(nameof(EventTimelineEntry.ReceivedTimeUtc)),
+            Column<DateTime>(nameof(EventTimelineEntry.ProcessedTimeUtc)),
+            Column<string>(nameof(EventTimelineEntry.RuleId)),
+            Column<EventDetectionSeverity?>(nameof(EventTimelineEntry.Severity)),
+            Column<string>(nameof(EventTimelineEntry.EvidenceIdentities)),
+            Column<string>(nameof(EventTimelineEntry.Pivots))
+        });
     private static readonly HashSet<string> RoutingMembers = new(StringComparer.Ordinal) {
         nameof(IEventRule.EventIds),
         nameof(IEventRule.LogName),
@@ -116,6 +162,63 @@ internal static class EventReportProjectionFactory {
         };
         EventValueNormalizationEngine.Populate(row);
         return new EventReportProjection(row, GroupPolicyAuditSection);
+    }
+
+    internal static EventReportProjection Create(EventDetectionFinding finding) {
+        EventObservation evidence = finding.Evidence.First();
+        EventObject source = evidence.SourceEvent;
+        var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+            [nameof(finding.RuleId)] = finding.RuleId,
+            [nameof(finding.RuleVersion)] = finding.RuleVersion,
+            [nameof(finding.PackId)] = finding.PackId,
+            [nameof(finding.PackVersion)] = finding.PackVersion,
+            [nameof(finding.SourceKind)] = finding.SourceKind,
+            [nameof(finding.SourceId)] = finding.SourceId,
+            [nameof(finding.SourceStatus)] = finding.SourceStatus,
+            [nameof(finding.SourceHash)] = finding.SourceHash,
+            [nameof(finding.License)] = finding.License,
+            [nameof(finding.Title)] = finding.Title,
+            [nameof(finding.Severity)] = finding.Severity,
+            [nameof(finding.Confidence)] = finding.Confidence,
+            [nameof(finding.Status)] = finding.Status,
+            [nameof(finding.StartTimeUtc)] = finding.StartTimeUtc,
+            [nameof(finding.EndTimeUtc)] = finding.EndTimeUtc,
+            ["EvidenceCount"] = finding.Evidence.Count,
+            [nameof(finding.EvidenceIdentities)] = string.Join(", ", finding.EvidenceIdentities),
+            [nameof(finding.Tags)] = string.Join(", ", finding.Tags),
+            [nameof(finding.Entities)] = string.Join(", ", finding.Entities.Select(static item => item.Key + "=" + item.Value)),
+            [nameof(finding.Explanation)] = finding.Explanation,
+            [nameof(finding.FalsePositives)] = string.Join("; ", finding.FalsePositives),
+            [nameof(finding.CompletenessDiagnostic)] = finding.CompletenessDiagnostic
+        };
+        EventReportRow row = CreateRow(source, "DetectionFinding", values);
+        row.TimeCreated = finding.StartTimeUtc;
+        row.Message = finding.Explanation;
+        return new EventReportProjection(row, DetectionFindingSection);
+    }
+
+    internal static EventReportProjection Create(EventTimelineEntry entry) {
+        var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+            [nameof(entry.Kind)] = entry.Kind,
+            [nameof(entry.Identity)] = entry.Identity,
+            [nameof(entry.Title)] = entry.Title,
+            [nameof(entry.EventTimeUtc)] = entry.EventTimeUtc,
+            [nameof(entry.ReceivedTimeUtc)] = entry.ReceivedTimeUtc,
+            [nameof(entry.ProcessedTimeUtc)] = entry.ProcessedTimeUtc,
+            [nameof(entry.RuleId)] = entry.RuleId,
+            [nameof(entry.Severity)] = entry.Severity,
+            [nameof(entry.EvidenceIdentities)] = string.Join(", ", entry.EvidenceIdentities),
+            [nameof(entry.Pivots)] = string.Join(", ", entry.Pivots.Select(static pivot =>
+                pivot.Kind + ":" + pivot.Value))
+        };
+        var row = new EventReportRow {
+            TimeCreated = entry.EventTimeUtc,
+            Type = "IncidentTimeline",
+            Message = entry.Title,
+            Values = values
+        };
+        EventValueNormalizationEngine.Populate(row);
+        return new EventReportProjection(row, TimelineSection);
     }
 
     internal static EventReportSectionDefinition CreateGroupPolicyAuditDefinition() => GroupPolicyAuditSection;

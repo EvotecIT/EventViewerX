@@ -31,9 +31,6 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>EventViewerX.Tests</_Parameter1>
     </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>EventViewerX.Storage</_Parameter1>
-    </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />

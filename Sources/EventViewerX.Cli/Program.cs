@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EventViewerX.Providers;
+using EventViewerX.Evtx;
 using EventViewerX.Reporting;
 using EventViewerX.Storage;
 using HtmlForgeX;
@@ -26,6 +27,7 @@ internal static partial class Program {
                 "query" => await QueryAsync(options).ConfigureAwait(false),
                 "report" => await ReportAsync(options).ConfigureAwait(false),
                 "measure" => await MeasureAsync(options).ConfigureAwait(false),
+                "detect" => await DetectAsync(options).ConfigureAwait(false),
                 "watch" => await WatchAsync(options).ConfigureAwait(false),
                 "store" => await StoreAsync(options).ConfigureAwait(false),
                 "collector" => Collector(options),
@@ -340,6 +342,10 @@ internal static partial class Program {
     }
 
     private static EventReportRequest CreateRequest(CliArguments options) {
+        if (options.Has("portable-evtx") && options.Get("portable-evtx-executable") != null) {
+            throw new ArgumentException(
+                "--portable-evtx and --portable-evtx-executable are mutually exclusive. Select one portable EVTX engine.");
+        }
         bool hasDefinition = options.Get("definition") != null;
         bool hasTypes = options.GetMany("type").Length > 0;
         bool hasPreset = options.Get("preset") != null;
@@ -364,6 +370,15 @@ internal static partial class Program {
         }
         if (hasPaths && (hasTypes || hasDefinition || hasPreset)) {
             request.Paths = options.GetMany("path");
+        }
+        if (options.Has("portable-evtx") || options.Get("portable-evtx-executable") != null) {
+            if (!hasPaths) {
+                throw new ArgumentException("--portable-evtx requires at least one --path source.");
+            }
+            request.SavedEventReader = options.Get("portable-evtx-executable") is string executable
+                ? new EvtxDumpSavedEventReader(executable)
+                : new EvtxSavedEventReader();
+            request.SavedEventDiagnosticHandler = WriteSavedEventDiagnostic;
         }
         request.EventIds = ParseInts(options.GetMany("event-id"));
         request.RecordIds = ParseLongs(options.GetMany("record-id"));
@@ -589,6 +604,13 @@ internal static partial class Program {
     private static string[]? NullWhenEmpty(string[] values) => values.Length == 0 ? null : values;
     private static DateTime? ParseDate(string? value) => value == null ? null : DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal);
 
+    private static void WriteSavedEventDiagnostic(SavedEventReadDiagnostic diagnostic) {
+        string offset = diagnostic.FileOffset.HasValue
+            ? $" offset=0x{diagnostic.FileOffset.Value:X}"
+            : string.Empty;
+        Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Code}{offset}: {diagnostic.Message}");
+    }
+
     private static void ValidateOptions(CliArguments options) {
         if (options.Subcommand.Length > 0 && options.Command is not ("collector" or "provider" or "store")) {
             throw new ArgumentException(
@@ -600,7 +622,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "resolve-dns", "title", "where", "explain",
+                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
                     "store", "write-store", "checkpoint", "context-store", "context-authorization",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
@@ -608,7 +630,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "resolve-dns", "title",
+                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
                     "html", "excel", "csv", "email-html", "mail-profile", "email-rows", "drawer-placement", "where",
                     "store", "write-store", "summary", "context-store", "context-authorization",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
@@ -618,7 +640,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "resolve-dns", "title", "where", "store", "explain",
+                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "store", "explain",
                     "group-by", "bucket", "timezone", "measure", "top", "top-scope", "ranking-measure",
                     "window-start", "window-end", "maximum-groups", "maximum-distinct", "maximum-state-bytes",
                     "html", "excel", "csv", "context-store", "context-authorization",
@@ -628,7 +650,16 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "type", "definition", "machine", "collector", "jsonl", "outbox",
                     "mail-profile", "interval", "stop-after", "timeout", "ready-file",
-                    "summary-file", "title");
+                    "summary-file", "title", "notification-buffer-capacity", "delivery-queue-capacity",
+                    "dead-letter-after", "retry-delay", "maximum-retry-delay", "checkpoint-store",
+                    "checkpoint-consumer", "ignore-stale-bookmark");
+                break;
+            case "detect":
+                options.ValidateAllowed(
+                    "type", "log", "path", "machine", "collector", "start", "end", "since", "max",
+                    "event-id", "provider", "portable-evtx", "portable-evtx-executable", "sigma", "pack", "include-built-in", "tuning", "explain",
+                    "maximum-observations", "maximum-groups", "maximum-state-observations", "maximum-state-bytes",
+                    "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "title");
                 break;
             case "collector" when options.Subcommand == "create":
                 options.ValidateAllowed(
@@ -675,10 +706,11 @@ internal static partial class Program {
     private static int Help() {
         Console.WriteLine("EventViewerX 4.0\n\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
-            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
-            "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
-            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
+            "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
+            "  evx detect (--type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain]\n" +
+            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +
             "  evx collector runtime --name NAME\n" +

@@ -15,6 +15,8 @@ internal static class EventTypeQuerySnapshot {
         return new EventTypeQuery(
             source.Types.ToArray()) {
             Paths = source.Paths?.ToArray(),
+            SavedEventReader = source.SavedEventReader,
+            SavedEventDiagnosticHandler = source.SavedEventDiagnosticHandler,
             MachineNames =
                 source.MachineNames?.ToArray(),
             CollectorLogName = string.IsNullOrWhiteSpace(source.CollectorLogName)
