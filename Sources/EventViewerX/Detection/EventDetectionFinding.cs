@@ -25,6 +25,7 @@ public sealed class EventDetectionFinding {
         IReadOnlyList<string> falsePositives,
         IReadOnlyList<string> references,
         IReadOnlyDictionary<string, string> entities,
+        EventDetectionCoverage coverage,
         string explanation,
         string? completenessDiagnostic) {
 
@@ -52,6 +53,7 @@ public sealed class EventDetectionFinding {
             static item => item.Key,
             static item => item.Value,
             StringComparer.OrdinalIgnoreCase));
+        Coverage = coverage.Snapshot();
         Explanation = explanation;
         CompletenessDiagnostic = completenessDiagnostic;
     }
@@ -98,6 +100,8 @@ public sealed class EventDetectionFinding {
     public IReadOnlyList<string> References { get; }
     /// <summary>Actor, target, host, account, or configured grouping entities.</summary>
     public IReadOnlyDictionary<string, string> Entities { get; }
+    /// <summary>Expected and observed data-source coverage for the execution window.</summary>
+    public EventDetectionCoverage Coverage { get; }
     /// <summary>Human-readable reason the rule matched or became incomplete.</summary>
     public string Explanation { get; }
     /// <summary>Reason the result is not complete.</summary>

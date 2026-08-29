@@ -23,6 +23,7 @@ namespace PSEventViewer;
 [Cmdlet(VerbsLifecycle.Invoke, "EVXDetection")]
 [OutputType(typeof(EventDetectionFinding))]
 [OutputType(typeof(EventDetectionPlanExplanation))]
+[OutputType(typeof(EventDecisionReportSnapshot))]
 public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     private readonly List<EventObject> _events = new();
 
@@ -46,9 +47,17 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     [Parameter]
     public EventDetectionTuning? Tuning { get; set; }
 
+    /// <summary>Expected and successfully collected source scope attached to every finding.</summary>
+    [Parameter]
+    public EventDetectionCoverage? Coverage { get; set; }
+
     /// <summary>Returns the effective compiled plan without evaluating input.</summary>
     [Parameter]
     public SwitchParameter Explain { get; set; }
+
+    /// <summary>Returns one decision-oriented report snapshot instead of individual findings.</summary>
+    [Parameter]
+    public EventDecisionReportKind? ReportKind { get; set; }
 
     /// <summary>Maximum observations evaluated. Zero is unlimited.</summary>
     [Parameter]
@@ -80,15 +89,19 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     /// <inheritdoc />
     protected override void EndProcessing() {
         var rules = new List<IEventDetectionRule>();
+        var packs = new List<EventDetectionPack>();
         bool explicitContent = Rule.Length > 0 || Pack.Length > 0;
         if (!explicitContent || IncludeBuiltIn) {
-            rules.AddRange(EventDetectionCatalog.GetBuiltInRules());
+            EventDetectionPack[] builtIn = EventDetectionCatalog.GetBuiltInPacks().ToArray();
+            packs.AddRange(builtIn);
+            rules.AddRange(builtIn.SelectMany(static pack => pack.GetRules()));
         }
         rules.AddRange(Rule);
         foreach (EventDetectionPack pack in Pack) {
             if (pack == null) {
                 throw new PSArgumentException("Pack cannot contain null values.", nameof(Pack));
             }
+            packs.Add(pack);
             rules.AddRange(pack.GetRules());
         }
         EventDetectionPlan plan = EventDetectionPlan.Compile(rules, Tuning);
@@ -100,9 +113,22 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
             MaximumObservations = MaximumObservations,
             MaximumGroups = MaximumGroups,
             MaximumStateObservations = MaximumStateObservations,
-            MaximumStateBytes = MaximumStateBytes
+            MaximumStateBytes = MaximumStateBytes,
+            Coverage = Coverage
         };
         EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(_events, plan, options);
+        if (ReportKind.HasValue) {
+            EventDecisionReportSnapshot report = EventDecisionReportEngine.Create(
+                ReportKind.Value,
+                execution.Observations,
+                execution.Findings,
+                packs,
+                new EventDetectionReportOptions {
+                    QueryOwner = "PowerShell pipeline"
+                });
+            WriteObject(report, enumerateCollection: false);
+            return;
+        }
         foreach (EventDetectionFinding finding in execution.Findings) {
             WriteObject(finding, enumerateCollection: false);
         }

@@ -386,7 +386,8 @@ public sealed class TestEventDetection {
         EventDetectionPlanExplanation explanation = plan.Explain();
 
         Assert.Equal(1, result.ObservationCount);
-        Assert.True(result.IsComplete);
+        Assert.True(result.IsEvaluationComplete);
+        Assert.False(result.IsComplete);
         Assert.Single(result.Findings, static finding => finding.RuleId == "EVX-AUTH-0001");
         Assert.Contains(EventType.ADUserLogonNTLMv1, explanation.RequiredEventTypes);
         Assert.Equal(44, explanation.RuleCount);
@@ -522,7 +523,17 @@ public sealed class TestEventDetection {
     public void TimelineKeepsThreeClocksEvidenceAndCanonicalPivots() {
         EventObservation observation = Observe(1001, Utc(10, 0), 1, "alice");
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { Rule("EVX-TEST-TIMELINE") });
-        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(new[] { observation }, plan));
+        EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+            expectedTargets: new[] { "server01" },
+            observedTargets: new[] { "server01" },
+            expectedChannels: new[] { "Security" },
+            observedChannels: new[] { "Security" },
+            expectedEventIds: new[] { 1001 },
+            observedEventIds: new[] { 1001 });
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { observation },
+            plan,
+            new EventDetectionEngineOptions { Coverage = coverage }));
 
         EventTimeline timeline = EventTimelineEngine.Create(
             new[] { observation },
@@ -548,7 +559,17 @@ public sealed class TestEventDetection {
     public void DetectionReportCarriesCoverageProvenanceCompletenessAndRendererSections() {
         EventObservation observation = Observe(1001, Utc(10, 0), 1, "alice");
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { Rule("EVX-TEST-REPORT") });
-        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(new[] { observation }, plan));
+        EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+            expectedTargets: new[] { "server01" },
+            observedTargets: new[] { "server01" },
+            expectedChannels: new[] { "Security" },
+            observedChannels: new[] { "Security" },
+            expectedEventIds: new[] { 1001 },
+            observedEventIds: new[] { 1001 });
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { observation },
+            plan,
+            new EventDetectionEngineOptions { Coverage = coverage }));
         EventDetectionPack pack = EventDetectionPack.Create(
             "eventviewerx.test-report",
             "1.0.0",
@@ -568,7 +589,8 @@ public sealed class TestEventDetection {
             new EventDetectionReportOptions {
                 Title = "Detection posture",
                 QueryOwner = "unit-test-query",
-                Limits = new[] { "MaximumObservations=100" }
+                Limits = new[] { "MaximumObservations=100" },
+                Coverage = coverage
             });
 
         Assert.True(report.IsComplete);
@@ -612,6 +634,31 @@ public sealed class TestEventDetection {
         EventDetectionPackHealth health = Assert.Single(report.Packs);
         Assert.False(health.HasRequiredDataCoverage);
         Assert.Equal(new[] { "System" }, health.MissingRequiredChannels);
+    }
+
+    [Fact]
+    public void DetectionCoverageJsonRoundTripsAndRejectsFutureContracts() {
+        EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+            expectedTargets: new[] { "server01" },
+            observedTargets: new[] { "server01" },
+            expectedChannels: new[] { "Security" },
+            observedChannels: new[] { "Security" },
+            expectedProviders: new[] { "Provider-A" },
+            observedProviders: new[] { "Provider-A" },
+            expectedEventIds: new[] { 4624 },
+            observedEventIds: new[] { 4624 },
+            expectedEventTypes: new[] { EventType.ADUserLogon },
+            observedEventTypes: new[] { EventType.ADUserLogon });
+
+        string json = coverage.ToJson();
+        EventDetectionCoverage restored = EventDetectionCoverage.FromJson(json);
+
+        Assert.True(restored.IsComplete);
+        Assert.Equal(coverage.ExpectedTargets, restored.ExpectedTargets);
+        Assert.Equal(coverage.ObservedEventIds, restored.ObservedEventIds);
+        Assert.Equal(coverage.ExpectedEventTypes, restored.ExpectedEventTypes);
+        string future = json.Replace("\"SchemaVersion\":1", "\"SchemaVersion\":2", StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => EventDetectionCoverage.FromJson(future));
     }
 
     [Fact]

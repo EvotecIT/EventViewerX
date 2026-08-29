@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace EventViewerX.Reporting;
 
 /// <summary>Publishes a rendered notification batch as one atomic, retry-safe outbox directory.</summary>
-public static class EventNotificationOutbox {
+public static partial class EventNotificationOutbox {
     /// <summary>
     /// Writes the report, email bodies, and batch manifest to a temporary directory before atomically
     /// publishing the completed directory. Reusing an existing batch identifier is idempotent.
@@ -57,6 +57,27 @@ public static class EventNotificationOutbox {
         int eventCount,
         IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
         bool requiresExternalTransport,
+        CancellationToken cancellationToken = default) => Save(
+            outboxPath,
+            batchId,
+            report,
+            email,
+            eventCount,
+            checkpoints,
+            requiresExternalTransport,
+            new EventNotificationOutboxLimits(),
+            cancellationToken);
+
+    /// <summary>Persists a bounded batch while enforcing cross-process outbox capacity.</summary>
+    public static string Save(
+        string outboxPath,
+        string batchId,
+        EventReport report,
+        EventEmailPackage email,
+        int eventCount,
+        IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
+        bool requiresExternalTransport,
+        EventNotificationOutboxLimits limits,
         CancellationToken cancellationToken = default) {
 
         if (string.IsNullOrWhiteSpace(outboxPath)) {
@@ -72,20 +93,61 @@ public static class EventNotificationOutbox {
         if (eventCount < 0) {
             throw new ArgumentOutOfRangeException(nameof(eventCount));
         }
+        if (limits == null) {
+            throw new ArgumentNullException(nameof(limits));
+        }
         EventNotificationCheckpointBoundary[] checkpointSnapshot = SnapshotCheckpoints(checkpoints);
 
         string outboxDirectory = Path.GetFullPath(outboxPath);
         Directory.CreateDirectory(outboxDirectory);
         string completedDirectory = Path.Combine(outboxDirectory, batchId);
+        using FileStream writeLock = AcquireWriteLock(
+            outboxDirectory,
+            limits.WriteLockTimeout,
+            cancellationToken);
         if (Directory.Exists(completedDirectory)) {
             return completedDirectory;
+        }
+
+        DateTime persistedUtc = DateTime.UtcNow;
+        var manifest = new EventNotificationBatchManifest {
+            BatchId = batchId,
+            EventCount = eventCount,
+            Title = report.Title,
+            PersistedUtc = persistedUtc,
+            RequiresExternalTransport = requiresExternalTransport,
+            Checkpoints = checkpointSnapshot
+        };
+        string reportHtml = EventReportHtmlRenderer.Render(report);
+        string manifestJson = JsonSerializer.Serialize(manifest);
+        long batchBytes = GetUtf8Bytes(reportHtml) +
+                          GetUtf8Bytes(email.Html) +
+                          GetUtf8Bytes(email.PlainText) +
+                          GetUtf8Bytes(manifestJson);
+        if (batchBytes > limits.MaximumBatchBytes) {
+            throw new InvalidOperationException(
+                $"Notification batch '{batchId}' requires {batchBytes} bytes, exceeding the configured " +
+                $"{limits.MaximumBatchBytes}-byte batch limit.");
+        }
+        EventNotificationOutboxUsage usage = GetUsage(outboxDirectory);
+        if (usage.PendingBatches >= limits.MaximumPendingBatches) {
+            throw new InvalidOperationException(
+                $"Notification outbox already contains {usage.PendingBatches} pending batches, reaching the configured limit.");
+        }
+        if (usage.TotalBytes > limits.MaximumOutboxBytes - batchBytes) {
+            throw new InvalidOperationException(
+                $"Notification outbox requires {usage.TotalBytes + batchBytes} bytes after publication, exceeding the configured " +
+                $"{limits.MaximumOutboxBytes}-byte limit.");
         }
 
         string pendingDirectory = completedDirectory + ".pending-" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(pendingDirectory);
         try {
             cancellationToken.ThrowIfCancellationRequested();
-            EventReportHtmlRenderer.Save(report, Path.Combine(pendingDirectory, "report.html"));
+            File.WriteAllText(
+                Path.Combine(pendingDirectory, "report.html"),
+                reportHtml,
+                new UTF8Encoding(false));
             cancellationToken.ThrowIfCancellationRequested();
             File.WriteAllText(
                 Path.Combine(pendingDirectory, "email.html"),
@@ -97,14 +159,7 @@ public static class EventNotificationOutbox {
                 new UTF8Encoding(false));
             File.WriteAllText(
                 Path.Combine(pendingDirectory, "batch.json"),
-                JsonSerializer.Serialize(new EventNotificationBatchManifest {
-                    BatchId = batchId,
-                    EventCount = eventCount,
-                    Title = report.Title,
-                    PersistedUtc = DateTime.UtcNow,
-                    RequiresExternalTransport = requiresExternalTransport,
-                    Checkpoints = checkpointSnapshot
-                }),
+                manifestJson,
                 new UTF8Encoding(false));
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -149,6 +204,16 @@ public static class EventNotificationOutbox {
                 !string.Equals(manifest.BatchId, name, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' has invalid identity metadata.");
             }
+            if (manifest.SchemaVersion < 0 ||
+                manifest.SchemaVersion > EventNotificationBatchManifest.CurrentSchemaVersion) {
+                throw new InvalidDataException(
+                    $"Outbox batch '{directory}' uses unsupported manifest schema {manifest.SchemaVersion}. " +
+                    $"This build supports schema {EventNotificationBatchManifest.CurrentSchemaVersion}; " +
+                    "upgrade the reader or restore a compatible binary before delivery or checkpoint advancement.");
+            }
+            if (manifest.EventCount < 0 || manifest.PersistedUtc == default) {
+                throw new InvalidDataException($"Outbox batch '{directory}' has invalid persistence metadata.");
+            }
             manifest.Checkpoints = SnapshotCheckpoints(
                 manifest.Checkpoints ?? Array.Empty<EventNotificationCheckpointBoundary>());
             EventNotificationDeliveryState delivery = ReadDeliveryState(directory);
@@ -170,10 +235,16 @@ public static class EventNotificationOutbox {
     /// <summary>Returns pending-batch count, retry count, and oldest age for health reporting.</summary>
     public static EventNotificationOutboxHealth GetHealth(string outboxPath) {
         IReadOnlyList<EventNotificationOutboxBatch> pending = GetPending(outboxPath);
+        EventNotificationOutboxUsage usage = GetUsage(Path.GetFullPath(outboxPath));
         return new EventNotificationOutboxHealth(
             pending.Count,
             pending.Sum(static batch => batch.Delivery.FailedAttempts),
-            pending.Count == 0 ? null : pending.Min(static batch => batch.Manifest.PersistedUtc));
+            pending.Count == 0 ? null : pending.Min(static batch => batch.Manifest.PersistedUtc),
+            usage.TotalBytes,
+            usage.PendingBytes,
+            usage.DeliveredBytes,
+            usage.DeadLetterBytes,
+            usage.StagingBytes);
     }
 
     /// <summary>Loads pending batches whose persisted retry backoff has elapsed.</summary>
@@ -331,4 +402,6 @@ public static class EventNotificationOutbox {
         }
         return snapshot.ToArray();
     }
+
+    private static int GetUtf8Bytes(string value) => Encoding.UTF8.GetByteCount(value ?? string.Empty);
 }

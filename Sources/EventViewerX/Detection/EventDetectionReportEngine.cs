@@ -9,7 +9,8 @@ public static class EventDetectionReportEngine {
         IEnumerable<EventObservation>? observations,
         IEnumerable<EventDetectionFinding>? findings,
         IEnumerable<EventDetectionPack>? packs = null,
-        EventDetectionReportOptions? options = null) {
+        EventDetectionReportOptions? options = null,
+        IEnumerable<EventDecisionMetric>? metrics = null) {
 
         options ??= new EventDetectionReportOptions();
         string title = string.IsNullOrWhiteSpace(options.Title)
@@ -32,6 +33,7 @@ public static class EventDetectionReportEngine {
             .Select(static group => group.First())
             .OrderBy(static observation => observation.EventTimeUtc)
             .ToArray();
+        EventDetectionCoverage executionCoverage = ResolveCoverage(options.Coverage, findingSnapshot);
         EventDetectionPackHealth[] packHealth = (packs ?? Array.Empty<EventDetectionPack>())
             .Select(pack => {
                 if (pack == null) {
@@ -41,12 +43,13 @@ public static class EventDetectionReportEngine {
                     pack,
                     pack.Validate(),
                     pack.GetCoverage(),
-                    observationSnapshot);
+                    executionCoverage);
             })
             .OrderBy(static pack => pack.PackId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         EventTimeline timeline = EventTimelineEngine.Create(observationSnapshot, findingSnapshot);
-        object[] presentationInput = findingSnapshot.Cast<object>()
+        object[] presentationInput = (metrics ?? Array.Empty<EventDecisionMetric>()).Cast<object>()
+            .Concat(findingSnapshot.Cast<object>())
             .Concat(timeline.Entries.Cast<object>())
             .ToArray();
         EventReport presentation = EventReportEngine.Create(presentationInput, title);
@@ -77,11 +80,28 @@ public static class EventDetectionReportEngine {
                 .ToArray(),
             limits,
             failures,
+            executionCoverage,
             observationSnapshot,
             findingSnapshot,
             packHealth,
             timeline,
             presentation);
+    }
+
+    private static EventDetectionCoverage ResolveCoverage(
+        EventDetectionCoverage? supplied,
+        IReadOnlyList<EventDetectionFinding> findings) {
+
+        if (supplied != null) {
+            return supplied.Snapshot();
+        }
+        if (findings.Count == 0 || findings.Any(static finding => !finding.Coverage.IsDeclared)) {
+            return EventDetectionCoverage.Unknown();
+        }
+        string first = findings[0].Coverage.ToJson();
+        return findings.All(finding => string.Equals(first, finding.Coverage.ToJson(), StringComparison.Ordinal))
+            ? findings[0].Coverage.Snapshot()
+            : EventDetectionCoverage.Unknown();
     }
 
     private static string[] Normalize(IEnumerable<string>? values) =>

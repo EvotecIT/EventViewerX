@@ -152,6 +152,61 @@ public sealed class TestEventTypeDefinitions {
         Assert.IsType<Rules.ActiveDirectory.ADUserLogon>(generic);
     }
 
+    [Fact]
+    public void EveryCompositeAndSharedNativeCandidateSetCompilesCompletelyAndDeterministically() {
+        EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
+        EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
+        EventTypeProjectionPlan allPlan = EventTypeCatalog.CompileProjectionPlan(
+            leaves.Select(static definition => definition.Type));
+        EventTypeProjectionPlan repeatedPlan = EventTypeCatalog.CompileProjectionPlan(
+            leaves.Select(static definition => definition.Type));
+        var sharedSources = leaves
+            .SelectMany(definition => definition.Sources.SelectMany(source => source.EventIds.Select(eventId => new {
+                definition.Type,
+                LogName = source.LogName,
+                EventId = eventId
+            })))
+            .GroupBy(static item => (item.EventId, LogName: item.LogName.ToUpperInvariant()))
+            .Where(static group => group.Select(static item => item.Type).Distinct().Count() > 1)
+            .ToArray();
+
+        Assert.NotEmpty(sharedSources);
+        foreach (var source in sharedSources) {
+            EventType[] expected = source.Select(static item => item.Type).Distinct().ToArray();
+            EventType[] actual = allPlan.GetCandidates(source.Key.EventId, source.First().LogName)
+                .Select(static projector => projector.Type)
+                .ToArray();
+            EventType[] repeated = repeatedPlan.GetCandidates(source.Key.EventId, source.First().LogName)
+                .Select(static projector => projector.Type)
+                .ToArray();
+
+            Assert.Equal(expected.Length, actual.Length);
+            Assert.Empty(expected.Except(actual));
+            Assert.Equal(actual, repeated);
+        }
+
+        foreach (EventTypeDefinition composite in definitions.Where(static definition => definition.IsComposite)) {
+            EventType[] expanded = EventTypeCatalog.Expand(new[] { composite.Type }).ToArray();
+            EventTypeProjectionPlan plan = EventTypeCatalog.CompileProjectionPlan(new[] { composite.Type });
+            foreach (EventSourceDefinition source in composite.Sources) {
+                foreach (int eventId in source.EventIds) {
+                    EventType[] expected = leaves
+                        .Where(definition => expanded.Contains(definition.Type) && definition.Sources.Any(candidate =>
+                            string.Equals(candidate.LogName, source.LogName, StringComparison.OrdinalIgnoreCase) &&
+                            candidate.EventIds.Contains(eventId)))
+                        .Select(static definition => definition.Type)
+                        .ToArray();
+                    EventType[] actual = plan.GetCandidates(eventId, source.LogName)
+                        .Select(static projector => projector.Type)
+                        .ToArray();
+
+                    Assert.Equal(expected.Length, actual.Length);
+                    Assert.Empty(expected.Except(actual));
+                }
+            }
+        }
+    }
+
     [Theory]
     [InlineData(0, true, false)]
     [InlineData(1, false, false)]

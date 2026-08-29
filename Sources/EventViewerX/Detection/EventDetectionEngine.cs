@@ -120,7 +120,11 @@ public static class EventDetectionEngine {
             throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
         }
         Array.Sort(snapshot, CompareObservations);
-        return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
+        EventDetectionCoverage coverage = options?.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown();
+        return new EventDetectionExecutionResult(
+            snapshot,
+            Stream(snapshot, plan, options).ToArray(),
+            coverage);
     }
 
     /// <summary>Projects raw events and materializes a bounded dry run.</summary>
@@ -137,7 +141,19 @@ public static class EventDetectionEngine {
             throw new ArgumentException("Events cannot contain null values.", nameof(events));
         }
         Array.Sort(snapshot, CompareEvents);
-        return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
+        EventTypeProjectionPlan? projectionPlan = plan.RequiredEventTypes.Count == 0
+            ? null
+            : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
+        EventObservation[] observations = snapshot.Select(source => {
+            EventTypeRecord? typed = projectionPlan == null
+                ? null
+                : EventTypeCatalog.CreateEventRule(source, projectionPlan);
+            return EventObservation.Create(source, typed);
+        }).ToArray();
+        return new EventDetectionExecutionResult(
+            observations,
+            Stream(observations, plan, options).ToArray(),
+            options?.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown());
     }
 
     private static T[] SnapshotBounded<T>(IEnumerable<T> source, long maximumObservations) {
@@ -598,7 +614,7 @@ public static class EventDetectionEngine {
         private static long StringBytes(string? value) =>
             value == null ? 0L : 24L + (value.Length * 2L);
 
-        private static EventDetectionFinding CreateFinding(
+        private EventDetectionFinding CreateFinding(
             EventDetectionPlan.CompiledRule rule,
             IReadOnlyList<EventObservation> evidence,
             string? groupValue) {
@@ -639,11 +655,12 @@ public static class EventDetectionEngine {
                 definition.FalsePositives,
                 definition.References,
                 entities,
+                _options.Coverage!,
                 explanation,
                 completenessDiagnostic: null);
         }
 
-        private static EventDetectionFinding CreateError(
+        private EventDetectionFinding CreateError(
             EventDetectionPlan.CompiledRule rule,
             EventObservation observation,
             Exception exception) {
@@ -670,11 +687,12 @@ public static class EventDetectionEngine {
                 definition.FalsePositives,
                 definition.References,
                 new Dictionary<string, string>(),
+                _options.Coverage!,
                 $"Detection evaluation failed: {exception.Message}",
                 exception.GetType().FullName);
         }
 
-        private static EventDetectionFinding CreateIncomplete(
+        private EventDetectionFinding CreateIncomplete(
             EventObservation observation,
             string diagnostic) {
 
@@ -699,6 +717,7 @@ public static class EventDetectionEngine {
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 new Dictionary<string, string>(),
+                _options.Coverage!,
                 diagnostic,
                 diagnostic);
         }
@@ -750,7 +769,8 @@ public static class EventDetectionEngine {
                 MaximumGroups = options.MaximumGroups,
                 MaximumStateObservations = options.MaximumStateObservations,
                 MaximumStateBytes = options.MaximumStateBytes,
-                MaximumCandidateRules = options.MaximumCandidateRules
+                MaximumCandidateRules = options.MaximumCandidateRules,
+                Coverage = options.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown()
             };
         }
 

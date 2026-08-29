@@ -5,7 +5,12 @@ public sealed class EventNotificationOutboxHealth {
     internal EventNotificationOutboxHealth(
         int pendingBatches,
         int failedAttempts,
-        DateTime? oldestPendingUtc) {
+        DateTime? oldestPendingUtc,
+        long totalBytes,
+        long pendingBytes,
+        long deliveredBytes,
+        long deadLetterBytes,
+        long stagingBytes) {
 
         PendingBatches = pendingBatches;
         FailedAttempts = failedAttempts;
@@ -13,6 +18,11 @@ public sealed class EventNotificationOutboxHealth {
         OldestPendingAge = oldestPendingUtc.HasValue
             ? DateTime.UtcNow - oldestPendingUtc.Value
             : TimeSpan.Zero;
+        TotalBytes = totalBytes;
+        PendingBytes = pendingBytes;
+        DeliveredBytes = deliveredBytes;
+        DeadLetterBytes = deadLetterBytes;
+        StagingBytes = stagingBytes;
     }
 
     /// <summary>Complete batches awaiting acknowledged transport delivery.</summary>
@@ -23,4 +33,14 @@ public sealed class EventNotificationOutboxHealth {
     public DateTime? OldestPendingUtc { get; }
     /// <summary>Age of the oldest pending batch when this snapshot was captured.</summary>
     public TimeSpan OldestPendingAge { get; }
+    /// <summary>Total file bytes retained under the outbox root.</summary>
+    public long TotalBytes { get; }
+    /// <summary>File bytes retained by batches awaiting delivery.</summary>
+    public long PendingBytes { get; }
+    /// <summary>File bytes retained by acknowledged batches.</summary>
+    public long DeliveredBytes { get; }
+    /// <summary>File bytes retained in the dead-letter area.</summary>
+    public long DeadLetterBytes { get; }
+    /// <summary>File bytes retained by incomplete staging directories.</summary>
+    public long StagingBytes { get; }
 }

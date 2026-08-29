@@ -12,4 +12,6 @@ public sealed class EventDetectionEngineOptions {
     public long MaximumStateBytes { get; set; } = 256L * 1024L * 1024L;
     /// <summary>Maximum candidate rules evaluated for one observation.</summary>
     public int MaximumCandidateRules { get; set; } = 10_000;
+    /// <summary>Expected and successfully collected data sources for this execution window.</summary>
+    public EventDetectionCoverage? Coverage { get; set; }
 }

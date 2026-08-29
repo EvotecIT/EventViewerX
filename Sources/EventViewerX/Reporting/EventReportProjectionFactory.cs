@@ -60,6 +60,10 @@ internal static class EventReportProjectionFactory {
             Column<string>(nameof(EventDetectionFinding.EvidenceIdentities)),
             Column<string>(nameof(EventDetectionFinding.Tags)),
             Column<string>(nameof(EventDetectionFinding.Entities)),
+            Column<bool>("CoverageDeclared"),
+            Column<bool>("CoverageComplete"),
+            Column<string>("MissingCoverage"),
+            Column<string>("CoverageFailures"),
             Column<string>(nameof(EventDetectionFinding.Explanation)),
             Column<string>(nameof(EventDetectionFinding.FalsePositives)),
             Column<string>(nameof(EventDetectionFinding.CompletenessDiagnostic))
@@ -80,6 +84,18 @@ internal static class EventReportProjectionFactory {
             Column<EventDetectionSeverity?>(nameof(EventTimelineEntry.Severity)),
             Column<string>(nameof(EventTimelineEntry.EvidenceIdentities)),
             Column<string>(nameof(EventTimelineEntry.Pivots))
+        });
+    private static readonly EventReportSectionDefinition DecisionMetricSection = CreateSectionDefinition(
+        EventReportSectionKind.Custom,
+        "DecisionMetric",
+        "Decision metrics",
+        "Profile-specific counts, rates, and completeness indicators.",
+        new[] {
+            Column<string>(nameof(EventDecisionMetric.Name)),
+            Column<string>(nameof(EventDecisionMetric.DisplayName)),
+            Column<double>(nameof(EventDecisionMetric.Value)),
+            Column<string>(nameof(EventDecisionMetric.Unit)),
+            Column<string>(nameof(EventDecisionMetric.Description))
         });
     private static readonly HashSet<string> RoutingMembers = new(StringComparer.Ordinal) {
         nameof(IEventRule.EventIds),
@@ -187,6 +203,10 @@ internal static class EventReportProjectionFactory {
             [nameof(finding.EvidenceIdentities)] = string.Join(", ", finding.EvidenceIdentities),
             [nameof(finding.Tags)] = string.Join(", ", finding.Tags),
             [nameof(finding.Entities)] = string.Join(", ", finding.Entities.Select(static item => item.Key + "=" + item.Value)),
+            ["CoverageDeclared"] = finding.Coverage.IsDeclared,
+            ["CoverageComplete"] = finding.Coverage.IsComplete,
+            ["MissingCoverage"] = FormatMissingCoverage(finding.Coverage),
+            ["CoverageFailures"] = string.Join("; ", finding.Coverage.Failures),
             [nameof(finding.Explanation)] = finding.Explanation,
             [nameof(finding.FalsePositives)] = string.Join("; ", finding.FalsePositives),
             [nameof(finding.CompletenessDiagnostic)] = finding.CompletenessDiagnostic
@@ -195,6 +215,17 @@ internal static class EventReportProjectionFactory {
         row.TimeCreated = finding.StartTimeUtc;
         row.Message = finding.Explanation;
         return new EventReportProjection(row, DetectionFindingSection);
+    }
+
+    private static string FormatMissingCoverage(EventDetectionCoverage coverage) {
+        var missing = new List<string>();
+        missing.AddRange(coverage.MissingTargets.Select(static value => "target:" + value));
+        missing.AddRange(coverage.MissingChannels.Select(static value => "channel:" + value));
+        missing.AddRange(coverage.MissingProviders.Select(static value => "provider:" + value));
+        missing.AddRange(coverage.MissingEventIds.Select(static value =>
+            "event-id:" + value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        missing.AddRange(coverage.MissingEventTypes.Select(static value => "type:" + value));
+        return string.Join(", ", missing);
     }
 
     internal static EventReportProjection Create(EventTimelineEntry entry) {
@@ -219,6 +250,23 @@ internal static class EventReportProjectionFactory {
         };
         EventValueNormalizationEngine.Populate(row);
         return new EventReportProjection(row, TimelineSection);
+    }
+
+    internal static EventReportProjection Create(EventDecisionMetric metric) {
+        var row = new EventReportRow {
+            TimeCreated = DateTime.UtcNow,
+            Type = "DecisionMetric",
+            Message = metric.Description,
+            Values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+                [nameof(metric.Name)] = metric.Name,
+                [nameof(metric.DisplayName)] = metric.DisplayName,
+                [nameof(metric.Value)] = metric.Value,
+                [nameof(metric.Unit)] = metric.Unit,
+                [nameof(metric.Description)] = metric.Description
+            }
+        };
+        EventValueNormalizationEngine.Populate(row);
+        return new EventReportProjection(row, DecisionMetricSection);
     }
 
     internal static EventReportSectionDefinition CreateGroupPolicyAuditDefinition() => GroupPolicyAuditSection;

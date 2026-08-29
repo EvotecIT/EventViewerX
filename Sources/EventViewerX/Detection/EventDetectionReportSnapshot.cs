@@ -14,6 +14,8 @@ public sealed class EventDetectionReportOptions {
     public IReadOnlyList<string> Limits { get; set; } = Array.Empty<string>();
     /// <summary>Source or execution failures that affect completeness.</summary>
     public IReadOnlyList<string> Failures { get; set; } = Array.Empty<string>();
+    /// <summary>Expected-versus-observed collection scope for the report window.</summary>
+    public EventDetectionCoverage? Coverage { get; set; }
 }
 
 /// <summary>Integrity and data-source state for one enabled detection pack.</summary>
@@ -22,7 +24,7 @@ public sealed class EventDetectionPackHealth {
         EventDetectionPack pack,
         EventDetectionPackValidationResult validation,
         EventDetectionPackCoverage coverage,
-        IReadOnlyList<EventObservation> observations) {
+        EventDetectionCoverage executionCoverage) {
 
         PackId = pack.PackId;
         Version = pack.Version;
@@ -34,17 +36,17 @@ public sealed class EventDetectionPackHealth {
         RequiredEventIds = coverage.EventIds;
         RequiredChannels = coverage.Channels;
         RequiredProviders = coverage.Providers;
-        var observedTypes = new HashSet<string>(
-            observations.Select(static observation => observation.TypeName),
-            StringComparer.OrdinalIgnoreCase);
-        var observedChannels = new HashSet<string>(
-            observations.Select(static observation => observation.SourceLog),
-            StringComparer.OrdinalIgnoreCase);
-        var observedProviders = new HashSet<string>(
-            observations.Select(static observation => observation.ProviderName),
-            StringComparer.OrdinalIgnoreCase);
+        CoverageDeclared = executionCoverage.IsDeclared;
+        CoverageFailures = executionCoverage.Failures;
+        var observedTypes = new HashSet<EventType>(executionCoverage.ObservedEventTypes);
+        var observedEventIds = new HashSet<int>(executionCoverage.ObservedEventIds);
+        var observedChannels = new HashSet<string>(executionCoverage.ObservedChannels, StringComparer.OrdinalIgnoreCase);
+        var observedProviders = new HashSet<string>(executionCoverage.ObservedProviders, StringComparer.OrdinalIgnoreCase);
         MissingRequiredEventTypes = coverage.EventTypes
-            .Where(type => !observedTypes.Contains(type.ToString()))
+            .Where(type => !observedTypes.Contains(type))
+            .ToArray();
+        MissingRequiredEventIds = coverage.EventIds
+            .Where(eventId => !observedEventIds.Contains(eventId))
             .ToArray();
         MissingRequiredChannels = coverage.Channels
             .Where(channel => !observedChannels.Contains(channel))
@@ -75,15 +77,23 @@ public sealed class EventDetectionPackHealth {
     public IReadOnlyList<string> RequiredChannels { get; }
     /// <summary>Explicit provider requirements.</summary>
     public IReadOnlyList<string> RequiredProviders { get; }
+    /// <summary>Whether the caller declared collection scope for this report window.</summary>
+    public bool CoverageDeclared { get; }
+    /// <summary>Source or collection failures affecting the report window.</summary>
+    public IReadOnlyList<string> CoverageFailures { get; }
     /// <summary>Required typed projections absent from the supplied observation window.</summary>
     public IReadOnlyList<EventType> MissingRequiredEventTypes { get; }
+    /// <summary>Required native event-ID scopes absent from successful collection coverage.</summary>
+    public IReadOnlyList<int> MissingRequiredEventIds { get; }
     /// <summary>Required source channels absent from the supplied observation window.</summary>
     public IReadOnlyList<string> MissingRequiredChannels { get; }
     /// <summary>Required providers absent from the supplied observation window.</summary>
     public IReadOnlyList<string> MissingRequiredProviders { get; }
     /// <summary>Whether every declared source requirement is represented in the observation window.</summary>
-    public bool HasRequiredDataCoverage =>
+    public bool HasRequiredDataCoverage => CoverageDeclared &&
+        CoverageFailures.Count == 0 &&
         MissingRequiredEventTypes.Count == 0 &&
+        MissingRequiredEventIds.Count == 0 &&
         MissingRequiredChannels.Count == 0 &&
         MissingRequiredProviders.Count == 0;
     /// <summary>Pack validation diagnostics.</summary>
@@ -103,6 +113,7 @@ public sealed class EventDetectionReportSnapshot {
         IReadOnlyList<string> channels,
         IReadOnlyList<string> limits,
         IReadOnlyList<string> failures,
+        EventDetectionCoverage coverage,
         IReadOnlyList<EventObservation> observations,
         IReadOnlyList<EventDetectionFinding> findings,
         IReadOnlyList<EventDetectionPackHealth> packs,
@@ -119,6 +130,7 @@ public sealed class EventDetectionReportSnapshot {
         Channels = Array.AsReadOnly(channels.ToArray());
         Limits = Array.AsReadOnly(limits.ToArray());
         Failures = Array.AsReadOnly(failures.ToArray());
+        Coverage = coverage.Snapshot();
         Observations = Array.AsReadOnly(observations.ToArray());
         Findings = Array.AsReadOnly(findings.ToArray());
         Packs = Array.AsReadOnly(packs.ToArray());
@@ -129,7 +141,9 @@ public sealed class EventDetectionReportSnapshot {
             .GroupBy(static finding => finding.Severity)
             .ToDictionary(static group => group.Key, static group => group.Count());
         IsComplete = failures.Count == 0 &&
+            Coverage.IsComplete &&
             findings.All(static finding => finding.Status == EventDetectionFindingStatus.Matched) &&
+            findings.All(static finding => finding.Coverage.IsComplete) &&
             packs.All(static pack => pack.HasRequiredDataCoverage);
     }
 
@@ -153,6 +167,8 @@ public sealed class EventDetectionReportSnapshot {
     public IReadOnlyList<string> Limits { get; }
     /// <summary>Failures affecting completeness.</summary>
     public IReadOnlyList<string> Failures { get; }
+    /// <summary>Expected-versus-observed collection coverage for the report window.</summary>
+    public EventDetectionCoverage Coverage { get; }
     /// <summary>Canonical source observations.</summary>
     public IReadOnlyList<EventObservation> Observations { get; }
     /// <summary>Matched, incomplete, and error findings.</summary>

@@ -24,6 +24,7 @@ public sealed class TestEventNotificationOutbox {
             EventNotificationBatchManifest? manifest = JsonSerializer.Deserialize<EventNotificationBatchManifest>(
                 File.ReadAllText(manifestPath));
             Assert.NotNull(manifest);
+            Assert.Equal(EventNotificationBatchManifest.CurrentSchemaVersion, manifest.SchemaVersion);
             Assert.Equal("batch-001", manifest.BatchId);
             Assert.Equal(1, manifest.EventCount);
             Assert.Equal("Security digest", manifest.Title);
@@ -282,6 +283,129 @@ public sealed class TestEventNotificationOutbox {
                 EventNotificationOutbox.Save(outbox, batchId, report, email, 1));
 
             Assert.Empty(Directory.GetDirectories(outbox));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveRejectsBatchBeforePublicationWhenBatchByteLimitIsExceeded() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Oversized digest");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            var limits = new EventNotificationOutboxLimits(
+                maximumBatchBytes: 1,
+                maximumOutboxBytes: 1,
+                maximumPendingBatches: 1);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                EventNotificationOutbox.Save(
+                    outbox,
+                    "oversized-batch",
+                    report,
+                    email,
+                    1,
+                    Array.Empty<EventNotificationCheckpointBoundary>(),
+                    requiresExternalTransport: false,
+                    limits));
+
+            Assert.Contains("batch limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(Directory.GetDirectories(outbox));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveFailsClosedAtPendingBatchAndTotalByteCapacity() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Bounded digest");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            var onePending = new EventNotificationOutboxLimits(
+                maximumBatchBytes: 16L * 1024 * 1024,
+                maximumOutboxBytes: 32L * 1024 * 1024,
+                maximumPendingBatches: 1);
+            EventNotificationOutbox.Save(
+                outbox,
+                "bounded-001",
+                report,
+                email,
+                1,
+                Array.Empty<EventNotificationCheckpointBoundary>(),
+                requiresExternalTransport: false,
+                onePending);
+
+            InvalidOperationException pendingException = Assert.Throws<InvalidOperationException>(() =>
+                EventNotificationOutbox.Save(
+                    outbox,
+                    "bounded-002",
+                    report,
+                    email,
+                    1,
+                    Array.Empty<EventNotificationCheckpointBoundary>(),
+                    requiresExternalTransport: false,
+                    onePending));
+            Assert.Contains("pending batches", pendingException.Message, StringComparison.OrdinalIgnoreCase);
+
+            EventNotificationOutboxBatch first = Assert.Single(EventNotificationOutbox.GetPending(outbox));
+            EventNotificationOutbox.MarkDelivered(first);
+            long retainedBytes = Directory.GetFiles(outbox, "*", SearchOption.AllDirectories)
+                .Sum(static path => new FileInfo(path).Length);
+            var byteBound = new EventNotificationOutboxLimits(
+                maximumBatchBytes: retainedBytes,
+                maximumOutboxBytes: retainedBytes + 1,
+                maximumPendingBatches: 2);
+
+            InvalidOperationException byteException = Assert.Throws<InvalidOperationException>(() =>
+                EventNotificationOutbox.Save(
+                    outbox,
+                    "bounded-002",
+                    report,
+                    email,
+                    1,
+                    Array.Empty<EventNotificationCheckpointBoundary>(),
+                    requiresExternalTransport: false,
+                    byteBound));
+            Assert.Contains("outbox", byteException.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("byte limit", byteException.Message, StringComparison.OrdinalIgnoreCase);
+
+            EventNotificationOutboxHealth health = EventNotificationOutbox.GetHealth(outbox);
+            Assert.Equal(retainedBytes, health.TotalBytes);
+            Assert.Equal(retainedBytes, health.DeliveredBytes);
+            Assert.Equal(0, health.PendingBytes);
+            Assert.Equal(0, health.DeadLetterBytes);
+            Assert.Equal(0, health.StagingBytes);
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task NewerManifestSchemaFailsClosedWithoutMovingOrAcknowledgingBatch() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Future outbox schema");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            string directory = EventNotificationOutbox.Save(
+                outbox,
+                "future-schema",
+                report,
+                email,
+                1);
+            string manifestPath = Path.Combine(directory, "batch.json");
+            EventNotificationBatchManifest manifest = JsonSerializer.Deserialize<EventNotificationBatchManifest>(
+                File.ReadAllText(manifestPath))!;
+            manifest.SchemaVersion = EventNotificationBatchManifest.CurrentSchemaVersion + 1;
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                EventNotificationOutbox.GetPending(outbox));
+
+            Assert.Contains("unsupported manifest schema", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(Directory.Exists(directory));
+            Assert.False(File.Exists(Path.Combine(directory, "delivery.json")));
         } finally {
             Directory.Delete(outbox, recursive: true);
         }

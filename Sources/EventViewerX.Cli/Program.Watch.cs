@@ -47,6 +47,19 @@ internal static partial class Program {
         TimeSpan maximumRetryDelay = options.Get("maximum-retry-delay") is string maximumRetryDelayText
             ? TimeSpan.Parse(maximumRetryDelayText, CultureInfo.InvariantCulture)
             : TimeSpan.FromHours(1);
+        long outboxMaximumBatchBytes = options.Get("outbox-maximum-batch-bytes") is string maximumBatchBytesText
+            ? long.Parse(maximumBatchBytesText, CultureInfo.InvariantCulture)
+            : 64L * 1024 * 1024;
+        long outboxMaximumBytes = options.Get("outbox-maximum-bytes") is string maximumOutboxBytesText
+            ? long.Parse(maximumOutboxBytesText, CultureInfo.InvariantCulture)
+            : 1024L * 1024 * 1024;
+        int outboxMaximumPendingBatches = options.Get("outbox-maximum-pending-batches") is string maximumPendingBatchesText
+            ? int.Parse(maximumPendingBatchesText, CultureInfo.InvariantCulture)
+            : 10000;
+        var outboxLimits = new EventNotificationOutboxLimits(
+            outboxMaximumBatchBytes,
+            outboxMaximumBytes,
+            outboxMaximumPendingBatches);
         var retryPolicy = new EventNotificationRetryPolicy {
             InitialDelay = retryDelay,
             MaximumDelay = maximumRetryDelay
@@ -145,7 +158,8 @@ internal static partial class Program {
                         email,
                         batch.Count,
                         checkpointBoundaries,
-                        requiresExternalTransport: mailProfile != null);
+                        requiresExternalTransport: mailProfile != null,
+                        limits: outboxLimits);
                     durableBatch = EventNotificationOutbox.GetPending(outbox!)
                         .Single(candidate => string.Equals(
                             candidate.Manifest.BatchId,
@@ -635,7 +649,15 @@ internal static partial class Program {
                     OutboxPendingBatches = outboxHealth?.PendingBatches,
                     OutboxFailedAttempts = outboxHealth?.FailedAttempts,
                     OutboxOldestPendingUtc = outboxHealth?.OldestPendingUtc,
-                    OutboxOldestPendingSeconds = outboxHealth?.OldestPendingAge.TotalSeconds
+                    OutboxOldestPendingSeconds = outboxHealth?.OldestPendingAge.TotalSeconds,
+                    OutboxTotalBytes = outboxHealth?.TotalBytes,
+                    OutboxPendingBytes = outboxHealth?.PendingBytes,
+                    OutboxDeliveredBytes = outboxHealth?.DeliveredBytes,
+                    OutboxDeadLetterBytes = outboxHealth?.DeadLetterBytes,
+                    OutboxStagingBytes = outboxHealth?.StagingBytes,
+                    OutboxMaximumBatchBytes = outboxLimits.MaximumBatchBytes,
+                    OutboxMaximumBytes = outboxLimits.MaximumOutboxBytes,
+                    OutboxMaximumPendingBatches = outboxLimits.MaximumPendingBatches
                 });
             }
         } finally {

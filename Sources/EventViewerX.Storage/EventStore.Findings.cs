@@ -193,6 +193,7 @@ public sealed partial class EventStore {
             ["$references"] = JsonSerializer.Serialize(finding.References, JsonOptions),
             ["$explanation"] = finding.Explanation,
             ["$diagnostic"] = finding.CompletenessDiagnostic,
+            ["$coverage"] = finding.Coverage.ToJson(),
             ["$inserted"] = insertedAt
         };
 
@@ -260,7 +261,8 @@ public sealed partial class EventStore {
         DeserializeStringArray(record.GetString(18)),
         record.GetString(19),
         record.IsDBNull(20) ? null : record.GetString(20),
-        ParseUtc(record.GetString(21)));
+        DeserializeCoverage(record.GetString(21)),
+        ParseUtc(record.GetString(22)));
 
     private static StoredEvidenceRow MapEvidenceRow(IDataRecord record) => new(
         record.GetString(0),
@@ -282,18 +284,23 @@ public sealed partial class EventStore {
     private static string[] DeserializeStringArray(string json) =>
         JsonSerializer.Deserialize<string[]>(json, JsonOptions) ?? Array.Empty<string>();
 
+    private static EventDetectionCoverage DeserializeCoverage(string json) =>
+        string.IsNullOrWhiteSpace(json)
+            ? EventDetectionCoverage.Unknown()
+            : EventDetectionCoverage.FromJson(json);
+
     private const string InsertFindingSql = @"
 INSERT OR IGNORE INTO evx_findings (
     finding_key, rule_id, rule_version, pack_id, pack_version,
     source_kind, source_id, source_status, source_hash, content_license,
     title, severity, confidence, finding_status, start_time_utc, end_time_utc,
     tags_json, false_positives_json, references_json, explanation,
-    completeness_diagnostic, inserted_utc)
+    completeness_diagnostic, coverage_json, inserted_utc)
 VALUES (
     $findingKey, $ruleId, $ruleVersion, $packId, $packVersion,
     $sourceKind, $sourceId, $sourceStatus, $sourceHash, $license,
     $title, $severity, $confidence, $status, $start, $end,
-    $tags, $falsePositives, $references, $explanation, $diagnostic, $inserted);";
+    $tags, $falsePositives, $references, $explanation, $diagnostic, $coverage, $inserted);";
 
     private const string InsertFindingEvidenceSql = @"
 INSERT INTO evx_finding_evidence (
@@ -314,7 +321,7 @@ SELECT f.finding_key, f.rule_id, f.rule_version, f.pack_id, f.pack_version,
        f.source_kind, f.source_id, f.source_status, f.source_hash, f.content_license,
        f.title, f.severity, f.confidence, f.finding_status,
        f.start_time_utc, f.end_time_utc, f.tags_json, f.false_positives_json,
-       f.references_json, f.explanation, f.completeness_diagnostic, f.inserted_utc
+       f.references_json, f.explanation, f.completeness_diagnostic, f.coverage_json, f.inserted_utc
 FROM evx_findings f";
 
     private const string SelectFindingEvidenceSql = @"
@@ -337,7 +344,7 @@ WHERE finding_key IN (SELECT value FROM json_each($findingIds));";
             string title, EventDetectionSeverity severity, int confidence, EventDetectionFindingStatus status,
             DateTime startTimeUtc, DateTime endTimeUtc, IReadOnlyList<string> tags,
             IReadOnlyList<string> falsePositives, IReadOnlyList<string> references, string explanation,
-            string? completenessDiagnostic, DateTime insertedTimeUtc) {
+            string? completenessDiagnostic, EventDetectionCoverage coverage, DateTime insertedTimeUtc) {
 
             FindingId = findingId;
             RuleId = ruleId;
@@ -360,6 +367,7 @@ WHERE finding_key IN (SELECT value FROM json_each($findingIds));";
             References = references;
             Explanation = explanation;
             CompletenessDiagnostic = completenessDiagnostic;
+            Coverage = coverage;
             InsertedTimeUtc = insertedTimeUtc;
         }
 
@@ -384,6 +392,7 @@ WHERE finding_key IN (SELECT value FROM json_each($findingIds));";
         internal IReadOnlyList<string> References { get; }
         internal string Explanation { get; }
         internal string? CompletenessDiagnostic { get; }
+        internal EventDetectionCoverage Coverage { get; }
         internal DateTime InsertedTimeUtc { get; }
 
         internal StoredEventDetectionFinding Create(
@@ -392,7 +401,7 @@ WHERE finding_key IN (SELECT value FROM json_each($findingIds));";
                 FindingId, RuleId, RuleVersion, PackId, PackVersion, SourceKind, SourceId,
                 SourceStatus, SourceHash, License, Title, Severity, Confidence, Status,
                 StartTimeUtc, EndTimeUtc, Tags, FalsePositives, References, entities, evidence,
-                Explanation, CompletenessDiagnostic, InsertedTimeUtc);
+                Coverage, Explanation, CompletenessDiagnostic, InsertedTimeUtc);
     }
 
     private sealed class StoredEvidenceRow {

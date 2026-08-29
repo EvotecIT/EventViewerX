@@ -178,7 +178,8 @@ internal static partial class Program {
             MaximumObservations = options.GetLong("maximum-observations", 1000000),
             MaximumGroups = options.GetInt("maximum-groups", 25000),
             MaximumStateObservations = options.GetInt("maximum-state-observations", 250000),
-            MaximumStateBytes = options.GetLong("maximum-state-bytes", 256L * 1024L * 1024L)
+            MaximumStateBytes = options.GetLong("maximum-state-bytes", 256L * 1024L * 1024L),
+            Coverage = CreateDetectionCoverage(types, logName, paths, observations, plan, options)
         };
         EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(observations, plan, engineOptions);
         if (options.Get("write-findings-store") is string findingStore) {
@@ -193,15 +194,24 @@ internal static partial class Program {
                 Console.WriteLine(json);
             }
         }
-        EventDetectionReportSnapshot snapshot = EventDetectionReportEngine.Create(
-            observations,
-            execution.Findings,
-            packs,
-            new EventDetectionReportOptions {
-                Title = options.Get("title") ?? "EventViewerX detection report",
-                QueryOwner = types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
-                Limits = new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" }
-            });
+        var reportOptions = new EventDetectionReportOptions {
+            Title = options.Get("title") ?? "EventViewerX detection report",
+            QueryOwner = types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
+            Limits = new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
+            Coverage = execution.Coverage
+        };
+        EventDetectionReportSnapshot snapshot = options.Get("report-kind") is string reportKindText
+            ? EventDecisionReportEngine.Create(
+                Enum.Parse<EventDecisionReportKind>(reportKindText, ignoreCase: true),
+                execution.Observations,
+                execution.Findings,
+                packs,
+                reportOptions).Analysis
+            : EventDetectionReportEngine.Create(
+                execution.Observations,
+                execution.Findings,
+                packs,
+                reportOptions);
         if (options.Get("report-html") is string html) {
             Console.WriteLine(EventReportHtmlRenderer.Save(snapshot.PresentationReport, html));
         }
@@ -216,4 +226,66 @@ internal static partial class Program {
 
     private static long Remaining(long maximum, int current) =>
         maximum == 0 ? 0 : Math.Max(0, maximum - current);
+
+    private static EventDetectionCoverage CreateDetectionCoverage(
+        IReadOnlyList<EventType> selectedTypes,
+        string? logName,
+        IReadOnlyList<string> paths,
+        IReadOnlyList<EventObservation> observations,
+        EventDetectionPlan plan,
+        CliArguments options) {
+
+        string[] requestedTargets = options.GetMany("collector").Concat(options.GetMany("machine"))
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+        if (requestedTargets.Length == 0) {
+            requestedTargets = paths.Count > 0 ? paths.ToArray() : new[] { Environment.MachineName };
+        }
+        EventType[] expectedTypes = plan.RequiredEventTypes.ToArray();
+        EventType[] successfulTypes = selectedTypes.Count > 0
+            ? EventTypeCatalog.Expand(selectedTypes).Where(expectedTypes.Contains).ToArray()
+            : observations.Select(static observation => observation.TypeName)
+                .Select(static name => Enum.TryParse(name, ignoreCase: true, out EventType type) ? (EventType?)type : null)
+                .Where(static type => type.HasValue)
+                .Select(static type => type!.Value)
+                .Distinct()
+                .ToArray();
+        string[] expectedChannels = selectedTypes.Count > 0
+            ? EventTypeCatalog.GetSources(selectedTypes).Select(static source => source.LogName).ToArray()
+            : logName == null
+                ? plan.Rules.SelectMany(static rule => rule.Channels)
+                    .Concat(plan.Rules.SelectMany(static rule => rule.EventTypes)
+                        .SelectMany(type => EventTypeCatalog.GetSources(new[] { type }))
+                        .Select(static source => source.LogName))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray()
+                : new[] { logName };
+        string[] successfulChannels = logName == null && selectedTypes.Count == 0
+            ? observations.Select(static observation => observation.SourceLog)
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : expectedChannels;
+        string[] expectedProviders = plan.Rules.SelectMany(static rule => rule.Providers)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        string[] successfulProviders = expectedProviders.Length == 0
+            ? observations.Select(static observation => observation.ProviderName)
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : expectedProviders;
+        int[] expectedEventIds = plan.Rules.SelectMany(static rule => rule.EventIds).Distinct().ToArray();
+        return EventDetectionCoverage.Create(
+            expectedTargets: requestedTargets,
+            observedTargets: requestedTargets,
+            expectedChannels: expectedChannels,
+            observedChannels: successfulChannels,
+            expectedProviders: expectedProviders,
+            observedProviders: successfulProviders,
+            expectedEventIds: expectedEventIds,
+            observedEventIds: expectedEventIds,
+            expectedEventTypes: expectedTypes,
+            observedEventTypes: successfulTypes);
+    }
 }

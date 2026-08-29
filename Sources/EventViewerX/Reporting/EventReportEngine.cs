@@ -231,6 +231,7 @@ public static class EventReportEngine {
             GroupPolicyAuditRecord groupPolicy => EventReportProjectionFactory.Create(groupPolicy),
             EventDetectionFinding finding => EventReportProjectionFactory.Create(finding),
             EventTimelineEntry timeline => EventReportProjectionFactory.Create(timeline),
+            EventDecisionMetric metric => EventReportProjectionFactory.Create(metric),
             null => throw new ArgumentNullException(nameof(input)),
             _ => throw new ArgumentException(
                 $"Unsupported report input type '{input.GetType().FullName}'. Expected an EventViewerX event, finding, or timeline entry.",

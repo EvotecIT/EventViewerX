@@ -2,6 +2,12 @@ namespace EventViewerX.Reporting;
 
 /// <summary>Metadata stored with a completed notification outbox batch.</summary>
 public sealed class EventNotificationBatchManifest {
+    /// <summary>Newest manifest schema understood by this EventViewerX build.</summary>
+    public const int CurrentSchemaVersion = 1;
+
+    /// <summary>Version of the durable manifest contract.</summary>
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
     /// <summary>Stable identifier used to make batch publication idempotent.</summary>
     public string BatchId { get; set; } = string.Empty;
 

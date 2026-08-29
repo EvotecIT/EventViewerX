@@ -665,6 +665,11 @@ Get-EVXEvent -LogName Security -TimePeriod Last24Hours |
 # Inspect the immutable plan and declared source requirements.
 Invoke-EVXDetection -Rule $rules -Explain
 Get-EVXDetectionPack | ForEach-Object { $_.GetCoverage() }
+
+# Build a decision report from the same in-memory evaluation.
+$authentication = Get-EVXEvent -Type AuthenticationHealth -TimePeriod Last24Hours |
+    Invoke-EVXDetection -ReportKind AuthenticationPosture
+$authentication.Analysis.PresentationReport
 ```
 
 The CLI exposes the same path for scheduled work. `--write-findings-store` is
@@ -673,8 +678,18 @@ optional; omit it for one-shot or short-window analysis.
 ```powershell
 evx detect --type ActiveDirectoryAuthentication --since 1.00:00:00 `
     --sigma .\Rules\SuspiciousLogon.yml --include-built-in `
-    --jsonl .\Findings.jsonl --report-html .\Detection.html
+    --jsonl .\Findings.jsonl --report-kind AuthenticationPosture `
+    --report-html .\Authentication-Posture.html
 ```
+
+The built-in report catalog covers collection coverage, eventing integrity,
+authentication posture, identity lifecycle, privileged access, Group Policy,
+Certificate Services, execution and persistence, detection health, unknown
+event/schema drift, and incident timelines. C# callers select the same profiles
+with `EventDecisionReportEngine.Create`. Each profile filters an existing
+`EventDetectionExecutionResult.Observations` and `Findings` snapshot; it does
+not rerun the event source. Storage is only needed when the requested decision
+requires history from an earlier process or a longer lookback window.
 
 Every detection report identifies enabled pack versions and hashes, matched and
 incomplete findings, missing required channels/providers/types, execution
@@ -886,11 +901,26 @@ events by default) and fails explicitly when delivery cannot keep up. SMTP
 delivery is at-least-once: an uncertain connection failure after a server has
 accepted a message can cause a retry, so downstream mail handling should tolerate
 duplicate batch subjects.
+On graceful shutdown the CLI stops subscriptions, drains the bounded delivery
+queue, persists the active batch, and only then advances its owned checkpoint.
+Incomplete `.pending-*` directories from a process or machine crash are never
+treated as deliverable. Completed manifests carry a schema version: older
+compatible manifests remain readable, while a newer or damaged manifest fails
+closed in place so rollback cannot send or acknowledge data using semantics it
+does not understand. Operators should preserve the outbox with the checkpoint
+store during upgrades and restore both together during rollback.
 Failed outbox deliveries use persisted bounded exponential backoff (one minute
 to one hour by default) across restarts. `--retry-delay` and
 `--maximum-retry-delay` change those bounds; `--dead-letter-after` controls when
 a repeatedly failing batch is moved aside. The summary file includes queue and
 outbox depth, oldest-pending age, retry count, and dead-letter count.
+The outbox also fails closed before publishing a batch that would exceed its
+hard capacity. Defaults are 64 MiB per batch, 1 GiB across pending, delivered,
+dead-letter, and staging files, and 10,000 pending batches. Use
+`--outbox-maximum-batch-bytes`, `--outbox-maximum-bytes`, and
+`--outbox-maximum-pending-batches` to set operator-owned limits. Delivered and
+dead-letter evidence is never silently deleted; retention or archival remains
+an explicit host policy, and reaching the byte limit stops checkpoint progress.
 The immutable batch manifest also records whether SMTP is required and the exact
 compare-and-swap checkpoint boundary. A restart therefore cannot silently skip
 mail because `--mail-profile` was omitted, or acknowledge source progress because

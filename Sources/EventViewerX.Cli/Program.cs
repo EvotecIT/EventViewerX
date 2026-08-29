@@ -652,14 +652,15 @@ internal static partial class Program {
                     "mail-profile", "interval", "stop-after", "timeout", "ready-file",
                     "summary-file", "title", "notification-buffer-capacity", "delivery-queue-capacity",
                     "dead-letter-after", "retry-delay", "maximum-retry-delay", "checkpoint-store",
-                    "checkpoint-consumer", "ignore-stale-bookmark");
+                    "checkpoint-consumer", "ignore-stale-bookmark", "outbox-maximum-batch-bytes",
+                    "outbox-maximum-bytes", "outbox-maximum-pending-batches");
                 break;
             case "detect":
                 options.ValidateAllowed(
                     "type", "log", "path", "machine", "collector", "start", "end", "since", "max",
                     "event-id", "provider", "portable-evtx", "portable-evtx-executable", "sigma", "pack", "include-built-in", "tuning", "explain",
                     "maximum-observations", "maximum-groups", "maximum-state-observations", "maximum-state-bytes",
-                    "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "title");
+                    "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "report-kind", "title");
                 break;
             case "collector" when options.Subcommand == "create":
                 options.ValidateAllowed(
@@ -709,8 +710,8 @@ internal static partial class Program {
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
-            "  evx detect (--type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain]\n" +
-            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
+            "  evx detect (--type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain]\n" +
+            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--outbox-maximum-batch-bytes N] [--outbox-maximum-bytes N] [--outbox-maximum-pending-batches N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +
             "  evx collector runtime --name NAME\n" +

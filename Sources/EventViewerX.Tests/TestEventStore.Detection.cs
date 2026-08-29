@@ -36,6 +36,9 @@ public sealed partial class TestEventStore {
             Assert.Equal(finding.PackVersion, restored.PackVersion);
             Assert.Equal(finding.SourceHash, restored.SourceHash);
             Assert.Equal(finding.Tags, restored.Tags);
+            Assert.True(restored.Coverage.IsComplete);
+            Assert.Equal(finding.Coverage.ExpectedTargets, restored.Coverage.ExpectedTargets);
+            Assert.Equal(finding.Coverage.ObservedChannels, restored.Coverage.ObservedChannels);
             Assert.Equal("Łukasz", restored.Entities["account"]);
             StoredEventDetectionEvidence evidence = Assert.Single(restored.Evidence);
             Assert.Equal(finding.Evidence[0].Identity, evidence.Identity);
@@ -92,7 +95,7 @@ public sealed partial class TestEventStore {
 
             using var verificationSqlite = new SQLite();
             using SQLiteSession verification = verificationSqlite.OpenSession(path);
-            Assert.Equal(1L, Convert.ToInt64(
+            Assert.Equal(2L, Convert.ToInt64(
                 verification.ExecuteScalar(
                     "SELECT finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;"),
                 CultureInfo.InvariantCulture));
@@ -100,6 +103,10 @@ public sealed partial class TestEventStore {
                 verification.ExecuteScalar(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' " +
                     "AND name IN ('evx_findings', 'evx_finding_evidence', 'evx_finding_entities');"),
+                CultureInfo.InvariantCulture));
+            Assert.Equal(1L, Convert.ToInt64(
+                verification.ExecuteScalar(
+                    "SELECT COUNT(*) FROM pragma_table_info('evx_findings') WHERE name = 'coverage_json';"),
                 CultureInfo.InvariantCulture));
         } finally {
             DeleteStore(path);
@@ -189,6 +196,11 @@ public sealed partial class TestEventStore {
             new[] { "Approved test activity" },
             new[] { "https://example.invalid/rule" },
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Account"] = account },
+            EventDetectionCoverage.Create(
+                expectedTargets: new[] { "server01" },
+                observedTargets: new[] { "server01" },
+                expectedChannels: new[] { "Security" },
+                observedChannels: new[] { "Security" }),
             "The test rule matched.",
             completenessDiagnostic: null);
     }

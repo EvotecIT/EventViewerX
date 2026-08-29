@@ -26,6 +26,7 @@ public sealed class StoredEventDetectionFinding {
         IReadOnlyList<string> references,
         IReadOnlyDictionary<string, string> entities,
         IReadOnlyList<StoredEventDetectionEvidence> evidence,
+        EventDetectionCoverage coverage,
         string explanation,
         string? completenessDiagnostic,
         DateTime insertedTimeUtc) {
@@ -54,6 +55,7 @@ public sealed class StoredEventDetectionFinding {
             static item => item.Value,
             StringComparer.OrdinalIgnoreCase));
         Evidence = Array.AsReadOnly(evidence.ToArray());
+        Coverage = coverage.Snapshot();
         Explanation = explanation;
         CompletenessDiagnostic = completenessDiagnostic;
         InsertedTimeUtc = insertedTimeUtc;
@@ -101,6 +103,8 @@ public sealed class StoredEventDetectionFinding {
     public IReadOnlyDictionary<string, string> Entities { get; }
     /// <summary>Durable evidence metadata in detection order.</summary>
     public IReadOnlyList<StoredEventDetectionEvidence> Evidence { get; }
+    /// <summary>Expected-versus-observed collection coverage captured with the finding.</summary>
+    public EventDetectionCoverage Coverage { get; }
     /// <summary>Human-readable detection explanation.</summary>
     public string Explanation { get; }
     /// <summary>Reason the result is not complete.</summary>

@@ -152,13 +152,20 @@ public sealed partial class EventStore {
                 transaction.ExecuteScalar(
                     "SELECT finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;"),
                 CultureInfo.InvariantCulture);
-            if (version > 1) {
+            if (version > 2) {
                 throw new InvalidDataException(
                     $"Finding store schema version '{version}' is newer than this EventViewerX build supports.");
             }
             transaction.ExecuteNonQuery(FindingSchemaSql);
+            IReadOnlyList<string> findingColumns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_findings);",
+                static record => record.GetString(1));
+            if (!findingColumns.Contains("coverage_json", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_findings ADD COLUMN coverage_json TEXT NOT NULL DEFAULT ''; ");
+            }
             transaction.ExecuteNonQuery(
-                "UPDATE evx_store_metadata SET finding_schema_version = 1 WHERE singleton_id = 1;");
+                "UPDATE evx_store_metadata SET finding_schema_version = 2 WHERE singleton_id = 1;");
         });
     }
 
@@ -331,6 +338,7 @@ CREATE TABLE IF NOT EXISTS evx_findings (
     references_json TEXT NOT NULL,
     explanation TEXT NOT NULL,
     completeness_diagnostic TEXT NULL,
+    coverage_json TEXT NOT NULL DEFAULT '',
     inserted_utc TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_evx_findings_start ON evx_findings (start_time_utc);
