@@ -1,6 +1,14 @@
 Describe 'evx portable host' {
     BeforeAll {
-        $script:CliPath = Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Debug\net10.0-windows\evx.exe'
+        $cliCandidates = @(
+            $env:EVX_CLI_PATH
+            (Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe')
+            (Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Debug\net10.0\evx.exe')
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        $script:CliPath = $cliCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if (-not $script:CliPath) {
+            throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
+        }
         $script:FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
         $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
     }
@@ -72,6 +80,15 @@ Describe 'evx portable host' {
 
         $LASTEXITCODE | Should -Be 1
         [string] $Output | Should -Match 'Auto, Top, or Right'
+    }
+
+    It 'dry-runs detection without opening an event source' {
+        $Plan = & $script:CliPath detect --dry-run |
+            ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Plan.RuleCount | Should -BeGreaterThan 0
+        $Plan.PlanHash | Should -Not -BeNullOrEmpty
     }
 
     It 'rejects ambiguous query sources' {

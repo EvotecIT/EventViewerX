@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
 namespace EventViewerX;
 
 /// <summary>Immutable indexed detection plan compiled from native or imported rule definitions.</summary>
@@ -37,6 +41,7 @@ public sealed class EventDetectionPlan {
                 rule.Definition.Steps.SelectMany(static step => step.EventTypes)))
             .Distinct()
             .ToArray());
+        PlanHash = ComputePlanHash(rules);
     }
 
     /// <summary>Effective detached rules represented by this plan.</summary>
@@ -44,6 +49,9 @@ public sealed class EventDetectionPlan {
 
     /// <summary>Typed projections required to evaluate this plan.</summary>
     public IReadOnlyList<EventType> RequiredEventTypes { get; }
+
+    /// <summary>SHA-256 identity of the effective tuned rules and suppressions in evaluation order.</summary>
+    public string PlanHash { get; }
 
     /// <summary>Largest stateful lookback window required to rebuild correlation after a restart.</summary>
     public TimeSpan MaximumStatefulWindow => Rules
@@ -54,6 +62,7 @@ public sealed class EventDetectionPlan {
 
     /// <summary>Returns a detached operator-facing description of selectors and state requirements.</summary>
     public EventDetectionPlanExplanation Explain() => new(
+        PlanHash,
         Rules.Select(static rule => new EventDetectionRulePlanExplanation(
             rule.RuleId,
             rule.Title,
@@ -68,6 +77,19 @@ public sealed class EventDetectionPlan {
             rule.DistinctBy,
             rule.Steps.Select(static step => step.Name).ToArray())).ToArray(),
         RequiredEventTypes);
+
+    private static string ComputePlanHash(IReadOnlyList<CompiledRule> rules) {
+        byte[] payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
+            SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
+            Rules = rules.Select(static rule => rule.Definition).ToArray(),
+            Suppressions = rules.Select(static rule => new {
+                rule.Definition.RuleId,
+                Values = rule.SuppressionDefinitions
+            }).ToArray()
+        }));
+        using SHA256 algorithm = SHA256.Create();
+        return string.Concat(algorithm.ComputeHash(payload).Select(static value => value.ToString("X2")));
+    }
 
     internal IReadOnlyList<CompiledRule> CompiledRules { get; }
 
@@ -226,6 +248,12 @@ public sealed class EventDetectionPlan {
             _predicate = definition.Predicate == null
                 ? null
                 : EventPredicateEvaluator.CompileFields(definition.Predicate);
+            SuppressionDefinitions = suppressions.Select(static suppression => new EventDetectionSuppression(
+                suppression.RuleId,
+                suppression.Predicate,
+                suppression.StartTimeUtc,
+                suppression.EndTimeUtc,
+                suppression.Reason)).ToArray();
             _suppressions = suppressions.Select(static suppression => new CompiledSuppression(suppression)).ToArray();
             Steps = definition.Steps.Select(static step => new CompiledStep(step)).ToArray();
             IndexEventIds = BuildIndexValues(EventIds, Steps.Select(static step => step.EventIds));
@@ -249,6 +277,7 @@ public sealed class EventDetectionPlan {
         internal HashSet<string> EventTypeNames { get; }
         internal HashSet<string> Channels { get; }
         internal HashSet<string> Providers { get; }
+        internal EventDetectionSuppression[] SuppressionDefinitions { get; }
         internal CompiledStep[] Steps { get; }
         internal HashSet<int> IndexEventIds { get; }
         internal HashSet<string> IndexEventTypeNames { get; }

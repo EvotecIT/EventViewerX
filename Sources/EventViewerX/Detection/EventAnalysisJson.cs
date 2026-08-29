@@ -72,6 +72,7 @@ public static class EventAnalysisJson {
         EventDetectionPlanExplanation explanation = plan.Explain();
         return JsonSerializer.Serialize(new {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
+            explanation.PlanHash,
             explanation.RuleCount,
             explanation.StatefulRuleCount,
             explanation.RequiredEventTypes,

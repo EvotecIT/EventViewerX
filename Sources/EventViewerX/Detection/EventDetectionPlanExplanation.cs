@@ -3,13 +3,17 @@ namespace EventViewerX;
 /// <summary>Detached explanation of a compiled detection plan.</summary>
 public sealed class EventDetectionPlanExplanation {
     internal EventDetectionPlanExplanation(
+        string planHash,
         IReadOnlyList<EventDetectionRulePlanExplanation> rules,
         IReadOnlyList<EventType> requiredEventTypes) {
 
+        PlanHash = planHash;
         Rules = Array.AsReadOnly(rules.ToArray());
         RequiredEventTypes = Array.AsReadOnly(requiredEventTypes.ToArray());
     }
 
+    /// <summary>SHA-256 identity of the effective tuned plan.</summary>
+    public string PlanHash { get; }
     /// <summary>Rules in deterministic evaluation order.</summary>
     public IReadOnlyList<EventDetectionRulePlanExplanation> Rules { get; }
     /// <summary>Typed event projections required before evaluation.</summary>

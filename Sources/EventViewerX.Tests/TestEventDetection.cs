@@ -59,6 +59,27 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void PlanHashIsDeterministicAndCoversEffectiveTuning() {
+        IEventDetectionRule[] rules = { Rule("EVX-TEST-PLAN-HASH") };
+        EventDetectionPlan first = EventDetectionPlan.Compile(rules);
+        EventDetectionPlan second = EventDetectionPlan.Compile(rules);
+        EventDetectionTuning tuning = new EventDetectionTuningBuilder()
+            .OverrideSeverity("EVX-TEST-PLAN-HASH", EventDetectionSeverity.High)
+            .Suppress(
+                "EVX-TEST-PLAN-HASH",
+                EventPredicate.Compare("Account", EventPredicateOperator.Equal, "service"),
+                "Approved service account")
+            .Build();
+        EventDetectionPlan tuned = EventDetectionPlan.Compile(rules, tuning);
+
+        Assert.Equal(64, first.PlanHash.Length);
+        Assert.Equal(first.PlanHash, second.PlanHash);
+        Assert.Equal(first.PlanHash, first.Explain().PlanHash);
+        Assert.NotEqual(first.PlanHash, tuned.PlanHash);
+        Assert.Contains(first.PlanHash, EventAnalysisJson.Serialize(first), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ThresholdRuleGroupsPrunesAndEmitsOnlyAtTheConfiguredCount() {
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
             Rule("EVX-TEST-THRESHOLD", EventDetectionRuleKind.Threshold, threshold: 3, groupBy: "Account")

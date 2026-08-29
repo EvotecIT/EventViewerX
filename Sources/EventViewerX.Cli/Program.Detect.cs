@@ -76,7 +76,7 @@ internal static partial class Program {
                 Coverage = pack.GetCoverage()
             }));
         }
-        if (options.Has("explain")) {
+        if (options.Has("explain") || options.Has("dry-run")) {
             return WriteJson(plan.Explain());
         }
 
