@@ -1,9 +1,13 @@
 Describe 'PSEventViewer v4 command surface' {
     BeforeAll {
         $ExpectedCommands = @(
+            'Backup-EVXStore'
             'Clear-EVXLog'
             'Export-EVXEvent'
+            'Get-EVXAnalysisContract'
             'Get-EVXCollectorSubscription'
+            'Get-EVXDetectionCoverage'
+            'Get-EVXDetectionPack'
             'Get-EVXEvent'
             'Get-EVXLog'
             'Get-EVXPowerShellScript'
@@ -11,7 +15,10 @@ Describe 'PSEventViewer v4 command surface' {
             'Get-EVXRequirement'
             'Get-EVXTarget'
             'Get-EVXWatcher'
+            'Import-EVXSigmaRule'
             'Install-EVXProviderPackage'
+            'Invoke-EVXDetection'
+            'Invoke-EVXStoreRetention'
             'Measure-EVXEvent'
             'New-EVXCollectorSubscription'
             'New-EVXFilter'
@@ -21,14 +28,18 @@ Describe 'PSEventViewer v4 command surface' {
             'Remove-EVXLog'
             'Remove-EVXSource'
             'Reset-EVXEventCheckpoint'
+            'Restore-EVXStore'
             'Set-EVXCollectorSubscription'
             'Set-EVXLog'
             'Show-EVXEvent'
             'Start-EVXWatcher'
             'Stop-EVXWatcher'
+            'Test-EVXDetectionPack'
             'Test-EVXLog'
             'Test-EVXProviderDefinition'
             'Test-EVXReadiness'
+            'Test-EVXSigmaRule'
+            'Test-EVXStore'
             'Uninstall-EVXProviderPackage'
             'Update-EVXLogArchive'
             'Write-EVXEvent'
@@ -87,15 +98,23 @@ Describe 'PSEventViewer v4 command surface' {
 
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::ILOnly) | Should -Not -Be 0
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::Required32Bit) | Should -Be 0
-        $IsCoreDevelopmentPayload = $PSVersionTable.PSEdition -eq 'Core' -and
-            $AssemblyPath -like '*\Sources\PSEventViewer\bin\*'
-        if ($IsCoreDevelopmentPayload) {
+        if ($PSVersionTable.PSEdition -eq 'Core') {
+            # The PowerShell 7 payload is architecture-neutral IL. The module
+            # manifest and runtime selector constrain the process/native asset.
             ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Be 0
             $Machine | Should -Be ([System.Reflection.ImageFileMachine]::I386)
         } else {
             ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Not -Be 0
             $Machine | Should -Be ([System.Reflection.ImageFileMachine]::AMD64)
         }
+    }
+
+    It 'publishes isolated public contract types to the PowerShell type resolver' {
+        [EventViewerX.EventType].IsEnum | Should -BeTrue
+        [EventViewerX.Reporting.EventReport].IsClass | Should -BeTrue
+        [EventViewerX.Storage.EventStore].IsClass | Should -BeTrue
+        [EventViewerX.Sigma.SigmaRuleCompiler].IsClass | Should -BeTrue
+        [EventViewerX.Evtx.EvtxSavedEventReader].IsClass | Should -BeTrue
     }
 
     It 'declares both collector subscription result shapes' {
