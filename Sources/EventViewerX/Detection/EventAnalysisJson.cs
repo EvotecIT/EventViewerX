@@ -6,6 +6,7 @@ namespace EventViewerX;
 /// <summary>Canonical versioned JSON projections for public analysis workflows.</summary>
 public static class EventAnalysisJson {
     private static readonly JsonSerializerOptions Compact = CreateOptions(false);
+    private static readonly JsonSerializerOptions Indented = CreateOptions(true);
 
     /// <summary>Serializes one canonical observation without embedding its runtime source object.</summary>
     public static string Serialize(EventObservation observation, bool indented = false) {
@@ -95,7 +96,7 @@ public static class EventAnalysisJson {
     }
 
     private static JsonSerializerOptions Options(bool indented) => indented
-        ? CreateOptions(true)
+        ? Indented
         : Compact;
 
     private static JsonSerializerOptions CreateOptions(bool indented) {

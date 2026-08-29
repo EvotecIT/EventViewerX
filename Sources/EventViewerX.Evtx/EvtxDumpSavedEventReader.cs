@@ -9,13 +9,30 @@ namespace EventViewerX.Evtx;
 /// </summary>
 public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
     private readonly string _executablePath;
+    private readonly TimeSpan _maximumRuntime;
+    private readonly TimeSpan _maximumInactivity;
 
-    /// <summary>Creates a reader for an explicit executable path or a command resolvable through PATH.</summary>
-    public EvtxDumpSavedEventReader(string executablePath = "evtx_dump") {
+    /// <summary>Creates a bounded reader for an explicit executable path or a command resolvable through PATH.</summary>
+    /// <param name="executablePath">Exact executable path or command resolvable through PATH.</param>
+    /// <param name="maximumRuntime">Maximum total parser lifetime. The default is 30 minutes.</param>
+    /// <param name="maximumInactivity">Maximum time without one JSONL output line. The default is two minutes.</param>
+    public EvtxDumpSavedEventReader(
+        string executablePath = "evtx_dump",
+        TimeSpan? maximumRuntime = null,
+        TimeSpan? maximumInactivity = null) {
+
         if (string.IsNullOrWhiteSpace(executablePath)) {
             throw new ArgumentException("The evtx_dump executable path cannot be empty.", nameof(executablePath));
         }
         _executablePath = executablePath.Trim();
+        _maximumRuntime = maximumRuntime ?? TimeSpan.FromMinutes(30);
+        _maximumInactivity = maximumInactivity ?? TimeSpan.FromMinutes(2);
+        if (_maximumRuntime <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(maximumRuntime));
+        }
+        if (_maximumInactivity <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(maximumInactivity));
+        }
     }
 
     /// <inheritdoc />
@@ -81,7 +98,9 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                 $"Unable to start EVTX parser '{_executablePath}'. Install evtx_dump or provide its exact path.");
         }
         Task<string> errorTask = Task.Run(() => ReadBoundedError(process.StandardError), CancellationToken.None);
-        using CancellationTokenRegistration registration = cancellationToken.Register(() => TryKill(process));
+        using CancellationTokenRegistration registration = cancellationToken.Register(() => TryKillTree(process));
+        Stopwatch runtime = Stopwatch.StartNew();
+        Stopwatch inactivity = Stopwatch.StartNew();
         bool completed = false;
         int inputRecords = 0;
         int normalizedRecords = 0;
@@ -89,7 +108,14 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         string? firstRejection = null;
         try {
             string? line;
-            while ((line = process.StandardOutput.ReadLine()) != null) {
+            while ((line = ReadLineBounded(
+                        process.StandardOutput,
+                        process,
+                        runtime,
+                        inactivity,
+                        cancellationToken)) != null) {
+
+                inactivity.Restart();
                 cancellationToken.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(line)) {
                     continue;
@@ -108,9 +134,9 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     yield return record;
                 }
             }
-            process.WaitForExit();
+            WaitForExitBounded(process, runtime, cancellationToken);
             completed = true;
-            string error = errorTask.GetAwaiter().GetResult();
+            string error = ReadErrorBounded(errorTask, process);
             if (!string.IsNullOrWhiteSpace(error)) {
                 diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
                     Code = process.ExitCode == 0 ? "EVXEVTX302" : "EVXEVTX303",
@@ -140,9 +166,59 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
             }
         } finally {
             if (!completed) {
-                TryKill(process);
+                TryKillTree(process);
             }
         }
+    }
+
+    private string? ReadLineBounded(
+        StreamReader reader,
+        Process process,
+        Stopwatch runtime,
+        Stopwatch inactivity,
+        CancellationToken cancellationToken) {
+
+        Task<string?> read = reader.ReadLineAsync();
+        while (!read.Wait(100)) {
+            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
+        }
+        return read.GetAwaiter().GetResult();
+    }
+
+    private void WaitForExitBounded(
+        Process process,
+        Stopwatch runtime,
+        CancellationToken cancellationToken) {
+
+        Stopwatch inactivity = Stopwatch.StartNew();
+        while (!process.WaitForExit(100)) {
+            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
+        }
+    }
+
+    private void ThrowIfProcessBoundExceeded(
+        Process process,
+        Stopwatch runtime,
+        Stopwatch inactivity,
+        CancellationToken cancellationToken) {
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (runtime.Elapsed <= _maximumRuntime && inactivity.Elapsed <= _maximumInactivity) {
+            return;
+        }
+        TryKillTree(process);
+        string boundary = runtime.Elapsed > _maximumRuntime
+            ? $"maximum runtime {_maximumRuntime}"
+            : $"maximum inactivity {_maximumInactivity}";
+        throw new TimeoutException($"EVTX parser '{_executablePath}' exceeded its {boundary}.");
+    }
+
+    private static string ReadErrorBounded(Task<string> errorTask, Process process) {
+        if (!errorTask.Wait(TimeSpan.FromSeconds(5))) {
+            TryKillTree(process);
+            throw new TimeoutException("EVTX parser diagnostic output did not close within five seconds.");
+        }
+        return errorTask.GetAwaiter().GetResult();
     }
 
     private static string ReadBoundedError(StreamReader reader) {
@@ -162,10 +238,17 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         return result.ToString();
     }
 
-    private static void TryKill(Process process) {
+    private static void TryKillTree(Process process) {
         try {
             if (!process.HasExited) {
-                process.Kill();
+                System.Reflection.MethodInfo? killTree = typeof(Process).GetMethod(
+                    nameof(Process.Kill),
+                    new[] { typeof(bool) });
+                if (killTree != null) {
+                    killTree.Invoke(process, new object[] { true });
+                } else {
+                    process.Kill();
+                }
             }
         } catch {
             // The process may exit between HasExited and Kill.

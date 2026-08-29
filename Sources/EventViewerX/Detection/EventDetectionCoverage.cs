@@ -9,6 +9,10 @@ public sealed class EventDetectionCoverage {
     public const int CurrentSchemaVersion = 1;
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+    private static readonly JsonSerializerOptions CompactJsonOptions =
+        new(JsonOptions) { WriteIndented = false };
+    private static readonly JsonSerializerOptions IndentedJsonOptions =
+        new(JsonOptions) { WriteIndented = true };
 
     private EventDetectionCoverage(
         IReadOnlyList<string> expectedTargets,
@@ -129,7 +133,7 @@ public sealed class EventDetectionCoverage {
             ObservedEventTypes = ObservedEventTypes.ToArray(),
             Failures = Failures.ToArray()
         },
-        new JsonSerializerOptions(JsonOptions) { WriteIndented = indented });
+        indented ? IndentedJsonOptions : CompactJsonOptions);
 
     /// <summary>Restores a versioned immutable coverage snapshot.</summary>
     public static EventDetectionCoverage FromJson(string json) {

@@ -9,6 +9,7 @@ public sealed class EventDefinition {
     public const string OutputMetadataFieldName = "_EventViewerX";
 
     private static readonly JsonSerializerOptions ReadOptions = CreateJsonOptions(writeIndented: false);
+    private static readonly JsonSerializerOptions WriteOptions = CreateJsonOptions(writeIndented: true);
     private static readonly HashSet<string> ReservedNames = new(
         Enum.GetNames(typeof(EventType)).Concat(new[] {
             "Generic",
@@ -54,7 +55,7 @@ public sealed class EventDefinition {
         if (!string.IsNullOrWhiteSpace(directory)) {
             Directory.CreateDirectory(directory!);
         }
-        File.WriteAllText(fullPath, JsonSerializer.Serialize(this, CreateJsonOptions(indented)));
+        File.WriteAllText(fullPath, JsonSerializer.Serialize(this, indented ? WriteOptions : ReadOptions));
     }
 
     /// <summary>Validates the declarative contract.</summary>

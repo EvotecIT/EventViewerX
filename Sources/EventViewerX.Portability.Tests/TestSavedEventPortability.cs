@@ -86,6 +86,14 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void EvtxDumpReaderRejectsInvalidProcessBounds() {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EvtxDumpSavedEventReader(maximumRuntime: TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EvtxDumpSavedEventReader(maximumInactivity: TimeSpan.Zero));
+    }
+
+    [Fact]
     public void ParserNeutralReaderDoesNotInvokeWindowsEventingApis() {
         string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-portable-{Guid.NewGuid():N}.evtx");
         File.WriteAllBytes(path, new byte[] { 1 });

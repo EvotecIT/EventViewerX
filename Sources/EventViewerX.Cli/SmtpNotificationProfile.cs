@@ -7,6 +7,10 @@ namespace EventViewerX.Cli;
 
 /// <summary>Serializable SMTP delivery settings for portable EventViewerX notification hosts.</summary>
 internal sealed class SmtpNotificationProfile {
+    private static readonly JsonSerializerOptions JsonOptions = new() {
+        PropertyNameCaseInsensitive = true
+    };
+
     public string Server { get; set; } = string.Empty;
     public int Port { get; set; } = 587;
     public string SecureSocketOptions { get; set; } = nameof(MailKit.Security.SecureSocketOptions.StartTls);
@@ -27,7 +31,7 @@ internal sealed class SmtpNotificationProfile {
         string fullPath = Path.GetFullPath(path ?? throw new ArgumentNullException(nameof(path)));
         SmtpNotificationProfile? profile = JsonSerializer.Deserialize<SmtpNotificationProfile>(
             File.ReadAllText(fullPath),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            JsonOptions);
         if (profile == null) {
             throw new InvalidDataException($"SMTP profile '{fullPath}' is empty.");
         }
