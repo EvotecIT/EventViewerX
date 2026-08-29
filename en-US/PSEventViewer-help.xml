@@ -2,6 +2,129 @@
 <helpItems schema="maml" xmlns="http://msh">
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Backup-EVXStore</command:name>
+      <command:verb>Backup</command:verb>
+      <command:noun>EVXStore</command:noun>
+      <maml:description>
+        <maml:para>Creates a consistent validated EventViewerX store backup.</maml:para>
+        <maml:para>Uses SQLite snapshot semantics, validates the generated database, and returns its size and SHA-256 checksum.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Creates a consistent validated EventViewerX store backup.</maml:para>
+      <maml:para>Uses SQLite snapshot semantics, validates the generated database, and returns its size and SHA-256 checksum.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Backup-EVXStore</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+          <maml:name>Destination</maml:name>
+          <maml:description>
+            <maml:para>Destination backup database path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Force</maml:name>
+          <maml:description>
+            <maml:para>Atomically replaces an existing destination backup.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>Live EventStore SQLite path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+        <maml:name>Destination</maml:name>
+        <maml:description>
+          <maml:para>Destination backup database path.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Force</maml:name>
+        <maml:description>
+          <maml:para>Atomically replaces an existing destination backup.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>Live EventStore SQLite path.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.Storage.EventStoreBackupResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Create a portable backup</maml:title>
+        <dev:code>Backup-EVXStore -Path C:\Data\events.db -Destination C:\Backups\events.db</dev:code>
+        <dev:remarks>
+          <maml:para>Fails if the destination exists unless Force is supplied.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Clear-EVXLog</command:name>
       <command:verb>Clear</command:verb>
       <command:noun>EVXLog</command:noun>
@@ -1891,6 +2014,97 @@ already provides integrity validation.</maml:para>
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Get-EVXAnalysisContract</command:name>
+      <command:verb>Get</command:verb>
+      <command:noun>EVXAnalysisContract</command:noun>
+      <maml:description>
+        <maml:para>Gets versioned EventViewerX analysis JSON contracts.</maml:para>
+        <maml:para>Returns Draft 2020-12 schemas for observations, findings, coverage, plans, packs, and rule traces.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Gets versioned EventViewerX analysis JSON contracts.</maml:para>
+      <maml:para>Returns Draft 2020-12 schemas for observations, findings, coverage, plans, packs, and rule traces.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Get-EVXAnalysisContract</maml:name>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Kind</maml:name>
+          <maml:description>
+            <maml:para>Optional contract kinds. The default returns every supported contract.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventAnalysisContractKind[]</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Observation</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Finding</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Coverage</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Plan</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Pack</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RuleTrace</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>EventAnalysisContractKind[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Kind</maml:name>
+        <maml:description>
+          <maml:para>Optional contract kinds. The default returns every supported contract.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventAnalysisContractKind[]</command:parameterValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">Observation</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Finding</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Coverage</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Plan</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Pack</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RuleTrace</command:parameterValue>
+        </command:parameterValueGroup>
+        <dev:type>
+          <maml:name>EventAnalysisContractKind[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventAnalysisContractDescriptor</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Export the finding schema</maml:title>
+        <dev:code>Get-EVXAnalysisContract -Kind Finding | Select-Object -ExpandProperty JsonSchema</dev:code>
+        <dev:remarks>
+          <maml:para>Use the schema to validate downstream JSON integrations.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Get-EVXCollectorSubscription</command:name>
       <command:verb>Get</command:verb>
       <command:noun>EVXCollectorSubscription</command:noun>
@@ -2084,6 +2298,81 @@ already provides integrity validation.</maml:para>
         <dev:code>Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeRuntimeStatus</dev:code>
         <dev:remarks>
           <maml:para>Adds processed-event counters, source heartbeat timestamps, and native Windows errors to the local snapshot.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Get-EVXDetectionCoverage</command:name>
+      <command:verb>Get</command:verb>
+      <command:noun>EVXDetectionCoverage</command:noun>
+      <maml:description>
+        <maml:para>Gets evidence and readiness requirements for built-in EventViewerX detection packs.</maml:para>
+        <maml:para>Returns channels, providers, event IDs, typed projections, audit policies, target roles, and configuration prerequisites.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Gets evidence and readiness requirements for built-in EventViewerX detection packs.</maml:para>
+      <maml:para>Returns channels, providers, event IDs, typed projections, audit policies, target roles, and configuration prerequisites.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Get-EVXDetectionCoverage</maml:name>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>PackId</maml:name>
+          <maml:description>
+            <maml:para>Optional stable pack identifier wildcard.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>PackId</maml:name>
+        <maml:description>
+          <maml:para>Optional stable pack identifier wildcard.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionPackCoverage</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Inspect authentication evidence prerequisites</maml:title>
+        <dev:code>Get-EVXDetectionCoverage -PackId '*authentication*'</dev:code>
+        <dev:remarks>
+          <maml:para>Use the result before interpreting an empty detection run as a clean environment.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -9609,17 +9898,41 @@ This cannot be combined with EventLogPath.</maml:para>
       <maml:description>
         <maml:para>Evaluates EventViewerX events with native detection and correlation rules.</maml:para>
         <maml:para>Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.</maml:para>
-        <maml:para>Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.</maml:para>
+        <maml:para>Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.</maml:para>
       </maml:description>
     </command:details>
     <maml:description>
       <maml:para>Evaluates EventViewerX events with native detection and correlation rules.</maml:para>
       <maml:para>Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.</maml:para>
-      <maml:para>Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.</maml:para>
+      <maml:para>Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.</maml:para>
     </maml:description>
     <command:syntax>
       <command:syntaxItem parameterSetName="__AllParameterSets">
         <maml:name>Invoke-EVXDetection</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Coverage</maml:name>
+          <maml:description>
+            <maml:para>Expected and successfully collected source scope attached to every finding.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionCoverage</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionCoverage</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>EndTime</maml:name>
+          <maml:description>
+            <maml:para>UTC or local upper boundary for historical findings.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+          <dev:type>
+            <maml:name>DateTime</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
@@ -9628,6 +9941,18 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
             <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>FromStore</maml:name>
+          <maml:description>
+            <maml:para>Optional EventStore database used as the historical source instead of pipeline input.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -9652,6 +9977,18 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
           <dev:type>
             <maml:name>EventObject</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumCandidates</maml:name>
+          <maml:description>
+            <maml:para>Maximum stored candidate rows inspected before exact evaluation.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+          <dev:type>
+            <maml:name>Int64</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -9716,6 +10053,31 @@ This cannot be combined with EventLogPath.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ReportKind</maml:name>
+          <maml:description>
+            <maml:para>Returns one decision-oriented report snapshot instead of individual findings.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDecisionReportKind</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">CollectionCoverage</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">EventingIntegrity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AuthenticationPosture</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">IdentityLifecycle</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">PrivilegedAccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GroupPolicyGovernance</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CertificateServicesGovernance</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ExecutionAndPersistence</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DetectionHealth</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">UnknownEventAndSchemaDrift</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">IncidentTimeline</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>EventDecisionReportKind</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Rule</maml:name>
           <maml:description>
@@ -9724,6 +10086,30 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">IEventDetectionRule[]</command:parameterValue>
           <dev:type>
             <maml:name>IEventDetectionRule[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>StartTime</maml:name>
+          <maml:description>
+            <maml:para>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+          <dev:type>
+            <maml:name>DateTime</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Trace</maml:name>
+          <maml:description>
+            <maml:para>Returns a per-observation rule decision trace instead of findings.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -9744,6 +10130,30 @@ This cannot be combined with EventLogPath.</maml:para>
     </command:syntax>
     <command:parameters>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Coverage</maml:name>
+        <maml:description>
+          <maml:para>Expected and successfully collected source scope attached to every finding.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionCoverage</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionCoverage</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>EndTime</maml:name>
+        <maml:description>
+          <maml:para>UTC or local upper boundary for historical findings.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+        <dev:type>
+          <maml:name>DateTime</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Explain</maml:name>
         <maml:description>
           <maml:para>Returns the effective compiled plan without evaluating input.</maml:para>
@@ -9751,6 +10161,18 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
           <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>FromStore</maml:name>
+        <maml:description>
+          <maml:para>Optional EventStore database used as the historical source instead of pipeline input.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -9775,6 +10197,18 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
         <dev:type>
           <maml:name>EventObject</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumCandidates</maml:name>
+        <maml:description>
+          <maml:para>Maximum stored candidate rows inspected before exact evaluation.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int64</command:parameterValue>
+        <dev:type>
+          <maml:name>Int64</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -9839,6 +10273,31 @@ This cannot be combined with EventLogPath.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>ReportKind</maml:name>
+        <maml:description>
+          <maml:para>Returns one decision-oriented report snapshot instead of individual findings.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDecisionReportKind</command:parameterValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">CollectionCoverage</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">EventingIntegrity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AuthenticationPosture</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">IdentityLifecycle</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">PrivilegedAccess</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GroupPolicyGovernance</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CertificateServicesGovernance</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ExecutionAndPersistence</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DetectionHealth</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">UnknownEventAndSchemaDrift</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">IncidentTimeline</command:parameterValue>
+        </command:parameterValueGroup>
+        <dev:type>
+          <maml:name>EventDecisionReportKind</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Rule</maml:name>
         <maml:description>
@@ -9847,6 +10306,30 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameterValue required="false" variableLength="false">IEventDetectionRule[]</command:parameterValue>
         <dev:type>
           <maml:name>IEventDetectionRule[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>StartTime</maml:name>
+        <maml:description>
+          <maml:para>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
+        <dev:type>
+          <maml:name>DateTime</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Trace</maml:name>
+        <maml:description>
+          <maml:para>Returns a per-observation rule decision trace instead of findings.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -9882,6 +10365,16 @@ This cannot be combined with EventLogPath.</maml:para>
           <maml:name>EventViewerX.EventDetectionPlanExplanation</maml:name>
         </dev:type>
       </command:returnValue>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDecisionReportSnapshot</maml:name>
+        </dev:type>
+      </command:returnValue>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionRuleTrace</maml:name>
+        </dev:type>
+      </command:returnValue>
     </command:returnValues>
     <maml:alertSet>
       <maml:alert>
@@ -9897,6 +10390,13 @@ This cannot be combined with EventLogPath.</maml:para>
         </dev:remarks>
       </command:example>
       <command:example>
+        <maml:title>Evaluate restart-safe historical correlation</maml:title>
+        <dev:code>Invoke-EVXDetection -FromStore C:\Data\events.db -StartTime (Get-Date).AddHours(-1) -Coverage $coverage</dev:code>
+        <dev:remarks>
+          <maml:para>Loads the requested window plus the plan's required stateful lookback and emits only findings that end in the requested window.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
         <maml:title>Apply environment tuning</maml:title>
         <dev:code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication -Oldest | Invoke-EVXDetection -Tuning $tuning</dev:code>
         <dev:remarks>
@@ -9908,6 +10408,153 @@ This cannot be combined with EventLogPath.</maml:para>
         <dev:code>Invoke-EVXDetection -Explain</dev:code>
         <dev:remarks>
           <maml:para>Returns selectors, state requirements, and required typed projections without processing events.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Invoke-EVXStoreRetention</command:name>
+      <command:verb>Invoke</command:verb>
+      <command:noun>EVXStoreRetention</command:noun>
+      <maml:description>
+        <maml:para>Applies explicit EventViewerX event and finding retention.</maml:para>
+        <maml:para>Prunes source events and durable findings independently and can compact free SQLite pages after deletion.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Applies explicit EventViewerX event and finding retention.</maml:para>
+      <maml:para>Prunes source events and durable findings independently and can compact free SQLite pages after deletion.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Invoke-EVXStoreRetention</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>EventRetention</maml:name>
+          <maml:description>
+            <maml:para>Maximum source-event age.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">TimeSpan</command:parameterValue>
+          <dev:type>
+            <maml:name>TimeSpan</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>FindingRetention</maml:name>
+          <maml:description>
+            <maml:para>Maximum durable-finding age.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">TimeSpan</command:parameterValue>
+          <dev:type>
+            <maml:name>TimeSpan</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>EventStore SQLite path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Vacuum</maml:name>
+          <maml:description>
+            <maml:para>Compacts free SQLite pages after rows are removed.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>EventRetention</maml:name>
+        <maml:description>
+          <maml:para>Maximum source-event age.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">TimeSpan</command:parameterValue>
+        <dev:type>
+          <maml:name>TimeSpan</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>FindingRetention</maml:name>
+        <maml:description>
+          <maml:para>Maximum durable-finding age.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">TimeSpan</command:parameterValue>
+        <dev:type>
+          <maml:name>TimeSpan</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>EventStore SQLite path.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Vacuum</maml:name>
+        <maml:description>
+          <maml:para>Compacts free SQLite pages after rows are removed.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.Storage.EventStoreRetentionResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Retain 30 days of events and 90 days of findings</maml:title>
+        <dev:code>Invoke-EVXStoreRetention -Path C:\Data\events.db -EventRetention 30.00:00:00 -FindingRetention 90.00:00:00 -Vacuum</dev:code>
+        <dev:remarks>
+          <maml:para>Returns deleted row counts and database sizes before and after maintenance.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -15877,6 +16524,105 @@ This cannot be combined with EventLogPath.</maml:para>
         <dev:code>Reset-EVXEventCheckpoint -Path C:\State\security.json -Key security-failures -PassThru</dev:code>
         <dev:remarks>
           <maml:para>Resets only the selected key and returns a snapshot containing CheckpointPath, StatePath, and LockPath.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Restore-EVXStore</command:name>
+      <command:verb>Restore</command:verb>
+      <command:noun>EVXStore</command:noun>
+      <maml:description>
+        <maml:para>Restores an EventViewerX store from a validated backup.</maml:para>
+        <maml:para>Validates the backup before replacement, uses an atomic recovery file, and restores the original database automatically when post-replacement validation fails. Stop active readers and writers first.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Restores an EventViewerX store from a validated backup.</maml:para>
+      <maml:para>Validates the backup before replacement, uses an atomic recovery file, and restores the original database automatically when post-replacement validation fails. Stop active readers and writers first.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Restore-EVXStore</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+          <maml:name>BackupPath</maml:name>
+          <maml:description>
+            <maml:para>Validated backup database path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>Live EventStore SQLite path to replace.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+        <maml:name>BackupPath</maml:name>
+        <maml:description>
+          <maml:para>Validated backup database path.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>Live EventStore SQLite path to replace.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.Storage.EventStoreIntegrityResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Restore a known backup</maml:title>
+        <dev:code>Restore-EVXStore -Path C:\Data\events.db -BackupPath C:\Backups\events.db</dev:code>
+        <dev:remarks>
+          <maml:para>Prompts because the live history database is replaced.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -21888,6 +22634,81 @@ LogName and Path are not included because this watcher targets one LogName.</mam
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Test-EVXDetectionPack</command:name>
+      <command:verb>Test</command:verb>
+      <command:noun>EVXDetectionPack</command:noun>
+      <maml:description>
+        <maml:para>Runs the executable fixture contracts shipped with built-in EventViewerX detection packs.</maml:para>
+        <maml:para>Runs positive, negative, exact-boundary, and known-benign scenarios against each rule in isolation.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Runs the executable fixture contracts shipped with built-in EventViewerX detection packs.</maml:para>
+      <maml:para>Runs positive, negative, exact-boundary, and known-benign scenarios against each rule in isolation.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Test-EVXDetectionPack</maml:name>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>RuleId</maml:name>
+          <maml:description>
+            <maml:para>Optional stable rule identifier wildcard.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>RuleId</maml:name>
+        <maml:description>
+          <maml:para>Optional stable rule identifier wildcard.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionFixtureResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Validate all built-in detection content</maml:title>
+        <dev:code>Test-EVXDetectionPack</dev:code>
+        <dev:remarks>
+          <maml:para>Every returned result should have IsMatch set to true.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Test-EVXLog</command:name>
       <command:verb>Test</command:verb>
       <command:noun>EVXLog</command:noun>
@@ -23181,6 +24002,81 @@ LogName and Path are not included because this watcher targets one LogName.</mam
         <dev:code>Test-EVXSigmaRule -Path .\rules\suspicious-logon.yml</dev:code>
         <dev:remarks>
           <maml:para>Returns the compiled rules, diagnostics, and IsSupported status.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Test-EVXStore</command:name>
+      <command:verb>Test</command:verb>
+      <command:noun>EVXStore</command:noun>
+      <maml:description>
+        <maml:para>Validates an EventViewerX history store.</maml:para>
+        <maml:para>Runs SQLite integrity checks and verifies the supported base, identity, and finding schema contracts.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Validates an EventViewerX history store.</maml:para>
+      <maml:para>Runs SQLite integrity checks and verifies the supported base, identity, and finding schema contracts.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Test-EVXStore</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>EventStore SQLite path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>EventStore SQLite path.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>None</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.Storage.EventStoreIntegrityResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>Check a store before backup or analysis</maml:title>
+        <dev:code>Test-EVXStore -Path C:\Data\events.db</dev:code>
+        <dev:remarks>
+          <maml:para>Returns health, schema versions, row counts, database size, and any diagnostics.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>

@@ -10,6 +10,11 @@ Locale: en-US
 High-performance typed Windows Event Log queries, reports, exports, watchers, WEC, custom providers, diagnostics, and administration for PowerShell.
 
 ## PSEventViewer Cmdlets
+### [Backup-EVXStore](Backup-EVXStore.md)
+Creates a consistent validated EventViewerX store backup.
+
+Uses SQLite snapshot semantics, validates the generated database, and returns its size and SHA-256 checksum.
+
 ### [Clear-EVXLog](Clear-EVXLog.md)
 Clears Windows Event Log channels through the native engine.
 
@@ -20,10 +25,20 @@ Streams Windows events directly to CSV, JSON Lines, XML, or native EVTX.
 
 Uses the EventViewerX native engine and writes directly to the destination without materializing PowerShell objects. Completed output is promoted atomically, so cancellation or failure does not replace an existing file.
 
+### [Get-EVXAnalysisContract](Get-EVXAnalysisContract.md)
+Gets versioned EventViewerX analysis JSON contracts.
+
+Returns Draft 2020-12 schemas for observations, findings, coverage, plans, packs, and rule traces.
+
 ### [Get-EVXCollectorSubscription](Get-EVXCollectorSubscription.md)
 Returns normalized Windows Event Collector subscription configuration.
 
 Reads local or remote WEC subscription inventory and returns detached snapshots with normalized XML details and query definitions. Remote access uses the caller's Windows identity.
+
+### [Get-EVXDetectionCoverage](Get-EVXDetectionCoverage.md)
+Gets evidence and readiness requirements for built-in EventViewerX detection packs.
+
+Returns channels, providers, event IDs, typed projections, audit policies, target roles, and configuration prerequisites.
 
 ### [Get-EVXDetectionPack](Get-EVXDetectionPack.md)
 Gets the built-in versioned EventViewerX detection packs.
@@ -80,7 +95,12 @@ Evaluates EventViewerX events with native detection and correlation rules.
 
 Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.
 
-Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.
+Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.
+
+### [Invoke-EVXStoreRetention](Invoke-EVXStoreRetention.md)
+Applies explicit EventViewerX event and finding retention.
+
+Prunes source events and durable findings independently and can compact free SQLite pages after deletion.
 
 ### [Measure-EVXEvent](Measure-EVXEvent.md)
 Computes bounded event counts, distinct values, first/last observations, rates, and time trends.
@@ -131,6 +151,11 @@ Resets persisted event-query checkpoint progress safely.
 
 Starts a new checkpoint generation under the shared file lock so an in-flight query from the previous generation cannot restore stale progress. Use this cmdlet instead of deleting only the RecordIdFile compatibility file because generation state is stored in a visible companion .state.json file.
 
+### [Restore-EVXStore](Restore-EVXStore.md)
+Restores an EventViewerX store from a validated backup.
+
+Validates the backup before replacement, uses an atomic recovery file, and restores the original database automatically when post-replacement validation fails. Stop active readers and writers first.
+
 ### [Set-EVXCollectorSubscription](Set-EVXCollectorSubscription.md)
 Applies a typed local WEC subscription definition or changes its enabled state.
 
@@ -158,6 +183,11 @@ Stops running EVX watchers by identifier, name, or en masse.
 
 Requires exactly one selector and reports missing identifiers or names instead of silently doing nothing. Use PassThru to return each watcher that was stopped.
 
+### [Test-EVXDetectionPack](Test-EVXDetectionPack.md)
+Runs the executable fixture contracts shipped with built-in EventViewerX detection packs.
+
+Runs positive, negative, exact-boundary, and known-benign scenarios against each rule in isolation.
+
 ### [Test-EVXLog](Test-EVXLog.md)
 Runs a bounded Windows Event Log connectivity and query probe.
 
@@ -177,6 +207,11 @@ Composes explicit target discovery, native Event Log probes, effective local aud
 Validates and compiles Sigma YAML against the EventViewerX supported subset.
 
 Returns structured diagnostics and native rules without executing them. Unsupported behavior is reported explicitly and is never weakened silently.
+
+### [Test-EVXStore](Test-EVXStore.md)
+Validates an EventViewerX history store.
+
+Runs SQLite integrity checks and verifies the supported base, identity, and finding schema contracts.
 
 ### [Uninstall-EVXProviderPackage](Uninstall-EVXProviderPackage.md)
 Unregisters an EventViewerX-managed custom event provider.

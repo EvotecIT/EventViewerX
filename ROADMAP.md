@@ -128,9 +128,9 @@ from packed artifacts.
   completeness metadata to EventViewerX core where necessary.
 - [x] Resolve the module architecture contract so optional SQLite/native assets
   do not unnecessarily restrict otherwise portable PowerShell use.
-- [ ] Build, test, pack, install, import, and exercise the exact candidate
+- [x] Build, test, pack, install, import, and exercise the exact candidate
   artifacts on PowerShell 5.1 and PowerShell 7.
-- [ ] Verify that EventViewerX, Reporting, Storage, the CLI, and PSEventViewer
+- [x] Verify that EventViewerX, Reporting, Storage, the CLI, and PSEventViewer
   expose compatible versions and dependency graphs.
 - [ ] Complete a delayed independent review and settle all validated in-scope
   release findings.
