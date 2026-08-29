@@ -5,6 +5,51 @@ namespace EventViewerX.Portability.Tests;
 
 public sealed class TestSavedEventPortability {
     [Fact]
+    public void ManagedReaderRetainsParseableRecordsFromDeterministicallyTruncatedFixture() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-truncated-{Guid.NewGuid():N}.evtx");
+        File.Copy(source, path);
+        try {
+            using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.None)) {
+                stream.SetLength(stream.Length - 32_768);
+            }
+            var diagnostics = new List<SavedEventReadDiagnostic>();
+            var query = new EventLogFileQuery(path) { Oldest = true, XPath = "*" };
+
+            SavedEventRecord[] records = new EvtxSavedEventReader().Read(query, diagnostics.Add).ToArray();
+
+            Assert.NotEmpty(records);
+            Assert.Contains(diagnostics, static diagnostic => diagnostic.Code == "EVXEVTX002");
+            Assert.Equal(records.OrderBy(static record => record.RecordId).Select(static record => record.RecordId),
+                records.Select(static record => record.RecordId));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ManagedReaderRejectsDeterministicMalformedContainersWithoutFatalFailures() {
+        var random = new Random(811_221);
+        foreach (int length in new[] { 0, 1, 8, 512, 4095, 4096, 8192, 65_536 }) {
+            string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-malformed-{Guid.NewGuid():N}.evtx");
+            var bytes = new byte[length];
+            random.NextBytes(bytes);
+            File.WriteAllBytes(path, bytes);
+            try {
+                var query = new EventLogFileQuery(path) { Oldest = true, XPath = "*" };
+
+                Exception? exception = Record.Exception(() =>
+                    new EvtxSavedEventReader().Read(query).Take(1).ToArray());
+
+                Assert.NotNull(exception);
+                Assert.False(exception is OutOfMemoryException);
+            } finally {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void EvtxDumpJsonProjectionPreservesEventIdentityAndPayload() {
         const string json = """
             {"Event":{"#attributes":{"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"},"System":{"Provider":{"#attributes":{"Name":"Microsoft-Windows-Security-Auditing","Guid":"{54849625-5478-4994-a5ba-3e3b0328c30d}"}},"EventID":4624,"Version":2,"Level":0,"Task":12544,"Opcode":0,"Keywords":"0x8020000000000000","TimeCreated":{"#attributes":{"SystemTime":"2026-08-28T10:11:12.1234567Z"}},"EventRecordID":42,"Execution":{"#attributes":{"ProcessID":812,"ThreadID":1216}},"Channel":"Security","Computer":"dc01.ad.evotec.xyz","Security":null},"EventData":{"TargetUserName":"alice","IpAddress":"10.0.0.15"},"UserData":{"ns0:Audit":{"ns0:Value":"preserved"}}}}

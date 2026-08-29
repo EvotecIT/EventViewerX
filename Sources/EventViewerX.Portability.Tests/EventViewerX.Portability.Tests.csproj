@@ -19,4 +19,9 @@
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <ProjectReference Include="..\EventViewerX.Evtx\EventViewerX.Evtx.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Tests\Logs\NamedFilterExamples.evtx"
+          Link="Fixtures\NamedFilterExamples.evtx"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
