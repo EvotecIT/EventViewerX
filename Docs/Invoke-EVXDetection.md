@@ -29,14 +29,14 @@ Storage is not required. Pipe events directly from Get-EVXEvent or supply an arr
 
 ### EXAMPLE 1
 ```powershell
-Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours | Invoke-EVXDetection
+Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours -Oldest | Invoke-EVXDetection
 ```
 
-Evaluates the built-in native packs and emits findings as typed objects.
+Evaluates the built-in native packs and emits findings as typed objects. Materialized input is normalized to deterministic event-time order before correlation.
 
 ### EXAMPLE 2
 ```powershell
-$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication | Invoke-EVXDetection -Tuning $tuning
+$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication -Oldest | Invoke-EVXDetection -Tuning $tuning
 ```
 
 Disables a rule without changing the versioned pack content.

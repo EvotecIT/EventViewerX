@@ -28,7 +28,81 @@ public sealed class TestEventNotificationOutbox {
             Assert.Equal(1, manifest.EventCount);
             Assert.Equal("Security digest", manifest.Title);
             Assert.Equal(DateTimeKind.Utc, manifest.PersistedUtc.Kind);
+            Assert.False(manifest.RequiresExternalTransport);
             Assert.Empty(Directory.GetDirectories(outbox, "*.pending-*"));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BatchPersistsExternalTransportRequirement() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("SMTP digest");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+
+            EventNotificationOutbox.Save(
+                outbox,
+                "smtp-batch",
+                report,
+                email,
+                1,
+                Array.Empty<EventNotificationCheckpointBoundary>(),
+                requiresExternalTransport: true);
+
+            Assert.True(Assert.Single(EventNotificationOutbox.GetPending(outbox))
+                .Manifest.RequiresExternalTransport);
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BatchRejectsAmbiguousCheckpointBoundaries() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Invalid checkpoint digest");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            var missingExpectedUpdate = new EventNotificationCheckpointBoundary {
+                Consumer = "watcher",
+                Computer = "server01",
+                Container = "Security|query",
+                ExpectedExists = true
+            };
+
+            Assert.Throws<InvalidDataException>(() => EventNotificationOutbox.Save(
+                outbox,
+                "invalid-checkpoint",
+                report,
+                email,
+                1,
+                new[] { missingExpectedUpdate }));
+
+            DateTime expectedUpdated = new(2026, 8, 28, 11, 0, 0, DateTimeKind.Utc);
+            var valid = new EventNotificationCheckpointBoundary {
+                Consumer = "watcher",
+                Computer = "server01",
+                Container = "Security|query",
+                ExpectedExists = true,
+                ExpectedUpdatedAtUtc = expectedUpdated
+            };
+            Assert.Throws<InvalidDataException>(() => EventNotificationOutbox.Save(
+                outbox,
+                "duplicate-checkpoint",
+                report,
+                email,
+                1,
+                new[] {
+                    valid,
+                    new EventNotificationCheckpointBoundary {
+                        Consumer = "WATCHER",
+                        Computer = "SERVER01",
+                        Container = "security|QUERY",
+                        ExpectedExists = true,
+                        ExpectedUpdatedAtUtc = expectedUpdated
+                    }
+                }));
         } finally {
             Directory.Delete(outbox, recursive: true);
         }
@@ -63,6 +137,13 @@ public sealed class TestEventNotificationOutbox {
                 MaximumDelay = TimeSpan.FromSeconds(40)
             };
             DateTime lastAttempt = retried.Delivery.LastAttemptUtc!.Value;
+            Assert.Equal(lastAttempt.AddSeconds(10), retryPolicy.GetNextAttemptUtc(retried.Delivery));
+            Assert.Equal(
+                TimeSpan.FromSeconds(1),
+                retryPolicy.GetRemainingDelay(retried.Delivery, lastAttempt.AddSeconds(9)));
+            Assert.Equal(
+                TimeSpan.Zero,
+                retryPolicy.GetRemainingDelay(retried.Delivery, lastAttempt.AddSeconds(10)));
             Assert.Empty(EventNotificationOutbox.GetReady(
                 outbox,
                 retryPolicy,
@@ -72,11 +153,55 @@ public sealed class TestEventNotificationOutbox {
                 retryPolicy,
                 lastAttempt.AddSeconds(10)));
             Assert.Equal(TimeSpan.FromSeconds(40), retryPolicy.GetDelay(100));
-            EventNotificationOutbox.MarkDelivered(retried);
+            EventNotificationOutbox.MarkTransportAcknowledged(retried);
+
+            EventNotificationOutboxBatch acknowledged = Assert.Single(EventNotificationOutbox.GetPending(outbox));
+            Assert.NotNull(acknowledged.Delivery.TransportAcknowledgedUtc);
+            Assert.Null(acknowledged.Delivery.DeliveredUtc);
+            EventNotificationOutbox.MarkDelivered(acknowledged);
 
             Assert.Empty(EventNotificationOutbox.GetPending(outbox));
             Assert.Equal(0, EventNotificationOutbox.GetHealth(outbox).PendingBatches);
             Assert.True(File.Exists(Path.Combine(outbox, "retry-batch", "delivery.json")));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BatchRetainsCheckpointCompareAndSwapBoundaryAcrossRestart() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Checkpoint-aware digest");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            DateTime expectedUpdated = new(2026, 8, 28, 11, 0, 0, DateTimeKind.Utc);
+            EventNotificationOutbox.Save(
+                outbox,
+                "checkpoint-batch",
+                report,
+                email,
+                1,
+                new[] {
+                    new EventNotificationCheckpointBoundary {
+                        Consumer = "watcher",
+                        Computer = "server01",
+                        Container = "Security|query",
+                        RecordId = 42,
+                        BookmarkXml = "<Bookmark Target='42' />",
+                        ExpectedExists = true,
+                        ExpectedRecordId = 41,
+                        ExpectedBookmarkXml = "<Bookmark Target='41' />",
+                        ExpectedUpdatedAtUtc = expectedUpdated
+                    }
+                });
+
+            EventNotificationCheckpointBoundary boundary = Assert.Single(
+                Assert.Single(EventNotificationOutbox.GetPending(outbox)).Manifest.Checkpoints);
+
+            Assert.Equal("watcher", boundary.Consumer);
+            Assert.Equal(42, boundary.RecordId);
+            Assert.Equal(41, boundary.ExpectedRecordId);
+            Assert.Equal(expectedUpdated, boundary.ExpectedUpdatedAtUtc);
         } finally {
             Directory.Delete(outbox, recursive: true);
         }

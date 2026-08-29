@@ -21,6 +21,42 @@ public static class EventNotificationOutbox {
         EventReport report,
         EventEmailPackage email,
         int eventCount,
+        CancellationToken cancellationToken = default) => Save(
+            outboxPath,
+            batchId,
+            report,
+            email,
+            eventCount,
+            Array.Empty<EventNotificationCheckpointBoundary>(),
+            cancellationToken);
+
+    /// <summary>Persists a batch together with the checkpoint boundaries acknowledged by its delivery.</summary>
+    public static string Save(
+        string outboxPath,
+        string batchId,
+        EventReport report,
+        EventEmailPackage email,
+        int eventCount,
+        IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
+        CancellationToken cancellationToken = default) => Save(
+            outboxPath,
+            batchId,
+            report,
+            email,
+            eventCount,
+            checkpoints,
+            requiresExternalTransport: false,
+            cancellationToken);
+
+    /// <summary>Persists a batch together with its transport requirement and checkpoint boundaries.</summary>
+    public static string Save(
+        string outboxPath,
+        string batchId,
+        EventReport report,
+        EventEmailPackage email,
+        int eventCount,
+        IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
+        bool requiresExternalTransport,
         CancellationToken cancellationToken = default) {
 
         if (string.IsNullOrWhiteSpace(outboxPath)) {
@@ -36,6 +72,7 @@ public static class EventNotificationOutbox {
         if (eventCount < 0) {
             throw new ArgumentOutOfRangeException(nameof(eventCount));
         }
+        EventNotificationCheckpointBoundary[] checkpointSnapshot = SnapshotCheckpoints(checkpoints);
 
         string outboxDirectory = Path.GetFullPath(outboxPath);
         Directory.CreateDirectory(outboxDirectory);
@@ -64,7 +101,9 @@ public static class EventNotificationOutbox {
                     BatchId = batchId,
                     EventCount = eventCount,
                     Title = report.Title,
-                    PersistedUtc = DateTime.UtcNow
+                    PersistedUtc = DateTime.UtcNow,
+                    RequiresExternalTransport = requiresExternalTransport,
+                    Checkpoints = checkpointSnapshot
                 }),
                 new UTF8Encoding(false));
             cancellationToken.ThrowIfCancellationRequested();
@@ -110,6 +149,8 @@ public static class EventNotificationOutbox {
                 !string.Equals(manifest.BatchId, name, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' has invalid identity metadata.");
             }
+            manifest.Checkpoints = SnapshotCheckpoints(
+                manifest.Checkpoints ?? Array.Empty<EventNotificationCheckpointBoundary>());
             EventNotificationDeliveryState delivery = ReadDeliveryState(directory);
             if (delivery.DeliveredUtc.HasValue) {
                 continue;
@@ -173,7 +214,20 @@ public static class EventNotificationOutbox {
         EventNotificationDeliveryState current = ReadDeliveryState(batch.DirectoryPath);
         current.LastAttemptUtc = DateTime.UtcNow;
         current.LastError = null;
+        current.TransportAcknowledgedUtc ??= current.LastAttemptUtc;
         current.DeliveredUtc = current.LastAttemptUtc;
+        WriteDeliveryState(batch.DirectoryPath, current);
+    }
+
+    /// <summary>Persists downstream transport acknowledgement before checkpoint completion.</summary>
+    public static void MarkTransportAcknowledged(EventNotificationOutboxBatch batch) {
+        if (batch == null) {
+            throw new ArgumentNullException(nameof(batch));
+        }
+        EventNotificationDeliveryState current = ReadDeliveryState(batch.DirectoryPath);
+        current.LastAttemptUtc = DateTime.UtcNow;
+        current.LastError = null;
+        current.TransportAcknowledgedUtc = current.LastAttemptUtc;
         WriteDeliveryState(batch.DirectoryPath, current);
     }
 
@@ -234,5 +288,47 @@ public static class EventNotificationOutbox {
             batchId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) {
             throw new ArgumentException("Batch identifier must be a file-name-safe value without path segments.", nameof(batchId));
         }
+    }
+
+    private static EventNotificationCheckpointBoundary[] SnapshotCheckpoints(
+        IEnumerable<EventNotificationCheckpointBoundary> checkpoints) {
+
+        if (checkpoints == null) {
+            throw new ArgumentNullException(nameof(checkpoints));
+        }
+        var snapshot = new List<EventNotificationCheckpointBoundary>();
+        foreach (EventNotificationCheckpointBoundary? checkpoint in checkpoints) {
+            if (checkpoint == null ||
+                string.IsNullOrWhiteSpace(checkpoint.Consumer) ||
+                string.IsNullOrWhiteSpace(checkpoint.Computer) ||
+                string.IsNullOrWhiteSpace(checkpoint.Container)) {
+                throw new InvalidDataException(
+                    "Notification checkpoint boundaries require consumer, computer, and container identities.");
+            }
+            if (checkpoint.ExpectedExists && !checkpoint.ExpectedUpdatedAtUtc.HasValue) {
+                throw new InvalidDataException(
+                    "An existing notification checkpoint boundary requires its expected update time.");
+            }
+            var candidate = new EventNotificationCheckpointBoundary {
+                Consumer = checkpoint.Consumer.Trim(),
+                Computer = checkpoint.Computer.Trim(),
+                Container = checkpoint.Container.Trim(),
+                RecordId = checkpoint.RecordId,
+                BookmarkXml = checkpoint.BookmarkXml,
+                ExpectedExists = checkpoint.ExpectedExists,
+                ExpectedRecordId = checkpoint.ExpectedRecordId,
+                ExpectedBookmarkXml = checkpoint.ExpectedBookmarkXml,
+                ExpectedUpdatedAtUtc = checkpoint.ExpectedUpdatedAtUtc?.ToUniversalTime()
+            };
+            if (snapshot.Any(existing =>
+                    string.Equals(existing.Consumer, candidate.Consumer, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(existing.Computer, candidate.Computer, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(existing.Container, candidate.Container, StringComparison.OrdinalIgnoreCase))) {
+                throw new InvalidDataException(
+                    $"Notification batch contains duplicate checkpoint boundary '{candidate.Consumer}' for {candidate.Computer}/{candidate.Container}.");
+            }
+            snapshot.Add(candidate);
+        }
+        return snapshot.ToArray();
     }
 }

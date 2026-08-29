@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-    <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
+        <TargetFrameworks>net472;netstandard2.1;net8.0-windows;net10.0-windows</TargetFrameworks>
         <Description>Thin compiled PowerShell commands over the EventViewerX Windows Event Log engine.</Description>
         <AssemblyName>PSEventViewer</AssemblyName>
         <AssemblyTitle>PSEventViewer</AssemblyTitle>
@@ -17,6 +17,24 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <!-- A netstandard publish selects portable Windows API facades and omits RID
+             assets. Keep their package roots available to stage a real PS 7 payload. -->
+        <PackageReference Include="System.Diagnostics.EventLog" Version="6.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="System.DirectoryServices" Version="6.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="System.IO.FileSystem.AccessControl" Version="5.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="System.Security.AccessControl" Version="6.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0"
+                          GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="SQLite" Version="3.53.4"
+                          GeneratePathProperty="true" PrivateAssets="all" />
     </ItemGroup>
   <ItemGroup>
       <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
@@ -68,6 +86,32 @@
                 Condition="Exists('$(OutDir)System.Management.Automation.dll')" />
         <Delete Files="$(OutDir)System.Management.dll"
                 Condition="Exists('$(OutDir)System.Management.dll')" />
+    </Target>
+
+    <Target Name="StagePowerShellCoreWindowsRuntimeAssets" AfterTargets="Publish"
+            Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <ItemGroup>
+            <PowerShellCoreWindowsRuntime Include="$(PkgSystem_Diagnostics_EventLog)\runtimes\win\lib\netcoreapp3.1\System.Diagnostics.EventLog*.dll" />
+            <PowerShellCoreWindowsRuntime Include="$(PkgSystem_DirectoryServices)\runtimes\win\lib\netcoreapp3.1\System.DirectoryServices.dll" />
+            <PowerShellCoreWindowsRuntime Include="$(PkgMicrosoft_Win32_Registry)\runtimes\win\lib\netstandard2.0\Microsoft.Win32.Registry.dll" />
+            <PowerShellCoreWindowsRuntime Include="$(PkgSystem_IO_FileSystem_AccessControl)\runtimes\win\lib\netstandard2.0\System.IO.FileSystem.AccessControl.dll" />
+            <PowerShellCoreWindowsRuntime Include="$(PkgSystem_Security_AccessControl)\runtimes\win\lib\netstandard2.0\System.Security.AccessControl.dll" />
+            <PowerShellCoreWindowsRuntime Include="$(PkgSystem_Security_Principal_Windows)\runtimes\win\lib\netcoreapp2.1\System.Security.Principal.Windows.dll" />
+            <PowerShellCoreNativeRuntime Include="$(PkgSQLite)\runtimes\win-x64\native\e_sqlite3.dll">
+                <DestinationSubDirectory>runtimes\win-x64\native</DestinationSubDirectory>
+            </PowerShellCoreNativeRuntime>
+            <PowerShellCoreNativeRuntime Include="$(PkgSQLite)\runtimes\win-x86\native\e_sqlite3.dll">
+                <DestinationSubDirectory>runtimes\win-x86\native</DestinationSubDirectory>
+            </PowerShellCoreNativeRuntime>
+            <PowerShellCoreNativeRuntime Include="$(PkgSQLite)\runtimes\win-arm64\native\e_sqlite3.dll">
+                <DestinationSubDirectory>runtimes\win-arm64\native</DestinationSubDirectory>
+            </PowerShellCoreNativeRuntime>
+        </ItemGroup>
+        <Error Condition="'@(PowerShellCoreWindowsRuntime)' == '' Or '@(PowerShellCoreNativeRuntime)' == ''"
+               Text="The PowerShell 7 Windows runtime payload could not be resolved from its pinned packages." />
+        <Copy SourceFiles="@(PowerShellCoreWindowsRuntime)" DestinationFolder="$(PublishDir)" />
+        <Copy SourceFiles="@(PowerShellCoreNativeRuntime)"
+              DestinationFiles="@(PowerShellCoreNativeRuntime->'$(PublishDir)%(DestinationSubDirectory)\%(Filename)%(Extension)')" />
     </Target>
 
     <PropertyGroup>

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -8,6 +9,12 @@ namespace EventViewerX;
 
 /// <summary>Immutable, versioned, integrity-protected collection of native or imported detections.</summary>
 public sealed class EventDetectionPack {
+    /// <summary>Detection-engine contract version implemented by this EventViewerX release.</summary>
+    public const string CurrentEngineVersion = "4.0.0";
+
+    /// <summary>Canonical observation schema version implemented by this EventViewerX release.</summary>
+    public const string CurrentObservationSchemaVersion = "1.0.0";
+
     private const string RsaSha256 = "RSA-SHA256";
     private static readonly Regex SemanticVersion = new(
         @"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
@@ -162,6 +169,14 @@ public sealed class EventDetectionPack {
         bool hashValid = FixedTimeEquals(ContentHash, expectedHash);
         if (!hashValid) {
             diagnostics.Add("The pack content hash does not match its canonical payload.");
+        }
+        if (CompareSemanticCore(MinimumEngineVersion, CurrentEngineVersion) > 0) {
+            diagnostics.Add(
+                $"The pack requires EventViewerX engine {MinimumEngineVersion}, but this engine implements {CurrentEngineVersion}.");
+        }
+        if (!SemanticContractEquals(ObservationSchemaVersion, CurrentObservationSchemaVersion)) {
+            diagnostics.Add(
+                $"The pack requires observation schema {ObservationSchemaVersion}, but this engine implements {CurrentObservationSchemaVersion}.");
         }
         EventDetectionPackSignatureStatus signatureStatus;
         if (string.IsNullOrWhiteSpace(Signature)) {
@@ -421,6 +436,29 @@ public sealed class EventDetectionPack {
         }
         return normalized;
     }
+
+    private static int CompareSemanticCore(string left, string right) {
+        int[] leftParts = ParseSemanticCore(left);
+        int[] rightParts = ParseSemanticCore(right);
+        for (int index = 0; index < leftParts.Length; index++) {
+            int comparison = leftParts[index].CompareTo(rightParts[index]);
+            if (comparison != 0) {
+                return comparison;
+            }
+        }
+        return 0;
+    }
+
+    private static int[] ParseSemanticCore(string value) {
+        string core = value.Split('-', '+')[0];
+        return core.Split('.').Select(static part => int.Parse(part, CultureInfo.InvariantCulture)).ToArray();
+    }
+
+    private static bool SemanticContractEquals(string left, string right) =>
+        string.Equals(
+            left.Split('+')[0],
+            right.Split('+')[0],
+            StringComparison.OrdinalIgnoreCase);
 
     private static string NormalizeOptional(string? value, int maximumLength) {
         string normalized = value?.Trim() ?? string.Empty;

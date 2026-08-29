@@ -8,6 +8,8 @@ public sealed class EventNotificationDeliveryState {
     public DateTime? LastAttemptUtc { get; set; }
     /// <summary>Sanitized latest transport error.</summary>
     public string? LastError { get; set; }
-    /// <summary>UTC time at which transport acknowledged delivery.</summary>
+    /// <summary>UTC time at which the downstream transport acknowledged the payload.</summary>
+    public DateTime? TransportAcknowledgedUtc { get; set; }
+    /// <summary>UTC time at which transport and any owned checkpoint boundaries completed.</summary>
     public DateTime? DeliveredUtc { get; set; }
 }

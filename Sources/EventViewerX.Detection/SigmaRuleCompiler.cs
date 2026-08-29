@@ -342,13 +342,19 @@ public static class SigmaRuleCompiler {
             "powershell-classic" => "Windows PowerShell",
             "windefend" or "defender" => "Microsoft-Windows-Windows Defender/Operational",
             "sysmon" => "Microsoft-Windows-Sysmon/Operational",
-            "" when string.Equals(category, "process_creation", StringComparison.OrdinalIgnoreCase) =>
-                "Microsoft-Windows-Sysmon/Operational",
             "" => null,
             _ => throw new SigmaConditionException(
                 "EVXSIGMA022",
                 $"Sigma Windows logsource service '{service}' has no lossless EventViewerX channel mapping.")
         };
+        if (service.Length == 0 && category.Length != 0 &&
+            !string.Equals(category, "process_creation", StringComparison.OrdinalIgnoreCase)) {
+            diagnostics.Add(new SigmaDiagnostic(
+                "EVXSIGMA023",
+                SigmaDiagnosticSeverity.Warning,
+                $"Sigma category '{category}' has no lossless EventViewerX channel mapping; exact rule predicates remain enforced without a channel prefilter.",
+                documentIndex));
+        }
         return new LogSourceSelectors(
             channel == null ? Array.Empty<string>() : new[] { channel },
             Array.Empty<string>());

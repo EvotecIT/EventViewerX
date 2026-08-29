@@ -7,12 +7,12 @@ namespace PSEventViewer;
 /// </summary>
 /// <example>
 ///   <summary>Run the built-in detections</summary>
-///   <code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours | Invoke-EVXDetection</code>
-///   <para>Evaluates the built-in native packs and emits findings as typed objects.</para>
+///   <code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours -Oldest | Invoke-EVXDetection</code>
+///   <para>Evaluates the built-in native packs and emits findings as typed objects. Materialized input is normalized to deterministic event-time order before correlation.</para>
 /// </example>
 /// <example>
 ///   <summary>Apply environment tuning</summary>
-///   <code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication | Invoke-EVXDetection -Tuning $tuning</code>
+///   <code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication -Oldest | Invoke-EVXDetection -Tuning $tuning</code>
 ///   <para>Disables a rule without changing the versioned pack content.</para>
 /// </example>
 /// <example>
@@ -102,7 +102,8 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
             MaximumStateObservations = MaximumStateObservations,
             MaximumStateBytes = MaximumStateBytes
         };
-        foreach (EventDetectionFinding finding in EventDetectionEngine.Stream(_events, plan, options)) {
+        EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(_events, plan, options);
+        foreach (EventDetectionFinding finding in execution.Findings) {
             WriteObject(finding, enumerateCollection: false);
         }
     }

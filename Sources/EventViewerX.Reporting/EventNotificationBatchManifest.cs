@@ -13,4 +13,11 @@ public sealed class EventNotificationBatchManifest {
 
     /// <summary>UTC time at which the completed batch was persisted.</summary>
     public DateTime PersistedUtc { get; set; }
+
+    /// <summary>Whether completing this batch requires an external notification transport.</summary>
+    public bool RequiresExternalTransport { get; set; }
+
+    /// <summary>Checkpoint boundaries committed only after the batch transport is acknowledged.</summary>
+    public EventNotificationCheckpointBoundary[] Checkpoints { get; set; } =
+        Array.Empty<EventNotificationCheckpointBoundary>();
 }

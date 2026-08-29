@@ -115,7 +115,11 @@ public static class EventDetectionEngine {
         if (observations == null) {
             throw new ArgumentNullException(nameof(observations));
         }
-        EventObservation[] snapshot = observations.ToArray();
+        EventObservation[] snapshot = SnapshotBounded(observations, options?.MaximumObservations ?? 1_000_000);
+        if (snapshot.Any(static observation => observation == null)) {
+            throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
+        }
+        Array.Sort(snapshot, CompareObservations);
         return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
     }
 
@@ -128,8 +132,72 @@ public static class EventDetectionEngine {
         if (events == null) {
             throw new ArgumentNullException(nameof(events));
         }
-        EventObject[] snapshot = events.ToArray();
+        EventObject[] snapshot = SnapshotBounded(events, options?.MaximumObservations ?? 1_000_000);
+        if (snapshot.Any(static source => source == null)) {
+            throw new ArgumentException("Events cannot contain null values.", nameof(events));
+        }
+        Array.Sort(snapshot, CompareEvents);
         return new EventDetectionExecutionResult(snapshot.LongLength, Stream(snapshot, plan, options).ToArray());
+    }
+
+    private static T[] SnapshotBounded<T>(IEnumerable<T> source, long maximumObservations) {
+        if (maximumObservations < 0) {
+            throw new ArgumentOutOfRangeException(nameof(maximumObservations));
+        }
+        var snapshot = new List<T>();
+        foreach (T item in source) {
+            snapshot.Add(item);
+            if (maximumObservations > 0 && snapshot.Count > maximumObservations) {
+                break;
+            }
+        }
+        return snapshot.ToArray();
+    }
+
+    private static int CompareObservations(EventObservation? left, EventObservation? right) {
+        if (ReferenceEquals(left, right)) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        int result = left.EventTimeUtc.CompareTo(right.EventTimeUtc);
+        if (result != 0) {
+            return result;
+        }
+        result = Nullable.Compare(left.RecordId, right.RecordId);
+        return result != 0
+            ? result
+            : string.Compare(left.Identity, right.Identity, StringComparison.Ordinal);
+    }
+
+    private static int CompareEvents(EventObject? left, EventObject? right) {
+        if (ReferenceEquals(left, right)) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        int result = left.TimeCreated.CompareTo(right.TimeCreated);
+        if (result != 0) {
+            return result;
+        }
+        result = Nullable.Compare(left.RecordId, right.RecordId);
+        if (result != 0) {
+            return result;
+        }
+        result = string.Compare(left.SourceComputer, right.SourceComputer, StringComparison.OrdinalIgnoreCase);
+        if (result != 0) {
+            return result;
+        }
+        result = string.Compare(left.OriginalLogName, right.OriginalLogName, StringComparison.OrdinalIgnoreCase);
+        return result != 0 ? result : left.Id.CompareTo(right.Id);
     }
 
     /// <summary>Executes a reusable fixture and compares exact finding IDs and multiplicity.</summary>
@@ -167,6 +235,7 @@ public static class EventDetectionEngine {
         private bool _observationBoundReported;
         private bool _groupBoundReported;
         private bool _stateBoundReported;
+        private readonly HashSet<string> _missingDistinctFieldsReported = new(StringComparer.OrdinalIgnoreCase);
 
         internal Evaluator(EventDetectionPlan plan, EventDetectionEngineOptions? options) {
             _plan = plan ?? throw new ArgumentNullException(nameof(plan));
@@ -266,6 +335,16 @@ public static class EventDetectionEngine {
             EventObservation observation,
             ICollection<EventDetectionFinding> findings) {
 
+            string distinctBy = rule.Definition.DistinctBy!;
+            if (!TryResolveFieldValue(distinctBy, observation, out _)) {
+                string diagnosticKey = rule.Definition.RuleId + "\n" + distinctBy;
+                if (_missingDistinctFieldsReported.Add(diagnosticKey)) {
+                    findings.Add(CreateIncomplete(
+                        observation,
+                        $"Distinct-value rule '{rule.Definition.RuleId}' could not evaluate required field '{distinctBy}'."));
+                }
+                return;
+            }
             string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
             var key = new StateKey(rule.Definition.RuleId, groupValue);
             if (!_distinctStates.TryGetValue(key, out ThresholdState? state)) {
@@ -287,7 +366,6 @@ public static class EventDetectionEngine {
                 state.Observations,
                 state.Observations[state.Observations.Count - 1].EventTimeUtc,
                 rule.Definition.Window);
-            string distinctBy = rule.Definition.DistinctBy!;
             EventObservation[] evidence = state.Observations
                 .GroupBy(item => ResolveGroupValue(distinctBy, item), StringComparer.OrdinalIgnoreCase)
                 .Select(static group => group.Last())
@@ -629,12 +707,25 @@ public static class EventDetectionEngine {
             if (string.IsNullOrWhiteSpace(field)) {
                 return "*";
             }
-            if (!observation.Fields.TryGetValue(field!, out object? value) || value == null) {
+            if (!TryResolveFieldValue(field!, observation, out string value)) {
                 return "<missing>";
             }
-            return value is IFormattable formattable
+            return value;
+        }
+
+        private static bool TryResolveFieldValue(
+            string field,
+            EventObservation observation,
+            out string value) {
+
+            if (!observation.Fields.TryGetValue(field, out object? raw) || raw == null) {
+                value = string.Empty;
+                return false;
+            }
+            value = raw is IFormattable formattable
                 ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty
-                : value.ToString() ?? string.Empty;
+                : raw.ToString() ?? string.Empty;
+            return true;
         }
 
         private static EventDetectionEngineOptions SnapshotOptions(EventDetectionEngineOptions? options) {

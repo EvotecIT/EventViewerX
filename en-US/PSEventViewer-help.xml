@@ -6537,12 +6537,12 @@ so deterministic English is preferred without discarding locally available messa
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Filter</maml:name>
         <maml:description>
           <maml:para>Reusable typed filter produced by New-EVXFilter or EventViewerX.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
         <dev:type>
           <maml:name>Object</maml:name>
           <maml:uri />
@@ -6781,12 +6781,12 @@ For example, use en-US for deterministic English output.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>Path to an event log file for offline analysis.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
           <maml:uri />
@@ -6837,12 +6837,12 @@ The executable remains caller-owned and is never downloaded or updated by EventV
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Source,Provider">
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Source,Provider">
         <maml:name>ProviderName</maml:name>
         <maml:description>
           <maml:para>Event provider name to filter results.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
           <maml:uri />
@@ -9891,14 +9891,14 @@ This cannot be combined with EventLogPath.</maml:para>
     <command:examples>
       <command:example>
         <maml:title>Run the built-in detections</maml:title>
-        <dev:code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours | Invoke-EVXDetection</dev:code>
+        <dev:code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours -Oldest | Invoke-EVXDetection</dev:code>
         <dev:remarks>
-          <maml:para>Evaluates the built-in native packs and emits findings as typed objects.</maml:para>
+          <maml:para>Evaluates the built-in native packs and emits findings as typed objects. Materialized input is normalized to deterministic event-time order before correlation.</maml:para>
         </dev:remarks>
       </command:example>
       <command:example>
         <maml:title>Apply environment tuning</maml:title>
-        <dev:code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication | Invoke-EVXDetection -Tuning $tuning</dev:code>
+        <dev:code>$tuning = [EventViewerX.EventDetectionTuning]::new(); $tuning.DisabledRuleIds = 'EVX-AUTH-0003'; Get-EVXEvent -Type ActiveDirectoryAuthentication -Oldest | Invoke-EVXDetection -Tuning $tuning</dev:code>
         <dev:remarks>
           <maml:para>Disables a rule without changing the versioned pack content.</maml:para>
         </dev:remarks>
@@ -16043,12 +16043,12 @@ This cannot be combined with EventLogPath.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>InitializeCollector</maml:name>
         <maml:description>
           <maml:para>Runs the inbox WinRM and Windows Event Collector quick configuration and verifies readiness.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
           <maml:name>SwitchParameter</maml:name>
           <maml:uri />
@@ -18866,12 +18866,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>Definition</maml:name>
         <maml:description>
           <maml:para>Custom JSON definition path or an EventDefinition instance.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
         <dev:type>
           <maml:name>Object</maml:name>
           <maml:uri />
@@ -19008,12 +19008,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>LogName</maml:name>
         <maml:description>
           <maml:para>Generic event channel. Mutually exclusive with Type.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
         <dev:type>
           <maml:name>String</maml:name>
           <maml:uri />
@@ -19140,12 +19140,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>One or more offline EVTX files. Type or Definition may be supplied to apply typed semantics; Path alone creates a generic report.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
           <maml:uri />
@@ -19286,12 +19286,12 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
         <maml:name>Type</maml:name>
         <maml:description>
           <maml:para>Built-in leaf or composite event definitions. Each definition owns its channels and event IDs.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">EventType[]</command:parameterValue>
+        <command:parameterValue required="true" variableLength="false">EventType[]</command:parameterValue>
         <command:parameterValueGroup>
           <command:parameterValue required="false" variableLength="false">ADComputerCreateChange</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADComputerDeleted</command:parameterValue>

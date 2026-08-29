@@ -191,15 +191,18 @@ public sealed class EventDetectionPlan {
                 : EventPredicateEvaluator.CompileFields(definition.Predicate);
             _suppressions = suppressions.Select(static suppression => new CompiledSuppression(suppression)).ToArray();
             Steps = definition.Steps.Select(static step => new CompiledStep(step)).ToArray();
-            IndexEventIds = new HashSet<int>(EventIds.Concat(Steps.SelectMany(static step => step.EventIds)));
-            IndexEventTypeNames = new HashSet<string>(
-                EventTypeNames.Concat(Steps.SelectMany(static step => step.EventTypeNames)),
+            IndexEventIds = BuildIndexValues(EventIds, Steps.Select(static step => step.EventIds));
+            IndexEventTypeNames = BuildIndexValues(
+                EventTypeNames,
+                Steps.Select(static step => step.EventTypeNames),
                 StringComparer.OrdinalIgnoreCase);
-            IndexChannels = new HashSet<string>(
-                Channels.Concat(Steps.SelectMany(static step => step.Channels)),
+            IndexChannels = BuildIndexValues(
+                Channels,
+                Steps.Select(static step => step.Channels),
                 StringComparer.OrdinalIgnoreCase);
-            IndexProviders = new HashSet<string>(
-                Providers.Concat(Steps.SelectMany(static step => step.Providers)),
+            IndexProviders = BuildIndexValues(
+                Providers,
+                Steps.Select(static step => step.Providers),
                 StringComparer.OrdinalIgnoreCase);
         }
 
@@ -239,6 +242,21 @@ public sealed class EventDetectionPlan {
                 .Where(item => item.step.Matches(observation))
                 .Select(static item => item.index)
                 .ToArray();
+        }
+
+        private static HashSet<T> BuildIndexValues<T>(
+            HashSet<T> ruleValues,
+            IEnumerable<HashSet<T>> stepValues,
+            IEqualityComparer<T>? comparer = null) {
+
+            if (ruleValues.Count != 0) {
+                return new HashSet<T>(ruleValues, comparer ?? EqualityComparer<T>.Default);
+            }
+            HashSet<T>[] steps = stepValues.ToArray();
+            if (steps.Length == 0 || steps.Any(static values => values.Count == 0)) {
+                return new HashSet<T>(comparer ?? EqualityComparer<T>.Default);
+            }
+            return new HashSet<T>(steps.SelectMany(static values => values), comparer ?? EqualityComparer<T>.Default);
         }
     }
 

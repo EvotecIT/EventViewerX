@@ -188,6 +188,109 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void TemporalIndexKeepsRuleEligibleWhenOneStepLeavesASelectorUnrestricted() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-MIXED-SELECTORS",
+                Title = "Mixed temporal selectors",
+                Kind = EventDetectionRuleKind.OrderedTemporal,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                Steps = new[] {
+                    new EventDetectionStepDefinition { Name = "specific", EventIds = new[] { 1001 } },
+                    new EventDetectionStepDefinition {
+                        Name = "predicate-only",
+                        Predicate = EventPredicate.Compare("Account", EventPredicateOperator.Equal, "alice")
+                    }
+                }
+            })
+        });
+        EventObservation[] observations = {
+            Observe(1001, Utc(10, 0), 1, "alice"),
+            Observe(9001, Utc(10, 1), 2, "alice")
+        };
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(observations, plan));
+
+        Assert.Equal(new long?[] { 1, 2 }, finding.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
+    public void MaterializedEvaluationNormalizesNewestFirstInputForOrderedCorrelation() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            TemporalRule("EVX-TEST-MATERIALIZED-ORDER", EventDetectionRuleKind.OrderedTemporal)
+        });
+        EventObservation[] newestFirst = {
+            Observe(1002, Utc(10, 1), 2, "alice"),
+            Observe(1001, Utc(10, 0), 1, "alice")
+        };
+
+        EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(newestFirst, plan);
+        EventDetectionFinding finding = Assert.Single(execution.Findings);
+
+        Assert.Equal(new long?[] { 1, 2 }, finding.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
+    public void DistinctValueReportsMissingRequiredFieldsWithoutCountingThem() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-DISTINCT-MISSING",
+                Title = "Distinct sources require source data",
+                Kind = EventDetectionRuleKind.DistinctValue,
+                EventIds = new[] { 1001 },
+                Threshold = 3,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                DistinctBy = "SourceAddress"
+            })
+        });
+        EventObservation[] observations = {
+            WithField(Observe(1001, Utc(10, 0), 1, "alice"), "SourceAddress", "10.0.0.1"),
+            Observe(1001, Utc(10, 1), 2, "alice"),
+            WithField(Observe(1001, Utc(10, 2), 3, "alice"), "SourceAddress", "10.0.0.2"),
+            WithField(Observe(1001, Utc(10, 3), 4, "alice"), "SourceAddress", "10.0.0.3")
+        };
+
+        EventDetectionFinding[] findings = EventDetectionEngine.Stream(observations, plan).ToArray();
+
+        EventDetectionFinding incomplete = Assert.Single(
+            findings,
+            static finding => finding.Status == EventDetectionFindingStatus.Incomplete);
+        EventDetectionFinding matched = Assert.Single(
+            findings,
+            static finding => finding.Status == EventDetectionFindingStatus.Matched);
+        Assert.Contains("SourceAddress", incomplete.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.Equal(new long?[] { 1, 3, 4 }, matched.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
+    public void MaterializedDryRunStopsReadingAfterTheObservationBoundSentinel() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { Rule("EVX-TEST-BOUNDED-DRY-RUN") });
+        int enumerated = 0;
+        IEnumerable<EventObservation> Source() {
+            while (true) {
+                enumerated++;
+                if (enumerated > 3) {
+                    throw new InvalidOperationException("The dry run enumerated beyond its bound sentinel.");
+                }
+                yield return Observe(1001, Utc(10, enumerated), enumerated, "alice");
+            }
+        }
+
+        EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(
+            Source(),
+            plan,
+            new EventDetectionEngineOptions { MaximumObservations = 2 });
+
+        Assert.Equal(3, enumerated);
+        Assert.Equal(3, execution.ObservationCount);
+        Assert.Single(execution.Findings, static finding =>
+            finding.Status == EventDetectionFindingStatus.Incomplete &&
+            finding.CompletenessDiagnostic!.Contains("MaximumObservations", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TuningDisablesOverridesAndSuppressesWithoutMutatingSourceRules() {
         EventDetectionRule severityRule = Rule("EVX-TEST-SEVERITY", severity: EventDetectionSeverity.Low);
         EventDetectionRule disabledRule = Rule("EVX-TEST-DISABLED");
@@ -311,6 +414,33 @@ public sealed class TestEventDetection {
         Assert.False(tamperedValidation.IsValid);
         Assert.False(tamperedValidation.ContentHashValid);
         Assert.Throws<InvalidDataException>(() => tampered.GetRules());
+    }
+
+    [Fact]
+    public void DetectionPackFailsClosedForFutureEngineOrUnknownObservationSchema() {
+        EventDetectionRuleDefinition rule = Rule("EVX-TEST-PACK-COMPATIBILITY").Definition;
+        EventDetectionPack futureEngine = EventDetectionPack.Create(
+            "eventviewerx.test.future-engine",
+            "1.0.0",
+            new[] { rule },
+            minimumEngineVersion: "99.0.0");
+        EventDetectionPack unknownSchema = EventDetectionPack.Create(
+            "eventviewerx.test.future-schema",
+            "1.0.0",
+            new[] { rule },
+            observationSchemaVersion: "2.0.0");
+
+        EventDetectionPackValidationResult engineValidation = futureEngine.Validate();
+        EventDetectionPackValidationResult schemaValidation = unknownSchema.Validate();
+
+        Assert.False(engineValidation.IsValid);
+        Assert.Contains(engineValidation.Diagnostics, static diagnostic =>
+            diagnostic.Contains("engine 99.0.0", StringComparison.Ordinal));
+        Assert.False(schemaValidation.IsValid);
+        Assert.Contains(schemaValidation.Diagnostics, static diagnostic =>
+            diagnostic.Contains("observation schema 2.0.0", StringComparison.Ordinal));
+        Assert.Throws<InvalidDataException>(() => futureEngine.GetRules());
+        Assert.Throws<InvalidDataException>(() => unknownSchema.GetRules());
     }
 
     [Fact]
@@ -554,6 +684,18 @@ public sealed class TestEventDetection {
         source.Data["TargetDomainName"] = "EVOTEC";
         source.Data["TargetUserName"] = account;
         return EventObservation.Create(source, receivedTimeUtc: time, processedTimeUtc: time);
+    }
+
+    private static EventObservation WithField(
+        EventObservation observation,
+        string field,
+        string value) {
+
+        observation.SourceEvent.Data[field] = value;
+        return EventObservation.Create(
+            observation.SourceEvent,
+            receivedTimeUtc: observation.ReceivedTimeUtc,
+            processedTimeUtc: observation.ProcessedTimeUtc);
     }
 
     private static EventObject CreateEvent(

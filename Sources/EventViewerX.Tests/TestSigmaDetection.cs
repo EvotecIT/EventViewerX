@@ -143,6 +143,32 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void ProcessCreationCategoryDoesNotSilentlyRestrictSecurityEventsToSysmon() {
+        const string yaml = """
+            title: Security process creation
+            id: 44444444-4444-4444-8444-444444444444
+            logsource:
+              product: windows
+              category: process_creation
+            detection:
+              selection:
+                EventID: 4688
+              condition: selection
+            level: medium
+            """;
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+        EventDetectionPlan plan = compilation.CompilePlan();
+        EventObservation observation = Observe(4688, 1, "alice", "10.0.0.1");
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(new[] { observation }, plan));
+
+        Assert.True(compilation.IsSupported);
+        Assert.Empty(plan.Rules[0].Channels);
+        Assert.Equal(4688, finding.Evidence[0].EventId);
+        Assert.Equal("Security", finding.Evidence[0].SourceLog);
+    }
+
+    [Fact]
     public void UnsupportedSigmaBehaviorProducesStructuredErrorsWithoutRules() {
         const string yaml = """
             title: Unsupported Linux base64 rule

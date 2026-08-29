@@ -646,6 +646,10 @@ the dependency-light `EventViewerX` core package. `EventViewerX.Detection` adds
 only the Sigma YAML adapter and its YAML dependency. `EventViewerX.Storage`
 adds DbaClientX-backed SQLite history. Reporting and storage are optional
 consumers: an event stream can go directly from `Get-EVXEvent` into detection.
+Materialized C# and PowerShell evaluation normalizes input into deterministic
+event-time order before correlation, so the normal newest-first event-log output
+is safe. The lower-level streaming API intentionally avoids buffering; callers
+using it must provide chronological input.
 
 ```powershell
 # Run the built-in native packs without storage.
@@ -887,6 +891,14 @@ to one hour by default) across restarts. `--retry-delay` and
 `--maximum-retry-delay` change those bounds; `--dead-letter-after` controls when
 a repeatedly failing batch is moved aside. The summary file includes queue and
 outbox depth, oldest-pending age, retry count, and dead-letter count.
+The immutable batch manifest also records whether SMTP is required and the exact
+compare-and-swap checkpoint boundary. A restart therefore cannot silently skip
+mail because `--mail-profile` was omitted, or acknowledge source progress because
+`--checkpoint-store` was omitted. Transport acknowledgement is persisted before
+checkpoint advancement, so a crash after an accepted delivery resumes the
+checkpoint without sending the acknowledged batch again. SMTP remains
+at-least-once because a crash can still occur after the server accepts a message
+but before local acknowledgement is durable.
 
 In the exact-artifact, five-launch cold-start matrix, the framework-dependent
 and portable hosts reached their command in 115 ms and 116 ms median. Importing

@@ -24,12 +24,26 @@ public sealed class EventNotificationRetryPolicy {
             throw new ArgumentNullException(nameof(delivery));
         }
         Validate();
-        if (!delivery.LastAttemptUtc.HasValue) {
-            return true;
-        }
         DateTime now = (nowUtc ?? DateTime.UtcNow).ToUniversalTime();
-        return delivery.LastAttemptUtc.Value.ToUniversalTime() +
-            GetDelay(delivery.FailedAttempts) <= now;
+        return GetNextAttemptUtc(delivery) <= now;
+    }
+
+    /// <summary>Returns the earliest UTC time at which the persisted delivery may be retried.</summary>
+    public DateTime GetNextAttemptUtc(EventNotificationDeliveryState delivery) {
+        if (delivery == null) {
+            throw new ArgumentNullException(nameof(delivery));
+        }
+        Validate();
+        return delivery.LastAttemptUtc.HasValue
+            ? delivery.LastAttemptUtc.Value.ToUniversalTime() + GetDelay(delivery.FailedAttempts)
+            : DateTime.MinValue;
+    }
+
+    /// <summary>Returns the remaining delay, or zero when the delivery is ready now.</summary>
+    public TimeSpan GetRemainingDelay(EventNotificationDeliveryState delivery, DateTime? nowUtc = null) {
+        DateTime now = (nowUtc ?? DateTime.UtcNow).ToUniversalTime();
+        DateTime next = GetNextAttemptUtc(delivery);
+        return next <= now ? TimeSpan.Zero : next - now;
     }
 
     /// <summary>Validates positive, ordered retry bounds.</summary>

@@ -82,6 +82,7 @@ internal static partial class Program {
         Task pendingFlush = Task.CompletedTask;
         List<WatchBufferedNotification>? activeBatch = null;
         string? activeBatchStem = null;
+        string? terminalBatchId = null;
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int received = 0;
         int processed = 0;
@@ -92,6 +93,19 @@ internal static partial class Program {
             ? null
             : EventTypeCatalog.CompileProjectionPlan(types);
         IReadOnlyList<EventType> leaves = projectionPlan?.ExpandedTypes ?? Array.Empty<EventType>();
+
+        bool CompleteActiveBatch(string batchId) {
+            lock (bufferLock) {
+                if (activeBatch == null ||
+                    !string.Equals(activeBatchStem, batchId, StringComparison.Ordinal)) {
+                    return false;
+                }
+                buffer.RemoveRange(0, activeBatch.Count);
+                activeBatch = null;
+                activeBatchStem = null;
+                return buffer.Count > 0;
+            }
+        }
 
         async Task FlushAsync() {
             await flushGate.WaitAsync().ConfigureAwait(false);
@@ -109,6 +123,10 @@ internal static partial class Program {
                     batch = activeBatch;
                     batchStem = activeBatchStem!;
                 }
+                if (string.Equals(terminalBatchId, batchStem, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException(
+                        $"Notification batch '{batchStem}' reached the dead-letter threshold; its checkpoint was not advanced.");
+                }
                 if (string.IsNullOrWhiteSpace(outbox) && mailProfile == null) {
                     return;
                 }
@@ -116,35 +134,57 @@ internal static partial class Program {
                     batch.Select(static item => item.Projected).ToArray(),
                     options.Get("title") ?? "EventViewerX notification");
                 EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report).ConfigureAwait(false);
+                EventNotificationCheckpointBoundary[] checkpointBoundaries = CreateCheckpointBoundaries(
+                    batch.Select(static item => item.Delivery));
                 EventNotificationOutboxBatch? durableBatch = null;
                 if (!string.IsNullOrWhiteSpace(outbox)) {
-                    EventNotificationOutbox.Save(outbox!, batchStem, report, email, batch.Count);
+                    EventNotificationOutbox.Save(
+                        outbox!,
+                        batchStem,
+                        report,
+                        email,
+                        batch.Count,
+                        checkpointBoundaries,
+                        requiresExternalTransport: mailProfile != null);
                     durableBatch = EventNotificationOutbox.GetPending(outbox!)
                         .Single(candidate => string.Equals(
                             candidate.Manifest.BatchId,
                             batchStem,
                             StringComparison.Ordinal));
                 }
-                if (mailProfile != null) {
-                    try {
+                try {
+                    if (durableBatch != null) {
+                        TimeSpan remaining = retryPolicy.GetRemainingDelay(durableBatch.Delivery);
+                        if (remaining > TimeSpan.Zero) {
+                            return;
+                        }
+                    }
+                    if (mailProfile != null &&
+                        (durableBatch == null || !durableBatch.Delivery.TransportAcknowledgedUtc.HasValue)) {
                         await mailProfile.SendAsync(email, report.Title).ConfigureAwait(false);
                         if (durableBatch != null) {
-                            EventNotificationOutbox.MarkDelivered(durableBatch);
+                            EventNotificationOutbox.MarkTransportAcknowledged(durableBatch);
                         }
-                    } catch (Exception exception) {
-                        if (durableBatch != null) {
-                            EventNotificationOutbox.RecordFailure(durableBatch, exception);
-                        }
+                    } else if (mailProfile == null && durableBatch != null &&
+                               !durableBatch.Delivery.TransportAcknowledgedUtc.HasValue) {
+                        EventNotificationOutbox.MarkTransportAcknowledged(durableBatch);
+                    }
+                    await AdvanceCheckpointsAsync(batch.Select(static item => item.Delivery)).ConfigureAwait(false);
+                    if (durableBatch != null) {
+                        EventNotificationOutbox.MarkDelivered(durableBatch);
+                    }
+                } catch (Exception exception) {
+                    if (durableBatch == null) {
                         throw;
                     }
+                    EventNotificationOutbox.RecordFailure(durableBatch, exception);
+                    return;
                 }
-                await AdvanceCheckpointsAsync(batch.Select(static item => item.Delivery)).ConfigureAwait(false);
-                lock (bufferLock) {
-                    buffer.RemoveRange(0, batch.Count);
-                    activeBatch = null;
-                    activeBatchStem = null;
-                }
+                bool hasBufferedNotifications = CompleteActiveBatch(batchStem);
                 Interlocked.Increment(ref deliveredBatches);
+                if (hasBufferedNotifications) {
+                    QueueFlush();
+                }
             } finally {
                 flushGate.Release();
             }
@@ -172,30 +212,200 @@ internal static partial class Program {
             }
         }
 
-        async Task ResumeOutboxAsync() {
-            if (string.IsNullOrWhiteSpace(outbox) || mailProfile == null) {
+        EventNotificationCheckpointBoundary[] CreateCheckpointBoundaries(
+            IEnumerable<WatchDelivery> deliveries) {
+
+            if (checkpointStore == null) {
+                return Array.Empty<EventNotificationCheckpointBoundary>();
+            }
+            return deliveries
+                .Where(static delivery => !string.IsNullOrWhiteSpace(delivery.Source.BookmarkXml))
+                .GroupBy(static delivery => delivery.Checkpoint)
+                .Select(group => {
+                    WatchDelivery newest = group.Last();
+                    EventStoreCheckpoint? expected = newest.Checkpoint.Current;
+                    return new EventNotificationCheckpointBoundary {
+                        Consumer = checkpointConsumer,
+                        Computer = newest.Checkpoint.Computer,
+                        Container = newest.Checkpoint.Container,
+                        RecordId = newest.Source.RecordId,
+                        BookmarkXml = newest.Source.BookmarkXml,
+                        ExpectedExists = expected != null,
+                        ExpectedRecordId = expected?.RecordId,
+                        ExpectedBookmarkXml = expected?.BookmarkXml,
+                        ExpectedUpdatedAtUtc = expected?.UpdatedAtUtc
+                    };
+                })
+                .ToArray();
+        }
+
+        async Task AdvancePersistedCheckpointsAsync(
+            IEnumerable<EventNotificationCheckpointBoundary> boundaries) {
+
+            EventNotificationCheckpointBoundary[] snapshot = boundaries.ToArray();
+            if (checkpointStore == null) {
+                if (snapshot.Length != 0) {
+                    throw new InvalidOperationException(
+                        "A pending notification batch owns checkpoint boundaries, but this watcher was restarted without --checkpoint-store.");
+                }
                 return;
             }
-            foreach (EventNotificationOutboxBatch batch in EventNotificationOutbox.GetPending(outbox!)) {
-                if (batch.Delivery.FailedAttempts >= deadLetterAfter) {
-                    EventNotificationOutbox.MoveToDeadLetter(batch);
-                    Interlocked.Increment(ref deadLetterBatches);
+            foreach (EventNotificationCheckpointBoundary boundary in snapshot) {
+                EventStoreCheckpoint next = new() {
+                    Consumer = boundary.Consumer,
+                    Computer = boundary.Computer,
+                    Container = boundary.Container,
+                    RecordId = boundary.RecordId,
+                    BookmarkXml = boundary.BookmarkXml,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+                EventStoreCheckpoint? current = await checkpointStore.GetCheckpointAsync(
+                    boundary.Consumer,
+                    boundary.Computer,
+                    boundary.Container).ConfigureAwait(false);
+                if (CheckpointMatches(current, next)) {
                     continue;
                 }
-                if (!retryPolicy.IsReady(batch.Delivery)) {
-                    continue;
+                EventStoreCheckpoint? expected = boundary.ExpectedExists
+                    ? new EventStoreCheckpoint {
+                        Consumer = boundary.Consumer,
+                        Computer = boundary.Computer,
+                        Container = boundary.Container,
+                        RecordId = boundary.ExpectedRecordId,
+                        BookmarkXml = boundary.ExpectedBookmarkXml,
+                        UpdatedAtUtc = boundary.ExpectedUpdatedAtUtc ?? DateTime.MinValue
+                    }
+                    : null;
+                await checkpointStore.AdvanceCheckpointAsync(next, expected).ConfigureAwait(false);
+            }
+        }
+
+        async Task RefreshActiveBatchCheckpointsAsync(string batchId) {
+            if (checkpointStore == null) {
+                return;
+            }
+            WatchCheckpointContext[] contexts;
+            lock (bufferLock) {
+                if (activeBatch == null ||
+                    !string.Equals(activeBatchStem, batchId, StringComparison.Ordinal)) {
+                    return;
                 }
-                try {
-                    string title = string.IsNullOrWhiteSpace(batch.Manifest.Title)
-                        ? "EventViewerX notification"
-                        : batch.Manifest.Title;
-                    await mailProfile.SendAsync(batch.Html, batch.PlainText, title).ConfigureAwait(false);
-                    EventNotificationOutbox.MarkDelivered(batch);
-                    Interlocked.Increment(ref resumedBatches);
-                } catch (Exception exception) {
-                    EventNotificationOutbox.RecordFailure(batch, exception);
-                    throw;
+                contexts = activeBatch
+                    .Select(static item => item.Delivery.Checkpoint)
+                    .Distinct()
+                    .ToArray();
+            }
+            foreach (WatchCheckpointContext context in contexts) {
+                context.Current = await checkpointStore.GetCheckpointAsync(
+                    checkpointConsumer,
+                    context.Computer,
+                    context.Container).ConfigureAwait(false);
+            }
+        }
+
+        static bool CheckpointMatches(EventStoreCheckpoint? current, EventStoreCheckpoint expected) =>
+            current != null &&
+            current.RecordId == expected.RecordId &&
+            string.Equals(current.BookmarkXml, expected.BookmarkXml, StringComparison.Ordinal);
+
+        async Task<TimeSpan> ResumeOutboxAsync() {
+            TimeSpan idleDelay = TimeSpan.FromMinutes(1);
+            if (string.IsNullOrWhiteSpace(outbox)) {
+                return idleDelay;
+            }
+            await flushGate.WaitAsync().ConfigureAwait(false);
+            try {
+                TimeSpan? nextDelay = null;
+                foreach (EventNotificationOutboxBatch batch in EventNotificationOutbox.GetPending(outbox!)) {
+                    if (batch.Delivery.FailedAttempts >= deadLetterAfter) {
+                        EventNotificationOutbox.MoveToDeadLetter(batch);
+                        Interlocked.Increment(ref deadLetterBatches);
+                        lock (bufferLock) {
+                            if (string.Equals(activeBatchStem, batch.Manifest.BatchId, StringComparison.Ordinal)) {
+                                terminalBatchId = batch.Manifest.BatchId;
+                            }
+                        }
+                        if (string.Equals(terminalBatchId, batch.Manifest.BatchId, StringComparison.Ordinal)) {
+                            completed.TrySetException(new InvalidOperationException(
+                                $"Notification batch '{batch.Manifest.BatchId}' reached the dead-letter threshold; its checkpoint was not advanced."));
+                        }
+                        continue;
+                    }
+                    TimeSpan remaining = retryPolicy.GetRemainingDelay(batch.Delivery);
+                    if (remaining > TimeSpan.Zero) {
+                        nextDelay = !nextDelay.HasValue || remaining < nextDelay.Value
+                            ? remaining
+                            : nextDelay;
+                        continue;
+                    }
+                    if (!batch.Delivery.TransportAcknowledgedUtc.HasValue &&
+                        batch.Manifest.RequiresExternalTransport &&
+                        mailProfile == null) {
+                        throw new InvalidOperationException(
+                            $"Pending notification batch '{batch.Manifest.BatchId}' requires an external transport, but this watcher was restarted without --mail-profile.");
+                    }
+                    if (batch.Manifest.Checkpoints.Length != 0 && checkpointStore == null) {
+                        throw new InvalidOperationException(
+                            $"Pending notification batch '{batch.Manifest.BatchId}' owns checkpoint boundaries, but this watcher was restarted without --checkpoint-store.");
+                    }
+                    try {
+                        string title = string.IsNullOrWhiteSpace(batch.Manifest.Title)
+                            ? "EventViewerX notification"
+                            : batch.Manifest.Title;
+                        if (!batch.Delivery.TransportAcknowledgedUtc.HasValue) {
+                            if (batch.Manifest.RequiresExternalTransport) {
+                                await mailProfile!.SendAsync(batch.Html, batch.PlainText, title).ConfigureAwait(false);
+                            }
+                            EventNotificationOutbox.MarkTransportAcknowledged(batch);
+                        }
+                        await AdvancePersistedCheckpointsAsync(batch.Manifest.Checkpoints).ConfigureAwait(false);
+                        await RefreshActiveBatchCheckpointsAsync(batch.Manifest.BatchId).ConfigureAwait(false);
+                        EventNotificationOutbox.MarkDelivered(batch);
+                        bool hasBufferedNotifications = CompleteActiveBatch(batch.Manifest.BatchId);
+                        Interlocked.Increment(ref resumedBatches);
+                        if (hasBufferedNotifications) {
+                            QueueFlush();
+                        }
+                    } catch (Exception exception) {
+                        EventNotificationOutbox.RecordFailure(batch, exception);
+                        EventNotificationOutboxBatch failed = EventNotificationOutbox.GetPending(outbox!)
+                            .Single(candidate => string.Equals(
+                                candidate.Manifest.BatchId,
+                                batch.Manifest.BatchId,
+                                StringComparison.Ordinal));
+                        if (failed.Delivery.FailedAttempts >= deadLetterAfter) {
+                            EventNotificationOutbox.MoveToDeadLetter(failed);
+                            Interlocked.Increment(ref deadLetterBatches);
+                            lock (bufferLock) {
+                                if (string.Equals(activeBatchStem, failed.Manifest.BatchId, StringComparison.Ordinal)) {
+                                    terminalBatchId = failed.Manifest.BatchId;
+                                }
+                            }
+                            if (string.Equals(terminalBatchId, failed.Manifest.BatchId, StringComparison.Ordinal)) {
+                                completed.TrySetException(new InvalidOperationException(
+                                    $"Notification batch '{failed.Manifest.BatchId}' reached the dead-letter threshold; its checkpoint was not advanced."));
+                            }
+                            continue;
+                        }
+                        TimeSpan retry = retryPolicy.GetRemainingDelay(failed.Delivery);
+                        nextDelay = !nextDelay.HasValue || retry < nextDelay.Value
+                            ? retry
+                            : nextDelay;
+                    }
                 }
+                return nextDelay ?? idleDelay;
+            } finally {
+                flushGate.Release();
+            }
+        }
+
+        async Task MonitorOutboxRetriesAsync(TimeSpan initialDelay, CancellationToken cancellationToken) {
+            try {
+                await OutboxRetryLoopAsync(initialDelay, ResumeOutboxAsync, cancellationToken).ConfigureAwait(false);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            } catch (Exception exception) {
+                completed.TrySetException(exception);
+                throw;
             }
         }
 
@@ -293,8 +503,11 @@ internal static partial class Program {
                 (source.LogName, source.EventIds, (IReadOnlyList<string>)Array.Empty<string>())).ToArray();
         var watchers = new List<WatcherInfo>();
         DateTime startedUtc = DateTime.UtcNow;
+        using var backgroundCancellation = new CancellationTokenSource();
+        Task timerTask = Task.CompletedTask;
+        Task outboxRetryTask = Task.CompletedTask;
         try {
-            await ResumeOutboxAsync().ConfigureAwait(false);
+            TimeSpan initialOutboxRetryDelay = await ResumeOutboxAsync().ConfigureAwait(false);
             foreach (var source in sources) {
                 string targetLog = collector ? "ForwardedEvents" : source.LogName;
                 string xpath = EventDefinitionCompiler.BuildSourceXPath(source.LogName, source.EventIds, source.Providers, collector);
@@ -348,10 +561,14 @@ internal static partial class Program {
                     Definition = definition?.Name
                 });
             }
-            using var timerCancellation = new CancellationTokenSource();
-            Task timerTask = interval.HasValue
-                ? PeriodicFlushAsync(interval.Value, QueueFlushAndWaitAsync, timerCancellation.Token)
+            timerTask = interval.HasValue
+                ? PeriodicFlushAsync(interval.Value, QueueFlushAndWaitAsync, backgroundCancellation.Token)
                 : Task.CompletedTask;
+            if (!string.IsNullOrWhiteSpace(outbox)) {
+                outboxRetryTask = MonitorOutboxRetriesAsync(
+                    initialOutboxRetryDelay,
+                    backgroundCancellation.Token);
+            }
             ConsoleCancelEventHandler handler = (_, eventArgs) => {
                 eventArgs.Cancel = true;
                 completed.TrySetResult(true);
@@ -372,8 +589,9 @@ internal static partial class Program {
                     watcher.Dispose();
                 }
                 Console.CancelKeyPress -= handler;
-                timerCancellation.Cancel();
+                backgroundCancellation.Cancel();
                 try { await timerTask.ConfigureAwait(false); } catch (OperationCanceledException) { }
+                try { await outboxRetryTask.ConfigureAwait(false); } catch (OperationCanceledException) { }
             }
             deliveryQueue.Complete();
             await deliveryQueue.Completion.ConfigureAwait(false);
@@ -473,6 +691,27 @@ internal static partial class Program {
         while (true) {
             await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
             await flush().ConfigureAwait(false);
+        }
+    }
+
+    private static async Task OutboxRetryLoopAsync(
+        TimeSpan initialDelay,
+        Func<Task<TimeSpan>> resume,
+        CancellationToken cancellationToken) {
+
+        if (initialDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(initialDelay));
+        }
+        TimeSpan delay = initialDelay;
+        while (true) {
+            if (delay > TimeSpan.Zero) {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            delay = await resume().ConfigureAwait(false);
+            if (delay <= TimeSpan.Zero) {
+                delay = TimeSpan.FromMilliseconds(100);
+            }
         }
     }
 
