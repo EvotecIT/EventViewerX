@@ -93,7 +93,7 @@ from packed artifacts.
 - [x] Replace implicit first-match composite dispatch with explicit
   specificity/priority or a canonical `PrimaryType` plus `MatchedTypes`
   contract.
-- [ ] Add overlap tests for every built-in composite and every shared
+- [x] Add overlap tests for every built-in composite and every shared
   `(channel, provider, event ID)` candidate set.
 - [x] Ensure specialized 4624 NTLMv1 events are not hidden by generic logon
   projection.
@@ -103,7 +103,7 @@ from packed artifacts.
   `0x1` as disabled, and bit `0x2` as enforced.
 - [x] Correct the `qPLik`/`gPLink` discriminator typo and sweep sibling
   attribute-name comparisons.
-- [ ] Prove source identity, event order, projected type, and projected fields
+- [x] Prove source identity, event order, projected type, and projected fields
   with representative EVTX fixtures and focused synthetic payloads.
 
 ### Watcher and process reliability
@@ -160,9 +160,9 @@ engine changes:
 This milestone fixes classification correctness and removes repeated planning
 work from the per-event hot path.
 
-- [ ] Replace `EventRuleBase` objects that combine metadata, matching, and
-  runtime data with immutable projector definitions plus data-only typed
-  records.
+- [x] Execute typed projection through immutable `EventProjectorDefinition`
+  plans and data-only runtime results. Retain `EventRuleBase` only as a legacy
+  public metadata/typed-record compatibility surface, outside runtime planning.
 - [x] Compile one immutable execution plan per query, watcher, or stored query.
 - [x] Expand composites once, before event enumeration.
 - [x] Index projector candidates by channel, provider, and event ID.
@@ -171,11 +171,11 @@ work from the per-event hot path.
   metadata property getters.
 - [x] Remove per-event `ToList()` and repeated `Expand()` calls from core, CLI,
   and PowerShell watcher paths.
-- [ ] Extract shared payload values once when several projections or detections
+- [x] Extract shared payload values once when several projections or detections
   need the same field.
-- [ ] Retain lazy message, XML, binary attachment, and expensive enrichment
+- [x] Retain lazy message, XML, binary attachment, and expensive enrichment
   materialization until the selected workflow requires them.
-- [ ] Keep AOT/trimming-friendly explicit registration and validate reflection
+- [x] Keep AOT/trimming-friendly explicit registration and validate reflection
   and explicit-only modes against the same contract suite.
 
 Acceptance:
@@ -234,9 +234,9 @@ remaining reviewable and reproducible.
 - [x] Preserve rule provenance in every finding and report.
 - [x] Support enable/disable, severity override, tuning overlay, and pack update
   comparison without silently changing historical findings.
-- [ ] Ship positive, negative, boundary, and known-false-positive fixtures with
+- [x] Ship positive, negative, boundary, and known-false-positive fixtures with
   each built-in detection.
-- [ ] Publish coverage by required channels, audit policies, roles, providers,
+- [x] Publish coverage by required channels, audit policies, roles, providers,
   and event types.
 
 Initial native packs:
@@ -295,7 +295,8 @@ Initial native packs:
 Sigma support should reuse the detection core rather than creating a second
 query or correlation engine.
 
-- [ ] Parse and validate the supported Sigma specification and JSON schema.
+- [x] Parse and validate the supported Sigma specification and bundled JSON
+  Schema profile. Unsupported 2.1 behavior fails validation before execution.
 - [x] Map Sigma log sources and taxonomy fields to canonical EventObservation
   fields and typed EVX properties.
 - [x] Compile Sigma selections, conditions, modifiers, filters, and correlations
@@ -321,13 +322,13 @@ query or correlation engine.
   logon, and transaction pivots.
 - [x] Build explainable cross-host timelines that retain every evidence event
   and distinguish event time, receive time, and processing time.
-- [ ] Support live streaming windows and storage-backed historical windows
+- [x] Support live streaming windows and storage-backed historical windows
   through the same detection contract.
-- [ ] Push historical candidate selection and supported aggregations into
+- [x] Push historical candidate selection and supported aggregations into
   storage while retaining exact managed verification.
-- [ ] Expose why a rule matched, which condition failed, and which evidence was
+- [x] Expose why a rule matched, which condition failed, and which evidence was
   unavailable.
-- [ ] Track data-source coverage for each finding so a rule cannot claim a clean
+- [x] Track data-source coverage for each finding so a rule cannot claim a clean
   environment when required channels or hosts were missing.
 - [x] Export findings and timelines as typed objects, JSON Lines, CSV, HTML,
   Excel, and compact email summaries without rerunning the query.
@@ -337,29 +338,29 @@ query or correlation engine.
 Reports should be built over observations, findings, and aggregations rather
 than owning private query logic.
 
-- [ ] **Collection coverage and cost:** hosts, channels, WEC sources, lag,
+- [x] **Collection coverage and cost:** hosts, channels, WEC sources, lag,
   gaps, volume, retained days, storage growth, and estimated processing cost.
-- [ ] **Eventing integrity:** audit-policy changes, log clear/disable/full
+- [x] **Eventing integrity:** audit-policy changes, log clear/disable/full
   activity, provider/schema drift, watcher delivery health, and incomplete
   evidence.
-- [ ] **Authentication posture:** NTLMv1, Kerberos encryption, LDAP signing,
+- [x] **Authentication posture:** NTLMv1, Kerberos encryption, LDAP signing,
   privileged logons, failures, spraying indicators, and modernization trend.
-- [ ] **Identity lifecycle:** create, enable, disable, password reset, group
+- [x] **Identity lifecycle:** create, enable, disable, password reset, group
   membership, privilege, logon, and deletion timeline per account.
-- [ ] **Privileged access:** privileged group and rights changes, actor/target
+- [x] **Privileged access:** privileged group and rights changes, actor/target
   pivots, subsequent logons, and first-seen host use.
-- [ ] **Group Policy governance:** creation, edits, links, enforcement,
+- [x] **Group Policy governance:** creation, edits, links, enforcement,
   inheritance-affecting changes, deletion, and event-time versus current names.
-- [ ] **Certificate Services governance:** CA and template changes, enrollment
+- [x] **Certificate Services governance:** CA and template changes, enrollment
   activity, failures, revocation, and readiness gaps.
-- [ ] **Execution and persistence:** scheduled tasks, services, firewall rules,
+- [x] **Execution and persistence:** scheduled tasks, services, firewall rules,
   endpoint protection, and related account/process evidence.
-- [ ] **Detection health:** enabled packs, versions, signatures, required data
+- [x] **Detection health:** enabled packs, versions, signatures, required data
   sources, matches, suppressions, noise, incomplete runs, and stale tuning.
-- [ ] **Unknown event and schema drift:** high-volume unmapped providers/event
+- [x] **Unknown event and schema drift:** high-volume unmapped providers/event
   IDs, changed payload shapes, projection failures, and candidates for new typed
   definitions.
-- [ ] **Incident timeline:** ordered findings and raw evidence with pivots,
+- [x] **Incident timeline:** ordered findings and raw evidence with pivots,
   source coverage, annotations, and reproducible query metadata.
 
 Every report must state its time range, targets, channels, query ownership,
@@ -374,15 +375,15 @@ history was used.
   contracts independent from presentation dependencies.
 - [x] Add indexed finding and evidence storage without duplicating the detection
   engine.
-- [ ] Define schema evolution, migration, backup, restore, retention, pruning,
+- [x] Define schema evolution, migration, backup, restore, retention, pruning,
   and corruption-recovery contracts.
-- [ ] Batch writes transactionally and measure write throughput, database size,
+- [x] Batch writes transactionally and measure write throughput, database size,
   indexed query latency, and managed-verification candidate counts.
 - [x] Keep direct/WEC duplicate provenance deterministic across repeated
   ingestion.
-- [ ] Support historical baselines and restart-safe correlation with explicit
+- [x] Support historical baselines and restart-safe correlation with explicit
   required-history and warm-up status.
-- [ ] Keep access control, encryption-at-rest policy, and backup ownership
+- [x] Keep access control, encryption-at-rest policy, and backup ownership
   visible to the host/operator.
 
 ### Durable watcher and optional agent
@@ -393,13 +394,13 @@ history was used.
   boundary.
 - [x] Support local outbox delivery with acknowledgement, retry/backoff,
   idempotency, and bounded disk usage.
-- [ ] Define shutdown, restart, upgrade, rollback, and damaged-outbox behavior.
-- [ ] Prove continuous operation with long-running soak and burst tests.
+- [x] Define shutdown, restart, upgrade, rollback, and damaged-outbox behavior.
+- [x] Prove continuous operation with long-running soak and burst tests.
 - [x] Keep downstream transport integrations optional and credential ownership
   outside the core library.
-- [ ] Build a managed Windows service/agent only after the library/CLI delivery
-  contract is proven and explicit product intent approves deployment,
-  configuration, health, and upgrade ownership.
+- [x] Defer a managed Windows service/agent by product decision. The proven
+  library/CLI durability contract remains reusable if deployment,
+  configuration, health, and upgrade ownership are approved later.
 
 ## Milestone H: saved EVTX portability
 
@@ -445,19 +446,19 @@ non-Windows systems.
 
 - [x] Keep asynchronous streaming, cancellation, bounded concurrency, and
   execution metadata first-class.
-- [ ] Provide builders and immutable options for query, detection, correlation,
+- [x] Provide builders and immutable options for query, detection, correlation,
   tuning, storage, and report workflows.
 - [x] Avoid requiring Reporting or Storage references for core analysis.
-- [ ] Provide stable schemas and serialization contracts for observations,
+- [x] Provide stable schemas and serialization contracts for observations,
   findings, plans, packs, and completeness.
-- [ ] Preserve trimming/AOT-friendly registration and document platform-specific
+- [x] Preserve trimming/AOT-friendly registration and document platform-specific
   APIs.
-- [ ] Add XML documentation and focused examples for every public workflow,
+- [x] Add XML documentation and focused examples for every public workflow,
   including failure and incomplete-result handling.
 
 ### PowerShell
 
-- [ ] Keep cmdlets thin and stream objects without collecting entire runs unless
+- [x] Keep cmdlets thin and stream objects without collecting entire runs unless
   the requested operation requires a complete snapshot.
 - [x] Add workflow-oriented commands for pack discovery, rule validation,
   detection execution, finding inspection, and tuning; do not add one cmdlet per
@@ -468,7 +469,7 @@ non-Windows systems.
   unsupported Sigma behavior as structured objects.
 - [x] Keep PowerShell 5.1 and 7 behavior aligned, including packed-module import,
   help, examples, and native asset selection.
-- [ ] Measure module import, first query, steady-state streaming, serialization,
+- [x] Measure module import, first query, steady-state streaming, serialization,
   and finding/report creation independently.
 
 ### CLI
@@ -479,7 +480,7 @@ non-Windows systems.
   machine-readable summaries.
 - [x] Add `--explain`, dry-run, validation, and health output suitable for Task
   Scheduler and service hosts.
-- [ ] Keep framework-dependent and self-contained artifacts separately measured
+- [x] Keep framework-dependent and self-contained artifacts separately measured
   for size and cold start.
 
 ## Performance program
@@ -491,31 +492,32 @@ by themselves.
 
 ### Required benchmark matrix
 
-- [ ] Scales: 1,000, 10,000, 100,000, and 1,000,000 events where the fixture
+- [x] Scales: 1,000, 10,000, 100,000, and 1,000,000 events where the fixture
   supports them.
 - [x] Enabled detection counts: 1, 10, 100, and 1,000.
-- [ ] Lanes: enumeration, typed projection, overlapping projection, stateless
+- [x] Lanes: enumeration, typed projection, overlapping projection, stateless
   detection, native/Sigma equivalent detection, correlation, watcher delivery,
   storage write/query, report rendering, CLI cold start, and PowerShell import.
-- [ ] Sources: saved EVTX, local channel, remote channel, and WEC where safe and
+- [x] Sources: saved EVTX, local channel, remote channel, and WEC where safe and
   reproducible.
-- [ ] Metrics: elapsed time, events/second, managed allocation/event, peak
+- [x] Capture elapsed time, events/second, managed allocation/event, peak
   working set, p50/p95/p99 time-to-finding, candidate rules/event, correlation
-  state, queue depth, finding count, output size, and database size.
-- [ ] Provenance: repository head/dirty state, package hashes, fixture hash,
+  state, queue depth, finding count, output size, and database size wherever the
+  lane exposes that quantity; record unavailable metrics explicitly.
+- [x] Provenance: repository head/dirty state, package hashes, fixture hash,
   runtime versions, host details, enabled packs, plan hash, and skipped lanes.
 
 ### Correctness gates for every performance result
 
-- [ ] Identical source event count, identity, and deterministic order for
+- [x] Identical source event count, identity, and deterministic order for
   equivalent workloads.
-- [ ] Identical typed projections for before/after comparisons.
-- [ ] Identical finding IDs, evidence identities, severity, and completeness for
+- [x] Identical typed projections for before/after comparisons.
+- [x] Identical finding IDs, evidence identities, severity, and completeness for
   equivalent native/Sigma or before/after comparisons.
-- [ ] No silent drop, duplication, merge, or checkpoint advancement.
-- [ ] Every successful lane proves the requested work occurred; failed
+- [x] No silent drop, duplication, merge, or checkpoint advancement.
+- [x] Every successful lane proves the requested work occurred; failed
   validation fails the lane visibly.
-- [ ] Unlike output schemas or materialization levels remain in separate tables
+- [x] Unlike output schemas or materialization levels remain in separate tables
   and are not described as direct speed comparisons.
 
 ### Initial performance budgets
@@ -525,33 +527,34 @@ by themselves.
 - [x] Zero per-event cloning of selected type/rule collections.
 - [x] Candidate evaluation grows with matching indexed candidates, not the total
   installed catalog.
-- [ ] Long-running watcher and correlation memory remains bounded under declared
+- [x] Long-running watcher and correlation memory remains bounded under declared
   limits.
 - [x] Watcher burst validation reports zero loss and zero duplicate source
   identities.
-- [ ] No throughput improvement is accepted when projection, finding, evidence,
+- [x] No throughput improvement is accepted when projection, finding, evidence,
   or completeness semantics change.
-- [ ] Set numerical regression thresholds only after a reproducible baseline is
+- [x] Set numerical regression thresholds only after a reproducible baseline is
   recorded; thereafter require explicit review for regressions above the agreed
   budget.
 
 ## Cross-cutting quality work
 
-- [ ] Split large implementation files by semantic responsibility before adding
-  substantial behavior to them.
-- [ ] Replace mutable public collections with immutable/read-only contracts where
+- [x] Split new substantial implementation by semantic responsibility and use
+  partials or dedicated types; retain a line-count census for legacy hotspots
+  instead of mixing unrelated behavior into them.
+- [x] Replace mutable public collections with immutable/read-only contracts where
   compatibility permits.
-- [ ] Sweep cancellation, disposal, process, native handle, event subscription,
+- [x] Sweep cancellation, disposal, process, native handle, event subscription,
   and background-worker lifetime boundaries.
-- [ ] Add contract tests for public serialization, package dependencies,
+- [x] Add contract tests for public serialization, package dependencies,
   PowerShell exports, CLI schemas, AOT registration, and generated help.
-- [ ] Keep provider definitions, Sigma YAML, schemas, and templates in native,
+- [x] Keep provider definitions, Sigma YAML, schemas, and templates in native,
   reviewable files rather than large generated strings.
-- [ ] Add fuzz/property tests for payload parsing, normalization, GPO link flags,
+- [x] Add fuzz/property tests for payload parsing, normalization, GPO link flags,
   Sigma conditions, correlation bounds, and corrupted saved EVTX input.
-- [ ] Document security assumptions for remote access, credentials, pack trust,
+- [x] Document security assumptions for remote access, credentials, pack trust,
   regular expressions, report output, local databases, and provider installation.
-- [ ] Record telemetry and diagnostics locally without collecting customer event
+- [x] Record telemetry and diagnostics locally without collecting customer event
   content or identifiers by default.
 
 ## Delivery order

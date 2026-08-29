@@ -9,6 +9,10 @@ public static class SigmaSchemaCatalog {
     /// <summary>Upstream Sigma specification version implemented by this adapter.</summary>
     public const string SupportedSpecificationVersion = "2.1.0";
 
+    private const string DetectionSchemaResource = "EventViewerX.Detection.Schemas.sigma-detection-rule-2.1.0.json";
+    private const string CorrelationSchemaResource = "EventViewerX.Detection.Schemas.sigma-correlation-rule-2.1.0.json";
+    private static readonly string DetectionSchemaJson = ReadSchema(DetectionSchemaResource);
+    private static readonly string CorrelationSchemaJson = ReadSchema(CorrelationSchemaResource);
     private static readonly JsonSchema DetectionSchema = Build(DetectionSchemaJson);
     private static readonly JsonSchema CorrelationSchema = Build(CorrelationSchemaJson);
 
@@ -25,6 +29,13 @@ public static class SigmaSchemaCatalog {
     private static JsonSchema Build(string json) {
         using JsonDocument document = JsonDocument.Parse(json);
         return JsonSchema.Build(document.RootElement.Clone(), new BuildOptions { Dialect = Dialect.Draft202012 });
+    }
+
+    private static string ReadSchema(string resourceName) {
+        using Stream stream = typeof(SigmaSchemaCatalog).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"The bundled Sigma schema resource '{resourceName}' is missing.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private static object? ConvertNode(YamlNode node) {
@@ -54,90 +65,4 @@ public static class SigmaSchemaCatalog {
         return value;
     }
 
-    private const string DetectionSchemaJson = """
-        {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "EventViewerX supported Sigma detection profile 2.1.0",
-          "type": "object",
-          "required": ["title", "logsource", "detection"],
-          "properties": {
-            "title": { "type": "string", "minLength": 1, "maxLength": 256 },
-            "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "name": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "status": { "enum": ["stable", "test", "experimental", "deprecated", "unsupported"] },
-            "description": { "type": "string", "maxLength": 65535 },
-            "license": { "type": "string" },
-            "references": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-            "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-            "falsepositives": { "type": "array", "items": { "type": "string" } },
-            "level": { "enum": ["informational", "low", "medium", "high", "critical"] },
-            "logsource": {
-              "type": "object",
-              "minProperties": 1,
-              "properties": {
-                "product": { "type": "string" },
-                "category": { "type": "string" },
-                "service": { "type": "string" },
-                "definition": { "type": "string" }
-              },
-              "additionalProperties": true
-            },
-            "detection": {
-              "type": "object",
-              "required": ["condition"],
-              "minProperties": 2,
-              "properties": {
-                "condition": { "type": "string", "minLength": 1 },
-                "timeframe": { "type": "string" }
-              },
-              "additionalProperties": true
-            }
-          },
-          "additionalProperties": true
-        }
-        """;
-
-    private const string CorrelationSchemaJson = """
-        {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "EventViewerX supported Sigma correlation profile 2.1.0",
-          "type": "object",
-          "required": ["title", "correlation"],
-          "properties": {
-            "title": { "type": "string", "minLength": 1, "maxLength": 256 },
-            "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "status": { "enum": ["stable", "test", "experimental", "deprecated", "unsupported"] },
-            "description": { "type": "string", "maxLength": 65535 },
-            "references": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-            "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-            "falsepositives": { "type": "array", "items": { "type": "string" } },
-            "level": { "enum": ["informational", "low", "medium", "high", "critical"] },
-            "correlation": {
-              "type": "object",
-              "required": ["type", "rules", "timespan"],
-              "properties": {
-                "type": { "enum": ["event_count", "value_count", "temporal", "temporal_ordered"] },
-                "rules": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 }
-                },
-                "group-by": {
-                  "type": "array",
-                  "maxItems": 1,
-                  "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 }
-                },
-                "timespan": { "type": "string", "pattern": "^[1-9][0-9]*[smhdwM]$", "maxLength": 10 },
-                "condition": { "type": "object" },
-                "generate": { "type": "boolean" }
-              },
-              "not": { "required": ["aliases"] },
-              "additionalProperties": true
-            }
-          },
-          "additionalProperties": true
-        }
-        """;
 }
