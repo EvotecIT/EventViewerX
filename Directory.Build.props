@@ -5,6 +5,7 @@
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <RestoreLockedMode>true</RestoreLockedMode>
         <EventViewerXReleaseRuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</EventViewerXReleaseRuntimeIdentifiers>
-        <NuGetLockFilePath Condition="('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and Exists('$(MSBuildProjectDirectory)/packages.release.lock.json')">packages.release.lock.json</NuGetLockFilePath>
+        <NuGetLockFilePath Condition="'$(SelfContained)' == 'true' and '$(PublishSingleFile)' == 'true' and Exists('$(MSBuildProjectDirectory)/packages.release.lock.json')">packages.release.lock.json</NuGetLockFilePath>
+        <NuGetLockFilePath Condition="('$(SelfContained)' != 'true' or '$(PublishSingleFile)' != 'true') and ('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and Exists('$(MSBuildProjectDirectory)/packages.runtime.lock.json')">packages.runtime.lock.json</NuGetLockFilePath>
     </PropertyGroup>
 </Project>
