@@ -689,10 +689,9 @@ public sealed class TestEventDetection {
         EventTimeline timeline = EventTimelineEngine.Create(
             new[] { observation },
             new[] { finding },
-            new EventTimelineOptions {
-                PivotKind = EventPivotKind.Account,
-                PivotValue = "EVOTEC\\alice"
-            });
+            new EventTimelineOptions(
+                pivotKind: EventPivotKind.Account,
+                pivotValue: "EVOTEC\\alice"));
 
         Assert.Equal(2, timeline.Entries.Count);
         Assert.Equal(EventTimelineEntryKind.Observation, timeline.Entries[0].Kind);
@@ -737,12 +736,11 @@ public sealed class TestEventDetection {
             new[] { observation },
             new[] { finding },
             new[] { pack },
-            new EventDetectionReportOptions {
-                Title = "Detection posture",
-                QueryOwner = "unit-test-query",
-                Limits = new[] { "MaximumObservations=100" },
-                Coverage = coverage
-            });
+            new EventDetectionReportOptions(
+                "Detection posture",
+                "unit-test-query",
+                limits: new[] { "MaximumObservations=100" },
+                coverage: coverage));
 
         Assert.True(report.IsComplete);
         Assert.False(report.UsedStorageHistory);

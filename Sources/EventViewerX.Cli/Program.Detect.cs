@@ -273,15 +273,14 @@ internal static partial class Program {
                 Console.WriteLine(json);
             }
         }
-        var reportOptions = new EventDetectionReportOptions {
-            Title = options.Get("title") ?? "EventViewerX detection report",
-            QueryOwner = storedSource
+        var reportOptions = new EventDetectionReportOptions(
+            options.Get("title") ?? "EventViewerX detection report",
+            storedSource
                 ? "EventStore historical query"
                 : types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
-            UsedStorageHistory = storedSource,
-            Limits = new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
-            Coverage = execution.Coverage
-        };
+            storedSource,
+            new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
+            coverage: execution.Coverage);
         EventDetectionReportSnapshot snapshot = options.Get("report-kind") is string reportKindText
             ? EventDecisionReportEngine.Create(
                 Enum.Parse<EventDecisionReportKind>(reportKindText, ignoreCase: true),

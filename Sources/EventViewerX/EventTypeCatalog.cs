@@ -1,5 +1,8 @@
 using System.Reflection;
 using System.Linq.Expressions;
+#if NET5_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 
 namespace EventViewerX;
 
@@ -9,7 +12,12 @@ namespace EventViewerX;
 public static partial class EventTypeCatalog {
     private sealed class RuleFactoryRegistration {
         public RuleFactoryRegistration(EventType namedEvent, string logName, IReadOnlyList<int> eventIds,
-            Func<EventObject, EventTypeRecord> factory, Func<EventObject, bool>? canHandle, Type? ruleType,
+            Func<EventObject, EventTypeRecord> factory, Func<EventObject, bool>? canHandle,
+#if NET5_0_OR_GREATER
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties |
+                DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+            Type? ruleType,
             int matchPriority) {
             Type = namedEvent;
             LogName = logName;
@@ -25,6 +33,10 @@ public static partial class EventTypeCatalog {
         public IReadOnlyList<int> EventIds { get; }
         public Func<EventObject, EventTypeRecord> Factory { get; }
         public Func<EventObject, bool>? CanHandle { get; }
+#if NET5_0_OR_GREATER
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties |
+            DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
         public Type? RuleType { get; }
         public int MatchPriority { get; }
     }
@@ -90,6 +102,10 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<int> eventIds,
         Func<EventObject, EventTypeRecord> factory,
         Func<EventObject, bool>? canHandle = null,
+#if NET5_0_OR_GREATER
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties |
+            DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
         Type? ruleType = null,
         int matchPriority = 0) {
         if (string.IsNullOrWhiteSpace(logName)) {
@@ -169,6 +185,12 @@ public static partial class EventTypeCatalog {
     /// <summary>
     /// Discovers and registers all event rule types using reflection (legacy behavior).
     /// </summary>
+#if NET5_0_OR_GREATER
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification =
+        "Reflection discovery is excluded by ExplicitOnly mode; conventional hosts intentionally retain this fallback.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
+        "Reflection discovery is excluded by ExplicitOnly mode; conventional hosts intentionally retain this fallback.")]
+#endif
     private static void InitializeEventRulesWithReflection() {
         var assembly = typeof(EventTypeRecord).Assembly;
 
@@ -185,6 +207,10 @@ public static partial class EventTypeCatalog {
     /// <summary>
     /// Registers a single event rule type (reflection-based).
     /// </summary>
+#if NET5_0_OR_GREATER
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
+        "This method is reachable only from the documented reflection discovery path.")]
+#endif
     private static void RegisterEventRuleType(Type ruleType) {
         if (ruleType.IsSubclassOf(typeof(EventRuleBase))) {
             try {
@@ -260,18 +286,26 @@ public static partial class EventTypeCatalog {
     /// <summary>
     /// Gets the event rule type for an event type.
     /// </summary>
+#if NET5_0_OR_GREATER
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties |
+        DynamicallyAccessedMemberTypes.PublicFields)]
+    [UnconditionalSuppressMessage("Trimming", "IL2068", Justification =
+        "Explicit registrations root public record metadata; the reflection-only return is documented as trim-unsafe.")]
+#endif
     public static Type? GetEventRuleType(EventType namedEvent) {
         var mode = _discoveryMode;
         EnsureInitialized();
 
         if (mode == EventRuleDiscoveryMode.ExplicitOnly) {
-            return _explicitRuleTypes.TryGetValue(namedEvent, out var explicitType) ? explicitType : null;
+            return _ruleFactories.TryGetValue(namedEvent, out RuleFactoryRegistration? registration)
+                ? registration.RuleType
+                : null;
         }
         if (mode == EventRuleDiscoveryMode.Reflection) {
             return _reflectionRuleTypes.TryGetValue(namedEvent, out var reflectionType) ? reflectionType : null;
         }
 
-        return _explicitRuleTypes.TryGetValue(namedEvent, out var type) ? type
+        return _ruleFactories.TryGetValue(namedEvent, out RuleFactoryRegistration? registered) ? registered.RuleType
             : _reflectionRuleTypes.TryGetValue(namedEvent, out var reflection) ? reflection
             : null;
     }
@@ -470,6 +504,12 @@ public static partial class EventTypeCatalog {
         return false;
     }
 
+#if NET5_0_OR_GREATER
+    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
+        "This method is reachable only from the documented reflection discovery path.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification =
+        "ExplicitOnly mode uses checked-in delegates and does not compile expression trees.")]
+#endif
     private static bool TryCompileReflectionProjector(
         EventType type,
         Type ruleType,
@@ -494,6 +534,10 @@ public static partial class EventTypeCatalog {
         return true;
     }
 
+#if NET5_0_OR_GREATER
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
+        "This legacy helper is used by the documented reflection discovery path.")]
+#endif
     private static EventType GetEventTypeForRuleType(Type type) {
         if (type.IsSubclassOf(typeof(EventRuleBase))) {
             try {
@@ -516,6 +560,10 @@ public static partial class EventTypeCatalog {
     /// <summary>
     /// Gets event IDs and log names for event types using rule classes.
     /// </summary>
+#if NET5_0_OR_GREATER
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
+        "ExplicitOnly returns from registered source metadata before the reflection fallback.")]
+#endif
     internal static Dictionary<string, HashSet<int>> GetSourceMap(IReadOnlyCollection<EventType> eventTypes) {
         var mode = _discoveryMode;
         EnsureInitialized();

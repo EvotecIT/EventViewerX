@@ -30,16 +30,16 @@ public static class EventDecisionReportEngine {
             .Where(pack => SelectPack(definition, pack))
             .ToArray();
         options ??= new EventDetectionReportOptions();
-        var effectiveOptions = new EventDetectionReportOptions {
-            Title = string.IsNullOrWhiteSpace(options.Title) ||
-                    string.Equals(options.Title, "EventViewerX detection report", StringComparison.Ordinal)
+        var effectiveOptions = new EventDetectionReportOptions(
+            string.IsNullOrWhiteSpace(options.Title) ||
+            string.Equals(options.Title, "EventViewerX detection report", StringComparison.Ordinal)
                 ? definition.Title
                 : options.Title,
-            QueryOwner = options.QueryOwner,
-            UsedStorageHistory = options.UsedStorageHistory,
-            Limits = options.Limits,
-            Failures = options.Failures
-        };
+            options.QueryOwner,
+            options.UsedStorageHistory,
+            options.Limits,
+            options.Failures,
+            options.Coverage);
         EventDecisionMetric[] metrics = BuildMetrics(
             definition,
             selectedObservations,

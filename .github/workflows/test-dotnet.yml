@@ -43,6 +43,19 @@ jobs:
         run: dotnet test Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
         timeout-minutes: 30
 
+      - name: Publish and run NativeAOT explicit catalog smoke test
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'eventviewerx-aot-smoke'
+          dotnet publish Sources/EventViewerX.AotSmoke/EventViewerX.AotSmoke.csproj `
+            --configuration Release `
+            --output $output
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          & (Join-Path $output 'EventViewerX.AotSmoke.exe')
+          exit $LASTEXITCODE
+
       - name: Summarize failing tests
         if: failure() && env.SUMMARIZE_FAILURES == 'true'
         run: |

@@ -91,8 +91,10 @@ projection that understands it.
 Configure discovery once, before the first event-type query:
 
 ```csharp
-EventTypeCatalog.Configure(EventRuleDiscoveryMode.ExplicitOnly);
+// Roots all 89 built-in typed projectors without Assembly.GetTypes().
+EventTypeCatalog.RegisterBuiltInRules();
 
+// Optional application-owned projector.
 EventTypeCatalog.RegisterRuleFactory(
     EventType.ADUserLockouts,
     "Security",
@@ -100,10 +102,16 @@ EventTypeCatalog.RegisterRuleFactory(
     eventObject => new ADUserLockouts(eventObject),
     eventObject => eventObject.Id == 4740,
     typeof(ADUserLockouts));
+
+EventTypeCatalog.Configure(EventRuleDiscoveryMode.ExplicitOnly);
 ```
 
 Registration after initialization is rejected. This avoids partially changing
-the rule catalog while queries are active.
+the rule catalog while queries are active. `Reflection` and the reflection half
+of `Auto` are intentionally trimming-unsafe compatibility modes. A trimmed or
+NativeAOT host must register built-in and application factories, then select
+`ExplicitOnly`. CI publishes and executes `EventViewerX.AotSmoke` so the
+checked-in registry cannot silently drift from the built-in catalog.
 
 ## Querying from C#
 

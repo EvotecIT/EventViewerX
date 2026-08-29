@@ -153,10 +153,18 @@ internal static class RuleHelpers
         if (!value.HasValue) return string.Empty;
 
         var enumType = typeof(TEnum);
-        var flags = _enumFlagCache.GetOrAdd(enumType, static t =>
-            Enum.GetValues(t)
+        var flags = _enumFlagCache.GetOrAdd(enumType, static _ =>
+#if NET8_0_OR_GREATER
+            Enum.GetValues<TEnum>()
+                .Select(static value => (Enum)(object)value)
+#else
+            Enum.GetValues(typeof(TEnum))
                 .Cast<Enum>()
-                .Select(ev => new EnumFlag(ev, Convert.ToUInt64(ev), ev.ToString()))
+#endif
+                .Select(static enumValue => new EnumFlag(
+                    enumValue,
+                    Convert.ToUInt64(enumValue),
+                    enumValue.ToString()))
                 .ToArray());
 
         var rawValue = Convert.ToUInt64(value.Value);

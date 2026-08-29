@@ -189,11 +189,10 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
                 execution.Observations,
                 execution.Findings,
                 packs,
-                new EventDetectionReportOptions {
-                    QueryOwner = storePath == null ? "PowerShell pipeline" : "EventStore historical query",
-                    UsedStorageHistory = storePath != null,
-                    Coverage = execution.Coverage
-                });
+                new EventDetectionReportOptions(
+                    queryOwner: storePath == null ? "PowerShell pipeline" : "EventStore historical query",
+                    usedStorageHistory: storePath != null,
+                    coverage: execution.Coverage));
             WriteObject(report, enumerateCollection: false);
             return;
         }

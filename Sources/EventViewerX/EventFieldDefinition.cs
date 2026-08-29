@@ -164,6 +164,10 @@ public sealed class EventFieldDefinition {
                elementType != null && IsSupportedType(elementType);
     }
 
+#if NET5_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
+        "Field schema inspection is best-effort; built-in record metadata is rooted by explicit registration.")]
+#endif
     internal static bool TryGetEnumerableElementType(Type type, out Type? elementType) {
         elementType = null;
         if (type == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(type)) {

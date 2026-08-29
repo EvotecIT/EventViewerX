@@ -31,17 +31,18 @@ public sealed class TestEventDecisionReports {
         EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(
             new[] { generic, ntlm },
             plan);
+        EventDetectionCoverage declaredCoverage = EventDetectionCoverage.Create();
 
         EventDecisionReportSnapshot authentication = EventDecisionReportEngine.Create(
             EventDecisionReportKind.AuthenticationPosture,
             execution.Observations,
             execution.Findings,
             packs,
-            new EventDetectionReportOptions {
-                QueryOwner = "Decision report fixture",
-                UsedStorageHistory = true,
-                Limits = new[] { "Maximum observations: 100" }
-            });
+            new EventDetectionReportOptions(
+                queryOwner: "Decision report fixture",
+                usedStorageHistory: true,
+                limits: new[] { "Maximum observations: 100" },
+                coverage: declaredCoverage));
         EventDecisionReportSnapshot unknown = EventDecisionReportEngine.Create(
             EventDecisionReportKind.UnknownEventAndSchemaDrift,
             execution.Observations,
@@ -59,6 +60,8 @@ public sealed class TestEventDecisionReports {
             static observation => observation.TypeName == nameof(EventType.ADUserLogonNTLMv1));
         Assert.Equal("Decision report fixture", authentication.Analysis.QueryOwner);
         Assert.True(authentication.Analysis.UsedStorageHistory);
+        Assert.True(authentication.Analysis.Coverage.IsDeclared);
+        Assert.True(authentication.Analysis.Coverage.IsComplete);
         Assert.Single(authentication.Analysis.Limits);
         Assert.Single(unknown.Analysis.Observations,
             static observation => observation.TypeName == "Generic");

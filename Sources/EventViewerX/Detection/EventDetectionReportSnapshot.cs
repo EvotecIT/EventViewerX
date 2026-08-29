@@ -4,18 +4,69 @@ namespace EventViewerX;
 
 /// <summary>Metadata supplied when building a decision-oriented detection report.</summary>
 public sealed class EventDetectionReportOptions {
+    /// <summary>Creates a detached immutable report request.</summary>
+    public EventDetectionReportOptions(
+        string? title = null,
+        string? queryOwner = null,
+        bool usedStorageHistory = false,
+        IEnumerable<string>? limits = null,
+        IEnumerable<string>? failures = null,
+        EventDetectionCoverage? coverage = null) {
+
+        string? normalizedTitle = title?.Trim();
+        string? normalizedOwner = queryOwner?.Trim();
+        Title = normalizedTitle is { Length: > 0 } ? normalizedTitle : "EventViewerX detection report";
+        QueryOwner = normalizedOwner is { Length: > 0 } ? normalizedOwner : "Caller-supplied observations";
+        UsedStorageHistory = usedStorageHistory;
+        Limits = Array.AsReadOnly(Normalize(limits));
+        Failures = Array.AsReadOnly(Normalize(failures));
+        Coverage = coverage?.Snapshot();
+    }
+
     /// <summary>Report title.</summary>
-    public string Title { get; set; } = "EventViewerX detection report";
+    public string Title { get; }
     /// <summary>Query, watcher, storage job, or caller that owns source selection.</summary>
-    public string QueryOwner { get; set; } = "Caller-supplied observations";
+    public string QueryOwner { get; }
     /// <summary>Whether optional durable history contributed to the analysis.</summary>
-    public bool UsedStorageHistory { get; set; }
+    public bool UsedStorageHistory { get; }
     /// <summary>Applied query, state, or result limits.</summary>
-    public IReadOnlyList<string> Limits { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Limits { get; }
     /// <summary>Source or execution failures that affect completeness.</summary>
-    public IReadOnlyList<string> Failures { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Failures { get; }
     /// <summary>Expected-versus-observed collection scope for the report window.</summary>
+    public EventDetectionCoverage? Coverage { get; }
+
+    private static string[] Normalize(IEnumerable<string>? values) =>
+        (values ?? Array.Empty<string>())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+}
+
+/// <summary>Fluent mutable builder for one immutable detection report request.</summary>
+public sealed class EventDetectionReportOptionsBuilder {
+    /// <summary>Report title.</summary>
+    public string? Title { get; set; }
+    /// <summary>Query or workflow that owns source selection.</summary>
+    public string? QueryOwner { get; set; }
+    /// <summary>Whether durable history contributed to the report.</summary>
+    public bool UsedStorageHistory { get; set; }
+    /// <summary>Applied execution limits.</summary>
+    public IEnumerable<string>? Limits { get; set; }
+    /// <summary>Source or execution failures.</summary>
+    public IEnumerable<string>? Failures { get; set; }
+    /// <summary>Expected-versus-observed collection coverage.</summary>
     public EventDetectionCoverage? Coverage { get; set; }
+
+    /// <summary>Validates and detaches the current builder state.</summary>
+    public EventDetectionReportOptions Build() => new(
+        Title,
+        QueryOwner,
+        UsedStorageHistory,
+        Limits,
+        Failures,
+        Coverage);
 }
 
 /// <summary>Integrity and data-source state for one enabled detection pack.</summary>

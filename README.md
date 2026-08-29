@@ -130,6 +130,9 @@ targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
   schema shared by query, reports, watchers, WEC, C#, and `evx.exe`.
 - [Troubleshooting](Docs/Troubleshooting.md): performance, permissions,
   remoting, message resources, EVTX, checkpoints, and provider deployment.
+- [Security and ownership boundaries](Docs/Security.md): remote credentials,
+  pack trust, regex policy, sensitive reports, database encryption and backup,
+  durable outbox state, portable parsers, and provider installation.
 - [Migrating to 4.0](Docs/Migration-4.0.md): replace legacy schedules safely,
   use presets, aggregation, persistent Group Policy context, and interpret
   completeness evidence.
