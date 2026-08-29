@@ -22,6 +22,14 @@ public sealed class EventReportRow {
 
     /// <summary>Event timestamp.</summary>
     public DateTime TimeCreated { get; set; }
+    /// <summary>Stable source observation identity used by detection evidence and restart-safe correlation.</summary>
+    public string ObservationIdentity { get; set; } = string.Empty;
+    /// <summary>UTC time at which the event entered the collection or storage pipeline.</summary>
+    public DateTime? ReceivedTimeUtc { get; set; }
+    /// <summary>UTC time at which event processing began.</summary>
+    public DateTime? ProcessedTimeUtc { get; set; }
+    /// <summary>UTC time at which an optional durable store inserted this row.</summary>
+    public DateTime? StoredTimeUtc { get; set; }
     /// <summary>Built-in type name or Generic.</summary>
     public string Type { get; set; } = string.Empty;
     /// <summary>Event identifier.</summary>
@@ -63,6 +71,10 @@ public sealed class EventReportRow {
     public IReadOnlyDictionary<string, object?> ToDictionary() {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
             [nameof(TimeCreated)] = TimeCreated,
+            [nameof(ObservationIdentity)] = ObservationIdentity,
+            [nameof(ReceivedTimeUtc)] = ReceivedTimeUtc,
+            [nameof(ProcessedTimeUtc)] = ProcessedTimeUtc,
+            [nameof(StoredTimeUtc)] = StoredTimeUtc,
             [nameof(Type)] = Type,
             [nameof(EventId)] = EventId,
             [nameof(RecordId)] = RecordId,

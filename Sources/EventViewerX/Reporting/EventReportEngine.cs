@@ -245,6 +245,10 @@ public static class EventReportEngine {
         }
         return new EventReportRow {
             TimeCreated = row.TimeCreated,
+            ObservationIdentity = row.ObservationIdentity,
+            ReceivedTimeUtc = row.ReceivedTimeUtc,
+            ProcessedTimeUtc = row.ProcessedTimeUtc,
+            StoredTimeUtc = row.StoredTimeUtc,
             Type = row.Type,
             EventId = row.EventId,
             RecordId = row.RecordId,

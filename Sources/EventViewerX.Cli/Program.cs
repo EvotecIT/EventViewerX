@@ -170,6 +170,39 @@ internal static partial class Program {
     }
 
     private static async Task<int> StoreAsync(CliArguments options) {
+        if (options.Subcommand == "integrity") {
+            EventStoreIntegrityResult result = await new EventStore(options.Require("path"))
+                .CheckIntegrityAsync().ConfigureAwait(false);
+            WriteJson(result);
+            return result.IsHealthy ? 0 : 2;
+        }
+        if (options.Subcommand == "backup") {
+            EventStoreBackupResult result = await new EventStore(options.Require("path"))
+                .BackupAsync(options.Require("output"), options.Has("force"))
+                .ConfigureAwait(false);
+            return WriteJson(result);
+        }
+        if (options.Subcommand == "restore") {
+            EventStoreIntegrityResult result = await new EventStore(options.Require("path"))
+                .RestoreAsync(options.Require("backup"))
+                .ConfigureAwait(false);
+            return WriteJson(result);
+        }
+        if (options.Subcommand == "retention") {
+            TimeSpan? eventRetention = options.Get("events-for") is string eventsFor
+                ? TimeSpan.Parse(eventsFor, CultureInfo.InvariantCulture)
+                : null;
+            TimeSpan? findingRetention = options.Get("findings-for") is string findingsFor
+                ? TimeSpan.Parse(findingsFor, CultureInfo.InvariantCulture)
+                : null;
+            EventStoreRetentionResult result = await new EventStore(options.Require("path"))
+                .ApplyRetentionAsync(new EventStoreRetentionPolicy {
+                    EventRetention = eventRetention,
+                    FindingRetention = findingRetention,
+                    VacuumAfterPrune = options.Has("vacuum")
+                }).ConfigureAwait(false);
+            return WriteJson(result);
+        }
         if (options.Subcommand == "reset-checkpoint") {
             bool removed = await new EventStore(options.Require("path"))
                 .DeleteCheckpointAsync(
@@ -181,7 +214,8 @@ internal static partial class Program {
         }
         if (options.Subcommand != "prune") {
             throw new ArgumentException(
-                "store supports prune and reset-checkpoint. Use query/report --store for reading and --write-store for ingestion.");
+                "store supports integrity, backup, restore, retention, prune, and reset-checkpoint. " +
+                "Use query/report --store for reading and --write-store for ingestion.");
         }
         DateTime before = ParseDate(options.Require("before"))!.Value;
         int deleted = await new EventStore(options.Require("path"))
@@ -660,7 +694,8 @@ internal static partial class Program {
                     "type", "log", "path", "machine", "collector", "start", "end", "since", "max",
                     "event-id", "provider", "portable-evtx", "portable-evtx-executable", "sigma", "pack", "include-built-in", "tuning", "explain",
                     "maximum-observations", "maximum-groups", "maximum-state-observations", "maximum-state-bytes",
-                    "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "report-kind", "title");
+                    "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "report-kind", "title",
+                    "store", "coverage", "trace-jsonl");
                 break;
             case "collector" when options.Subcommand == "create":
                 options.ValidateAllowed(
@@ -690,6 +725,18 @@ internal static partial class Program {
             case "store" when options.Subcommand == "prune":
                 options.ValidateAllowed("path", "before", "definition-name");
                 break;
+            case "store" when options.Subcommand == "integrity":
+                options.ValidateAllowed("path");
+                break;
+            case "store" when options.Subcommand == "backup":
+                options.ValidateAllowed("path", "output", "force");
+                break;
+            case "store" when options.Subcommand == "restore":
+                options.ValidateAllowed("path", "backup");
+                break;
+            case "store" when options.Subcommand == "retention":
+                options.ValidateAllowed("path", "events-for", "findings-for", "vacuum");
+                break;
             case "store" when options.Subcommand == "reset-checkpoint":
                 options.ValidateAllowed("path", "consumer", "computer", "container");
                 break;
@@ -710,7 +757,7 @@ internal static partial class Program {
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
-            "  evx detect (--type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain]\n" +
+            "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain]\n" +
             "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--outbox-maximum-batch-bytes N] [--outbox-maximum-bytes N] [--outbox-maximum-pending-batches N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +
@@ -718,6 +765,10 @@ internal static partial class Program {
             "  evx collector initialize [--skip-winrm]\n" +
             "  evx collector remove --name NAME\n" +
             "  evx store prune --path FILE.db --before TIMESTAMP [--definition-name NAME]\n" +
+            "  evx store integrity --path FILE.db\n" +
+            "  evx store backup --path FILE.db --output BACKUP.db [--force]\n" +
+            "  evx store restore --path FILE.db --backup BACKUP.db\n" +
+            "  evx store retention --path FILE.db [--events-for 30.00:00:00] [--findings-for 90.00:00:00] [--vacuum]\n" +
             "  evx store reset-checkpoint --path FILE.db --consumer NAME --computer HOST --container LOG\n" +
             "  evx provider build --definition FILE --output FILE.evxprovider\n" +
             "  evx provider install --package FILE.evxprovider\n" +

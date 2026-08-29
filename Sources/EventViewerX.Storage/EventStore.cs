@@ -110,11 +110,27 @@ public sealed partial class EventStore {
                 transaction.ExecuteScalar(
                     "SELECT event_identity_version FROM evx_store_metadata WHERE singleton_id = 1;"),
                 CultureInfo.InvariantCulture);
+            if (identityVersion > 3) {
+                throw new InvalidDataException(
+                    $"Event identity schema version '{identityVersion}' is newer than this EventViewerX build supports.");
+            }
             if (originalKeyMissing || transportKindMissing || identityVersion < 2) {
                 MigrateEventIdentity(transaction);
                 transaction.ExecuteNonQuery(
                     "UPDATE evx_store_metadata SET event_identity_version = 2 WHERE singleton_id = 1;");
             }
+            if (!columns.Contains("observation_identity", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_events ADD COLUMN observation_identity TEXT NOT NULL DEFAULT ''; ");
+            }
+            if (!columns.Contains("received_time_utc", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN received_time_utc TEXT NULL;");
+            }
+            if (!columns.Contains("processed_time_utc", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN processed_time_utc TEXT NULL;");
+            }
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET event_identity_version = 3 WHERE singleton_id = 1;");
         });
         session.ExecuteNonQuery(
             "CREATE INDEX IF NOT EXISTS ix_evx_events_original_transport " +
@@ -254,7 +270,7 @@ public sealed partial class EventStore {
 CREATE TABLE IF NOT EXISTS evx_store_metadata (
     singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version INTEGER NOT NULL,
-    event_identity_version INTEGER NOT NULL DEFAULT 2,
+    event_identity_version INTEGER NOT NULL DEFAULT 3,
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_store_metadata (singleton_id, schema_version, created_utc)
@@ -274,6 +290,7 @@ CREATE TABLE IF NOT EXISTS evx_events (
     event_key TEXT NOT NULL PRIMARY KEY,
     original_event_key TEXT NOT NULL,
     transport_kind INTEGER NOT NULL,
+    observation_identity TEXT NOT NULL DEFAULT '',
     definition_name TEXT NOT NULL COLLATE NOCASE,
     event_time_utc TEXT NOT NULL,
     event_id INTEGER NOT NULL,
@@ -289,6 +306,8 @@ CREATE TABLE IF NOT EXISTS evx_events (
     related_activity_id TEXT NULL,
     message TEXT NOT NULL,
     values_json TEXT NOT NULL,
+    received_time_utc TEXT NULL,
+    processed_time_utc TEXT NULL,
     inserted_utc TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_evx_events_time ON evx_events (event_time_utc);

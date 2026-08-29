@@ -30,7 +30,7 @@ public sealed partial class TestEventStore {
 
             using var verificationSqlite = new SQLite();
             using SQLiteSession verification = verificationSqlite.OpenSession(path);
-            Assert.Equal(2L, Convert.ToInt64(
+            Assert.Equal(3L, Convert.ToInt64(
                 verification.ExecuteScalar(
                     "SELECT event_identity_version FROM evx_store_metadata WHERE singleton_id = 1;"),
                 CultureInfo.InvariantCulture));

@@ -662,6 +662,35 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void ExplainTraceIdentifiesFailedConditionMatchAndUnavailableCoverage() {
+        EventObservation observation = Observe(1001, Utc(10, 0), 1, "alice");
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            Rule("EVX-TRACE-MATCH", channels: new[] { "Security" }),
+            Rule("EVX-TRACE-CHANNEL", channels: new[] { "System" })
+        });
+        EventDetectionCoverage complete = EventDetectionCoverage.Create(
+            expectedChannels: new[] { "Security" },
+            observedChannels: new[] { "Security" },
+            expectedEventIds: new[] { 1001 },
+            observedEventIds: new[] { 1001 });
+
+        IReadOnlyList<EventDetectionRuleTrace> traces = EventDetectionEngine.Explain(observation, plan, complete);
+        EventDetectionRuleTrace matched = Assert.Single(traces, static trace => trace.RuleId == "EVX-TRACE-MATCH");
+        EventDetectionRuleTrace rejected = Assert.Single(traces, static trace => trace.RuleId == "EVX-TRACE-CHANNEL");
+        EventDetectionRuleTrace unavailable = Assert.Single(
+            EventDetectionEngine.Explain(observation, plan),
+            static trace => trace.RuleId == "EVX-TRACE-MATCH");
+
+        Assert.True(matched.Accepted);
+        Assert.Contains("Matched all", matched.Outcome, StringComparison.Ordinal);
+        Assert.False(rejected.Accepted);
+        Assert.Contains("Rejected by Channel", rejected.Outcome, StringComparison.Ordinal);
+        Assert.Contains(rejected.Conditions, static condition =>
+            condition.Condition == "Channel" && !condition.Satisfied);
+        Assert.Contains("Evidence unavailable", unavailable.Outcome, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlanRejectsDuplicateIdsAndInvalidDefinitions() {
         EventDetectionRule first = Rule("EVX-TEST-DUPLICATE");
         EventDetectionRule second = Rule("evx-test-duplicate");

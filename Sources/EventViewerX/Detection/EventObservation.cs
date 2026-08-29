@@ -10,13 +10,14 @@ public sealed class EventObservation {
 
     private EventObservation(
         EventObject source,
+        string identity,
         string typeName,
         DateTime receivedTimeUtc,
         DateTime processedTimeUtc,
         IReadOnlyDictionary<string, object?> fields) {
 
         SourceEvent = source;
-        Identity = EventCheckpointBoundaryIdentity.Create(source);
+        Identity = identity;
         TypeName = typeName;
         EventId = source.Id;
         RecordId = source.RecordId;
@@ -84,9 +85,44 @@ public sealed class EventObservation {
         fields["TimeCreated"] = source.TimeCreated.ToUniversalTime();
         return new EventObservation(
             source,
+            EventCheckpointBoundaryIdentity.Create(source),
             typeName,
             received,
             processed,
+            new ReadOnlyDictionary<string, object?>(fields));
+    }
+
+    internal static EventObservation Restore(
+        EventObject source,
+        string identity,
+        string typeName,
+        IReadOnlyDictionary<string, object?> storedFields,
+        DateTime receivedTimeUtc,
+        DateTime processedTimeUtc) {
+
+        if (string.IsNullOrWhiteSpace(identity)) {
+            throw new ArgumentException("A restored observation requires its stable identity.", nameof(identity));
+        }
+        if (string.IsNullOrWhiteSpace(typeName)) {
+            throw new ArgumentException("A restored observation requires its stable type name.", nameof(typeName));
+        }
+        EventObservation baseline = Create(source, receivedTimeUtc: receivedTimeUtc, processedTimeUtc: processedTimeUtc);
+        var fields = baseline.Fields.ToDictionary(
+            static item => item.Key,
+            static item => item.Value,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, object?> field in storedFields) {
+            fields[field.Key] = field.Value;
+        }
+        fields["Identity"] = identity.Trim();
+        fields["Type"] = typeName.Trim();
+        fields["TypeName"] = typeName.Trim();
+        return new EventObservation(
+            source,
+            identity.Trim(),
+            typeName.Trim(),
+            receivedTimeUtc.ToUniversalTime(),
+            processedTimeUtc.ToUniversalTime(),
             new ReadOnlyDictionary<string, object?>(fields));
     }
 

@@ -1,0 +1,272 @@
+using System.Security.Cryptography;
+using System.Diagnostics;
+using DBAClientX;
+
+namespace EventViewerX.Storage;
+
+public sealed partial class EventStore {
+    private static readonly TimeSpan MaintenanceLockTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>Runs SQLite integrity validation and reports supported schema and size evidence.</summary>
+    public async Task<EventStoreIntegrityResult> CheckIntegrityAsync(
+        CancellationToken cancellationToken = default) {
+
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        IReadOnlyList<string> checks = await session.QueryAsListAsync(
+            "PRAGMA integrity_check;",
+            static record => record.GetString(0),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        var diagnostics = checks
+            .Where(static value => !string.Equals(value, "ok", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        IReadOnlyList<StoreVersionRow> versions = await session.QueryAsListAsync(
+            "SELECT schema_version, event_identity_version, finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;",
+            static record => new StoreVersionRow(record.GetInt32(0), record.GetInt32(1), record.GetInt32(2)),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        StoreVersionRow version = versions.Single();
+        if (version.SchemaVersion != SchemaVersion) {
+            diagnostics.Add($"Unsupported base schema version {version.SchemaVersion}.");
+        }
+        if (version.EventIdentityVersion != 3) {
+            diagnostics.Add($"Unsupported event identity version {version.EventIdentityVersion}.");
+        }
+        if (version.FindingSchemaVersion != 2) {
+            diagnostics.Add($"Unsupported finding schema version {version.FindingSchemaVersion}.");
+        }
+        long events = Convert.ToInt64(
+            await session.ExecuteScalarAsync("SELECT COUNT(*) FROM evx_events;", cancellationToken: cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
+        long findings = Convert.ToInt64(
+            await session.ExecuteScalarAsync("SELECT COUNT(*) FROM evx_findings;", cancellationToken: cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
+        return new EventStoreIntegrityResult(
+            diagnostics.Count == 0,
+            diagnostics,
+            version.SchemaVersion,
+            version.EventIdentityVersion,
+            version.FindingSchemaVersion,
+            events,
+            findings,
+            GetDatabaseBytes(Path));
+    }
+
+    /// <summary>Creates a transactionally consistent, integrity-checked SQLite backup with a checksum.</summary>
+    public async Task<EventStoreBackupResult> BackupAsync(
+        string destinationPath,
+        bool overwrite = false,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(destinationPath)) {
+            throw new ArgumentException("Backup destination cannot be empty.", nameof(destinationPath));
+        }
+        EnsureInitialized();
+        string destination = System.IO.Path.GetFullPath(destinationPath);
+        if (string.Equals(destination, Path, StringComparison.OrdinalIgnoreCase)) {
+            throw new ArgumentException("Backup destination must differ from the live store.", nameof(destinationPath));
+        }
+        string? directory = System.IO.Path.GetDirectoryName(destination);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory!);
+        }
+        if (File.Exists(destination) && !overwrite) {
+            throw new IOException($"Backup destination '{destination}' already exists.");
+        }
+        string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
+        try {
+            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+            await using (SQLiteAsyncSession session = await sqlite
+                    .OpenSessionAsync(Path, cancellationToken)
+                    .ConfigureAwait(false)) {
+                await session.ExecuteNonQueryAsync(
+                    "VACUUM INTO $destination;",
+                    new Dictionary<string, object?> { ["$destination"] = pending },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            EventStoreIntegrityResult integrity = await new EventStore(pending)
+                .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+            if (!integrity.IsHealthy) {
+                throw new InvalidDataException(
+                    "Generated EventStore backup failed integrity validation: " + string.Join(" ", integrity.Diagnostics));
+            }
+            if (File.Exists(destination)) {
+                File.Replace(pending, destination, destinationBackupFileName: null);
+            } else {
+                File.Move(pending, destination);
+            }
+            return new EventStoreBackupResult(
+                destination,
+                GetDatabaseBytes(destination),
+                ComputeSha256(destination),
+                DateTime.UtcNow);
+        } finally {
+            if (File.Exists(pending)) {
+                File.Delete(pending);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Replaces this store from an integrity-checked backup. Callers must stop active readers and writers first;
+    /// the original database is restored automatically if post-replacement validation fails.
+    /// </summary>
+    public async Task<EventStoreIntegrityResult> RestoreAsync(
+        string backupPath,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(backupPath)) {
+            throw new ArgumentException("Backup path cannot be empty.", nameof(backupPath));
+        }
+        string backup = System.IO.Path.GetFullPath(backupPath);
+        if (!File.Exists(backup)) {
+            throw new FileNotFoundException("EventStore backup was not found.", backup);
+        }
+        if (string.Equals(backup, Path, StringComparison.OrdinalIgnoreCase)) {
+            throw new ArgumentException("Backup path must differ from the live store.", nameof(backupPath));
+        }
+        EventStoreIntegrityResult backupIntegrity = await new EventStore(backup)
+            .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+        if (!backupIntegrity.IsHealthy) {
+            throw new InvalidDataException(
+                "EventStore backup failed integrity validation: " + string.Join(" ", backupIntegrity.Diagnostics));
+        }
+        using FileStream maintenance = await AcquireMaintenanceLockAsync(cancellationToken).ConfigureAwait(false);
+        string pending = Path + ".restore-pending-" + Guid.NewGuid().ToString("N");
+        string recovery = Path + ".restore-recovery-" + Guid.NewGuid().ToString("N");
+        bool replaced = false;
+        try {
+            await CopyFileAsync(backup, pending, cancellationToken).ConfigureAwait(false);
+            if (File.Exists(Path)) {
+                File.Replace(pending, Path, recovery);
+                replaced = true;
+            } else {
+                File.Move(pending, Path);
+            }
+            DeleteSidecar(Path + "-wal");
+            DeleteSidecar(Path + "-shm");
+            lock (_initializationLock) {
+                _initialized = false;
+            }
+            EventStoreIntegrityResult restored = await CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+            if (!restored.IsHealthy) {
+                throw new InvalidDataException(
+                    "Restored EventStore failed integrity validation: " + string.Join(" ", restored.Diagnostics));
+            }
+            DeleteSidecar(recovery);
+            return restored;
+        } catch {
+            if (replaced && File.Exists(recovery)) {
+                File.Replace(recovery, Path, destinationBackupFileName: null);
+                lock (_initializationLock) {
+                    _initialized = false;
+                }
+            }
+            throw;
+        } finally {
+            DeleteSidecar(pending);
+            DeleteSidecar(recovery);
+        }
+    }
+
+    /// <summary>Applies explicit event and finding retention with optional SQLite compaction.</summary>
+    public async Task<EventStoreRetentionResult> ApplyRetentionAsync(
+        EventStoreRetentionPolicy policy,
+        DateTime? nowUtc = null,
+        CancellationToken cancellationToken = default) {
+
+        if (policy == null) {
+            throw new ArgumentNullException(nameof(policy));
+        }
+        EventStoreRetentionPolicy snapshot = policy.Snapshot();
+        DateTime now = (nowUtc ?? DateTime.UtcNow).ToUniversalTime();
+        long beforeBytes = GetDatabaseBytes(Path);
+        int deletedEvents = snapshot.EventRetention.HasValue
+            ? await PruneBeforeAsync(now - snapshot.EventRetention.Value, cancellationToken: cancellationToken)
+                .ConfigureAwait(false)
+            : 0;
+        int deletedFindings = snapshot.FindingRetention.HasValue
+            ? await PruneFindingsBeforeAsync(now - snapshot.FindingRetention.Value, cancellationToken)
+                .ConfigureAwait(false)
+            : 0;
+        if (snapshot.VacuumAfterPrune && (deletedEvents > 0 || deletedFindings > 0)) {
+            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+            await using SQLiteAsyncSession session = await sqlite
+                .OpenSessionAsync(Path, cancellationToken)
+                .ConfigureAwait(false);
+            await session.ExecuteNonQueryAsync("VACUUM;", cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        return new EventStoreRetentionResult(
+            deletedEvents,
+            deletedFindings,
+            beforeBytes,
+            GetDatabaseBytes(Path),
+            snapshot.VacuumAfterPrune && (deletedEvents > 0 || deletedFindings > 0),
+            DateTime.UtcNow);
+    }
+
+    private async Task<int> PruneFindingsBeforeAsync(DateTime before, CancellationToken cancellationToken) {
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        return await session.ExecuteNonQueryAsync(
+            "DELETE FROM evx_findings WHERE end_time_utc < $before;",
+            new Dictionary<string, object?> {
+                ["$before"] = before.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<FileStream> AcquireMaintenanceLockAsync(CancellationToken cancellationToken) {
+        string lockPath = Path + ".maintenance.lock";
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            try {
+                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            } catch (IOException) when (stopwatch.Elapsed < MaintenanceLockTimeout) {
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task CopyFileAsync(string source, string destination, CancellationToken cancellationToken) {
+        using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await input.CopyToAsync(output, 81920, cancellationToken).ConfigureAwait(false);
+        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static long GetDatabaseBytes(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
+
+    private static string ComputeSha256(string path) {
+        using SHA256 sha256 = SHA256.Create();
+        using FileStream stream = File.OpenRead(path);
+        return BitConverter.ToString(sha256.ComputeHash(stream)).Replace("-", string.Empty);
+    }
+
+    private static void DeleteSidecar(string path) {
+        if (File.Exists(path)) {
+            File.Delete(path);
+        }
+    }
+
+    private sealed class StoreVersionRow {
+        internal StoreVersionRow(int schemaVersion, int eventIdentityVersion, int findingSchemaVersion) {
+            SchemaVersion = schemaVersion;
+            EventIdentityVersion = eventIdentityVersion;
+            FindingSchemaVersion = findingSchemaVersion;
+        }
+
+        internal int SchemaVersion { get; }
+        internal int EventIdentityVersion { get; }
+        internal int FindingSchemaVersion { get; }
+    }
+}

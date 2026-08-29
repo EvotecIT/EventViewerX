@@ -353,6 +353,7 @@ internal static class EventReportProjectionFactory {
 
         var row = new EventReportRow {
             TimeCreated = source.TimeCreated,
+            ObservationIdentity = EventCheckpointBoundaryIdentity.Create(source),
             Type = type,
             EventId = source.Id,
             RecordId = source.RecordId,

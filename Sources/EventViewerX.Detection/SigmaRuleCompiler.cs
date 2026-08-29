@@ -28,14 +28,25 @@ public static class SigmaRuleCompiler {
 
         var baseRules = new List<CompiledBaseRule>();
         var correlations = new List<CompiledCorrelation>();
+        var invalidSchemaDocuments = new HashSet<int>();
         for (int index = 0; index < stream.Documents.Count; index++) {
             if (stream.Documents[index].RootNode is not YamlMappingNode root) {
                 diagnostics.Add(Error("EVXSIGMA002", "A Sigma document root must be a mapping.", index));
                 continue;
             }
+            bool correlation = TryGet(root, "correlation", out _);
+            if (!SigmaSchemaCatalog.Validate(root, correlation)) {
+                diagnostics.Add(Error(
+                    "EVXSIGMA004",
+                    $"The document does not satisfy the bundled EventViewerX Sigma {SigmaSchemaCatalog.SupportedSpecificationVersion} " +
+                    $"{(correlation ? "correlation" : "detection")} JSON Schema profile.",
+                    index));
+                invalidSchemaDocuments.Add(index);
+                continue;
+            }
             if (TryGet(root, "detection", out _)) {
                 TryCompileBaseRule(root, index, diagnostics, baseRules);
-            } else if (!TryGet(root, "correlation", out _)) {
+            } else if (!correlation) {
                 diagnostics.Add(Error(
                     "EVXSIGMA003",
                     "EventViewerX supports Sigma detection and correlation documents; filters must be expressed as EVX tuning suppressions.",
@@ -44,7 +55,8 @@ public static class SigmaRuleCompiler {
         }
 
         for (int index = 0; index < stream.Documents.Count; index++) {
-            if (stream.Documents[index].RootNode is YamlMappingNode root && TryGet(root, "correlation", out _)) {
+            if (!invalidSchemaDocuments.Contains(index) &&
+                stream.Documents[index].RootNode is YamlMappingNode root && TryGet(root, "correlation", out _)) {
                 TryCompileCorrelation(root, index, baseRules, diagnostics, correlations);
             }
         }

@@ -192,6 +192,27 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void SigmaJsonSchemaProfileRejectsMissingRequiredLogSourceAndExposesVersionedSchemas() {
+        const string yaml = """
+            title: Missing log source
+            id: eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee
+            detection:
+              selection:
+                EventID: 4624
+              condition: selection
+            """;
+
+        SigmaCompilationResult result = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.False(result.IsSupported);
+        SigmaDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("EVXSIGMA004", diagnostic.Code);
+        Assert.Equal("2.1.0", SigmaSchemaCatalog.SupportedSpecificationVersion);
+        Assert.Contains("\"required\": [\"title\", \"logsource\", \"detection\"]", SigmaSchemaCatalog.GetSchema(false));
+        Assert.Contains("temporal_ordered", SigmaSchemaCatalog.GetSchema(true));
+    }
+
+    [Fact]
     public void EquivalentNativeAndSigmaRulesRetainTheSameEvidenceIdentity() {
         const string yaml = """
             title: NTLMv1 authentication observed

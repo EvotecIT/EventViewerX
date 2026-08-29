@@ -45,6 +45,13 @@ public sealed class EventDetectionPlan {
     /// <summary>Typed projections required to evaluate this plan.</summary>
     public IReadOnlyList<EventType> RequiredEventTypes { get; }
 
+    /// <summary>Largest stateful lookback window required to rebuild correlation after a restart.</summary>
+    public TimeSpan MaximumStatefulWindow => Rules
+        .Where(static rule => rule.Kind != EventDetectionRuleKind.Stateless)
+        .Select(static rule => rule.Window)
+        .DefaultIfEmpty(TimeSpan.Zero)
+        .Max();
+
     /// <summary>Returns a detached operator-facing description of selectors and state requirements.</summary>
     public EventDetectionPlanExplanation Explain() => new(
         Rules.Select(static rule => new EventDetectionRulePlanExplanation(
@@ -230,6 +237,9 @@ public sealed class EventDetectionPlan {
                    (Providers.Count == 0 || Providers.Contains(observation.ProviderName)) &&
                    (_predicate == null || _predicate(observation.Fields));
         }
+
+        internal bool MatchesPredicate(EventObservation observation) =>
+            _predicate == null || _predicate(observation.Fields);
 
         internal bool IsSuppressed(EventObservation observation) =>
             _suppressions.Any(suppression => suppression.Matches(observation));

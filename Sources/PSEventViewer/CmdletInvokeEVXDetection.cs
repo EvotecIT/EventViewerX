@@ -3,12 +3,17 @@ namespace PSEventViewer;
 /// <summary>
 /// <para type="synopsis">Evaluates EventViewerX events with native detection and correlation rules.</para>
 /// <para type="description">Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.</para>
-/// <para type="description">Storage is not required. Pipe events directly from Get-EVXEvent or supply an array of detached EventObject instances.</para>
+/// <para type="description">Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.</para>
 /// </summary>
 /// <example>
 ///   <summary>Run the built-in detections</summary>
 ///   <code>Get-EVXEvent -Type ActiveDirectoryAuthentication -TimePeriod Last24Hours -Oldest | Invoke-EVXDetection</code>
 ///   <para>Evaluates the built-in native packs and emits findings as typed objects. Materialized input is normalized to deterministic event-time order before correlation.</para>
+/// </example>
+/// <example>
+///   <summary>Evaluate restart-safe historical correlation</summary>
+///   <code>Invoke-EVXDetection -FromStore C:\Data\events.db -StartTime (Get-Date).AddHours(-1) -Coverage $coverage</code>
+///   <para>Loads the requested window plus the plan's required stateful lookback and emits only findings that end in the requested window.</para>
 /// </example>
 /// <example>
 ///   <summary>Apply environment tuning</summary>
@@ -24,12 +29,25 @@ namespace PSEventViewer;
 [OutputType(typeof(EventDetectionFinding))]
 [OutputType(typeof(EventDetectionPlanExplanation))]
 [OutputType(typeof(EventDecisionReportSnapshot))]
-public sealed class CmdletInvokeEVXDetection : PSCmdlet {
+[OutputType(typeof(EventDetectionRuleTrace))]
+public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
     private readonly List<EventObject> _events = new();
 
     /// <summary>Detached EventViewerX event to evaluate.</summary>
     [Parameter(ValueFromPipeline = true)]
     public EventObject? InputObject { get; set; }
+
+    /// <summary>Optional EventStore database used as the historical source instead of pipeline input.</summary>
+    [Parameter]
+    public string? FromStore { get; set; }
+
+    /// <summary>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</summary>
+    [Parameter]
+    public DateTime? StartTime { get; set; }
+
+    /// <summary>UTC or local upper boundary for historical findings.</summary>
+    [Parameter]
+    public DateTime? EndTime { get; set; }
 
     /// <summary>Explicit native rules. When omitted, the built-in packs are used.</summary>
     [Parameter]
@@ -55,6 +73,10 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     [Parameter]
     public SwitchParameter Explain { get; set; }
 
+    /// <summary>Returns a per-observation rule decision trace instead of findings.</summary>
+    [Parameter]
+    public SwitchParameter Trace { get; set; }
+
     /// <summary>Returns one decision-oriented report snapshot instead of individual findings.</summary>
     [Parameter]
     public EventDecisionReportKind? ReportKind { get; set; }
@@ -63,6 +85,11 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     [Parameter]
     [ValidateRange(0, long.MaxValue)]
     public long MaximumObservations { get; set; } = 1000000;
+
+    /// <summary>Maximum stored candidate rows inspected before exact evaluation.</summary>
+    [Parameter]
+    [ValidateRange(0, long.MaxValue)]
+    public long MaximumCandidates { get; set; } = 1000000;
 
     /// <summary>Maximum active correlation groups.</summary>
     [Parameter]
@@ -87,7 +114,7 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
     }
 
     /// <inheritdoc />
-    protected override void EndProcessing() {
+    protected override async Task EndProcessingAsync() {
         var rules = new List<IEventDetectionRule>();
         var packs = new List<EventDetectionPack>();
         bool explicitContent = Rule.Length > 0 || Pack.Length > 0;
@@ -109,14 +136,54 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
             WriteObject(plan.Explain(), enumerateCollection: false);
             return;
         }
+        if (!string.IsNullOrWhiteSpace(FromStore) && _events.Count > 0) {
+            throw new PSArgumentException("FromStore cannot be combined with pipeline InputObject values.", nameof(FromStore));
+        }
+        string? storePath = string.IsNullOrWhiteSpace(FromStore)
+            ? null
+            : SessionState.Path.GetUnresolvedProviderPathFromPSPath(FromStore!);
+        EventDetectionCoverage effectiveCoverage = Coverage ?? (storePath == null
+            ? EventDetectionCoverage.Unknown()
+            : EventDetectionCoverage.Create(
+                expectedTargets: new[] { storePath },
+                observedTargets: new[] { storePath },
+                failures: new[] {
+                    "Stored history ingestion coverage was not supplied. Pass Coverage before treating an empty historical result as clean."
+                }));
         var options = new EventDetectionEngineOptions {
             MaximumObservations = MaximumObservations,
             MaximumGroups = MaximumGroups,
             MaximumStateObservations = MaximumStateObservations,
             MaximumStateBytes = MaximumStateBytes,
-            Coverage = Coverage
+            Coverage = effectiveCoverage
         };
-        EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(_events, plan, options);
+        EventDetectionExecutionResult execution = storePath == null
+            ? EventDetectionEngine.Evaluate(_events, plan, options)
+            : await new EventStore(storePath).EvaluateDetectionAsync(
+                new EventStoreQuery {
+                    StartTime = StartTime,
+                    EndTime = EndTime,
+                    MaxEvents = MaximumObservations,
+                    MaxCandidates = MaximumCandidates,
+                    Oldest = true
+                },
+                plan,
+                options,
+                CancelToken).ConfigureAwait(false);
+        if (Trace) {
+            if (ReportKind.HasValue) {
+                throw new PSArgumentException("Trace and ReportKind are mutually exclusive.");
+            }
+            foreach (EventObservation observation in execution.Observations) {
+                foreach (EventDetectionRuleTrace trace in EventDetectionEngine.Explain(
+                             observation,
+                             plan,
+                             execution.Coverage)) {
+                    WriteObject(trace, enumerateCollection: false);
+                }
+            }
+            return;
+        }
         if (ReportKind.HasValue) {
             EventDecisionReportSnapshot report = EventDecisionReportEngine.Create(
                 ReportKind.Value,
@@ -124,7 +191,9 @@ public sealed class CmdletInvokeEVXDetection : PSCmdlet {
                 execution.Findings,
                 packs,
                 new EventDetectionReportOptions {
-                    QueryOwner = "PowerShell pipeline"
+                    QueryOwner = storePath == null ? "PowerShell pipeline" : "EventStore historical query",
+                    UsedStorageHistory = storePath != null,
+                    Coverage = execution.Coverage
                 });
             WriteObject(report, enumerateCollection: false);
             return;

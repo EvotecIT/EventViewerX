@@ -1,6 +1,7 @@
 using System.Globalization;
 using DBAClientX;
 using EventViewerX.Native;
+using EventViewerX.Reporting;
 using EventViewerX.Storage;
 using Xunit;
 
@@ -71,6 +72,59 @@ public sealed partial class TestEventStore {
             Assert.Equal("EVX-STORE-FIRST", Assert.Single(oldest).RuleId);
             await Assert.ThrowsAsync<ArgumentException>(() => store.ReadFindingsAsync(
                 new EventFindingStoreQuery { EntityField = "Account" }));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StoredDetectionRehydratesPriorWindowAndPreservesEvidenceIdentityAcrossRestart() {
+        string path = CreateStorePath();
+        try {
+            EventObject first = CreateHistoricalEvent(1, minute: 0, "alice");
+            EventObject second = CreateHistoricalEvent(2, minute: 4, "alice");
+            EventObservation firstLive = EventObservation.Create(first);
+            EventObservation secondLive = EventObservation.Create(second);
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.Create(new object[] { first }));
+            await store.WriteAsync(EventReportEngine.Create(new object[] { second }));
+            EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-RESTART",
+                    Title = "Restart-safe threshold",
+                    Kind = EventDetectionRuleKind.Threshold,
+                    EventIds = new[] { 1001 },
+                    Threshold = 2,
+                    Window = TimeSpan.FromMinutes(5),
+                    GroupBy = "Account"
+                })
+            });
+            EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+                expectedTargets: new[] { path },
+                observedTargets: new[] { path },
+                expectedChannels: new[] { "Security" },
+                observedChannels: new[] { "Security" },
+                expectedEventIds: new[] { 1001 },
+                observedEventIds: new[] { 1001 });
+
+            EventDetectionExecutionResult result = await store.EvaluateDetectionAsync(
+                new EventStoreQuery {
+                    StartTime = new DateTime(2026, 8, 28, 10, 4, 0, DateTimeKind.Utc),
+                    EndTime = new DateTime(2026, 8, 28, 10, 4, 0, DateTimeKind.Utc)
+                },
+                plan,
+                new EventDetectionEngineOptions { Coverage = coverage });
+
+            EventDetectionFinding finding = Assert.Single(result.Findings);
+            Assert.True(
+                result.IsComplete,
+                $"Coverage={result.Coverage.IsComplete}; failures={string.Join(" | ", result.Coverage.Failures)}; " +
+                $"status={finding.Status}; diagnostic={finding.CompletenessDiagnostic}");
+            Assert.Equal(
+                new[] { firstLive.Identity, secondLive.Identity },
+                finding.EvidenceIdentities);
+            Assert.Equal(new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc), finding.StartTimeUtc);
+            Assert.Equal(new DateTime(2026, 8, 28, 10, 4, 0, DateTimeKind.Utc), finding.EndTimeUtc);
         } finally {
             DeleteStore(path);
         }
@@ -203,5 +257,31 @@ public sealed partial class TestEventStore {
                 observedChannels: new[] { "Security" }),
             "The test rule matched.",
             completenessDiagnostic: null);
+    }
+
+    private static EventObject CreateHistoricalEvent(long recordId, int minute, string account) {
+        DateTime time = new(2026, 8, 28, 10, minute, 0, DateTimeKind.Utc);
+        var metadata = new NativeEventMetadata(
+            "Provider-A",
+            null,
+            1001,
+            qualifiers: null,
+            level: 0,
+            task: 0,
+            opcode: 0,
+            keywords: 0,
+            time,
+            recordId,
+            null,
+            null,
+            10,
+            20,
+            "Security",
+            "server01",
+            null,
+            1);
+        var source = new EventObject(metadata, queriedMachine: "collector01", containerLog: "Security");
+        source.Data["Account"] = account;
+        return source;
     }
 }

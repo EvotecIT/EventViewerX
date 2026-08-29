@@ -57,11 +57,20 @@ internal static partial class Program {
         EventType[] types = ParseTypes(options.GetMany("type"));
         string? logName = options.Get("log");
         string[] paths = options.GetMany("path");
+        string? storePath = options.Get("store");
+        bool storedSource = storePath != null;
         bool portableEvtx = options.Has("portable-evtx") || options.Get("portable-evtx-executable") != null;
         bool typedSource = types.Length > 0;
-        if (typedSource && logName != null || !typedSource && (logName != null ? 1 : 0) + (paths.Length > 0 ? 1 : 0) != 1) {
+        if (storedSource && (logName != null || paths.Length > 0 || portableEvtx ||
+                options.GetMany("machine").Length > 0 || options.GetMany("collector").Length > 0)) {
             throw new ArgumentException(
-                "detect requires --type (optionally with --path), --log, or standalone --path as one source mode.");
+                "--store cannot be combined with live channels, saved EVTX paths, portable EVTX, machines, or collectors.");
+        }
+        if (!storedSource &&
+            (typedSource && logName != null ||
+             !typedSource && (logName != null ? 1 : 0) + (paths.Length > 0 ? 1 : 0) != 1)) {
+            throw new ArgumentException(
+                "detect requires --store, --type (optionally with --path), --log, or standalone --path as one source mode.");
         }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive.");
@@ -87,7 +96,9 @@ internal static partial class Program {
         EventTypeProjectionPlan? detectionProjection = plan.RequiredEventTypes.Count == 0
             ? null
             : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
-        if (types.Length > 0) {
+        if (storedSource) {
+            // Historical rows are loaded below together with the plan's stateful lookback window.
+        } else if (types.Length > 0) {
             var query = new EventTypeQuery(types) {
                 Paths = paths.Length == 0 ? null : paths,
                 SavedEventReader = savedEventReader,
@@ -174,16 +185,59 @@ internal static partial class Program {
             }
         }
 
+        EventDetectionCoverage coverage = options.Get("coverage") is string coveragePath
+            ? EventDetectionCoverage.FromJson(await File.ReadAllTextAsync(Path.GetFullPath(coveragePath)).ConfigureAwait(false))
+            : storedSource
+                ? EventDetectionCoverage.Create(
+                    expectedTargets: new[] { Path.GetFullPath(storePath!) },
+                    observedTargets: new[] { Path.GetFullPath(storePath!) },
+                    failures: new[] {
+                        "Stored history ingestion coverage was not supplied. Pass --coverage with a versioned EventDetectionCoverage document before treating an empty historical result as clean."
+                    })
+                : CreateDetectionCoverage(types, logName, paths, observations, plan, options);
         var engineOptions = new EventDetectionEngineOptions {
             MaximumObservations = options.GetLong("maximum-observations", 1000000),
             MaximumGroups = options.GetInt("maximum-groups", 25000),
             MaximumStateObservations = options.GetInt("maximum-state-observations", 250000),
             MaximumStateBytes = options.GetLong("maximum-state-bytes", 256L * 1024L * 1024L),
-            Coverage = CreateDetectionCoverage(types, logName, paths, observations, plan, options)
+            Coverage = coverage
         };
-        EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(observations, plan, engineOptions);
+        EventDetectionExecutionResult execution;
+        if (storedSource) {
+            var historicalQuery = new EventStoreQuery {
+                Types = types.Length == 0 ? null : types,
+                StartTime = start,
+                EndTime = end,
+                EventIds = ParseInts(options.GetMany("event-id")),
+                MaxEvents = max,
+                MaxCandidates = engineOptions.MaximumObservations,
+                Oldest = true
+            };
+            execution = await new EventStore(storePath!).EvaluateDetectionAsync(
+                historicalQuery,
+                plan,
+                engineOptions).ConfigureAwait(false);
+        } else {
+            execution = EventDetectionEngine.Evaluate(observations, plan, engineOptions);
+        }
         if (options.Get("write-findings-store") is string findingStore) {
             await new EventStore(findingStore).WriteFindingsAsync(execution.Findings).ConfigureAwait(false);
+        }
+        if (options.Get("trace-jsonl") is string tracePath) {
+            string fullTracePath = Path.GetFullPath(tracePath);
+            string? traceDirectory = Path.GetDirectoryName(fullTracePath);
+            if (!string.IsNullOrWhiteSpace(traceDirectory)) {
+                Directory.CreateDirectory(traceDirectory!);
+            }
+            using var traceWriter = new StreamWriter(fullTracePath, append: false, new UTF8Encoding(false));
+            foreach (EventObservation observation in execution.Observations) {
+                foreach (EventDetectionRuleTrace trace in EventDetectionEngine.Explain(
+                             observation,
+                             plan,
+                             execution.Coverage)) {
+                    await traceWriter.WriteLineAsync(JsonSerializer.Serialize(trace, JsonOptions)).ConfigureAwait(false);
+                }
+            }
         }
         using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
         foreach (EventDetectionFinding finding in execution.Findings) {
@@ -196,7 +250,10 @@ internal static partial class Program {
         }
         var reportOptions = new EventDetectionReportOptions {
             Title = options.Get("title") ?? "EventViewerX detection report",
-            QueryOwner = types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
+            QueryOwner = storedSource
+                ? "EventStore historical query"
+                : types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
+            UsedStorageHistory = storedSource,
             Limits = new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
             Coverage = execution.Coverage
         };

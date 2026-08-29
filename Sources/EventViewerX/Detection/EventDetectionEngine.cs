@@ -5,6 +5,88 @@ namespace EventViewerX;
 
 /// <summary>Executes immutable detection plans against live or offline observation streams.</summary>
 public static class EventDetectionEngine {
+    /// <summary>Explains every rule decision for one observation without changing stateful evaluator state.</summary>
+    public static IReadOnlyList<EventDetectionRuleTrace> Explain(
+        EventObservation observation,
+        EventDetectionPlan plan,
+        EventDetectionCoverage? coverage = null) {
+
+        if (observation == null) {
+            throw new ArgumentNullException(nameof(observation));
+        }
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+        EventDetectionCoverage effectiveCoverage = coverage?.Snapshot() ?? EventDetectionCoverage.Unknown();
+        return plan.CompiledRules.Select(rule => CreateTrace(rule, observation, effectiveCoverage)).ToArray();
+    }
+
+    private static EventDetectionRuleTrace CreateTrace(
+        EventDetectionPlan.CompiledRule rule,
+        EventObservation observation,
+        EventDetectionCoverage coverage) {
+
+        bool eventId = rule.EventIds.Count == 0 || rule.EventIds.Contains(observation.EventId);
+        bool type = rule.EventTypeNames.Count == 0 || rule.EventTypeNames.Contains(observation.TypeName);
+        bool channel = rule.Channels.Count == 0 || rule.Channels.Contains(observation.SourceLog);
+        bool provider = rule.Providers.Count == 0 || rule.Providers.Contains(observation.ProviderName);
+        bool predicate = eventId && type && channel && provider && rule.MatchesPredicate(observation);
+        bool accepted = eventId && type && channel && provider && predicate;
+        bool suppressed = accepted && rule.IsSuppressed(observation);
+        string[] matchingSteps = accepted
+            ? rule.GetMatchingStepIndexes(observation)
+                .Select(index => rule.Steps[index].Definition.Name)
+                .ToArray()
+            : Array.Empty<string>();
+        var conditions = new[] {
+            Condition("EventId", eventId, rule.EventIds.Count == 0
+                ? "No event-ID restriction."
+                : $"Observed {observation.EventId}; required {string.Join(",", rule.EventIds.OrderBy(static value => value))}."),
+            Condition("EventType", type, rule.EventTypeNames.Count == 0
+                ? "No typed-projection restriction."
+                : $"Observed {observation.TypeName}; required {string.Join(",", rule.EventTypeNames.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase))}."),
+            Condition("Channel", channel, rule.Channels.Count == 0
+                ? "No source-channel restriction."
+                : $"Observed {observation.SourceLog}; required {string.Join(",", rule.Channels.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase))}."),
+            Condition("Provider", provider, rule.Providers.Count == 0
+                ? "No provider restriction."
+                : $"Observed {observation.ProviderName}; required {string.Join(",", rule.Providers.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase))}."),
+            Condition("Predicate", predicate, predicate
+                ? "The semantic field predicate matched or the rule has no predicate."
+                : "The semantic field predicate did not match, or a preceding selector rejected the observation."),
+            Condition("Suppression", !suppressed, suppressed
+                ? "Environment tuning suppressed this otherwise matching observation."
+                : "No tuning suppression matched."),
+            Condition("Coverage", coverage.IsComplete, coverage.IsComplete
+                ? "Declared collection coverage is complete."
+                : string.Join(" ", coverage.Failures.Concat(new[] { "Required source coverage is incomplete or undeclared." })))
+        };
+        string outcome;
+        if (!coverage.IsComplete) {
+            outcome = "Evidence unavailable or collection coverage incomplete.";
+        } else if (!accepted) {
+            EventDetectionConditionResult failed = conditions.First(static condition => !condition.Satisfied);
+            outcome = $"Rejected by {failed.Condition}: {failed.Detail}";
+        } else if (suppressed) {
+            outcome = "Matched selectors and predicate but was suppressed by tuning.";
+        } else if (rule.Definition.Kind == EventDetectionRuleKind.Stateless) {
+            outcome = "Matched all selectors and the semantic predicate.";
+        } else {
+            outcome = "Accepted as a stateful candidate; the complete rule depends on bounded correlation state.";
+        }
+        return new EventDetectionRuleTrace(
+            rule.Definition.RuleId,
+            rule.Definition.Title,
+            rule.Definition.Kind,
+            accepted,
+            suppressed,
+            outcome,
+            matchingSteps,
+            conditions);
+    }
+
+    private static EventDetectionConditionResult Condition(string name, bool satisfied, string detail) =>
+        new(name, satisfied, detail);
     /// <summary>Projects raw events once and streams findings without requiring storage.</summary>
     public static IEnumerable<EventDetectionFinding> Stream(
         IEnumerable<EventObject> events,

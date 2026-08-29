@@ -187,6 +187,20 @@ public sealed class EventDetectionCoverage {
         Failures,
         IsDeclared);
 
+    internal EventDetectionCoverage WithFailures(IEnumerable<string> failures) => new(
+        ExpectedTargets,
+        ObservedTargets,
+        ExpectedChannels,
+        ObservedChannels,
+        ExpectedProviders,
+        ObservedProviders,
+        ExpectedEventIds,
+        ObservedEventIds,
+        ExpectedEventTypes,
+        ObservedEventTypes,
+        Normalize(Failures.Concat(failures ?? Array.Empty<string>())),
+        IsDeclared);
+
     private static string[] Normalize(IEnumerable<string>? values) =>
         (values ?? Array.Empty<string>())
             .Where(static value => !string.IsNullOrWhiteSpace(value))

@@ -307,7 +307,8 @@ public sealed partial class EventStore {
             : 0;
         string sql = @"SELECT definition_name, event_time_utc, event_id, record_id, provider,
 source_log, container_log, source_computer, collector_computer, level, level_value,
-activity_id, related_activity_id, message, values_json, transport_kind
+activity_id, related_activity_id, message, values_json, transport_kind,
+observation_identity, received_time_utc, processed_time_utc, inserted_utc
 FROM evx_events";
         if (filter.Clauses.Count > 0) {
             sql += " WHERE " + string.Join(" AND ", filter.Clauses);
@@ -458,9 +459,16 @@ FROM evx_events";
             Values = DeserializeValues(record.GetString(14), schema),
             SourceKind = record.GetInt32(15) == 2
                 ? EventLogQuerySourceKind.File
-                : EventLogQuerySourceKind.Channel
+                : EventLogQuerySourceKind.Channel,
+            ObservationIdentity = record.GetString(16),
+            ReceivedTimeUtc = ParseNullableUtc(record, 17),
+            ProcessedTimeUtc = ParseNullableUtc(record, 18),
+            StoredTimeUtc = ParseUtc(record.GetString(19))
         };
     }
+
+    private static DateTime? ParseNullableUtc(IDataRecord record, int ordinal) =>
+        record.IsDBNull(ordinal) ? null : ParseUtc(record.GetString(ordinal));
 
     private static Guid? ReadGuid(
         IDataRecord record,
