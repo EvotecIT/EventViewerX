@@ -50,6 +50,32 @@ internal static partial class Program {
             rules.AddRange(result.Rules);
         }
         EventDetectionPlan plan = EventDetectionPlan.Compile(rules, tuning);
+        if (options.Has("test-fixtures")) {
+            if (explicitContent || tuning != null) {
+                throw new ArgumentException("--test-fixtures validates the immutable built-in content and cannot be combined with --pack, --sigma, or --tuning.");
+            }
+            IReadOnlyList<EventDetectionFixtureResult> fixtureResults = EventDetectionCatalog.TestBuiltInFixtures();
+            bool fixturesValid = fixtureResults.All(static result => result.IsMatch);
+            WriteJson(new {
+                IsValid = fixturesValid,
+                FixtureCount = fixtureResults.Count,
+                RuleCount = EventDetectionCatalog.GetBuiltInRules().Count,
+                Results = fixtureResults.Select(static result => new {
+                    result.Name,
+                    result.IsMatch,
+                    result.ExpectedRuleIds,
+                    result.ActualRuleIds
+                })
+            });
+            return fixturesValid ? 0 : 2;
+        }
+        if (options.Has("pack-coverage")) {
+            return WriteJson(packs.Select(static pack => new {
+                pack.PackId,
+                pack.Version,
+                Coverage = pack.GetCoverage()
+            }));
+        }
         if (options.Has("explain")) {
             return WriteJson(plan.Explain());
         }

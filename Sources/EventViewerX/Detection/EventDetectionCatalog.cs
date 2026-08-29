@@ -1,7 +1,7 @@
 namespace EventViewerX;
 
 /// <summary>Built-in versioned native detections distributed with the core engine.</summary>
-public static class EventDetectionCatalog {
+public static partial class EventDetectionCatalog {
     private static readonly DateTime PackCreatedUtc =
         new(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc);
 
@@ -17,6 +17,24 @@ public static class EventDetectionCatalog {
     /// <summary>Returns detached built-in rules suitable for tuning and plan compilation.</summary>
     public static IReadOnlyList<IEventDetectionRule> GetBuiltInRules() =>
         GetBuiltInPacks().SelectMany(static pack => pack.GetRules()).ToArray();
+
+    /// <summary>Returns positive, negative, boundary, and known-benign fixtures for every built-in rule.</summary>
+    public static IReadOnlyList<EventDetectionFixture> GetBuiltInFixtures() =>
+        GetBuiltInPacks()
+            .SelectMany(CreateFixtures)
+            .ToArray();
+
+    /// <summary>Executes every built-in fixture against only the rule it owns.</summary>
+    public static IReadOnlyList<EventDetectionFixtureResult> TestBuiltInFixtures() {
+        Dictionary<string, IEventDetectionRule> rules = GetBuiltInRules().ToDictionary(
+            static rule => rule.Definition.RuleId,
+            StringComparer.OrdinalIgnoreCase);
+        return GetBuiltInFixtures()
+            .Select(fixture => EventDetectionEngine.TestFixture(
+                fixture,
+                EventDetectionPlan.Compile(new[] { rules[fixture.RuleId] })))
+            .ToArray();
+    }
 
     private static EventDetectionPack CreateEventingIntegrityPack() => Pack(
         "eventviewerx.eventing-integrity",

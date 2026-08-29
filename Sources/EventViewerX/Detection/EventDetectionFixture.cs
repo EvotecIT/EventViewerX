@@ -4,10 +4,30 @@ namespace EventViewerX;
 public sealed class EventDetectionFixture {
     /// <summary>Fixture name.</summary>
     public string Name { get; set; } = string.Empty;
+    /// <summary>Pack whose rule is exercised.</summary>
+    public string PackId { get; set; } = string.Empty;
+    /// <summary>Rule exercised by this fixture.</summary>
+    public string RuleId { get; set; } = string.Empty;
+    /// <summary>Scenario contract represented by this fixture.</summary>
+    public EventDetectionFixtureKind Kind { get; set; }
+    /// <summary>Operator-facing reason for the scenario and expected outcome.</summary>
+    public string Description { get; set; } = string.Empty;
     /// <summary>Ordered observations supplied to the engine.</summary>
     public IReadOnlyList<EventObservation> Observations { get; set; } = Array.Empty<EventObservation>();
     /// <summary>Expected matched rule IDs, including duplicates when repeated findings are expected.</summary>
     public IReadOnlyList<string> ExpectedRuleIds { get; set; } = Array.Empty<string>();
+}
+
+/// <summary>Required scenario classes for versioned detection content.</summary>
+public enum EventDetectionFixtureKind {
+    /// <summary>Representative input that must produce the rule finding.</summary>
+    Positive,
+    /// <summary>Representative input that must not produce the rule finding.</summary>
+    Negative,
+    /// <summary>Input at the exact count or time-window boundary.</summary>
+    Boundary,
+    /// <summary>Expected benign activity that still matches and must be explained to operators.</summary>
+    KnownFalsePositive
 }
 
 /// <summary>Comparison of actual fixture findings with declared expectations.</summary>

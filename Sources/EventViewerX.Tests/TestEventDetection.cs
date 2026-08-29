@@ -494,6 +494,50 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void EveryBuiltInRuleShipsFourExecutableFixtureContracts() {
+        IReadOnlyList<IEventDetectionRule> rules = EventDetectionCatalog.GetBuiltInRules();
+        IReadOnlyList<EventDetectionFixture> fixtures = EventDetectionCatalog.GetBuiltInFixtures();
+        IReadOnlyList<EventDetectionFixtureResult> results = EventDetectionCatalog.TestBuiltInFixtures();
+
+        Assert.Equal(rules.Count * 4, fixtures.Count);
+        foreach (IGrouping<string, EventDetectionFixture> ruleFixtures in fixtures.GroupBy(
+                     static fixture => fixture.RuleId,
+                     StringComparer.OrdinalIgnoreCase)) {
+            Assert.Equal(4, ruleFixtures.Count());
+            Assert.Equal(
+                Enum.GetValues(typeof(EventDetectionFixtureKind)).Cast<EventDetectionFixtureKind>().OrderBy(static kind => kind),
+                ruleFixtures.Select(static fixture => fixture.Kind).OrderBy(static kind => kind));
+            Assert.All(ruleFixtures, static fixture => {
+                Assert.False(string.IsNullOrWhiteSpace(fixture.PackId));
+                Assert.False(string.IsNullOrWhiteSpace(fixture.Description));
+                Assert.NotEmpty(fixture.Observations);
+            });
+        }
+        Assert.All(results, static result => Assert.True(
+            result.IsMatch,
+            $"Fixture '{result.Name}' expected [{string.Join(", ", result.ExpectedRuleIds)}] but produced [{string.Join(", ", result.ActualRuleIds)}]."));
+    }
+
+    [Fact]
+    public void PackCoveragePublishesAuditPolicyAndTargetRoleRequirements() {
+        EventDetectionPack authentication = EventDetectionCatalog.GetBuiltInPacks()
+            .Single(static pack => pack.PackId == "eventviewerx.authentication-modernization");
+
+        EventDetectionPackCoverage coverage = authentication.GetCoverage();
+
+        Assert.Contains(coverage.AuditPolicies, static requirement =>
+            requirement.Name == "Audit Logon" &&
+            requirement.AuditOutcomes.HasFlag(EventAuditOutcome.Success));
+        Assert.Contains(coverage.AuditPolicies, static requirement =>
+            requirement.Name == "Audit Logon" &&
+            requirement.AuditOutcomes.HasFlag(EventAuditOutcome.Failure));
+        Assert.Contains(coverage.TargetRoles, static requirement => requirement.Key == "target-role:domain-controller");
+        Assert.Contains(coverage.Prerequisites, static requirement =>
+            requirement.Kind == EventRequirementKind.Configuration &&
+            requirement.Key == "configuration:ntds-ldap-interface-events-2");
+    }
+
+    [Fact]
     public void CandidateAndEstimatedStateByteBoundsAreExplicit() {
         EventObservation observation = Observe(1001, Utc(10, 0), 1, "alice");
         EventDetectionPlan candidatePlan = EventDetectionPlan.Compile(new[] {

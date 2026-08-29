@@ -38,18 +38,26 @@ public sealed class EventDetectionPackComparison {
     public bool HasChanges => AddedRuleIds.Count != 0 || RemovedRuleIds.Count != 0 || ChangedRuleIds.Count != 0;
 }
 
-/// <summary>Channels, providers, event IDs, and typed projections required by a pack.</summary>
+/// <summary>Channels, providers, event IDs, typed projections, and readiness prerequisites required by a pack.</summary>
 public sealed class EventDetectionPackCoverage {
     internal EventDetectionPackCoverage(
         IReadOnlyList<EventType> eventTypes,
         IReadOnlyList<int> eventIds,
         IReadOnlyList<string> channels,
-        IReadOnlyList<string> providers) {
+        IReadOnlyList<string> providers,
+        IReadOnlyList<EventPrerequisite> prerequisites) {
 
         EventTypes = Array.AsReadOnly(eventTypes.ToArray());
         EventIds = Array.AsReadOnly(eventIds.ToArray());
         Channels = Array.AsReadOnly(channels.ToArray());
         Providers = Array.AsReadOnly(providers.ToArray());
+        Prerequisites = Array.AsReadOnly(prerequisites.ToArray());
+        AuditPolicies = Array.AsReadOnly(prerequisites
+            .Where(static prerequisite => prerequisite.Kind == EventRequirementKind.AuditPolicy)
+            .ToArray());
+        TargetRoles = Array.AsReadOnly(prerequisites
+            .Where(static prerequisite => prerequisite.Kind == EventRequirementKind.TargetRole)
+            .ToArray());
     }
 
     /// <summary>Required typed event projections.</summary>
@@ -60,4 +68,10 @@ public sealed class EventDetectionPackCoverage {
     public IReadOnlyList<string> Channels { get; }
     /// <summary>Explicit providers.</summary>
     public IReadOnlyList<string> Providers { get; }
+    /// <summary>Readiness requirements for all typed projections used by the pack.</summary>
+    public IReadOnlyList<EventPrerequisite> Prerequisites { get; }
+    /// <summary>Advanced-audit policy requirements, including success/failure outcomes.</summary>
+    public IReadOnlyList<EventPrerequisite> AuditPolicies { get; }
+    /// <summary>Computer roles on which the required evidence is emitted.</summary>
+    public IReadOnlyList<EventPrerequisite> TargetRoles { get; }
 }

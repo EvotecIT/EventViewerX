@@ -259,6 +259,14 @@ public sealed class EventDetectionPack {
             .OrderBy(static type => type)
             .ToArray();
         IReadOnlyList<EventSourceDefinition> typedSources = EventTypeCatalog.GetSources(eventTypes);
+        EventPrerequisite[] prerequisites = eventTypes
+            .Select(EventRequirementCatalog.GetRequirement)
+            .SelectMany(static requirement => requirement.Prerequisites)
+            .GroupBy(static prerequisite => prerequisite.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(EventRequirementCatalog.MergePrerequisites)
+            .OrderBy(static prerequisite => prerequisite.Kind)
+            .ThenBy(static prerequisite => prerequisite.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         return new EventDetectionPackCoverage(
             eventTypes,
             _rules.SelectMany(static rule => rule.EventIds)
@@ -277,7 +285,8 @@ public sealed class EventDetectionPack {
                 .Concat(steps.SelectMany(static step => step.Providers))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
-                .ToArray());
+                .ToArray(),
+            prerequisites);
     }
 
     /// <summary>Serializes the complete manifest, rules, hash, and optional signature.</summary>
