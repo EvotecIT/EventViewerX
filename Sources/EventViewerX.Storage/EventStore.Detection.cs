@@ -81,14 +81,13 @@ public sealed partial class EventStore {
                 read.CompletenessDiagnostic ?? "The stored historical candidate window was not exhaustive."
             });
         }
-        var engineOptions = new EventDetectionEngineOptions {
-            MaximumObservations = options?.MaximumObservations ?? 1_000_000,
-            MaximumGroups = options?.MaximumGroups ?? 25_000,
-            MaximumStateObservations = options?.MaximumStateObservations ?? 250_000,
-            MaximumStateBytes = options?.MaximumStateBytes ?? 256L * 1024L * 1024L,
-            MaximumCandidateRules = options?.MaximumCandidateRules ?? 10_000,
-            Coverage = coverage
-        };
+        var engineOptions = new EventDetectionEngineOptions(
+            options?.MaximumObservations ?? 1_000_000,
+            options?.MaximumGroups ?? 25_000,
+            options?.MaximumStateObservations ?? 250_000,
+            options?.MaximumStateBytes ?? 256L * 1024L * 1024L,
+            options?.MaximumCandidateRules ?? 10_000,
+            coverage);
         EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(read.Observations, plan, engineOptions);
         EventDetectionFinding[] selected = resultStart.HasValue
             ? evaluated.Findings.Where(finding => finding.EndTimeUtc >= resultStart.Value).ToArray()

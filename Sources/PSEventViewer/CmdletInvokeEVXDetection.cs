@@ -150,13 +150,12 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
                 failures: new[] {
                     "Stored history ingestion coverage was not supplied. Pass Coverage before treating an empty historical result as clean."
                 }));
-        var options = new EventDetectionEngineOptions {
-            MaximumObservations = MaximumObservations,
-            MaximumGroups = MaximumGroups,
-            MaximumStateObservations = MaximumStateObservations,
-            MaximumStateBytes = MaximumStateBytes,
-            Coverage = effectiveCoverage
-        };
+        var options = new EventDetectionEngineOptions(
+            maximumObservations: MaximumObservations,
+            maximumGroups: MaximumGroups,
+            maximumStateObservations: MaximumStateObservations,
+            maximumStateBytes: MaximumStateBytes,
+            coverage: effectiveCoverage);
         EventDetectionExecutionResult execution = storePath == null
             ? EventDetectionEngine.Evaluate(_events, plan, options)
             : await new EventStore(storePath).EvaluateDetectionAsync(

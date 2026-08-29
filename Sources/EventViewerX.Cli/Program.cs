@@ -19,6 +19,11 @@ internal static partial class Program {
         return options;
     }
 
+    private static JsonElement ParseJsonElement(string json) {
+        using JsonDocument document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
     private static async Task<int> Main(string[] args) {
         try {
             var options = new CliArguments(args);
@@ -33,6 +38,11 @@ internal static partial class Program {
                 "collector" => Collector(options),
                 "provider" => Provider(options),
                 "types" => ListTypes(options),
+                "schemas" => WriteJson(EventAnalysisContractCatalog.GetContracts().Select(static contract => new {
+                    contract.Kind,
+                    contract.SchemaVersion,
+                    Schema = ParseJsonElement(contract.JsonSchema)
+                })),
                 "help" or "--help" or "-h" => Help(),
                 _ => throw new ArgumentException($"Unknown command '{options.Command}'.")
             };
@@ -744,6 +754,9 @@ internal static partial class Program {
             case "types":
                 options.ValidateAllowed("type", "definition");
                 break;
+            case "schemas":
+                options.ValidateAllowed();
+                break;
             case "help":
             case "--help":
             case "-h":
@@ -755,6 +768,7 @@ internal static partial class Program {
     private static int Help() {
         Console.WriteLine("EventViewerX 4.0\n\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
+            "  evx schemas\n" +
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +

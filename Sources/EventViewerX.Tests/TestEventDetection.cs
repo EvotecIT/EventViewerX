@@ -154,6 +154,25 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void StreamingThresholdKeepsOutOfOrderEvidenceChronologicalAtInclusiveBoundary() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            Rule("EVX-TEST-OUT-OF-ORDER", EventDetectionRuleKind.Threshold, threshold: 3, groupBy: "Account")
+        });
+        EventObservation newest = Observe(1001, Utc(10, 5), 3, "alice");
+        EventObservation oldest = Observe(1001, Utc(10, 0), 1, "alice");
+        EventObservation middle = Observe(1001, Utc(10, 4), 2, "alice");
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { newest, oldest, middle },
+            plan));
+
+        Assert.Equal(
+            new[] { oldest.Identity, middle.Identity, newest.Identity },
+            finding.EvidenceIdentities);
+        Assert.Equal(TimeSpan.FromMinutes(5), finding.EndTimeUtc - finding.StartTimeUtc);
+    }
+
+    [Fact]
     public void TemporalRuleAcceptsStepsInAnyOrderButRetainsIndependentEvidence() {
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
             TemporalRule("EVX-TEST-TEMPORAL", EventDetectionRuleKind.Temporal)
@@ -281,7 +300,7 @@ public sealed class TestEventDetection {
         EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(
             Source(),
             plan,
-            new EventDetectionEngineOptions { MaximumObservations = 2 });
+            new EventDetectionEngineOptions(maximumObservations: 2));
 
         Assert.Equal(3, enumerated);
         Assert.Equal(3, execution.ObservationCount);
@@ -301,22 +320,20 @@ public sealed class TestEventDetection {
             groupBy: "Account");
         EventDetectionPlan plan = EventDetectionPlan.Compile(
             new[] { severityRule, disabledRule, thresholdRule },
-            new EventDetectionTuning {
-                DisabledRuleIds = new[] { disabledRule.Definition.RuleId },
-                SeverityOverrides = new Dictionary<string, EventDetectionSeverity> {
+            new EventDetectionTuning(
+                disabledRuleIds: new[] { disabledRule.Definition.RuleId },
+                severityOverrides: new Dictionary<string, EventDetectionSeverity> {
                     [severityRule.Definition.RuleId] = EventDetectionSeverity.Critical
                 },
-                ThresholdOverrides = new Dictionary<string, int> {
+                thresholdOverrides: new Dictionary<string, int> {
                     [thresholdRule.Definition.RuleId] = 2
                 },
-                Suppressions = new[] {
-                    new EventDetectionSuppression {
-                        RuleId = severityRule.Definition.RuleId,
-                        Predicate = EventPredicate.Compare("Account", EventPredicateOperator.Equal, "service"),
-                        Reason = "Approved test identity"
-                    }
-                }
-            });
+                suppressions: new[] {
+                    new EventDetectionSuppression(
+                        severityRule.Definition.RuleId,
+                        EventPredicate.Compare("Account", EventPredicateOperator.Equal, "service"),
+                        reason: "Approved test identity")
+                }));
         EventObservation[] observations = {
             Observe(1001, Utc(10, 0), 1, "service"),
             Observe(1001, Utc(10, 1), 2, "alice"),
@@ -344,11 +361,10 @@ public sealed class TestEventDetection {
             Observe(1001, Utc(10, 1), 2, "bob"),
             Observe(1001, Utc(10, 2), 3, "charlie")
         };
-        var options = new EventDetectionEngineOptions {
-            MaximumGroups = 1,
-            MaximumStateObservations = 10,
-            MaximumObservations = 0
-        };
+        var options = new EventDetectionEngineOptions(
+            maximumObservations: 0,
+            maximumGroups: 1,
+            maximumStateObservations: 10);
 
         EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(observations, plan, options));
 
@@ -551,16 +567,107 @@ public sealed class TestEventDetection {
         EventDetectionFinding candidateBound = Assert.Single(EventDetectionEngine.Stream(
             new[] { observation },
             candidatePlan,
-            new EventDetectionEngineOptions { MaximumCandidateRules = 1 }));
+            new EventDetectionEngineOptions(maximumCandidateRules: 1)));
         EventDetectionFinding byteBound = Assert.Single(EventDetectionEngine.Stream(
             new[] { observation },
             statePlan,
-            new EventDetectionEngineOptions { MaximumStateBytes = 1 }));
+            new EventDetectionEngineOptions(maximumStateBytes: 1)));
 
         Assert.Equal(EventDetectionFindingStatus.Incomplete, candidateBound.Status);
         Assert.Contains("MaximumCandidateRules", candidateBound.CompletenessDiagnostic);
         Assert.Equal(EventDetectionFindingStatus.Incomplete, byteBound.Status);
         Assert.Contains("MaximumStateBytes", byteBound.CompletenessDiagnostic);
+    }
+
+    [Fact]
+    public void DetectionOptionsBuilderProducesValidatedImmutableSnapshots() {
+        EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+            expectedTargets: new[] { "server01" },
+            observedTargets: new[] { "server01" });
+
+        EventDetectionEngineOptions options = new EventDetectionEngineOptionsBuilder()
+            .WithMaximumObservations(42)
+            .WithMaximumGroups(12)
+            .WithMaximumStateObservations(128)
+            .WithMaximumStateBytes(4096)
+            .WithMaximumCandidateRules(9)
+            .WithCoverage(coverage)
+            .Build();
+
+        Assert.Equal(42, options.MaximumObservations);
+        Assert.Equal(12, options.MaximumGroups);
+        Assert.Equal(128, options.MaximumStateObservations);
+        Assert.Equal(4096, options.MaximumStateBytes);
+        Assert.Equal(9, options.MaximumCandidateRules);
+        Assert.NotSame(coverage, options.Coverage);
+        Assert.True(options.Coverage!.IsComplete);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new EventDetectionEngineOptionsBuilder().WithMaximumGroups(0).Build());
+    }
+
+    [Fact]
+    public void PlanAndTuningBuildersDetachCollectionsAndRoundTripJson() {
+        var sourceDisabled = new List<string> { "EVX-TEST-DISABLED" };
+        EventDetectionTuning tuning = new EventDetectionTuning(
+            disabledRuleIds: sourceDisabled,
+            severityOverrides: new Dictionary<string, EventDetectionSeverity> {
+                ["EVX-TEST-BUILDER"] = EventDetectionSeverity.High
+            });
+        sourceDisabled.Add("EVX-TEST-LATE-MUTATION");
+        EventDetectionPlan plan = new EventDetectionPlanBuilder()
+            .AddRule(Rule("EVX-TEST-BUILDER"))
+            .AddRule(Rule("EVX-TEST-DISABLED"))
+            .WithTuning(tuning)
+            .Build();
+        string json = System.Text.Json.JsonSerializer.Serialize(tuning);
+        EventDetectionTuning restored = System.Text.Json.JsonSerializer.Deserialize<EventDetectionTuning>(json)!;
+
+        Assert.Single(tuning.DisabledRuleIds);
+        Assert.Single(plan.Rules);
+        Assert.Equal(EventDetectionSeverity.High, plan.Rules[0].Severity);
+        Assert.Equal(tuning.DisabledRuleIds, restored.DisabledRuleIds);
+        Assert.Equal(EventDetectionSeverity.High, restored.SeverityOverrides["EVX-TEST-BUILDER"]);
+    }
+
+    [Fact]
+    public void AnalysisJsonContractsAreVersionedParseableAndAvoidDuplicateSourceObjects() {
+        EventObservation observation = Observe(1001, Utc(10, 0), 1, "alice");
+        EventDetectionPlan plan = new EventDetectionPlanBuilder()
+            .AddRule(Rule("EVX-TEST-CONTRACT"))
+            .Build();
+        EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+            expectedEventIds: new[] { 1001 },
+            observedEventIds: new[] { 1001 });
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { observation },
+            plan,
+            new EventDetectionEngineOptions(coverage: coverage)));
+        EventDetectionRuleTrace trace = Assert.Single(EventDetectionEngine.Explain(observation, plan, coverage));
+
+        using System.Text.Json.JsonDocument observationJson = System.Text.Json.JsonDocument.Parse(
+            EventAnalysisJson.Serialize(observation));
+        using System.Text.Json.JsonDocument findingJson = System.Text.Json.JsonDocument.Parse(
+            EventAnalysisJson.Serialize(finding));
+        using System.Text.Json.JsonDocument planJson = System.Text.Json.JsonDocument.Parse(
+            EventAnalysisJson.Serialize(plan));
+        using System.Text.Json.JsonDocument traceJson = System.Text.Json.JsonDocument.Parse(
+            EventAnalysisJson.Serialize(trace));
+
+        Assert.Equal(1, observationJson.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.False(observationJson.RootElement.TryGetProperty("sourceEvent", out _));
+        Assert.Equal(observation.Identity, findingJson.RootElement
+            .GetProperty("evidenceIdentities")[0].GetString());
+        Assert.False(findingJson.RootElement.TryGetProperty("evidence", out _));
+        Assert.Equal(1, planJson.RootElement.GetProperty("ruleCount").GetInt32());
+        Assert.Equal(observation.Identity, traceJson.RootElement.GetProperty("observationIdentity").GetString());
+        Assert.All(EventAnalysisContractCatalog.GetContracts(), static contract => {
+            Assert.Equal(EventAnalysisContractCatalog.CurrentSchemaVersion, contract.SchemaVersion);
+            using System.Text.Json.JsonDocument schema = System.Text.Json.JsonDocument.Parse(contract.JsonSchema);
+            Assert.Equal(
+                "https://json-schema.org/draft/2020-12/schema",
+                schema.RootElement.GetProperty("$schema").GetString());
+            Assert.True(schema.RootElement.GetProperty("required").GetArrayLength() > 0);
+        });
     }
 
     [Fact]
@@ -577,7 +684,7 @@ public sealed class TestEventDetection {
         EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
             new[] { observation },
             plan,
-            new EventDetectionEngineOptions { Coverage = coverage }));
+            new EventDetectionEngineOptions(coverage: coverage)));
 
         EventTimeline timeline = EventTimelineEngine.Create(
             new[] { observation },
@@ -613,7 +720,7 @@ public sealed class TestEventDetection {
         EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
             new[] { observation },
             plan,
-            new EventDetectionEngineOptions { Coverage = coverage }));
+            new EventDetectionEngineOptions(coverage: coverage)));
         EventDetectionPack pack = EventDetectionPack.Create(
             "eventviewerx.test-report",
             "1.0.0",

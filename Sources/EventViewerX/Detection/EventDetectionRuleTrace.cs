@@ -5,6 +5,7 @@ public sealed class EventDetectionRuleTrace {
     internal EventDetectionRuleTrace(
         string ruleId,
         string title,
+        string observationIdentity,
         EventDetectionRuleKind kind,
         bool accepted,
         bool suppressed,
@@ -14,6 +15,7 @@ public sealed class EventDetectionRuleTrace {
 
         RuleId = ruleId;
         Title = title;
+        ObservationIdentity = observationIdentity;
         Kind = kind;
         Accepted = accepted;
         Suppressed = suppressed;
@@ -26,6 +28,8 @@ public sealed class EventDetectionRuleTrace {
     public string RuleId { get; }
     /// <summary>Operator-facing rule title.</summary>
     public string Title { get; }
+    /// <summary>Stable identity of the observation whose decision is explained.</summary>
+    public string ObservationIdentity { get; }
     /// <summary>Rule state behavior.</summary>
     public EventDetectionRuleKind Kind { get; }
     /// <summary>Whether selectors and the semantic predicate accepted this observation.</summary>

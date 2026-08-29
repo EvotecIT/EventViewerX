@@ -6,6 +6,12 @@ observations and produces the same number of findings. Each observation has one
 matching indexed candidate, so growth exposes accidental scanning of unrelated
 rules rather than useful matching work.
 
+`DetectionThroughputBenchmarks` adds the release scale matrix at 1,000, 10,000,
+100,000, and 1,000,000 streamed observations. Stateless predicate, threshold
+window, and ordered-temporal lanes are measured separately. Global setup runs
+the exact workload once and fails unless every requested observation was
+enumerated and no unexpected finding or incomplete result appeared.
+
 Validate the matrix before a measured run:
 
 ```powershell
@@ -33,3 +39,22 @@ cases now remain within 0.401-0.435 ms on the measured host.
 These are short-run development measurements on .NET 10.0.11, Windows 11, and
 an AMD Ryzen 9 9950X3D. Release claims should use the default BenchmarkDotNet
 job and record the repository head and fixture hash.
+
+The streamed scale matrix also exposed avoidable per-event work in stateful
+detection: retained windows were sorted after every observation, expired
+prefixes were removed one item at a time, and interface enumeration allocated
+boxed iterators. Ordered insertion, range pruning, concrete collection
+iteration, reusable temporal-step buffers, and expiry-boundary tracking reduced
+allocation at one million observations as follows:
+
+| Lane | Initial allocated | Optimized allocated | Optimized mean | Approx. bytes/event |
+| --- | ---: | ---: | ---: | ---: |
+| Stateless predicate | 945,315 KB | 101,566 KB | 297.7 ms | 104 |
+| Threshold window | 1,164,828 KB | 172,641 KB | 426.5 ms | 177 |
+| Ordered temporal | 1,601,566 KB | 250,003 KB | 512.4 ms | 256 |
+
+This comparison is a `Dry`/cold-start development gate, so timings are useful
+for catching large regressions but are not release performance claims. The
+allocation deltas are deterministic enough to preserve as an engineering
+baseline. Release evidence must use the normal BenchmarkDotNet job and the same
+1K, 10K, 100K, and 1M matrix.

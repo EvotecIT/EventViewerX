@@ -113,7 +113,7 @@ public sealed partial class TestEventStore {
                     EndTime = new DateTime(2026, 8, 28, 10, 4, 0, DateTimeKind.Utc)
                 },
                 plan,
-                new EventDetectionEngineOptions { Coverage = coverage });
+                new EventDetectionEngineOptions(coverage: coverage));
 
             EventDetectionFinding finding = Assert.Single(result.Findings);
             Assert.True(

@@ -123,7 +123,7 @@ public sealed class EventDetectionPlan {
             snapshot.Where(static rule => rule.IndexProviders.Count == 0).ToArray());
     }
 
-    internal IReadOnlyList<CompiledRule> GetCandidates(EventObservation observation) {
+    internal CompiledRule[] GetCandidates(EventObservation observation) {
         _byEventId.TryGetValue(observation.EventId, out CompiledRule[]? byId);
         _byType.TryGetValue(observation.TypeName, out CompiledRule[]? byType);
         _byChannel.TryGetValue(observation.SourceLog, out CompiledRule[]? byChannel);
@@ -137,12 +137,21 @@ public sealed class EventDetectionPlan {
             return Array.Empty<CompiledRule>();
         }
 
-        var candidates = new HashSet<CompiledRule>();
-        Add(candidates, seed.Matches);
-        Add(candidates, seed.Unrestricted);
-        CompiledRule[] result = candidates
-            .Where(rule => rule.MayMatchSelectors(observation))
-            .ToArray();
+        if (seed.Unrestricted.Length == 0 && AllMayMatch(seed.Matches, observation)) {
+            return seed.Matches;
+        }
+        if (seed.Matches.Length == 0 && AllMayMatch(seed.Unrestricted, observation)) {
+            return seed.Unrestricted;
+        }
+        var result = new CompiledRule[seed.Count];
+        int count = CopyMatches(seed.Matches, observation, result, 0);
+        count = CopyMatches(seed.Unrestricted, observation, result, count);
+        if (count == 0) {
+            return Array.Empty<CompiledRule>();
+        }
+        if (count != result.Length) {
+            Array.Resize(ref result, count);
+        }
         Array.Sort(result, static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
         return result;
     }
@@ -170,10 +179,31 @@ public sealed class EventDetectionPlan {
                 StringComparer.OrdinalIgnoreCase);
     }
 
-    private static void Add(ISet<CompiledRule> target, IEnumerable<CompiledRule> source) {
-        foreach (CompiledRule rule in source) {
-            target.Add(rule);
+    private static bool AllMayMatch(
+        IReadOnlyList<CompiledRule> rules,
+        EventObservation observation) {
+
+        for (int index = 0; index < rules.Count; index++) {
+            if (!rules[index].MayMatchSelectors(observation)) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private static int CopyMatches(
+        IReadOnlyList<CompiledRule> source,
+        EventObservation observation,
+        CompiledRule[] target,
+        int offset) {
+
+        for (int index = 0; index < source.Count; index++) {
+            CompiledRule rule = source[index];
+            if (rule.MayMatchSelectors(observation)) {
+                target[offset++] = rule;
+            }
+        }
+        return offset;
     }
 
     internal sealed class CompiledRule {
@@ -241,8 +271,14 @@ public sealed class EventDetectionPlan {
         internal bool MatchesPredicate(EventObservation observation) =>
             _predicate == null || _predicate(observation.Fields);
 
-        internal bool IsSuppressed(EventObservation observation) =>
-            _suppressions.Any(suppression => suppression.Matches(observation));
+        internal bool IsSuppressed(EventObservation observation) {
+            for (int index = 0; index < _suppressions.Length; index++) {
+                if (_suppressions[index].Matches(observation)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         internal int[] GetMatchingStepIndexes(EventObservation observation) {
             if (!Matches(observation)) {
@@ -252,6 +288,16 @@ public sealed class EventDetectionPlan {
                 .Where(item => item.step.Matches(observation))
                 .Select(static item => item.index)
                 .ToArray();
+        }
+
+        internal int CopyMatchingStepIndexes(EventObservation observation, int[] destination) {
+            int count = 0;
+            for (int index = 0; index < Steps.Length; index++) {
+                if (Steps[index].Matches(observation)) {
+                    destination[count++] = index;
+                }
+            }
+            return count;
         }
 
         private static HashSet<T> BuildIndexValues<T>(
@@ -392,13 +438,12 @@ public sealed class EventDetectionPlan {
             if (start.HasValue && end.HasValue && start > end) {
                 throw new InvalidDataException("Suppression start time cannot be later than end time.");
             }
-            return new EventDetectionSuppression {
-                RuleId = source.RuleId.Trim(),
-                Predicate = source.Predicate.Clone(),
-                StartTimeUtc = start,
-                EndTimeUtc = end,
-                Reason = source.Reason?.Trim() ?? string.Empty
-            };
+            return new EventDetectionSuppression(
+                source.RuleId,
+                source.Predicate,
+                start,
+                end,
+                source.Reason);
         }
     }
 }

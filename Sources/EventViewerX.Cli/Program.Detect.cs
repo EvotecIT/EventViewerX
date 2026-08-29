@@ -221,13 +221,12 @@ internal static partial class Program {
                         "Stored history ingestion coverage was not supplied. Pass --coverage with a versioned EventDetectionCoverage document before treating an empty historical result as clean."
                     })
                 : CreateDetectionCoverage(types, logName, paths, observations, plan, options);
-        var engineOptions = new EventDetectionEngineOptions {
-            MaximumObservations = options.GetLong("maximum-observations", 1000000),
-            MaximumGroups = options.GetInt("maximum-groups", 25000),
-            MaximumStateObservations = options.GetInt("maximum-state-observations", 250000),
-            MaximumStateBytes = options.GetLong("maximum-state-bytes", 256L * 1024L * 1024L),
-            Coverage = coverage
-        };
+        var engineOptions = new EventDetectionEngineOptions(
+            maximumObservations: options.GetLong("maximum-observations", 1000000),
+            maximumGroups: options.GetInt("maximum-groups", 25000),
+            maximumStateObservations: options.GetInt("maximum-state-observations", 250000),
+            maximumStateBytes: options.GetLong("maximum-state-bytes", 256L * 1024L * 1024L),
+            coverage: coverage);
         EventDetectionExecutionResult execution;
         if (storedSource) {
             var historicalQuery = new EventStoreQuery {
