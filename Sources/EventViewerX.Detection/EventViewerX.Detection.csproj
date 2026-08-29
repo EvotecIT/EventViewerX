@@ -18,7 +18,7 @@
     <SupportedOSPlatform>windows</SupportedOSPlatform>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
     <EmbeddedResource Include="Schemas\*.json" Pack="true" PackagePath="schemas\">
       <LogicalName>EventViewerX.Detection.Schemas.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>

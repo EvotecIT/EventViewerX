@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using EventViewerX.Native;
@@ -466,15 +467,26 @@ public sealed class EventLogSubscription : IDisposable {
     }
 
     private void WaitAndReleaseResources() {
+        ExceptionDispatchInfo? failure = null;
         try {
             _producer.GetAwaiter().GetResult();
         } catch (OperationCanceledException) {
+        } catch (Exception ex) {
+            failure = ExceptionDispatchInfo.Capture(ex);
         }
         try {
             _consumer.GetAwaiter().GetResult();
         } catch (OperationCanceledException) {
+        } catch (Exception ex) {
+            if (failure == null) {
+                failure = ExceptionDispatchInfo.Capture(ex);
+            } else {
+                failure.SourceException.Data["EventViewerX.SecondaryConsumerFailure"] = ex;
+            }
+        } finally {
+            ReleaseSetupResources();
         }
-        ReleaseSetupResources();
+        failure?.Throw();
     }
 
     private void ReleaseSetupResources() {

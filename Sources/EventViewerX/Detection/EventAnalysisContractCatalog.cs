@@ -69,7 +69,9 @@ public static class EventAnalysisContractCatalog {
                 "startTimeUtc", "endTimeUtc", "evidenceIdentities", "coverage", "explanation"
             },
             EventAnalysisContractKind.Coverage => new[] { "schemaVersion", "isDeclared", "failures" },
-            EventAnalysisContractKind.Plan => new[] { "schemaVersion", "ruleCount", "statefulRuleCount", "rules" },
+            EventAnalysisContractKind.Plan => new[] {
+                "schemaVersion", "planHash", "ruleCount", "statefulRuleCount", "requiredEventTypes", "rules"
+            },
             EventAnalysisContractKind.Pack => new[] {
                 "packId", "version", "minimumEngineVersion", "observationSchemaVersion", "contentHash", "rules"
             },
@@ -85,7 +87,7 @@ public static class EventAnalysisContractCatalog {
                     "schemaVersion" or "eventId" or "confidence" or "ruleCount" or "statefulRuleCount" => "integer",
                     "isDeclared" => "boolean",
                     "fields" or "coverage" => "object",
-                    "rules" or "conditions" or "evidenceIdentities" or "failures" => "array",
+                    "rules" or "conditions" or "evidenceIdentities" or "failures" or "requiredEventTypes" => "array",
                     _ => "string"
                 }
             },

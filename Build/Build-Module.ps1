@@ -36,6 +36,10 @@ Build-Module -ModuleName 'PSEventViewer' {
         # Tags applied to this module. These help with module discovery in online galleries.
         Tags                 = @('Events', 'Viewer', 'Windows', 'XML', 'XPATH', 'EVTX', 'WEC', 'Reporting')
 
+        # The Core payload is AnyCPU and selects RID-specific native assets at
+        # runtime. The module entry script rejects non-x64 Desktop hosts.
+        ProcessorArchitecture = 'None'
+
         IconUri              = 'https://evotec.xyz/wp-content/uploads/2018/10/PSEventViewer.png'
 
         ProjectUri           = 'https://github.com/EvotecIT/EventViewerX'
@@ -97,6 +101,14 @@ Build-Module -ModuleName 'PSEventViewer' {
         NETHandleAssemblyWithSameName     = $true
         NETAssemblyLoadContext            = $true
         NETHandleRuntimes                 = $true
+        NETAssemblyTypeAcceleratorMode    = 'Assembly'
+        NETAssemblyTypeAcceleratorAssemblies = @(
+            'EventViewerX'
+            'EventViewerX.Reporting'
+            'EventViewerX.Storage'
+            'EventViewerX.Detection'
+            'EventViewerX.Evtx'
+        )
         NETIgnoreLibraryOnLoad            = @(
             'HtmlForgeX.dll'
             'HtmlForgeX.Email.dll'

@@ -463,7 +463,7 @@ Parameter Sets: TypedFilter, Channel, Path, Provider
 Aliases: None
 Possible values:
 
-Required: True
+Required: False
 Position: named
 Default value: None
 Accept pipeline input: False
@@ -775,7 +775,7 @@ Parameter Sets: Path, Type, Preset, Definition
 Aliases: PSPath
 Possible values:
 
-Required: True
+Required: False
 Position: named
 Default value: None
 Accept pipeline input: True (ByPropertyName)
@@ -841,7 +841,7 @@ Parameter Sets: Path, Provider
 Aliases: Source, Provider
 Possible values:
 
-Required: True
+Required: False
 Position: named
 Default value: None
 Accept pipeline input: False

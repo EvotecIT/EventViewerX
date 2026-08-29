@@ -7,6 +7,10 @@ $BinaryModules = @(
     "PSEventViewer.dll"
 )
 
+if ($PSEdition -ne 'Core' -and [IntPtr]::Size -ne 8) {
+    throw 'PSEventViewer requires a 64-bit Windows PowerShell 5.1 process. PowerShell 7 uses the architecture-neutral payload.'
+}
+
 # Get public and private function definition files.
 $Public = @( Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
 $Private = @( Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)

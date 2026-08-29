@@ -680,6 +680,10 @@ public sealed class TestEventDetection {
             .GetProperty("evidenceIdentities")[0].GetString());
         Assert.False(findingJson.RootElement.TryGetProperty("evidence", out _));
         Assert.Equal(1, planJson.RootElement.GetProperty("ruleCount").GetInt32());
+        Assert.Equal(plan.PlanHash, planJson.RootElement.GetProperty("planHash").GetString());
+        Assert.Equal(
+            plan.RequiredEventTypes.Count,
+            planJson.RootElement.GetProperty("requiredEventTypes").GetArrayLength());
         Assert.Equal(observation.Identity, traceJson.RootElement.GetProperty("observationIdentity").GetString());
         Assert.All(EventAnalysisContractCatalog.GetContracts(), static contract => {
             Assert.Equal(EventAnalysisContractCatalog.CurrentSchemaVersion, contract.SchemaVersion);
@@ -689,6 +693,20 @@ public sealed class TestEventDetection {
                 schema.RootElement.GetProperty("$schema").GetString());
             Assert.True(schema.RootElement.GetProperty("required").GetArrayLength() > 0);
         });
+        using System.Text.Json.JsonDocument planSchema = System.Text.Json.JsonDocument.Parse(
+            EventAnalysisContractCatalog.Get(EventAnalysisContractKind.Plan).JsonSchema);
+        string[] planRequired = planSchema.RootElement.GetProperty("required")
+            .EnumerateArray()
+            .Select(static value => value.GetString()!)
+            .ToArray();
+        Assert.Contains("planHash", planRequired);
+        Assert.Contains("requiredEventTypes", planRequired);
+        Assert.Equal(
+            "array",
+            planSchema.RootElement.GetProperty("properties")
+                .GetProperty("requiredEventTypes")
+                .GetProperty("type")
+                .GetString());
     }
 
     [Fact]

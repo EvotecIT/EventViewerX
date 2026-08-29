@@ -1170,10 +1170,10 @@ caller-owned `evtx_dump` process adapter. PSEventViewer composes those
 assemblies into one user-facing module and exposes them through
 `-PortableEvtx` and `-PortableEvtxExecutable`; it has no PowerShell helper-module
 dependency. The PowerShell 7 managed payload is architecture-neutral for
-query, detection, reporting, and portable EVTX analysis. The bundled SQLite
-native asset and the Windows PowerShell 5.1 payload are currently x64, so local
-storage workflows remain x64-only until the module ships RID-selected SQLite
-assets; this does not prevent non-storage commands from importing or running.
+query, detection, reporting, portable EVTX analysis, and storage; SQLite is
+selected from bundled win-x64, win-x86, or win-arm64 native assets at runtime.
+The Windows PowerShell 5.1 payload remains x64 and the module entry script
+rejects a 32-bit Desktop host before loading it.
 
 ## Development and release
 

@@ -81,11 +81,11 @@ Describe 'PSEventViewer v4 command surface' {
         }
     }
 
-    It 'declares the packaged module as AMD64' {
+    It 'leaves architecture selection to the edition-specific runtime loader' {
         $Module = Get-Module PSEventViewer
         $Manifest = Import-PowerShellDataFile -Path (Join-Path $Module.ModuleBase 'PSEventViewer.psd1')
 
-        $Manifest.ProcessorArchitecture | Should -Be 'Amd64'
+        $Manifest.ProcessorArchitecture | Should -Be 'None'
     }
 
     It 'uses the expected managed cmdlet architecture for the selected payload' {
@@ -100,7 +100,7 @@ Describe 'PSEventViewer v4 command surface' {
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::Required32Bit) | Should -Be 0
         if ($PSVersionTable.PSEdition -eq 'Core') {
             # The PowerShell 7 payload is architecture-neutral IL. The module
-            # manifest and runtime selector constrain the process/native asset.
+            # runtime selector chooses the matching native asset when needed.
             ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Be 0
             $Machine | Should -Be ([System.Reflection.ImageFileMachine]::I386)
         } else {

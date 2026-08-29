@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Management.Automation.Runspaces;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 
 /// <summary>
 /// OnModuleImportAndRemove is a class that implements the IModuleAssemblyInitializer and IModuleAssemblyCleanup interfaces.
@@ -12,7 +13,6 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// OnImport is called when the module is imported.
     /// </summary>
     public void OnImport() {
-        PSEventViewer.PowerShellTypeAcceleratorRegistry.Register();
         if (IsNetFramework()) {
             AppDomain.CurrentDomain.AssemblyResolve += MyResolveEventHandler;
         }
@@ -23,12 +23,33 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// </summary>
     /// <param name="module"></param>
     public void OnRemove(PSModuleInfo module) {
+        ExceptionDispatchInfo? failure = null;
         Guid runspaceId = Runspace.DefaultRunspace?.InstanceId ?? Guid.Empty;
-        PSEventViewer.PowerShellWatcherRegistry.EndModuleInstance(runspaceId, module);
-        PSEventViewer.PowerShellTypeAcceleratorRegistry.Unregister();
-        if (IsNetFramework()) {
-            AppDomain.CurrentDomain.AssemblyResolve -= MyResolveEventHandler;
+        try {
+            PSEventViewer.PowerShellWatcherRegistry.EndModuleInstance(runspaceId, module);
+        } catch (Exception ex) {
+            failure = ExceptionDispatchInfo.Capture(ex);
         }
+        try {
+            if (IsNetFramework()) {
+                AppDomain.CurrentDomain.AssemblyResolve -= MyResolveEventHandler;
+            }
+        } catch (Exception ex) {
+            failure = PreserveFirstFailure(failure, ex, "AssemblyResolveCleanup");
+        }
+        failure?.Throw();
+    }
+
+    private static ExceptionDispatchInfo PreserveFirstFailure(
+        ExceptionDispatchInfo? failure,
+        Exception next,
+        string phase) {
+
+        if (failure == null) {
+            return ExceptionDispatchInfo.Capture(next);
+        }
+        failure.SourceException.Data[$"EventViewerX.ModuleCleanup.{phase}"] = next;
+        return failure;
     }
 
     /// <summary>

@@ -91,6 +91,9 @@ $manifest = Import-PowerShellDataFile -LiteralPath (Join-Path $moduleRoot 'PSEve
 if ([version] $manifest.ModuleVersion -ne [version] $version) {
     throw "PSEventViewer $($manifest.ModuleVersion) does not match package version $version."
 }
+if ([string] $manifest.ProcessorArchitecture -ne 'None') {
+    throw "PSEventViewer must leave architecture selection to its edition-specific runtime loader."
+}
 [array] $moduleAssemblies = Get-ChildItem -LiteralPath (Join-Path $moduleRoot 'Lib\Standard') `
     -Filter 'EventViewerX*.dll' -File
 foreach ($assembly in $moduleAssemblies) {
@@ -115,6 +118,7 @@ if (@($cliEntries | Where-Object { $_.Version -ne $version }).Count -ne 0) {
     Version = $version
     Packages = $expectedPackages.Count
     ModuleAssemblies = $moduleAssemblies.Count
+    ModuleArchitecture = [string] $manifest.ProcessorArchitecture
     CliAssets = $cliEntries.Count
     StorageDependsOnReporting = $packageMetadata['EventViewerX.Storage'].Dependencies -contains 'EventViewerX.Reporting'
 } | ConvertTo-Json -Compress
