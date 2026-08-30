@@ -26,36 +26,36 @@ if ($InternalHostProbe) {
 
     $Error.Clear()
     Import-Module $manifestPath -Force -ErrorAction Stop
-    $importErrors = $Error.Count
+    [array] $importErrors = @($Error | ForEach-Object { $_.ToString() })
 
     $Error.Clear()
     [array] $events = Get-EVXEvent -LogName System -MaxEvents 3 -ErrorAction Stop
-    $queryErrors = $Error.Count
+    [array] $queryErrors = @($Error | ForEach-Object { $_.ToString() })
 
     $Error.Clear()
     [array] $writeOutput = Show-EVXEvent -LogName System -MaxEvents 3 `
         -StorePath $DatabasePath -PassThru -ErrorAction Stop
-    $writeErrors = $Error.Count
+    [array] $writeErrors = @($Error | ForEach-Object { $_.ToString() })
     $writtenReport = $writeOutput | Where-Object { $_.PSObject.Properties['Rows'] } |
         Select-Object -First 1
 
     $Error.Clear()
     [array] $readOutput = Show-EVXEvent -FromStore $DatabasePath -MaxEvents 3 `
         -PassThru -ErrorAction Stop
-    $readErrors = $Error.Count
+    [array] $readErrors = @($Error | ForEach-Object { $_.ToString() })
     $readReport = $readOutput | Where-Object { $_.PSObject.Properties['Rows'] } |
         Select-Object -First 1
 
     $result = [pscustomobject] @{
         Host          = $HostName
         PSVersion     = $PSVersionTable.PSVersion.ToString()
-        ImportErrors  = $importErrors
+        ImportErrors  = $importErrors.Count
         QueryCount    = $events.Count
-        QueryErrors   = $queryErrors
+        QueryErrors   = $queryErrors.Count
         WrittenRows   = @($writtenReport.Rows).Count
-        WriteErrors   = $writeErrors
+        WriteErrors   = $writeErrors.Count
         ReadRows      = @($readReport.Rows).Count
-        ReadErrors    = $readErrors
+        ReadErrors    = $readErrors.Count
         DatabaseBytes = (Get-Item -LiteralPath $DatabasePath).Length
     }
 
@@ -63,7 +63,13 @@ if ($InternalHostProbe) {
         $result.QueryErrors -ne 0 -or
         $result.WriteErrors -ne 0 -or
         $result.ReadErrors -ne 0) {
-        throw "$HostName added one or more non-terminating errors during the runtime probe."
+        $errorDetails = @(
+            $importErrors
+            $queryErrors
+            $writeErrors
+            $readErrors
+        ) | Select-Object -Unique
+        throw "$HostName added one or more non-terminating errors during the runtime probe: $($errorDetails -join ' | ')"
     }
     if ($result.QueryCount -ne 3 -or $result.WrittenRows -ne 3 -or $result.ReadRows -ne 3) {
         throw "$HostName did not query, store, and reload exactly three events."

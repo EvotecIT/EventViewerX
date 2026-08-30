@@ -34,7 +34,10 @@ $target = New-ConfigurationProjectTarget `
     -OutputType Tool `
     -Zip
 
-$release = New-ConfigurationProjectRelease -Configuration 'Release' -ToolOutput Tool
+$release = New-ConfigurationProjectRelease `
+    -Configuration 'Release' `
+    -ToolOutput Tool `
+    -BuildDuringPublish
 $output = New-ConfigurationProjectOutput `
     -OutputRoot $artefactRoot `
     -StageRoot $releaseRoot `
