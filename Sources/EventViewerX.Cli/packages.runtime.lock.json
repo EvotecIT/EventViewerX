@@ -737,5 +737,25 @@
         }
       }
     }
+  },
+  "powerForgeSdkPackages": {
+    "Microsoft.AspNetCore.App.Runtime.linux-arm64|10.0.9": "jCRnZbdNFMnlDB0BodhDAVZVU5000mPIT0GSfltWIxN5VaL/TA7K8Pr8UNOirfr/XFjed+4OtKAJatNT/lY2FQ==",
+    "Microsoft.AspNetCore.App.Runtime.linux-x64|10.0.9": "ot0OF5n1TpAF0zJKW9BUY0H1i8Zt+v72MoPof7tOt8PRjR3MEP3r7NL2FSA6QgIjCCu3k1zSA2spUHzwDE1UVg==",
+    "Microsoft.AspNetCore.App.Runtime.osx-arm64|10.0.9": "RmQwNTl3DinLrBKJLBSYwd6sB6SEfpsZWdWSHv81h13MHRnsAnDk1iXD9rE9dOnaWdo01BnYHJ7atq6D55dLwg==",
+    "Microsoft.AspNetCore.App.Runtime.osx-x64|10.0.9": "8ARRSvBTVyeH/GWo3Fd04SihQ3WW0LhSIO975yQQNyJVR9UQXZPxdykZdQyiSr+Z1iLjkg0dT58qceVnxAoFjA==",
+    "Microsoft.AspNetCore.App.Runtime.win-arm64|10.0.9": "7CNabg1eZUV9uEoXkGDWhZDRPJLJTPvkuEcFUbrQNGRyYi+6kuUH84qkSJmgaxQ0kFhBBzaJYtASMJ1tv1Wm1g==",
+    "Microsoft.AspNetCore.App.Runtime.win-x64|10.0.9": "+3r3qMV94KOyWxzR+rOiYIXMwwML0XCHbYvJWHPB7F3A6ywHOntkXdYG3o+XtEtQN+aWI0j8kBDyVlsuUHtcQA==",
+    "Microsoft.NETCore.App.Host.linux-arm64|10.0.9": "4YI9zUylnWeK7BQL4DKnWrvXqRZ5IhTELTAtkLXlMtXiGmyYcoDMvoxLJz74XalB7aB48aSAuxUSnJ2UvtMEOA==",
+    "Microsoft.NETCore.App.Host.linux-x64|10.0.9": "uVZaXVnLFLpfmud4Yx3fLy5UcseyKvPX7SVIgCdjC9piddIJUf0O8j6Z01AOXyhbkTgyB7cjKCu4wgABFSv/Qw==",
+    "Microsoft.NETCore.App.Host.osx-arm64|10.0.9": "CagIWri11JlPfjIfuylIcmDYbfejxqP1PEBrUds9jtagonbv2NvexVGJ9XDTjxOzKh/Jc0bi/+JGpn6hXVoACw==",
+    "Microsoft.NETCore.App.Host.osx-x64|10.0.9": "tkiA4f/10lOn00ZqPPG+YL1YTelqHNYLMVIdNK+6ibse1TklO4bj89sWgqPHb9Aw4ysB+sUUS8wj58ZX/ASpkQ==",
+    "Microsoft.NETCore.App.Runtime.linux-arm64|10.0.9": "j5S1nv4Z8fEZftuId/DOHd26X5HmofIxdWOb8AaW9ao5kHByHBwLUyj1YzVT8Z0kvKwVLT88/HG8qgDpcm4nng==",
+    "Microsoft.NETCore.App.Runtime.linux-x64|10.0.9": "fN8YPh4YU37/zPudGuIce8A2AfbfAbNGOdukQLURZqVCNI9NwdXjwH0O1gCQykKRD7VD8WSQwALwVD0eP+MWDg==",
+    "Microsoft.NETCore.App.Runtime.osx-arm64|10.0.9": "RUtUS77lOJWAZud1QnS/gbwXgIqxwyS20OLK/L32X7BgMP2PMZSOg8pPejsnfd9xctKDwnx/Tj+iDKZfl0Bh0Q==",
+    "Microsoft.NETCore.App.Runtime.osx-x64|10.0.9": "EDQpYIB3U2FqvcqB9GL/6g2vXpl9jzjxzJJzVKMzj+tztOzLCW0MBnxpLVMV07APxMF1eLqCrEQdCI1kiDpsSw==",
+    "Microsoft.NETCore.App.Runtime.win-arm64|10.0.9": "xnQzlaisORPqzH3qH5FIb37wq6wMK6TYtX9da8ilJy6G+cJyrGECZcmA0CVCpNtl6kjundWpg1lu8jko+qUurQ==",
+    "Microsoft.NETCore.App.Runtime.win-x64|10.0.9": "vEtk3bxtD4tGEpmo5Z+cj/DNmjtnuOBitIarcwwaWYGwNAK3tZPF3bD7NfuPFM3zkCBuTQagY18wp2CbmJwErA==",
+    "Microsoft.WindowsDesktop.App.Runtime.win-arm64|10.0.9": "TLeja4/WdOsf0+1CVPQMvypRO1xWsxYG4E3+tzg/olatgKR8NdXhEp5P7vA/umX+fMbA7w81YqUQGC6eOWFUsQ==",
+    "Microsoft.WindowsDesktop.App.Runtime.win-x64|10.0.9": "PC8sMz+mq+DCr4TBVfAp45dHBahqkkYhF8JJ28/OJaHJWVy69FBkpYOae8w8UZ1XjAXuIMfa7ceNj7LtJl6DNQ=="
   }
 }
