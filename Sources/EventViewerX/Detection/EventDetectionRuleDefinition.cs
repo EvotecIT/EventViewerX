@@ -2,6 +2,8 @@ namespace EventViewerX;
 
 /// <summary>Serializable native rule definition compiled by <see cref="EventDetectionPlan"/>.</summary>
 public sealed class EventDetectionRuleDefinition {
+    private const int MaximumTemporalStepCount = 64;
+
     /// <summary>Stable rule identifier.</summary>
     public string RuleId { get; set; } = string.Empty;
     /// <summary>Semantic content version.</summary>
@@ -117,6 +119,10 @@ public sealed class EventDetectionRuleDefinition {
         if (Kind is EventDetectionRuleKind.Temporal or EventDetectionRuleKind.OrderedTemporal) {
             if (steps.Length < 2) {
                 throw new InvalidDataException("Temporal rules require at least two steps.");
+            }
+            if (steps.Length > MaximumTemporalStepCount) {
+                throw new InvalidDataException(
+                    $"Temporal rules cannot contain more than {MaximumTemporalStepCount} steps.");
             }
             if (steps.Select(static step => step.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != steps.Length) {
                 throw new InvalidDataException("Temporal step names must be unique.");

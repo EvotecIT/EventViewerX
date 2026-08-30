@@ -315,6 +315,14 @@ public sealed class EventDetectionPack {
         if (rules.Length == 0) {
             throw new InvalidDataException("A detection pack must contain at least one rule.");
         }
+        foreach (EventDetectionRuleDefinition rule in rules) {
+            if (!string.Equals(rule.PackId, packId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(rule.PackVersion, version, StringComparison.Ordinal)) {
+                throw new InvalidDataException(
+                    $"Detection rule '{rule.RuleId}' declares pack identity '{rule.PackId}' version " +
+                    $"'{rule.PackVersion}', but the manifest declares '{packId}' version '{version}'.");
+            }
+        }
         EnsureUniqueRuleIds(rules);
         return new EventDetectionPack(
             packId,
@@ -363,14 +371,10 @@ public sealed class EventDetectionPack {
     private static bool RulesEquivalent(
         EventDetectionRuleDefinition left,
         EventDetectionRuleDefinition right) =>
-        string.Equals(left.SourceHash, right.SourceHash, StringComparison.OrdinalIgnoreCase) &&
-        left.Severity == right.Severity &&
-        left.Confidence == right.Confidence &&
-        left.Kind == right.Kind &&
-        left.Threshold == right.Threshold &&
-        left.Window == right.Window &&
-        string.Equals(left.GroupBy, right.GroupBy, StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(left.DistinctBy, right.DistinctBy, StringComparison.OrdinalIgnoreCase);
+        string.Equals(
+            ComputeRuleHash(left),
+            ComputeRuleHash(right),
+            StringComparison.OrdinalIgnoreCase);
 
     private static string ComputeContentHash(
         string packId,

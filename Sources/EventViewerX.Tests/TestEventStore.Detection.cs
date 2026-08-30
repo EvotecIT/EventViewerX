@@ -116,6 +116,12 @@ public sealed partial class TestEventStore {
                 new EventDetectionEngineOptions(coverage: coverage));
 
             EventDetectionFinding finding = Assert.Single(result.Findings);
+            Assert.All(result.Observations, static observation => {
+                Assert.Equal(10, observation.SourceEvent.ProcessId);
+                Assert.Equal(20, observation.SourceEvent.ThreadId);
+                Assert.Equal(10, observation.Fields["ProcessId"]);
+                Assert.Equal(20, observation.Fields["ThreadId"]);
+            });
             Assert.True(
                 result.IsComplete,
                 $"Coverage={result.Coverage.IsComplete}; failures={string.Join(" | ", result.Coverage.Failures)}; " +

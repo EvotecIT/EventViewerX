@@ -191,7 +191,8 @@ public sealed class EventDetectionCoverage {
         Failures,
         IsDeclared);
 
-    internal EventDetectionCoverage WithFailures(IEnumerable<string> failures) => new(
+    /// <summary>Returns a detached coverage snapshot with additional source or collection failures.</summary>
+    public EventDetectionCoverage WithFailures(IEnumerable<string> failures) => new(
         ExpectedTargets,
         ObservedTargets,
         ExpectedChannels,

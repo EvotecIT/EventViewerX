@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace EventViewerX;
 
 /// <summary>Executes immutable detection plans against live or offline observation streams.</summary>
-public static class EventDetectionEngine {
+public static partial class EventDetectionEngine {
     /// <summary>Explains every rule decision for one observation without changing stateful evaluator state.</summary>
     public static IReadOnlyList<EventDetectionRuleTrace> Explain(
         EventObservation observation,
@@ -322,7 +322,7 @@ public static class EventDetectionEngine {
         return new EventDetectionFixtureResult(name, Evaluate(observations, plan, options), expected);
     }
 
-    private sealed class Evaluator {
+    private sealed partial class Evaluator {
         private readonly EventDetectionPlan _plan;
         private readonly EventDetectionEngineOptions _options;
         private readonly Dictionary<StateKey, ThresholdState> _thresholdStates = new();
@@ -338,6 +338,7 @@ public static class EventDetectionEngine {
         private bool _stateBoundReported;
         private DateTime _nextStateExpiryUtc = DateTime.MaxValue;
         private readonly HashSet<string> _missingDistinctFieldsReported = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _missingGroupFieldsReported = new(StringComparer.OrdinalIgnoreCase);
 
         internal Evaluator(EventDetectionPlan plan, EventDetectionEngineOptions? options) {
             _plan = plan ?? throw new ArgumentNullException(nameof(plan));
@@ -404,7 +405,9 @@ public static class EventDetectionEngine {
             EventObservation observation,
             ICollection<EventDetectionFinding> findings) {
 
-            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            if (!TryResolveGroupValue(rule, observation, findings, out string groupValue)) {
+                return;
+            }
             var key = new StateKey(rule.Definition.RuleId, groupValue);
             if (!_thresholdStates.TryGetValue(key, out ThresholdState? state)) {
                 if (!CanCreateState(observation, findings)) {
@@ -454,7 +457,9 @@ public static class EventDetectionEngine {
                 }
                 return;
             }
-            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            if (!TryResolveGroupValue(rule, observation, findings, out string groupValue)) {
+                return;
+            }
             var key = new StateKey(rule.Definition.RuleId, groupValue);
             if (!_distinctStates.TryGetValue(key, out ThresholdState? state)) {
                 if (!CanCreateState(observation, findings)) {
@@ -499,17 +504,22 @@ public static class EventDetectionEngine {
             if (matchingStepCount == 0) {
                 return;
             }
-            string groupValue = ResolveGroupValue(rule.Definition.GroupBy, observation);
+            if (!TryResolveGroupValue(rule, observation, findings, out string groupValue)) {
+                return;
+            }
             var key = new StateKey(rule.Definition.RuleId, groupValue);
             if (!_temporalStates.TryGetValue(key, out TemporalState? state)) {
                 if (!CanCreateState(observation, findings)) {
                     return;
                 }
-                state = new TemporalState(rule.Steps.Length);
+                state = new TemporalState();
                 _temporalStates.Add(key, state);
             }
             state.ExpiresUtc = Later(state.ExpiresUtc, observation.EventTimeUtc + rule.Definition.Window);
             TrackStateExpiry(state.ExpiresUtc);
+            if (state.UnorderedSafetyLimitReached) {
+                return;
+            }
             if (rule.Definition.Kind == EventDetectionRuleKind.OrderedTemporal) {
                 ProcessOrderedTemporal(rule, observation, _matchingStepIndexes, matchingStepCount, groupValue, key, state, findings);
             } else {
@@ -527,39 +537,69 @@ public static class EventDetectionEngine {
             TemporalState state,
             ICollection<EventDetectionFinding> findings) {
 
-            DateTime minimum = observation.EventTimeUtc - rule.Definition.Window;
-            for (int index = 0; index < state.StepEvidence.Length; index++) {
-                EventObservation? existing = state.StepEvidence[index];
-                if (existing != null && existing.EventTimeUtc < minimum) {
-                    state.StepEvidence[index] = null;
-                    Release(existing);
-                }
-            }
-            int selected = -1;
-            for (int matchIndex = 0; matchIndex < matchingStepCount; matchIndex++) {
-                int index = matchingSteps[matchIndex];
-                if (state.StepEvidence[index] == null) {
-                    selected = index;
-                    break;
-                }
-            }
-            if (selected < 0 || !CanRetainObservation(observation, findings)) {
+            PruneUnorderedWindow(state, observation.EventTimeUtc, rule.Definition.Window);
+            int[] stepIndexes = new int[matchingStepCount];
+            Array.Copy(matchingSteps, stepIndexes, matchingStepCount);
+            long candidateStateBytes = EstimateUnorderedCandidateBytes(stepIndexes.Length);
+            int redundantCandidate = FindRedundantCandidate(state.UnorderedEvidence, stepIndexes);
+            int candidateLimit = MaximumUnorderedCandidates(rule.Steps.Length);
+            if (redundantCandidate < 0 && state.UnorderedEvidence.Count >= candidateLimit) {
+                DisableUnorderedTemporalState(
+                    rule,
+                    state,
+                    observation,
+                    findings,
+                    $"retained candidate limit of {candidateLimit}");
                 return;
             }
-            state.StepEvidence[selected] = observation;
-            Retain(observation);
-            if (state.StepEvidence.Any(static item => item == null)) {
+            if (redundantCandidate >= 0) {
+                UnorderedTemporalCandidate existing = state.UnorderedEvidence[redundantCandidate];
+                if (!CanReplaceRetainedObservation(
+                        existing.Observation,
+                        existing.StateBytes,
+                        observation,
+                        candidateStateBytes,
+                        findings)) {
+                    return;
+                }
+                Release(existing.Observation, existing.StateBytes);
+                state.UnorderedEvidence.RemoveAt(redundantCandidate);
+            } else if (!CanRetainObservation(observation, candidateStateBytes, findings)) {
                 return;
             }
-            EventObservation[] evidence = state.StepEvidence.Select(static item => item!).ToArray();
+            InsertUnorderedCandidate(
+                state.UnorderedEvidence,
+                new UnorderedTemporalCandidate(observation, stepIndexes, candidateStateBytes));
+            Retain(observation, candidateStateBytes);
+            long matchingWorkLimit = MaximumUnorderedMatchingWork(rule.Steps.Length);
+            long matchingWork = state.UnorderedMatchingWork;
+            bool matched = TrySelectUnorderedEvidence(
+                    rule,
+                    state.UnorderedEvidence,
+                    ref matchingWork,
+                    matchingWorkLimit,
+                    out EventObservation[] evidence,
+                    out bool workLimitReached);
+            state.UnorderedMatchingWork = matchingWork;
+            if (!matched) {
+                if (workLimitReached) {
+                    DisableUnorderedTemporalState(
+                        rule,
+                        state,
+                        observation,
+                        findings,
+                        $"matching work limit of {matchingWorkLimit} selector checks");
+                }
+                return;
+            }
             DateTime maximum = evidence.Max(static item => item.EventTimeUtc);
             DateTime earliest = evidence.Min(static item => item.EventTimeUtc);
             if (maximum - earliest > rule.Definition.Window) {
                 return;
             }
             findings.Add(CreateFinding(rule, evidence.OrderBy(static item => item.EventTimeUtc).ToArray(), groupValue));
-            Release(evidence);
-            Array.Clear(state.StepEvidence, 0, state.StepEvidence.Length);
+            ReleaseUnorderedCandidates(state.UnorderedEvidence);
+            state.UnorderedEvidence.Clear();
             _temporalStates.Remove(key);
         }
 
@@ -633,7 +673,7 @@ public static class EventDetectionEngine {
             foreach (KeyValuePair<StateKey, TemporalState> item in _temporalStates
                          .Where(item => item.Value.ExpiresUtc < current)
                          .ToArray()) {
-                Release(item.Value.StepEvidence.Where(static observation => observation != null).Select(static observation => observation!));
+                ReleaseUnorderedCandidates(item.Value.UnorderedEvidence);
                 Release(item.Value.OrderedEvidence);
                 _temporalStates.Remove(item.Key);
             }
@@ -672,7 +712,15 @@ public static class EventDetectionEngine {
             EventObservation observation,
             ICollection<EventDetectionFinding> findings) {
 
-            long observationBytes = EstimateObservationBytes(observation);
+            return CanRetainObservation(observation, 0, findings);
+        }
+
+        private bool CanRetainObservation(
+            EventObservation observation,
+            long additionalStateBytes,
+            ICollection<EventDetectionFinding> findings) {
+
+            long observationBytes = EstimateObservationBytes(observation) + additionalStateBytes;
             if (_stateObservations < _options.MaximumStateObservations &&
                 _stateBytes <= _options.MaximumStateBytes - observationBytes) {
                 return true;
@@ -681,6 +729,30 @@ public static class EventDetectionEngine {
                 _stateBoundReported = true;
                 findings.Add(CreateIncomplete(
                     observation,
+                    $"Detection state limit was reached. MaximumStateObservations={_options.MaximumStateObservations}; " +
+                    $"MaximumStateBytes={_options.MaximumStateBytes}."));
+            }
+            return false;
+        }
+
+        private bool CanReplaceRetainedObservation(
+            EventObservation existing,
+            long existingAdditionalBytes,
+            EventObservation replacement,
+            long replacementAdditionalBytes,
+            ICollection<EventDetectionFinding> findings) {
+
+            long releasedBytes = EstimateObservationBytes(existing) + existingAdditionalBytes;
+            long replacementBytes = EstimateObservationBytes(replacement) + replacementAdditionalBytes;
+            long retainedBytes = Math.Max(0, _stateBytes - releasedBytes);
+            if (replacementBytes <= _options.MaximumStateBytes &&
+                retainedBytes <= _options.MaximumStateBytes - replacementBytes) {
+                return true;
+            }
+            if (!_stateBoundReported) {
+                _stateBoundReported = true;
+                findings.Add(CreateIncomplete(
+                    replacement,
                     $"Detection state limit was reached. MaximumStateObservations={_options.MaximumStateObservations}; " +
                     $"MaximumStateBytes={_options.MaximumStateBytes}."));
             }
@@ -721,20 +793,49 @@ public static class EventDetectionEngine {
             observations.Insert(low, observation);
         }
 
-        private void Retain(EventObservation observation) {
+        private void Retain(EventObservation observation, long additionalStateBytes = 0) {
             _stateObservations++;
-            _stateBytes += EstimateObservationBytes(observation);
+            _stateBytes += EstimateObservationBytes(observation) + additionalStateBytes;
         }
 
-        private void Release(EventObservation observation) {
+        private void Release(EventObservation observation, long additionalStateBytes = 0) {
             _stateObservations--;
-            _stateBytes -= EstimateObservationBytes(observation);
+            _stateBytes -= EstimateObservationBytes(observation) + additionalStateBytes;
         }
 
         private void Release(IEnumerable<EventObservation> observations) {
             foreach (EventObservation observation in observations) {
                 Release(observation);
             }
+        }
+
+        private void ReleaseUnorderedCandidates(IEnumerable<UnorderedTemporalCandidate> candidates) {
+            foreach (UnorderedTemporalCandidate candidate in candidates) {
+                Release(candidate.Observation, candidate.StateBytes);
+            }
+        }
+
+        private static long EstimateUnorderedCandidateBytes(int matchingStepCount) =>
+            96L + (matchingStepCount * sizeof(int));
+
+        private static int MaximumUnorderedCandidates(int stepCount) => stepCount * stepCount;
+
+        private static long MaximumUnorderedMatchingWork(int stepCount) => 16L * stepCount * stepCount;
+
+        private void DisableUnorderedTemporalState(
+            EventDetectionPlan.CompiledRule rule,
+            TemporalState state,
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings,
+            string limit) {
+
+            ReleaseUnorderedCandidates(state.UnorderedEvidence);
+            state.UnorderedEvidence.Clear();
+            state.UnorderedSafetyLimitReached = true;
+            findings.Add(CreateIncomplete(
+                observation,
+                $"Temporal rule '{rule.Definition.RuleId}' reached its {limit}; " +
+                "this group will remain incomplete until its active window expires."));
         }
 
         private static long EstimateObservationBytes(EventObservation observation) {
@@ -866,14 +967,33 @@ public static class EventDetectionEngine {
                 diagnostic);
         }
 
-        private static string ResolveGroupValue(string? field, EventObservation observation) {
+        private bool TryResolveGroupValue(
+            EventDetectionPlan.CompiledRule rule,
+            EventObservation observation,
+            ICollection<EventDetectionFinding> findings,
+            out string value) {
+
+            string? field = rule.Definition.GroupBy;
             if (string.IsNullOrWhiteSpace(field)) {
-                return "*";
+                value = "*";
+                return true;
             }
-            if (!TryResolveFieldValue(field!, observation, out string value)) {
-                return "<missing>";
+            if (TryResolveFieldValue(field!, observation, out value)) {
+                return true;
             }
-            return value;
+            string diagnosticKey = rule.Definition.RuleId + "\n" + field;
+            if (_missingGroupFieldsReported.Add(diagnosticKey)) {
+                findings.Add(CreateIncomplete(
+                    observation,
+                    $"Stateful rule '{rule.Definition.RuleId}' could not evaluate required grouping field '{field}'."));
+            }
+            return false;
+        }
+
+        private static string ResolveGroupValue(string field, EventObservation observation) {
+            return TryResolveFieldValue(field, observation, out string value)
+                ? value
+                : string.Empty;
         }
 
         private static bool TryResolveFieldValue(
@@ -946,13 +1066,11 @@ public static class EventDetectionEngine {
         }
 
         private sealed class TemporalState {
-            internal TemporalState(int stepCount) {
-                StepEvidence = new EventObservation?[stepCount];
-            }
-
-            internal EventObservation?[] StepEvidence { get; }
+            internal List<UnorderedTemporalCandidate> UnorderedEvidence { get; } = new();
             internal List<EventObservation> OrderedEvidence { get; } = new();
             internal int NextStep { get; set; }
+            internal long UnorderedMatchingWork { get; set; }
+            internal bool UnorderedSafetyLimitReached { get; set; }
             internal DateTime ExpiresUtc { get; set; }
         }
     }

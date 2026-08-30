@@ -307,7 +307,7 @@ public sealed partial class EventStore {
             : 0;
         string sql = @"SELECT definition_name, event_time_utc, event_id, record_id, provider,
 source_log, container_log, source_computer, collector_computer, level, level_value,
-activity_id, related_activity_id, message, values_json, transport_kind,
+activity_id, related_activity_id, process_id, thread_id, message, values_json, transport_kind,
 observation_identity, received_time_utc, processed_time_utc, inserted_utc
 FROM evx_events";
         if (filter.Clauses.Count > 0) {
@@ -455,15 +455,17 @@ FROM evx_events";
             LevelValue = record.IsDBNull(10) ? null : record.GetByte(10),
             ActivityId = ReadGuid(record, 11, definitionName, "activity_id"),
             RelatedActivityId = ReadGuid(record, 12, definitionName, "related_activity_id"),
-            Message = record.GetString(13),
-            Values = DeserializeValues(record.GetString(14), schema),
-            SourceKind = record.GetInt32(15) == 2
+            ProcessId = record.IsDBNull(13) ? null : record.GetInt32(13),
+            ThreadId = record.IsDBNull(14) ? null : record.GetInt32(14),
+            Message = record.GetString(15),
+            Values = DeserializeValues(record.GetString(16), schema),
+            SourceKind = record.GetInt32(17) == 2
                 ? EventLogQuerySourceKind.File
                 : EventLogQuerySourceKind.Channel,
-            ObservationIdentity = record.GetString(16),
-            ReceivedTimeUtc = ParseNullableUtc(record, 17),
-            ProcessedTimeUtc = ParseNullableUtc(record, 18),
-            StoredTimeUtc = ParseUtc(record.GetString(19))
+            ObservationIdentity = record.GetString(18),
+            ReceivedTimeUtc = ParseNullableUtc(record, 19),
+            ProcessedTimeUtc = ParseNullableUtc(record, 20),
+            StoredTimeUtc = ParseUtc(record.GetString(21))
         };
     }
 

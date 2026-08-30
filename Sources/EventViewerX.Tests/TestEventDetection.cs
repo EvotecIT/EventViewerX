@@ -1,10 +1,11 @@
 using EventViewerX.Native;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace EventViewerX.Tests;
 
-public sealed class TestEventDetection {
+public sealed partial class TestEventDetection {
     [Fact]
     public void ObservationCombinesStableMetadataRawDataAndTypedFields() {
         DateTime eventTime = new(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc);
@@ -210,6 +211,61 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void UnorderedTemporalRuleRetainsAlternateAssignmentsForOverlappingSteps() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-TEMPORAL-OVERLAP",
+                Title = "Overlapping temporal selectors",
+                Kind = EventDetectionRuleKind.Temporal,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                Steps = new[] {
+                    new EventDetectionStepDefinition { Name = "broad", EventIds = new[] { 1001, 1002 } },
+                    new EventDetectionStepDefinition { Name = "specific", EventIds = new[] { 1001 } }
+                }
+            })
+        });
+        EventObservation firstMatchesBoth = Observe(1001, Utc(10, 0), 1, "alice");
+        EventObservation secondMatchesBroadOnly = Observe(1002, Utc(10, 1), 2, "alice");
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { firstMatchesBoth, secondMatchesBroadOnly },
+            plan));
+
+        Assert.Equal(new long?[] { 1, 2 }, finding.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
+    public void UnorderedTemporalRuleBoundsEquivalentAlternateCandidates() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-TEMPORAL-OVERLAP-BOUNDED",
+                Title = "Bounded overlapping temporal selectors",
+                Kind = EventDetectionRuleKind.Temporal,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                Steps = new[] {
+                    new EventDetectionStepDefinition { Name = "broad", EventIds = new[] { 1001, 1002 } },
+                    new EventDetectionStepDefinition { Name = "specific", EventIds = new[] { 1001 } }
+                }
+            })
+        });
+        EventObservation[] observations = Enumerable.Range(0, 1000)
+            .Select(index => Observe(1002, Utc(10, 0).AddMilliseconds(index), index + 1, "alice"))
+            .Append(Observe(1001, Utc(10, 1), 1001, "alice"))
+            .ToArray();
+
+        EventDetectionFinding[] findings = EventDetectionEngine.Stream(
+            observations,
+            plan,
+            new EventDetectionEngineOptions(maximumStateObservations: 2)).ToArray();
+
+        EventDetectionFinding finding = Assert.Single(findings);
+        Assert.Equal(EventDetectionFindingStatus.Matched, finding.Status);
+        Assert.Equal(new long?[] { 1000, 1001 }, finding.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
     public void OrderedTemporalRuleRequiresDeclaredOrderAndRestartsFromFirstStep() {
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
             TemporalRule("EVX-TEST-ORDERED", EventDetectionRuleKind.OrderedTemporal)
@@ -302,6 +358,55 @@ public sealed class TestEventDetection {
             static finding => finding.Status == EventDetectionFindingStatus.Matched);
         Assert.Contains("SourceAddress", incomplete.CompletenessDiagnostic, StringComparison.Ordinal);
         Assert.Equal(new long?[] { 1, 3, 4 }, matched.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Theory]
+    [InlineData(EventDetectionRuleKind.Threshold)]
+    [InlineData(EventDetectionRuleKind.DistinctValue)]
+    [InlineData(EventDetectionRuleKind.Temporal)]
+    [InlineData(EventDetectionRuleKind.OrderedTemporal)]
+    public void StatefulRulesRejectMissingGroupingDataWithOneIncompleteFinding(
+        EventDetectionRuleKind kind) {
+
+        EventDetectionRuleDefinition definition;
+        if (kind is EventDetectionRuleKind.Temporal or EventDetectionRuleKind.OrderedTemporal) {
+            definition = TemporalRule("EVX-TEST-MISSING-GROUP-" + kind, kind).Definition;
+        } else {
+            definition = new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-MISSING-GROUP-" + kind,
+                Title = "Missing group field",
+                Kind = kind,
+                EventIds = new[] { 1001 },
+                Threshold = 2,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                DistinctBy = kind == EventDetectionRuleKind.DistinctValue ? "SourceAddress" : null
+            };
+        }
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { new EventDetectionRule(definition) });
+        EventObservation first = Observe(1001, Utc(10, 0), 1, "alice");
+        EventObservation second = Observe(
+            kind is EventDetectionRuleKind.Temporal or EventDetectionRuleKind.OrderedTemporal ? 1002 : 1001,
+            Utc(10, 1),
+            2,
+            "alice");
+        first.SourceEvent.Data.Remove("Account");
+        second.SourceEvent.Data.Remove("Account");
+        first.SourceEvent.Data["SourceAddress"] = "10.0.0.1";
+        second.SourceEvent.Data["SourceAddress"] = "10.0.0.2";
+        EventObservation[] observations = { first, second };
+
+        EventDetectionFinding[] findings = EventDetectionEngine.Stream(
+            observations.Select(static item => EventObservation.Create(
+                item.SourceEvent,
+                receivedTimeUtc: item.ReceivedTimeUtc,
+                processedTimeUtc: item.ProcessedTimeUtc)),
+            plan).ToArray();
+
+        EventDetectionFinding incomplete = Assert.Single(findings);
+        Assert.Equal(EventDetectionFindingStatus.Incomplete, incomplete.Status);
+        Assert.Contains("Account", incomplete.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.DoesNotContain(findings, static finding => finding.Status == EventDetectionFindingStatus.Matched);
     }
 
     [Fact]
@@ -455,6 +560,20 @@ public sealed class TestEventDetection {
     }
 
     [Fact]
+    public void DetectionPackRejectsRuleIdentityThatDisagreesWithManifest() {
+        EventDetectionPack pack = EventDetectionCatalog.GetBuiltInPacks()[0];
+        JsonObject envelope = JsonNode.Parse(pack.ToJson())!.AsObject();
+        JsonObject firstRule = envelope["Rules"]!.AsArray()[0]!.AsObject();
+        firstRule["PackId"] = "eventviewerx.unrelated-pack";
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            EventDetectionPack.ParseJson(envelope.ToJsonString()));
+
+        Assert.Contains("declares pack identity", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eventviewerx.unrelated-pack", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DetectionPackFailsClosedForFutureEngineOrUnknownObservationSchema() {
         EventDetectionRuleDefinition rule = Rule("EVX-TEST-PACK-COMPATIBILITY").Definition;
         EventDetectionPack futureEngine = EventDetectionPack.Create(
@@ -509,6 +628,30 @@ public sealed class TestEventDetection {
         Assert.Empty(comparison.RemovedRuleIds);
         Assert.Contains(EventType.ADUserLogonNTLMv1, coverage.EventTypes);
         Assert.Contains(EventType.KerberosTicketFailure, coverage.EventTypes);
+    }
+
+    [Fact]
+    public void PackComparisonUsesCanonicalBehaviorWhenAClonedRuleRetainsItsSourceHash() {
+        EventDetectionRuleDefinition original = Rule("EVX-TEST-CANONICAL-DIFF").Definition;
+        original.SourceHash = new string('A', 64);
+        EventDetectionPack previous = EventDetectionPack.Create(
+            "eventviewerx.test.canonical-diff",
+            "1.0.0",
+            new[] { original },
+            createdUtc: Utc(10, 0));
+        EventDetectionRuleDefinition changed = Assert.Single(previous.Rules);
+        changed.Predicate = EventPredicate.Compare("Account", EventPredicateOperator.Equal, "admin");
+        EventDetectionPack current = EventDetectionPack.Create(
+            previous.PackId,
+            "1.1.0",
+            new[] { changed },
+            createdUtc: Utc(10, 1));
+
+        EventDetectionPackComparison comparison = previous.CompareTo(current);
+
+        Assert.Contains(original.RuleId, comparison.ChangedRuleIds);
+        Assert.Empty(comparison.UnchangedRuleIds);
+        Assert.Equal(previous.Rules[0].SourceHash, current.Rules[0].SourceHash);
     }
 
     [Fact]

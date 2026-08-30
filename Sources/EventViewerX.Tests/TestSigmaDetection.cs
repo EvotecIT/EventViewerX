@@ -44,6 +44,30 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void SigmaScalarSelectionMatchesTheRenderedEventMessage() {
+        const string yaml = """
+            title: Suspicious rendered message
+            id: 55555555-5555-4555-8555-555555555555
+            logsource:
+              product: windows
+              service: security
+            detection:
+              keywords:
+                - suspicious phrase
+              condition: keywords
+            level: medium
+            """;
+        EventDetectionPlan plan = SigmaRuleCompiler.CompileYaml(yaml).CompilePlan();
+        EventObject source = CreateEvent(1001, 1, "A suspicious phrase was rendered by the provider.");
+        EventObservation observation = EventObservation.Create(source);
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(new[] { observation }, plan));
+
+        Assert.Equal("A suspicious phrase was rendered by the provider.", observation.Fields["Message"]);
+        Assert.Equal(observation.Identity, finding.EvidenceIdentities[0]);
+    }
+
+    [Fact]
     public void SigmaOrderedTemporalCorrelationUsesTheSharedBoundedEngine() {
         const string yaml = """
             title: Failed logon
@@ -259,7 +283,7 @@ public sealed class TestSigmaDetection {
         return EventObservation.Create(source, receivedTimeUtc: time, processedTimeUtc: time);
     }
 
-    private static EventObject CreateEvent(int eventId, long recordId) {
+    private static EventObject CreateEvent(int eventId, long recordId, string? message = null) {
         DateTime time = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc).AddMinutes(recordId);
         var metadata = new NativeEventMetadata(
             "Microsoft-Windows-Security-Auditing",
@@ -280,6 +304,20 @@ public sealed class TestSigmaDetection {
             machineName: "server01",
             userId: null,
             version: 1);
-        return new EventObject(metadata, queriedMachine: "collector01", containerLog: "Security");
+        if (message == null) {
+            return new EventObject(metadata, queriedMachine: "collector01", containerLog: "Security");
+        }
+        var rendered = new NativeEventMessage(
+            metadata,
+            message,
+            "Information",
+            string.Empty,
+            string.Empty,
+            Array.Empty<string>(),
+            bookmark: null,
+            cultureName: "en-US",
+            EventMessageRenderStatus.Rendered,
+            renderErrorCode: 0);
+        return new EventObject(rendered, queriedMachine: "collector01", containerLog: "Security");
     }
 }

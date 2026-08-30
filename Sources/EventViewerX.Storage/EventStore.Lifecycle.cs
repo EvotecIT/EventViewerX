@@ -11,49 +11,129 @@ public sealed partial class EventStore {
     public async Task<EventStoreIntegrityResult> CheckIntegrityAsync(
         CancellationToken cancellationToken = default) {
 
-        EnsureInitialized();
+        long databaseBytes = GetDatabaseBytes(Path);
+        if (!File.Exists(Path)) {
+            return CreateUnhealthyIntegrityResult(
+                "The EventStore database file does not exist.",
+                databaseBytes);
+        }
+        if (databaseBytes == 0) {
+            return CreateUnhealthyIntegrityResult(
+                "The EventStore database file is empty.",
+                databaseBytes);
+        }
+
         using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
-        await using SQLiteAsyncSession session = await sqlite
-            .OpenSessionAsync(Path, cancellationToken)
-            .ConfigureAwait(false);
-        IReadOnlyList<string> checks = await session.QueryAsListAsync(
-            "PRAGMA integrity_check;",
-            static record => record.GetString(0),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        var diagnostics = checks
-            .Where(static value => !string.Equals(value, "ok", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        IReadOnlyList<StoreVersionRow> versions = await session.QueryAsListAsync(
-            "SELECT schema_version, event_identity_version, finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;",
-            static record => new StoreVersionRow(record.GetInt32(0), record.GetInt32(1), record.GetInt32(2)),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        StoreVersionRow version = versions.Single();
-        if (version.SchemaVersion != SchemaVersion) {
-            diagnostics.Add($"Unsupported base schema version {version.SchemaVersion}.");
+        try {
+            IReadOnlyList<string> checks = await sqlite.QueryReadOnlyAsListAsync(
+                Path,
+                "PRAGMA integrity_check;",
+                static record => record.GetString(0),
+                cancellationToken: cancellationToken,
+                busyTimeoutMs: 10000).ConfigureAwait(false);
+            var diagnostics = checks
+                .Where(static value => !string.Equals(value, "ok", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            IReadOnlyList<string> tables = await sqlite.QueryReadOnlyAsListAsync(
+                Path,
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (" +
+                "'evx_store_metadata', 'evx_definitions', 'evx_events', 'evx_checkpoints', " +
+                "'evx_findings', 'evx_finding_evidence', 'evx_finding_entities');",
+                static record => record.GetString(0),
+                cancellationToken: cancellationToken,
+                busyTimeoutMs: 10000).ConfigureAwait(false);
+            var availableTables = new HashSet<string>(tables, StringComparer.OrdinalIgnoreCase);
+            string[] requiredTables = StoreSchemaContracts
+                .Select(static contract => contract.TableName)
+                .ToArray();
+            foreach (string requiredTable in requiredTables.Where(table => !availableTables.Contains(table))) {
+                diagnostics.Add($"Required EventStore table '{requiredTable}' is missing.");
+            }
+            if (diagnostics.Count > 0) {
+                return new EventStoreIntegrityResult(
+                    false,
+                    diagnostics,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    databaseBytes);
+            }
+            await ValidateStoreSchemaAsync(
+                sqlite,
+                diagnostics,
+                cancellationToken).ConfigureAwait(false);
+            if (diagnostics.Count > 0) {
+                return new EventStoreIntegrityResult(
+                    false,
+                    diagnostics,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    databaseBytes);
+            }
+
+            IReadOnlyList<StoreVersionRow> versions = await sqlite.QueryReadOnlyAsListAsync(
+                Path,
+                "SELECT schema_version, event_identity_version, finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;",
+                static record => new StoreVersionRow(record.GetInt32(0), record.GetInt32(1), record.GetInt32(2)),
+                cancellationToken: cancellationToken,
+                busyTimeoutMs: 10000).ConfigureAwait(false);
+            if (versions.Count != 1) {
+                diagnostics.Add(
+                    $"EventStore metadata must contain exactly one singleton row; observed {versions.Count}.");
+                return new EventStoreIntegrityResult(
+                    false,
+                    diagnostics,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    databaseBytes);
+            }
+
+            StoreVersionRow version = versions[0];
+            if (version.SchemaVersion != SchemaVersion) {
+                diagnostics.Add($"Unsupported base schema version {version.SchemaVersion}.");
+            }
+            if (version.EventIdentityVersion != 3) {
+                diagnostics.Add($"Unsupported event identity version {version.EventIdentityVersion}.");
+            }
+            if (version.FindingSchemaVersion != 2) {
+                diagnostics.Add($"Unsupported finding schema version {version.FindingSchemaVersion}.");
+            }
+            long events = (await sqlite.QueryReadOnlyAsListAsync(
+                Path,
+                "SELECT COUNT(*) FROM evx_events;",
+                static record => Convert.ToInt64(record.GetValue(0), CultureInfo.InvariantCulture),
+                cancellationToken: cancellationToken,
+                busyTimeoutMs: 10000).ConfigureAwait(false)).Single();
+            long findings = (await sqlite.QueryReadOnlyAsListAsync(
+                Path,
+                "SELECT COUNT(*) FROM evx_findings;",
+                static record => Convert.ToInt64(record.GetValue(0), CultureInfo.InvariantCulture),
+                cancellationToken: cancellationToken,
+                busyTimeoutMs: 10000).ConfigureAwait(false)).Single();
+            return new EventStoreIntegrityResult(
+                diagnostics.Count == 0,
+                diagnostics,
+                version.SchemaVersion,
+                version.EventIdentityVersion,
+                version.FindingSchemaVersion,
+                events,
+                findings,
+                databaseBytes);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException) {
+            return CreateUnhealthyIntegrityResult(
+                $"The EventStore database could not be validated read-only: {exception.Message}",
+                databaseBytes);
         }
-        if (version.EventIdentityVersion != 3) {
-            diagnostics.Add($"Unsupported event identity version {version.EventIdentityVersion}.");
-        }
-        if (version.FindingSchemaVersion != 2) {
-            diagnostics.Add($"Unsupported finding schema version {version.FindingSchemaVersion}.");
-        }
-        long events = Convert.ToInt64(
-            await session.ExecuteScalarAsync("SELECT COUNT(*) FROM evx_events;", cancellationToken: cancellationToken)
-                .ConfigureAwait(false),
-            CultureInfo.InvariantCulture);
-        long findings = Convert.ToInt64(
-            await session.ExecuteScalarAsync("SELECT COUNT(*) FROM evx_findings;", cancellationToken: cancellationToken)
-                .ConfigureAwait(false),
-            CultureInfo.InvariantCulture);
-        return new EventStoreIntegrityResult(
-            diagnostics.Count == 0,
-            diagnostics,
-            version.SchemaVersion,
-            version.EventIdentityVersion,
-            version.FindingSchemaVersion,
-            events,
-            findings,
-            GetDatabaseBytes(Path));
     }
 
     /// <summary>Creates a transactionally consistent, integrity-checked SQLite backup with a checksum.</summary>
@@ -245,6 +325,18 @@ public sealed partial class EventStore {
     }
 
     private static long GetDatabaseBytes(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
+
+    private static EventStoreIntegrityResult CreateUnhealthyIntegrityResult(
+        string diagnostic,
+        long databaseBytes) => new(
+            false,
+            new[] { diagnostic },
+            0,
+            0,
+            0,
+            0,
+            0,
+            databaseBytes);
 
     private static string ComputeSha256(string path) {
         using SHA256 sha256 = SHA256.Create();

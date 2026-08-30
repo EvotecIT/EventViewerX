@@ -21,6 +21,8 @@ public sealed class GroupPolicyAuditRecord {
         RecordId = source.RecordId;
         ActivityId = source.ActivityId;
         RelatedActivityId = source.RelatedActivityId;
+        ProcessId = source.ProcessId;
+        ThreadId = source.ThreadId;
         SourceComputer = source.SourceComputer;
         QueryTarget = string.IsNullOrWhiteSpace(source.CollectorComputer)
             ? Environment.MachineName
@@ -77,6 +79,12 @@ public sealed class GroupPolicyAuditRecord {
 
     /// <summary>Windows system related-activity identifier retained from the source event.</summary>
     public Guid? RelatedActivityId { get; }
+
+    /// <summary>Identifier of the process that emitted the source event.</summary>
+    public int? ProcessId { get; }
+
+    /// <summary>Identifier of the thread that emitted the source event.</summary>
+    public int? ThreadId { get; }
 
     /// <summary>Domain controller that emitted the event.</summary>
     public string SourceComputer { get; }

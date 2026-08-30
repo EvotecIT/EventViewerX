@@ -72,13 +72,15 @@ public static class EventLogBatchConsolidator {
             .ToArray();
         if (parserBackedFiles.Length > 0) {
             EventLogFileQuery[] mergedFiles = parserBackedFiles
-                .GroupBy(static file => new {
-                    Path = Path.GetFullPath(file.Path).ToUpperInvariant(),
-                    file.SavedEventReader,
-                    file.SavedEventDiagnosticHandler,
-                    file.BatchSourceIdentity
-                })
-                .Select(static group => MergeParserBackedFiles(group.ToArray()))
+                .Select(static (file, index) => new { File = file, Index = index })
+                .GroupBy(static item => new {
+                    Path = Path.GetFullPath(item.File.Path).ToUpperInvariant(),
+                    item.File.SavedEventReader,
+                    item.File.SavedEventDiagnosticHandler,
+                    item.File.BatchSourceIdentity,
+                    ConsolidationScope = GetParserBackedConsolidationScope(item.File, item.Index)
+                 })
+                .Select(static group => MergeParserBackedFiles(group.Select(static item => item.File).ToArray()))
                 .ToArray();
             EventLogBatchQuery parserBatch = EventLogBatchQuery.ForFiles(mergedFiles);
             CopyControls(query, parserBatch);
@@ -164,6 +166,13 @@ public static class EventLogBatchConsolidator {
             ? "*"
             : string.Join(" | ", expressions);
         return result;
+    }
+
+    private static string GetParserBackedConsolidationScope(EventLogFileQuery file, int index) {
+        if (file.MaxEvents <= 0 || !string.IsNullOrWhiteSpace(file.BatchSourceIdentity)) {
+            return string.Empty;
+        }
+        return "independent:" + index.ToString(CultureInfo.InvariantCulture);
     }
 
     private static EventLogStructuredQuery CreateStructuredQuery(

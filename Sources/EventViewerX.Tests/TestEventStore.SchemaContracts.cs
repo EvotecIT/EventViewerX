@@ -110,7 +110,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
-    public async Task ExistingStoresAcquireNullableActivityMetadataColumns() {
+    public async Task ExistingStoresAcquireNullableSystemMetadataColumns() {
         string path = CreateStorePath();
         try {
             await new EventStore(path).WriteAsync(CreateReport((
@@ -121,6 +121,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
                 using SQLiteSession session = sqlite.OpenSession(path);
                 session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN activity_id;");
                 session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN related_activity_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN process_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN thread_id;");
             }
 
             var migratedStore = new EventStore(path);
@@ -129,6 +131,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             Assert.Single(report.Rows);
             Assert.Null(report.Rows[0].ActivityId);
             Assert.Null(report.Rows[0].RelatedActivityId);
+            Assert.Null(report.Rows[0].ProcessId);
+            Assert.Null(report.Rows[0].ThreadId);
             using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
             using SQLiteSession verification = verificationClient.OpenSession(path);
             IReadOnlyList<string> columns = verification.QueryAsList(
@@ -136,6 +140,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
                 static record => record.GetString(1));
             Assert.Contains("activity_id", columns);
             Assert.Contains("related_activity_id", columns);
+            Assert.Contains("process_id", columns);
+            Assert.Contains("thread_id", columns);
         } finally {
             DeleteStore(path);
         }

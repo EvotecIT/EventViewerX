@@ -117,6 +117,28 @@ Describe 'PSEventViewer v4 command surface' {
         [EventViewerX.Evtx.EvtxSavedEventReader].IsClass | Should -BeTrue
     }
 
+    It 'accumulates piped Sigma files into one versioned detection pack' {
+        $FirstPath = Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml'
+        $SecondPath = Join-Path $TestDrive 'NtlmV1-Second.yml'
+        $SecondRule = (Get-Content -LiteralPath $FirstPath -Raw).Replace(
+            'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
+        $SecondRule = $SecondRule.Replace(
+            'NTLMv1 authentication observed',
+            'Second NTLMv1 authentication rule')
+        Set-Content -LiteralPath $SecondPath -Value $SecondRule -Encoding UTF8
+
+        $Pack = @($FirstPath, $SecondPath) |
+            Import-EVXSigmaRule `
+                -AsPack `
+                -PackId 'eventviewerx.test.pipeline' `
+                -Version '1.0.0'
+
+        $Pack | Should -BeOfType ([EventViewerX.EventDetectionPack])
+        $Pack.Rules.Count | Should -Be 2
+        @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
+    }
+
     It 'declares both collector subscription result shapes' {
         $OutputTypes = (Get-Command Set-EVXCollectorSubscription).OutputType.Name
 

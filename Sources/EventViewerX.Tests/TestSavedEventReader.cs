@@ -109,6 +109,35 @@ public sealed class TestSavedEventReader {
         Assert.Equal("*[System/EventID=1001] | *[System/EventID=1002]", result.XPath);
     }
 
+    [Fact]
+    public void ParserBackedBatchPreservesIndependentBoundedQueryLimits() {
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-{Guid.NewGuid():N}.evtx");
+        var reader = new FixtureSavedEventReader();
+        var first = new EventLogFileQuery(path) {
+            XPath = "*[System/EventID=1001]",
+            MaxEvents = 1,
+            SavedEventReader = reader
+        };
+        var second = new EventLogFileQuery(path) {
+            XPath = "*[System/EventID=1002]",
+            MaxEvents = 1,
+            SavedEventReader = reader
+        };
+
+        EventLogBatchQuery independent = EventLogBatchConsolidator.Consolidate(
+            EventLogBatchQuery.ForFiles(new[] { first, second }));
+        first.BatchSourceIdentity = "shared-partition";
+        second.BatchSourceIdentity = "shared-partition";
+        EventLogBatchQuery shared = EventLogBatchConsolidator.Consolidate(
+            EventLogBatchQuery.ForFiles(new[] { first, second }));
+
+        Assert.Equal(2, independent.FileQueries.Count);
+        Assert.All(independent.FileQueries, static query => Assert.Equal(1, query.MaxEvents));
+        Assert.Equal(
+            "*[System/EventID=1001] | *[System/EventID=1002]",
+            Assert.Single(shared.FileQueries).XPath);
+    }
+
     private sealed class FixtureSavedEventReader : ISavedEventReader {
         internal bool ObservedOldest { get; private set; }
         internal string ObservedXPath { get; private set; } = string.Empty;

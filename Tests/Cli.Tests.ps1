@@ -91,6 +91,81 @@ Describe 'evx portable host' {
         $Plan.PlanHash | Should -Not -BeNullOrEmpty
     }
 
+    It 'marks detection incomplete when an explicit event ID excludes the rule selector' {
+        $SigmaPath = Join-Path $TestDrive 'selector-coverage.yml'
+        @'
+title: Service configuration changed
+id: 66666666-6666-4666-8666-666666666666
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --event-id 1 `
+            --max 10
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'renders a detection report when an output consumes the report snapshot' {
+        $SigmaPath = Join-Path $TestDrive 'report-detection.yml'
+        $HtmlPath = Join-Path $TestDrive 'detection.html'
+        @'
+title: Service configuration changed
+id: 77777777-7777-4777-8777-777777777777
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $Output = @(& $script:CliPath detect `
+                --sigma $SigmaPath `
+                --path $script:FixturePath `
+                --max 10 `
+                --report-html $HtmlPath)
+
+        $LASTEXITCODE | Should -Be 0
+        Test-Path -LiteralPath $HtmlPath | Should -BeTrue
+        $Output[-1] | Should -Be ([IO.Path]::GetFullPath($HtmlPath))
+    }
+
+    It 'rejects generic event ID and provider selectors on typed detection sources' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $EventIdOutput = & $script:CliPath detect `
+                --type ADUserLogonFailed `
+                --path $script:FixturePath `
+                --event-id 4625 2>&1
+            $EventIdExitCode = $LASTEXITCODE
+            $ProviderOutput = & $script:CliPath detect `
+                --type ADUserLogonFailed `
+                --path $script:FixturePath `
+                --provider Microsoft-Windows-Security-Auditing 2>&1
+            $ProviderExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $EventIdExitCode | Should -Be 1
+        $ProviderExitCode | Should -Be 1
+        [string] $EventIdOutput | Should -Match '--event-id and --provider are available only for generic'
+        [string] $ProviderOutput | Should -Match '--event-id and --provider are available only for generic'
+    }
+
     It 'rejects ambiguous query sources' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

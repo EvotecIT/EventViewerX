@@ -98,6 +98,11 @@ internal static partial class Program {
             throw new ArgumentException(
                 "detect requires --store, --type (optionally with --path), --log, or standalone --path as one source mode.");
         }
+        if (!storedSource && typedSource &&
+            (options.GetMany("event-id").Length > 0 || options.GetMany("provider").Length > 0)) {
+            throw new ArgumentException(
+                "--event-id and --provider are available only for generic --log or standalone --path detection sources because typed sources own their native selectors.");
+        }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive.");
         }
@@ -119,12 +124,14 @@ internal static partial class Program {
             throw new ArgumentOutOfRangeException("max");
         }
         var observations = new List<EventObservation>();
+        EventTypeQueryExecutionInfo? typedExecution = null;
         EventTypeProjectionPlan? detectionProjection = plan.RequiredEventTypes.Count == 0
             ? null
             : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
         if (storedSource) {
             // Historical rows are loaded below together with the plan's stateful lookback window.
         } else if (types.Length > 0) {
+            typedExecution = new EventTypeQueryExecutionInfo();
             var query = new EventTypeQuery(types) {
                 Paths = paths.Length == 0 ? null : paths,
                 SavedEventReader = savedEventReader,
@@ -141,7 +148,7 @@ internal static partial class Program {
             if (options.GetMany("collector").Length > 0) {
                 query.MachineNames = options.GetMany("collector");
             }
-            await foreach (EventTypeRecord record in EventTypeEngine.ReadAsync(query)) {
+            await foreach (EventTypeRecord record in EventTypeEngine.ReadAsync(query, typedExecution)) {
                 EventTypeRecord? projected = detectionProjection == null
                     ? null
                     : EventTypeCatalog.CreateEventRule(record.SourceEvent, detectionProjection);
@@ -151,10 +158,7 @@ internal static partial class Program {
             int[] requestedEventIds = ParseInts(options.GetMany("event-id")) ?? Array.Empty<int>();
             int[] explicitEventIds = requestedEventIds.Length > 0
                 ? requestedEventIds
-                : plan.Rules
-                    .SelectMany(static rule => rule.EventIds.Concat(rule.Steps.SelectMany(static step => step.EventIds)))
-                    .Distinct()
-                    .ToArray();
+                : GetRequiredEventIds(plan);
             string[] providers = options.GetMany("provider");
             var filter = new EventFilter {
                 EventIds = explicitEventIds.Length == 0 ? null : explicitEventIds,
@@ -211,8 +215,11 @@ internal static partial class Program {
             }
         }
 
+        string[] sourceFailures = CreateTypedSourceFailures(typedExecution);
         EventDetectionCoverage coverage = options.Get("coverage") is string coveragePath
-            ? EventDetectionCoverage.FromJson(await File.ReadAllTextAsync(Path.GetFullPath(coveragePath)).ConfigureAwait(false))
+            ? EventDetectionCoverage.FromJson(
+                    await File.ReadAllTextAsync(Path.GetFullPath(coveragePath)).ConfigureAwait(false))
+                .WithFailures(sourceFailures)
             : storedSource
                 ? EventDetectionCoverage.Create(
                     expectedTargets: new[] { Path.GetFullPath(storePath!) },
@@ -220,7 +227,7 @@ internal static partial class Program {
                     failures: new[] {
                         "Stored history ingestion coverage was not supplied. Pass --coverage with a versioned EventDetectionCoverage document before treating an empty historical result as clean."
                     })
-                : CreateDetectionCoverage(types, logName, paths, observations, plan, options);
+                : CreateDetectionCoverage(types, logName, paths, observations, plan, options, sourceFailures);
         var engineOptions = new EventDetectionEngineOptions(
             maximumObservations: options.GetLong("maximum-observations", 1000000),
             maximumGroups: options.GetInt("maximum-groups", 25000),
@@ -234,6 +241,7 @@ internal static partial class Program {
                 StartTime = start,
                 EndTime = end,
                 EventIds = ParseInts(options.GetMany("event-id")),
+                Providers = NullWhenEmpty(options.GetMany("provider")),
                 MaxEvents = max,
                 MaxCandidates = engineOptions.MaximumObservations,
                 Oldest = true
@@ -273,34 +281,39 @@ internal static partial class Program {
                 Console.WriteLine(json);
             }
         }
-        var reportOptions = new EventDetectionReportOptions(
-            options.Get("title") ?? "EventViewerX detection report",
-            storedSource
-                ? "EventStore historical query"
-                : types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
-            storedSource,
-            new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
-            coverage: execution.Coverage);
-        EventDetectionReportSnapshot snapshot = options.Get("report-kind") is string reportKindText
-            ? EventDecisionReportEngine.Create(
-                Enum.Parse<EventDecisionReportKind>(reportKindText, ignoreCase: true),
-                execution.Observations,
-                execution.Findings,
-                packs,
-                reportOptions).Analysis
-            : EventDetectionReportEngine.Create(
-                execution.Observations,
-                execution.Findings,
-                packs,
-                reportOptions);
-        if (options.Get("report-html") is string html) {
-            Console.WriteLine(EventReportHtmlRenderer.Save(snapshot.PresentationReport, html));
-        }
-        if (options.Get("report-csv") is string csv) {
-            Console.WriteLine(EventReportCsvRenderer.Save(snapshot.PresentationReport, csv));
-        }
-        if (options.Get("report-excel") is string excel) {
-            Console.WriteLine(EventReportExcelRenderer.Save(snapshot.PresentationReport, excel));
+        string? html = options.Get("report-html");
+        string? csv = options.Get("report-csv");
+        string? excel = options.Get("report-excel");
+        if (html != null || csv != null || excel != null) {
+            var reportOptions = new EventDetectionReportOptions(
+                options.Get("title") ?? "EventViewerX detection report",
+                storedSource
+                    ? "EventStore historical query"
+                    : types.Length > 0 ? "Typed EventViewerX query" : "Native Event Log query",
+                storedSource,
+                new[] { $"Maximum source observations: {(max == 0 ? "unlimited" : max.ToString(CultureInfo.InvariantCulture))}" },
+                coverage: execution.Coverage);
+            EventDetectionReportSnapshot snapshot = options.Get("report-kind") is string reportKindText
+                ? EventDecisionReportEngine.Create(
+                    Enum.Parse<EventDecisionReportKind>(reportKindText, ignoreCase: true),
+                    execution.Observations,
+                    execution.Findings,
+                    packs,
+                    reportOptions).Analysis
+                : EventDetectionReportEngine.Create(
+                    execution.Observations,
+                    execution.Findings,
+                    packs,
+                    reportOptions);
+            if (html != null) {
+                Console.WriteLine(EventReportHtmlRenderer.Save(snapshot.PresentationReport, html));
+            }
+            if (csv != null) {
+                Console.WriteLine(EventReportCsvRenderer.Save(snapshot.PresentationReport, csv));
+            }
+            if (excel != null) {
+                Console.WriteLine(EventReportExcelRenderer.Save(snapshot.PresentationReport, excel));
+            }
         }
         return execution.IsComplete ? 0 : 2;
     }
@@ -314,7 +327,8 @@ internal static partial class Program {
         IReadOnlyList<string> paths,
         IReadOnlyList<EventObservation> observations,
         EventDetectionPlan plan,
-        CliArguments options) {
+        CliArguments options,
+        IReadOnlyList<string> sourceFailures) {
 
         string[] requestedTargets = options.GetMany("collector").Concat(options.GetMany("machine"))
             .Where(static value => !string.IsNullOrWhiteSpace(value))
@@ -347,16 +361,26 @@ internal static partial class Program {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray()
             : expectedChannels;
-        string[] expectedProviders = plan.Rules.SelectMany(static rule => rule.Providers)
+        string[] expectedProviders = plan.Rules.SelectMany(static rule => rule.Providers
+                .Concat(rule.Steps.SelectMany(static step => step.Providers)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        string[] requestedProviders = options.GetMany("provider");
         string[] successfulProviders = expectedProviders.Length == 0
             ? observations.Select(static observation => observation.ProviderName)
                 .Where(static value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray()
-            : expectedProviders;
-        int[] expectedEventIds = plan.Rules.SelectMany(static rule => rule.EventIds).Distinct().ToArray();
+            : requestedProviders.Length == 0
+                ? expectedProviders
+                : expectedProviders.Where(provider => requestedProviders.Contains(
+                    provider,
+                    StringComparer.OrdinalIgnoreCase)).ToArray();
+        int[] expectedEventIds = GetRequiredEventIds(plan);
+        int[] requestedEventIds = ParseInts(options.GetMany("event-id")) ?? Array.Empty<int>();
+        int[] successfulEventIds = requestedEventIds.Length == 0
+            ? expectedEventIds
+            : expectedEventIds.Where(requestedEventIds.Contains).ToArray();
         return EventDetectionCoverage.Create(
             expectedTargets: requestedTargets,
             observedTargets: requestedTargets,
@@ -365,8 +389,36 @@ internal static partial class Program {
             expectedProviders: expectedProviders,
             observedProviders: successfulProviders,
             expectedEventIds: expectedEventIds,
-            observedEventIds: expectedEventIds,
+            observedEventIds: successfulEventIds,
             expectedEventTypes: expectedTypes,
-            observedEventTypes: successfulTypes);
+            observedEventTypes: successfulTypes,
+            failures: sourceFailures);
+    }
+
+    private static int[] GetRequiredEventIds(EventDetectionPlan plan) {
+        EventType[] eventTypes = plan.RequiredEventTypes.ToArray();
+        return plan.Rules.SelectMany(static rule => rule.EventIds
+                .Concat(rule.Steps.SelectMany(static step => step.EventIds)))
+            .Concat(EventTypeCatalog.GetSources(eventTypes).SelectMany(static source => source.EventIds))
+            .Distinct()
+            .ToArray();
+    }
+
+    private static string[] CreateTypedSourceFailures(EventTypeQueryExecutionInfo? execution) {
+        if (execution == null) {
+            return Array.Empty<string>();
+        }
+        var failures = new List<string>();
+        if (execution.ResultLimitReached) {
+            failures.Add(
+                $"The typed source result limit was reached after {execution.EventsEmitted} observations; later matching events were not evaluated.");
+        }
+        if (execution.ScanLimitReached) {
+            failures.Add(
+                $"The typed source candidate scan limit of {execution.MaxEventsScanned} was reached after {execution.EventsScanned} candidates; detection coverage is incomplete.");
+        }
+        failures.AddRange(execution.TargetFailures.Select(static failure =>
+            $"Typed source '{failure.LogName}' on '{failure.MachineName}' failed with {failure.Kind}: {failure.Message}"));
+        return failures.ToArray();
     }
 }

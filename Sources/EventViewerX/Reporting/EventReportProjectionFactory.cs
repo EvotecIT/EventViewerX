@@ -167,6 +167,8 @@ internal static class EventReportProjectionFactory {
             RecordId = record.RecordId,
             ActivityId = record.ActivityId,
             RelatedActivityId = record.RelatedActivityId,
+            ProcessId = record.ProcessId,
+            ThreadId = record.ThreadId,
             Provider = "Microsoft-Windows-Security-Auditing",
             SourceLog = record.OriginalLogName,
             ContainerLog = record.ContainerLogName,
@@ -367,6 +369,8 @@ internal static class EventReportProjectionFactory {
             LevelValue = source.Level,
             ActivityId = source.ActivityId,
             RelatedActivityId = source.RelatedActivityId,
+            ProcessId = source.ProcessId,
+            ThreadId = source.ThreadId,
             Message = source.Message,
             Values = values
         };

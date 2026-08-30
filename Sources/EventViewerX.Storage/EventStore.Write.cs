@@ -243,6 +243,8 @@ public sealed partial class EventStore {
             ["$levelValue"] = row.LevelValue,
             ["$activityId"] = row.ActivityId?.ToString("D"),
             ["$relatedActivityId"] = row.RelatedActivityId?.ToString("D"),
+            ["$processId"] = row.ProcessId,
+            ["$threadId"] = row.ThreadId,
             ["$message"] = row.Message ?? string.Empty,
             ["$values"] = JsonSerializer.Serialize(row.Values, JsonOptions),
             ["$received"] = row.ReceivedTimeUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
@@ -433,13 +435,13 @@ INSERT OR IGNORE INTO evx_events
     (event_key, original_event_key, transport_kind, observation_identity,
      definition_name, event_time_utc, event_id, record_id, provider,
      source_log, container_log, source_computer, collector_computer, level,
-     level_value, activity_id, related_activity_id, message, values_json,
+     level_value, activity_id, related_activity_id, process_id, thread_id, message, values_json,
      received_time_utc, processed_time_utc, inserted_utc)
 SELECT
     $key, $originalKey, $transportKind, $observationIdentity,
      $definition, $time, $eventId, $recordId, $provider,
      $sourceLog, $containerLog, $sourceComputer, $collectorComputer, $level,
-     $levelValue, $activityId, $relatedActivityId, $message, $values,
+     $levelValue, $activityId, $relatedActivityId, $processId, $threadId, $message, $values,
      COALESCE($received, $inserted), COALESCE($processed, $inserted), $inserted
 WHERE $transportKind = 2 OR NOT EXISTS (
     SELECT 1

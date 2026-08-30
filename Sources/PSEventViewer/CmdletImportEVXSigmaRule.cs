@@ -18,6 +18,8 @@ namespace PSEventViewer;
 [OutputType(typeof(IEventDetectionRule), ParameterSetName = new[] { "Rule" })]
 [OutputType(typeof(EventDetectionPack), ParameterSetName = new[] { "Pack" })]
 public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
+    private readonly List<IEventDetectionRule> _packRules = new();
+
     /// <summary>One or more Sigma YAML files to import.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [Alias("FullName")]
@@ -57,15 +59,23 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
         }
 
         if (AsPack) {
-            EventDetectionPack pack = EventDetectionPack.Create(
-                PackId!,
-                Version!,
-                rules.Select(static rule => rule.Definition));
-            WriteObject(pack, enumerateCollection: false);
+            _packRules.AddRange(rules);
+        } else {
+            foreach (IEventDetectionRule rule in rules) {
+                WriteObject(rule, enumerateCollection: false);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void EndProcessing() {
+        if (!AsPack) {
             return;
         }
-        foreach (IEventDetectionRule rule in rules) {
-            WriteObject(rule, enumerateCollection: false);
-        }
+        EventDetectionPack pack = EventDetectionPack.Create(
+            PackId!,
+            Version!,
+            _packRules.Select(static rule => rule.Definition));
+        WriteObject(pack, enumerateCollection: false);
     }
 }

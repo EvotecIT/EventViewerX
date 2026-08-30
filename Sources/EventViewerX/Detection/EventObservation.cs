@@ -81,6 +81,7 @@ public sealed class EventObservation {
         fields["RelatedActivityId"] = source.RelatedActivityId;
         fields["ProcessId"] = source.ProcessId;
         fields["ThreadId"] = source.ThreadId;
+        fields["Message"] = source.Message;
         fields["EventTimeUtc"] = source.TimeCreated.ToUniversalTime();
         fields["TimeCreated"] = source.TimeCreated.ToUniversalTime();
         return new EventObservation(

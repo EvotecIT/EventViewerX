@@ -56,6 +56,10 @@ public sealed class EventReportRow {
     public Guid? ActivityId { get; set; }
     /// <summary>Windows system related-activity identifier used for same-producer causal grouping.</summary>
     public Guid? RelatedActivityId { get; set; }
+    /// <summary>Identifier of the process that emitted the event.</summary>
+    public int? ProcessId { get; set; }
+    /// <summary>Identifier of the thread that emitted the event.</summary>
+    public int? ThreadId { get; set; }
     /// <summary>Rendered provider message.</summary>
     public string Message { get; set; } = string.Empty;
     /// <summary>Type-specific projected values.</summary>
@@ -88,6 +92,8 @@ public sealed class EventReportRow {
             [nameof(LevelValue)] = LevelValue,
             [nameof(ActivityId)] = ActivityId,
             [nameof(RelatedActivityId)] = RelatedActivityId,
+            [nameof(ProcessId)] = ProcessId,
+            [nameof(ThreadId)] = ThreadId,
             [nameof(Message)] = Message
         };
         foreach (KeyValuePair<string, object?> value in Values) {

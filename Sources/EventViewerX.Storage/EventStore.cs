@@ -48,6 +48,7 @@ public sealed partial class EventStore {
             ValidateSchemaVersion(session.ExecuteScalar(
                 "SELECT schema_version FROM evx_store_metadata WHERE singleton_id = 1;"));
             EnsureActivityMetadataSchema(session);
+            EnsureExecutionMetadataSchema(session);
             EnsureEventIdentitySchema(session);
             EnsureCheckpointIdentitySchema(session);
             EnsureFindingSchema(session);
@@ -149,6 +150,22 @@ public sealed partial class EventStore {
             }
             if (!columns.Contains("related_activity_id", StringComparer.OrdinalIgnoreCase)) {
                 transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN related_activity_id TEXT NULL;");
+            }
+        });
+    }
+
+    private static void EnsureExecutionMetadataSchema(SQLiteSession session) {
+        session.RunInTransaction(transaction => {
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET schema_version = schema_version WHERE singleton_id = 1;");
+            IReadOnlyList<string> columns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_events);",
+                static record => record.GetString(1));
+            if (!columns.Contains("process_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN process_id INTEGER NULL;");
+            }
+            if (!columns.Contains("thread_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN thread_id INTEGER NULL;");
             }
         });
     }
@@ -304,6 +321,8 @@ CREATE TABLE IF NOT EXISTS evx_events (
     level_value INTEGER NULL,
     activity_id TEXT NULL,
     related_activity_id TEXT NULL,
+    process_id INTEGER NULL,
+    thread_id INTEGER NULL,
     message TEXT NOT NULL,
     values_json TEXT NOT NULL,
     received_time_utc TEXT NULL,
