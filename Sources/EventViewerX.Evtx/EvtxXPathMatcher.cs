@@ -34,7 +34,12 @@ internal sealed class EvtxXPathMatcher {
                 return false;
             }
             var namespaceFree = new XDocument(RemoveNamespaces(document.Root));
-            return namespaceFree.XPathSelectElements(_xpath).Any();
+            object result = namespaceFree.XPathEvaluate(_xpath);
+            return result switch {
+                bool matched => matched,
+                IEnumerable<object> nodes => nodes.Any(),
+                _ => false
+            };
         } catch (XPathException exception) {
             throw new NotSupportedException(
                 $"The portable EVTX reader cannot evaluate Windows-specific XPath '{_xpath}'. " +

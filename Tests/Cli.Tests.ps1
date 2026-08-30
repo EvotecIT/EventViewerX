@@ -190,6 +190,30 @@ level: medium
         $LASTEXITCODE | Should -Be 2
     }
 
+    It 'keeps generic log coverage incomplete when the plan requires other channels' {
+        $SigmaPath = Join-Path $TestDrive 'generic-log-coverage.yml'
+        @'
+title: Service configuration changed
+id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --log Application `
+            --since 00:00:01 `
+            --max 1
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
     It 'rejects generic event ID and provider selectors on typed detection sources' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

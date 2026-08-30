@@ -97,10 +97,10 @@ public sealed class EventDeliveryQueue<T> : IAsyncDisposable {
     /// <summary>Cancels processing and releases queue resources.</summary>
     public async ValueTask DisposeAsync() {
         Complete();
+        _cancellation.Cancel();
         try {
             await _worker.ConfigureAwait(false);
         } finally {
-            _cancellation.Cancel();
             _cancellation.Dispose();
         }
     }
@@ -126,6 +126,8 @@ public sealed class EventDeliveryQueue<T> : IAsyncDisposable {
                     _pendingAcceptedUtc.Dequeue();
                 }
             }
+        } catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) {
+            _channel.Writer.TryComplete();
         } catch (Exception exception) {
             Volatile.Write(ref _failure, exception);
             Interlocked.Exchange(ref _completionRequested, 1);

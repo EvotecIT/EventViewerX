@@ -172,6 +172,26 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public async Task TypedPortableQueryEvaluatesCombinedChannelAndEventSelectors() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var query = new EventTypeQuery(new[] { EventType.ADUserLogonFailed }) {
+            Paths = new[] { path },
+            SavedEventReader = new SecurityLogonFixtureReader(),
+            Oldest = true
+        };
+        var records = new List<EventTypeRecord>();
+
+        await foreach (EventTypeRecord record in EventTypeEngine.ReadAsync(query)) {
+            records.Add(record);
+        }
+
+        EventTypeRecord result = Assert.Single(records);
+        Assert.Equal("ADUserLogonFailed", result.TypeName);
+        Assert.Equal("Security", result.SourceLogName);
+        Assert.Equal(4625, result.EventId);
+    }
+
+    [Fact]
     public void XmlProjectorPreservesPortableIdentityAndPayload() {
         const string xml = """
             <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
@@ -212,6 +232,28 @@ public sealed class TestSavedEventPortability {
                 Computer = "portable-host",
                 TimeCreatedUtc = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
                 Data = new Dictionary<string, string> { ["PortableField"] = "value" },
+                MessageRenderStatus = EventMessageRenderStatus.MessageResourceUnavailable
+            };
+        }
+    }
+
+    private sealed class SecurityLogonFixtureReader : ISavedEventReader {
+        public IEnumerable<SavedEventRecord> Read(
+            EventLogFileQuery query,
+            Action<SavedEventReadDiagnostic>? diagnosticHandler = null,
+            CancellationToken cancellationToken = default) {
+
+            yield return new SavedEventRecord {
+                ProviderName = "Microsoft-Windows-Security-Auditing",
+                EventId = 4625,
+                RecordId = 42,
+                Channel = "Security",
+                Computer = "portable-host",
+                TimeCreatedUtc = new DateTime(2026, 8, 30, 10, 0, 0, DateTimeKind.Utc),
+                Data = new Dictionary<string, string> {
+                    ["TargetUserName"] = "alice",
+                    ["TargetDomainName"] = "EVX"
+                },
                 MessageRenderStatus = EventMessageRenderStatus.MessageResourceUnavailable
             };
         }

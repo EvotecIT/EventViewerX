@@ -78,6 +78,46 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task FindingHistoryRetainsDistinctIncompleteDiagnosticsForTheSameEvidence() {
+        string path = CreateStorePath();
+        try {
+            EventObservation observation = EventObservation.Create(CreateHistoricalEvent(1, minute: 0, "alice"));
+            EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-MISSING-FIRST",
+                    Title = "Missing first group",
+                    Kind = EventDetectionRuleKind.Threshold,
+                    EventIds = new[] { 1001 },
+                    Threshold = 2,
+                    Window = TimeSpan.FromMinutes(5),
+                    GroupBy = "MissingFirst"
+                }),
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-MISSING-SECOND",
+                    Title = "Missing second group",
+                    Kind = EventDetectionRuleKind.Threshold,
+                    EventIds = new[] { 1001 },
+                    Threshold = 2,
+                    Window = TimeSpan.FromMinutes(5),
+                    GroupBy = "MissingSecond"
+                })
+            });
+            EventDetectionFinding[] incomplete = EventDetectionEngine.Stream(new[] { observation }, plan).ToArray();
+            var store = new EventStore(path);
+
+            EventFindingStoreWriteResult write = await store.WriteFindingsAsync(incomplete);
+            IReadOnlyList<StoredEventDetectionFinding> stored = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery { Statuses = new[] { EventDetectionFindingStatus.Incomplete } });
+
+            Assert.Equal(2, write.Inserted);
+            Assert.Equal(2, stored.Count);
+            Assert.Equal(2, stored.Select(static finding => finding.CompletenessDiagnostic).Distinct().Count());
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task StoredDetectionRehydratesPriorWindowAndPreservesEvidenceIdentityAcrossRestart() {
         string path = CreateStorePath();
         try {

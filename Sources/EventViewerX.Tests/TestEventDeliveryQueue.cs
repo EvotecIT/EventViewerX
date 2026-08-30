@@ -75,4 +75,22 @@ public sealed class TestEventDeliveryQueue {
         Assert.False(queue.TryWrite(2));
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await queue.DisposeAsync());
     }
+
+    [Fact]
+    public async Task DisposalCancelsATokenAwareProcessorBeforeAwaitingTheWorker() {
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queue = new EventDeliveryQueue<int>(1, async (_, cancellationToken) => {
+            entered.TrySetResult(true);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        });
+        Assert.True(queue.TryWrite(1));
+        await entered.Task;
+
+        Task disposal = queue.DisposeAsync().AsTask();
+        Task completed = await Task.WhenAny(disposal, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        Assert.Same(disposal, completed);
+        await disposal;
+        Assert.Null(queue.GetSnapshot().Failure);
+    }
 }

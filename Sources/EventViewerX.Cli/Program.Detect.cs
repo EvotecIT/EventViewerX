@@ -397,20 +397,15 @@ internal static partial class Program {
                 .ToArray();
         string[] expectedChannels = selectedTypes.Count > 0
             ? EventTypeCatalog.GetSources(selectedTypes).Select(static source => source.LogName).ToArray()
-            : logName == null
-                ? plan.Rules.SelectMany(static rule => rule.Channels)
-                    .Concat(plan.Rules.SelectMany(static rule => rule.EventTypes)
-                        .SelectMany(type => EventTypeCatalog.GetSources(new[] { type }))
-                        .Select(static source => source.LogName))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray()
-                : new[] { logName };
-        string[] successfulChannels = logName == null && selectedTypes.Count == 0
-            ? observations.Select(static observation => observation.SourceLog)
+            : GetRequiredChannels(plan);
+        string[] successfulChannels = selectedTypes.Count > 0
+            ? expectedChannels
+            : logName != null
+                ? new[] { logName }
+                : observations.Select(static observation => observation.SourceLog)
                 .Where(static value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray()
-            : expectedChannels;
+                .ToArray();
         string[] expectedProviders = plan.Rules.SelectMany(static rule => rule.Providers
                 .Concat(rule.Steps.SelectMany(static step => step.Providers)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -453,6 +448,14 @@ internal static partial class Program {
             .Distinct()
             .ToArray();
     }
+
+    private static string[] GetRequiredChannels(EventDetectionPlan plan) =>
+        plan.Rules.SelectMany(static rule => rule.Channels
+                .Concat(rule.Steps.SelectMany(static step => step.Channels)))
+            .Concat(EventTypeCatalog.GetSources(plan.RequiredEventTypes)
+                .Select(static source => source.LogName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static string[] CreateTypedSourceFailures(EventTypeQueryExecutionInfo? execution) {
         if (execution == null) {
