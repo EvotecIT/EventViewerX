@@ -4,9 +4,9 @@
     ".NETFramework,Version=v4.7.2": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[0.55.0, )",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g==",
+        "requested": "[0.56.0, )",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.11"
@@ -363,9 +363,9 @@
     ".NETStandard,Version=v2.1": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[0.55.0, )",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g==",
+        "requested": "[0.56.0, )",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.11"
@@ -747,15 +747,21 @@
     "net10.0-windows7.0": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[0.55.0, )",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g=="
+        "requested": "[0.56.0, )",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
       },
       "HtmlForgeX.Email": {
         "type": "Direct",
         "requested": "[1.6.0, )",
         "resolved": "1.6.0",
         "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "4Iw41e2h7I4t70SJcX2GCmbyKJIlA273Cfm9RJMM050/3VBejGAG1KcthP5Z2L6SQcbfbf6BhNWO26+ZG+GzMg=="
       },
       "OfficeIMO.CSV": {
         "type": "Direct",
@@ -901,15 +907,21 @@
     "net8.0-windows7.0": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[0.55.0, )",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g=="
+        "requested": "[0.56.0, )",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
       },
       "HtmlForgeX.Email": {
         "type": "Direct",
         "requested": "[1.6.0, )",
         "resolved": "1.6.0",
         "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.28, )",
+        "resolved": "8.0.28",
+        "contentHash": "XMqgVjlLxLqWmEh3c49haXLQwsMNtvo6YscUaqfvEGfg1iA8hnYgkUVq3i9Zu9gKeNKMWiiZKVwZExc/qyEAsQ=="
       },
       "OfficeIMO.CSV": {
         "type": "Direct",
@@ -1132,7 +1144,7 @@
     "DocumentFormat.OpenXml.Framework|3.5.1": "U5txtc3ORno73xQx9Lf2gWzfaSZnZwKHfLkTAslhlew9lxe5XbUiCt0dY1fHeAf8yRqszUAe5i/+xLC9R/Xfsw==",
     "DocumentFormat.OpenXml|3.5.1": "zxdOf5VVCe/uNklbRhj8dVBzQGj3DoqkUuqOp9cAZVuN8mNYDjof1lvSQA2OQNr8Ptc9d7pbA7Azq/ReaI3FpA==",
     "HtmlForgeX.Email|1.6.0": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg==",
-    "HtmlForgeX|0.55.0": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g==",
+    "HtmlForgeX|0.56.0": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA==",
     "Microsoft.Bcl.AsyncInterfaces|10.0.11": "pUkYI1f99hY9giu/MRaEVN53RO7skXwR7FGtVvFJCK5ezdg5i0W+z1yj/91X5aKv07xGuSB5n1g/Zt2P4Ooq6g==",
     "Microsoft.Win32.Registry|5.0.0": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg==",
     "OfficeIMO.Core|3.2.4": "cjEnE6gcAn2MUBRrmIiY7lSpYihE52LbullgSrvW2UCLAoonf8Nf/d4+Ak/A7zGF5ZjgSU0KQN/201VsASG0uA==",

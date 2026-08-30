@@ -114,8 +114,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g==",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.11"
@@ -445,7 +445,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.55.0, )",
+          "HtmlForgeX": "[0.56.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "Microsoft.Bcl.AsyncInterfaces": "[10.0.11, )",
           "OfficeIMO.CSV": "[3.2.4, )",
@@ -632,8 +632,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g==",
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.11"
@@ -908,7 +908,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.55.0, )",
+          "HtmlForgeX": "[0.56.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -1036,8 +1036,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g=="
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -1216,7 +1216,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.55.0, )",
+          "HtmlForgeX": "[0.56.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -1322,8 +1322,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.55.0",
-        "contentHash": "Dlmf+RioT9Y4qMTaqSbGBMN/P+IFuVO1dhV+vTTY12U0KwnWRMVwmn77EtASx3elNstDqXmuoQ+oOAPT5Jr60g=="
+        "resolved": "0.56.0",
+        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -1518,7 +1518,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.55.0, )",
+          "HtmlForgeX": "[0.56.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
