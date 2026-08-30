@@ -19,6 +19,6 @@
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
     <ProjectReference Include="..\EventViewerX.Storage\EventViewerX.Storage.csproj" />
-    <PackageReference Include="Mailozaurr" Version="2.0.12" />
+    <PackageReference Include="Mailozaurr" Version="3.0.0" />
   </ItemGroup>
 </Project>

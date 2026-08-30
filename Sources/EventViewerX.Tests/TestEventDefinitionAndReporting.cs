@@ -215,7 +215,7 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Contains("data-hfx-monitoring-column-picker-toggle=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains("data-hfx-monitoring-inline-details=\"false\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-hfx-monitoring-inline-details=\"true\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-hfx-monitoring-record-drawer-tab=\"detail-provenance\">Provenance</button>", html, StringComparison.Ordinal);
+        Assert.Matches("data-hfx-monitoring-record-drawer-tab=\"detail-provenance\"[^>]*>Provenance</button>", html);
         Assert.Contains("data-hfx-monitoring-record-drawer-detail-group=\"provenance\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("hfx-report-workspace", html, StringComparison.Ordinal);
         Assert.Contains("Failed logons", html, StringComparison.Ordinal);
