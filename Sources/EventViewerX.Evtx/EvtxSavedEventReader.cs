@@ -26,16 +26,25 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
         var eventLog = new ThirdPartyEventLog(stream);
         ReportHeaderIntegrity(eventLog, diagnosticHandler);
         ReportChunkHeaders(stream, eventLog.ChunkCount, diagnosticHandler);
+        bool literalBinXml = EvtxLiteralRecordReader.IsLiteralBinXml(stream);
+        if (literalBinXml) {
+            diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
+                Code = "EVXEVTX005",
+                Severity = SavedEventReadDiagnosticSeverity.Information,
+                Message = "The file stores literal BinXML records (commonly produced by rendered WEC subscriptions); the spec-aligned literal reader is active."
+            });
+        }
 
         if (query.Oldest) {
-            foreach (SavedEventRecord record in ReadForward(
-                         eventLog,
-                         matcher,
-                         diagnosticHandler,
-                         cancellationToken)) {
+            IEnumerable<SavedEventRecord> forward = literalBinXml
+                ? ReadLiteral(stream, matcher, cancellationToken)
+                : ReadForward(eventLog, matcher, diagnosticHandler, cancellationToken);
+            foreach (SavedEventRecord record in forward) {
                 yield return record;
             }
-            ReportParserErrors(eventLog, diagnosticHandler);
+            if (!literalBinXml) {
+                ReportParserErrors(eventLog, diagnosticHandler);
+            }
             yield break;
         }
 
@@ -44,16 +53,36 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
             Severity = SavedEventReadDiagnosticSeverity.Information,
             Message = "Newest-first EVTX enumeration buffers matching records because the parser streams chunks forward. Use Oldest=true for bounded-memory streaming."
         });
-        SavedEventRecord[] records = ReadForward(
-                eventLog,
-                matcher,
-                diagnosticHandler,
-                cancellationToken)
+        IEnumerable<SavedEventRecord> newestSource = literalBinXml
+            ? ReadLiteral(stream, matcher, cancellationToken)
+            : ReadForward(eventLog, matcher, diagnosticHandler, cancellationToken);
+        SavedEventRecord[] records = newestSource
             .ToArray();
-        ReportParserErrors(eventLog, diagnosticHandler);
+        if (!literalBinXml) {
+            ReportParserErrors(eventLog, diagnosticHandler);
+        }
         for (int index = records.Length - 1; index >= 0; index--) {
             cancellationToken.ThrowIfCancellationRequested();
             yield return records[index];
+        }
+    }
+
+    private static IEnumerable<SavedEventRecord> ReadLiteral(
+        Stream stream,
+        EvtxXPathMatcher matcher,
+        CancellationToken cancellationToken) {
+
+        foreach (EvtxLiteralRecordReader.LiteralEvtxRecord source in
+                 EvtxLiteralRecordReader.Read(stream, cancellationToken)) {
+            if (!matcher.IsMatch(source.Xml)) {
+                continue;
+            }
+            SavedEventRecord record = SavedEventXmlProjector.Create(
+                source.Xml,
+                source.RecordNumber,
+                source.TimestampUtc);
+            record.FileOffset = source.FileOffset;
+            yield return record;
         }
     }
 

@@ -40,10 +40,17 @@ A small fixture truncated by 100 bytes retained all seven complete records,
 emitted `EVXEVTX002`, and was rejected by the Windows Eventing API. This proves
 the recovery path without claiming that arbitrary truncation is lossless.
 
-The archived ForwardedEvents fixture fails the portable gate: Windows reads
-653 records while the managed dependency returns none. The caller-supplied
-`evtx_dump` 0.12.2 adapter preserved 653 of 653 records with complete identity
-parity; it is the preferred portable engine for that archive shape.
+The archived ForwardedEvents fixture stores literal BinXML records produced by
+a rendered WEC subscription. The managed dependency alone returned none of the
+653 Windows-readable records, so EVX now detects that shape and uses its bounded
+literal reader. The combined managed adapter preserved 653 of 653 records with
+complete identity parity at a three-run median of approximately 4,501
+events/second and 81.4 KB allocated/event; the Windows path measured a median
+of approximately 15,801 events/second and 9.2 KB/event. A sanitized one-record
+derivative and a meaningfully truncated fixture are retained in the
+cross-platform CI suite.
+The caller-supplied `evtx_dump` 0.12.2 adapter also preserved 653 of 653 records
+with complete identity parity.
 
 On the 31.5 MB Security fixture, the command adapter normalized 62,031 records
 at approximately 18,854 events/second and 63.9 KB allocated/event in one full

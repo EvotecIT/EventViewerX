@@ -18,6 +18,32 @@ env:
   SUMMARIZE_FAILURES: true # set to 'false' to disable summarizing failing tests
 
 jobs:
+  test-portability-linux:
+    name: 'Linux portability'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore portability tests
+        run: dotnet restore Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj
+
+      - name: Run retained EVTX portability tests
+        run: dotnet test Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx
+        timeout-minutes: 10
+
+      - name: Upload portability test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-linux-portability
+          path: '**/*.trx'
+
   test-windows:
     name: 'Windows'
     runs-on: windows-latest

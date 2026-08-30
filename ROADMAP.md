@@ -418,10 +418,11 @@ non-Windows systems.
   originating provider resources and Windows message-rendering APIs.
 - [x] Test clean, truncated, dirty, invalid-header-checksum, sparse/bad-chunk, and large
   EVTX files on Windows plus a clean fixture on Linux.
-- [x] Exercise an archived fixture and record the current adapter failure
-  (zero of 653 Windows-readable records); keep it outside automatic promotion.
-- [ ] Add retained truncated and archived fixtures to CI and replace or improve
-  the parser until both pass.
+- [x] Exercise an archived fixture and reproduce the dependency failure (zero
+  of 653 Windows-readable records) before implementing the owned fallback.
+- [x] Add privacy-safe retained truncated and archived fixtures to Windows and
+  Linux CI. The managed adapter now preserves every parseable truncated record
+  and all 653 records from the full WEC archive with complete identity parity.
 - [x] Compare event count, identity, order, timestamps, and payload fields
   against the Windows path.
 - [x] Compare recoverability against two representative forensic parsers:
@@ -429,9 +430,10 @@ non-Windows systems.
   large, archive, sparse/bad-chunk, and truncated workloads in the fidelity
   gate notes rather than treating record enumeration as XML fidelity.
 - [x] Measure throughput, allocation, and identity fidelity before promotion;
-  the managed adapter currently fails the allocation/performance promotion
-  gate and therefore remains explicit opt-in. The command adapter is faster
-  and archive-capable but remains explicit because it executes a caller-owned
+  the managed adapter currently fails the general allocation/performance
+  promotion gate and therefore remains explicit opt-in. Its owned literal WEC
+  path is materially faster and lower-allocation than the dependency fallback,
+  while the command adapter remains explicit because it executes a caller-owned
   binary, loses the final 100-nanosecond timestamp digit in JSONL, and does not
   recover the retained truncated sample.
 - [x] Keep the capability in EventViewerX core when implemented natively without

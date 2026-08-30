@@ -22,6 +22,9 @@
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <PackageReference Include="evtx" Version="1.5.2" />
   </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
   <ItemGroup>
     <Using Include="System" />
     <Using Include="System.Collections.Generic" />

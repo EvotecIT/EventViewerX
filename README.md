@@ -25,15 +25,16 @@ roughly 720 KB allocated/event versus 41,719 events/second and 3.5 KB/event for
 the Windows path. The fidelity gate also runs on Linux and reports header,
 chunk, recovery, and parser diagnostics explicitly.
 
-Archived logs that require provider template resolution are not supported by
-the managed adapter: the retained archived fixture returns zero of 653
-Windows-readable records. `EvtxDumpSavedEventReader` is the higher-fidelity
-portable option for this case and preserved all 653 records. It executes an
-explicit caller-owned `evtx_dump` path, never downloads or updates the tool,
-and normalizes its streaming JSONL into the same EVX contracts. Its JSONL
-timestamps are precise to one microsecond rather than the final 100-nanosecond
-FILETIME digit, and the retained truncated fixture is handled only by the
-managed adapter. Choose the engine for the input and keep diagnostics enabled.
+The managed adapter also recognizes literal BinXML records produced by rendered
+WEC subscriptions and routes them through a bounded, spec-aligned EVX reader.
+It preserved all 653 records from the archived ForwardedEvents fidelity fixture
+with complete identity parity; the retained sanitized archive fixture exercises
+that path on Windows and Linux CI. `EvtxDumpSavedEventReader` remains an explicit
+alternate parser: it executes a caller-owned `evtx_dump` path, never downloads
+or updates the tool, and normalizes streaming JSONL into the same EVX contracts.
+Its timestamps are precise to one microsecond rather than the final
+100-nanosecond FILETIME digit, and the retained truncated fixture is handled
+only by the managed adapter. Keep diagnostics enabled for either engine.
 
 [![PowerShell Gallery](https://img.shields.io/powershellgallery/v/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
 [![PowerShell Gallery downloads](https://img.shields.io/powershellgallery/dt/PSEventViewer.svg)](https://www.powershellgallery.com/packages/PSEventViewer)
@@ -175,7 +176,7 @@ Get-EVXEvent -Path C:\Logs\Security.evtx -Oldest `
 Get-EVXEvent -Path ./Security.evtx -PortableEvtx -Oldest `
     -ReadMode StructuredData
 
-# Higher-fidelity portable engine for archives; EVX never installs the tool.
+# Explicit alternate portable engine; EVX never installs the tool.
 Get-EVXEvent -Path ./ForwardedEvents.evtx `
     -PortableEvtxExecutable ./evtx_dump -Oldest `
     -ReadMode StructuredData
@@ -598,7 +599,7 @@ offline.SavedEventReader = new EventViewerX.Evtx.EvtxSavedEventReader();
 offline.SavedEventDiagnosticHandler = diagnostic =>
     Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
 
-// For archive/template fidelity, point EVX at a caller-managed evtx_dump.
+// To use the alternate process adapter, point EVX at caller-managed evtx_dump.
 // This is explicit process execution; EVX does not acquire or update the tool.
 offline.SavedEventReader = new EventViewerX.Evtx.EvtxDumpSavedEventReader(
     @"C:\Tools\evtx_dump.exe");

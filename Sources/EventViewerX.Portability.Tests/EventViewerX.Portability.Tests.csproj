@@ -23,5 +23,11 @@
     <None Include="..\..\Tests\Logs\NamedFilterExamples.evtx"
           Link="Fixtures\NamedFilterExamples.evtx"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\Tests\Logs\NamedFilterExamples-Truncated.evtx"
+          Link="Fixtures\NamedFilterExamples-Truncated.evtx"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\Tests\Logs\ForwardedEvents-Literal-Sanitized.evtx"
+          Link="Fixtures\ForwardedEvents-Literal-Sanitized.evtx"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

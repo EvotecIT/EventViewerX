@@ -5,23 +5,56 @@ namespace EventViewerX.Portability.Tests;
 
 public sealed class TestSavedEventPortability {
     [Fact]
-    public void ManagedReaderRetainsParseableRecordsFromDeterministicallyTruncatedFixture() {
-        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
-        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-truncated-{Guid.NewGuid():N}.evtx");
-        File.Copy(source, path);
+    public void ManagedReaderRetainsAllParseableRecordsFromRetainedTruncatedFixture() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples-Truncated.evtx");
+        var diagnostics = new List<SavedEventReadDiagnostic>();
+        var query = new EventLogFileQuery(path) { Oldest = true, XPath = "*" };
+
+        SavedEventRecord[] records = new EvtxSavedEventReader().Read(query, diagnostics.Add).ToArray();
+
+        Assert.Equal(168, records.Length);
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Code == "EVXEVTX002");
+        Assert.Equal(records.OrderBy(static record => record.RecordId).Select(static record => record.RecordId),
+            records.Select(static record => record.RecordId));
+    }
+
+    [Fact]
+    public void ManagedReaderParsesRetainedLiteralForwardedEventFixture() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
+        var diagnostics = new List<SavedEventReadDiagnostic>();
+        var query = new EventLogFileQuery(path) { Oldest = true, XPath = "*" };
+
+        SavedEventRecord record = Assert.Single(new EvtxSavedEventReader().Read(query, diagnostics.Add));
+
+        Assert.Equal("Microsoft-Windows-Security-Auditing", record.ProviderName);
+        Assert.Equal(4625, record.EventId);
+        Assert.Equal(1_000_000_001, record.RecordId);
+        Assert.Equal("Security", record.Channel);
+        Assert.Equal("forwarded.example.test", record.Computer);
+        Assert.Equal("evxuser", record.Data["TargetUserName"]);
+        Assert.Equal("EVX-TESTLAB", record.Data["TargetDomainName"]);
+        Assert.Equal("192.168.100.42", record.Data["IpAddress"]);
+        Assert.Equal("51432", record.Data["IpPort"]);
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Code == "EVXEVTX005");
+        Assert.DoesNotContain(diagnostics,
+            static diagnostic => diagnostic.Code is "EVXEVTX002" or "EVXEVTX003" or "EVXEVTX004");
+    }
+
+    [Fact]
+    public void ManagedReaderRejectsOutOfBoundsLiteralNameReferences() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-literal-bounds-{Guid.NewGuid():N}.evtx");
+        byte[] bytes = File.ReadAllBytes(source);
+        const int rootNameOffset = 4096 + 512 + 24 + 4 + 1 + 2 + 4;
+        Array.Fill(bytes, byte.MaxValue, rootNameOffset, sizeof(uint));
+        File.WriteAllBytes(path, bytes);
         try {
-            using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.None)) {
-                stream.SetLength(stream.Length - 32_768);
-            }
-            var diagnostics = new List<SavedEventReadDiagnostic>();
             var query = new EventLogFileQuery(path) { Oldest = true, XPath = "*" };
 
-            SavedEventRecord[] records = new EvtxSavedEventReader().Read(query, diagnostics.Add).ToArray();
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                new EvtxSavedEventReader().Read(query).ToArray());
 
-            Assert.NotEmpty(records);
-            Assert.Contains(diagnostics, static diagnostic => diagnostic.Code == "EVXEVTX002");
-            Assert.Equal(records.OrderBy(static record => record.RecordId).Select(static record => record.RecordId),
-                records.Select(static record => record.RecordId));
+            Assert.Contains("name offset", exception.Message, StringComparison.OrdinalIgnoreCase);
         } finally {
             File.Delete(path);
         }
