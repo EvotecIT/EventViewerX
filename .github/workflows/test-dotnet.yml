@@ -28,7 +28,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.111'
 
       - name: Restore portability tests
         run: dotnet restore Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj
@@ -49,7 +49,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        dotnet-version: ['10.0.x']
+        dotnet-version: ['10.0.111']
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
