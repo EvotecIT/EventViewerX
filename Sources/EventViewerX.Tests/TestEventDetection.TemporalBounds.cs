@@ -119,6 +119,42 @@ public sealed partial class TestEventDetection {
         Assert.Contains("matching work limit", incomplete.CompletenessDiagnostic, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void OrderedTemporalMatcherExpiresEveryOverlappingPrefixIndependently() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { OrderedThreeStepRule("EVX-TEST-ORDERED-EXPIRY") });
+        EventObservation[] observations = {
+            Observe(1001, Utc(10, 0), 1, "alice"),
+            Observe(1002, Utc(10, 1), 2, "alice"),
+            Observe(1001, Utc(10, 10), 3, "alice"),
+            Observe(1003, Utc(10, 11), 4, "alice")
+        };
+
+        EventDetectionFinding[] findings = EventDetectionEngine.Stream(observations, plan).ToArray();
+
+        Assert.Empty(findings);
+    }
+
+    [Fact]
+    public void OrderedTemporalOverlappingPrefixesCountEveryRetainedEvidenceReference() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { OrderedThreeStepRule("EVX-TEST-ORDERED-STATE") });
+        EventObservation[] observations = {
+            Observe(1001, Utc(10, 0), 1, "alice"),
+            Observe(1002, Utc(10, 1), 2, "alice"),
+            Observe(1001, Utc(10, 2), 3, "alice"),
+            Observe(1003, Utc(10, 3), 4, "alice")
+        };
+
+        EventDetectionFinding[] findings = EventDetectionEngine.Stream(
+            observations,
+            plan,
+            new EventDetectionEngineOptions(maximumStateObservations: 2)).ToArray();
+
+        Assert.Single(findings, static finding =>
+            finding.Status == EventDetectionFindingStatus.Incomplete &&
+            finding.CompletenessDiagnostic!.Contains("Detection state limit", StringComparison.Ordinal));
+        Assert.DoesNotContain(findings, static finding => finding.Status == EventDetectionFindingStatus.Matched);
+    }
+
     private static long FindMinimumAcceptedStateBudget(
         EventDetectionPlan plan,
         EventObservation observation) {
@@ -140,4 +176,18 @@ public sealed partial class TestEventDetection {
         }
         return low;
     }
+
+    private static EventDetectionRule OrderedThreeStepRule(string id) =>
+        new(new EventDetectionRuleDefinition {
+            RuleId = id,
+            Title = id,
+            Kind = EventDetectionRuleKind.OrderedTemporal,
+            Window = TimeSpan.FromMinutes(5),
+            GroupBy = "Account",
+            Steps = new[] {
+                new EventDetectionStepDefinition { Name = "first", EventIds = new[] { 1001 } },
+                new EventDetectionStepDefinition { Name = "middle", EventIds = new[] { 1002 } },
+                new EventDetectionStepDefinition { Name = "last", EventIds = new[] { 1003 } }
+            }
+        });
 }

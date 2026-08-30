@@ -284,6 +284,34 @@ public sealed partial class TestEventDetection {
     }
 
     [Fact]
+    public void OrderedTemporalRuleRetainsAnAdvancedPrefixWhenTheFirstStepRepeats() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-ORDERED-OVERLAP",
+                Title = "Overlapping ordered prefixes",
+                Kind = EventDetectionRuleKind.OrderedTemporal,
+                Window = TimeSpan.FromMinutes(5),
+                GroupBy = "Account",
+                Steps = new[] {
+                    new EventDetectionStepDefinition { Name = "first", EventIds = new[] { 1001 } },
+                    new EventDetectionStepDefinition { Name = "middle", EventIds = new[] { 1002 } },
+                    new EventDetectionStepDefinition { Name = "last", EventIds = new[] { 1003 } }
+                }
+            })
+        });
+        EventObservation[] observations = {
+            Observe(1001, Utc(10, 0), 1, "alice"),
+            Observe(1002, Utc(10, 1), 2, "alice"),
+            Observe(1001, Utc(10, 2), 3, "alice"),
+            Observe(1003, Utc(10, 3), 4, "alice")
+        };
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(observations, plan));
+
+        Assert.Equal(new long?[] { 1, 2, 4 }, finding.Evidence.Select(static item => item.RecordId));
+    }
+
+    [Fact]
     public void TemporalIndexKeepsRuleEligibleWhenOneStepLeavesASelectorUnrestricted() {
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
             new EventDetectionRule(new EventDetectionRuleDefinition {
@@ -475,6 +503,34 @@ public sealed partial class TestEventDetection {
             finding.RuleId == "EVX-TEST-TUNED-THRESHOLD" && finding.Evidence.Count == 2);
         Assert.Equal(EventDetectionSeverity.Low, severityRule.Definition.Severity);
         Assert.Equal(5, thresholdRule.Definition.Threshold);
+    }
+
+    [Fact]
+    public void TuningOverridesDistinctValueThresholdWithoutMutatingTheSourceRule() {
+        var distinctRule = new EventDetectionRule(new EventDetectionRuleDefinition {
+            RuleId = "EVX-TEST-TUNED-DISTINCT",
+            Title = "Tuned distinct sources",
+            Kind = EventDetectionRuleKind.DistinctValue,
+            EventIds = new[] { 1001 },
+            Threshold = 4,
+            Window = TimeSpan.FromMinutes(5),
+            GroupBy = "Account",
+            DistinctBy = "SourceAddress"
+        });
+        EventDetectionTuning tuning = new EventDetectionTuningBuilder()
+            .OverrideThreshold(distinctRule.Definition.RuleId, 2)
+            .Build();
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { distinctRule }, tuning);
+        EventObservation[] observations = {
+            WithField(Observe(1001, Utc(10, 0), 1, "alice"), "SourceAddress", "10.0.0.1"),
+            WithField(Observe(1001, Utc(10, 1), 2, "alice"), "SourceAddress", "10.0.0.2")
+        };
+
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(observations, plan));
+
+        Assert.Equal(2, plan.Rules[0].Threshold);
+        Assert.Equal(2, finding.Evidence.Count);
+        Assert.Equal(4, distinctRule.Definition.Threshold);
     }
 
     [Fact]

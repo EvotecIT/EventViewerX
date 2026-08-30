@@ -150,6 +150,28 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void ParserBackedConsolidationPreservesCaseDistinctFilesOnCaseSensitivePlatforms() {
+        if (OperatingSystem.IsWindows()) {
+            return;
+        }
+        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-case-{Guid.NewGuid():N}");
+        var reader = new PortableFixtureReader();
+        var lower = new EventLogFileQuery(Path.Combine(directory, "events.evtx")) {
+            SavedEventReader = reader,
+            XPath = "*"
+        };
+        var upper = new EventLogFileQuery(Path.Combine(directory, "Events.evtx")) {
+            SavedEventReader = reader,
+            XPath = "*"
+        };
+
+        EventLogBatchQuery consolidated = EventLogBatchConsolidator.Consolidate(
+            EventLogBatchQuery.ForFiles(new[] { lower, upper }));
+
+        Assert.Equal(2, consolidated.FileQueries.Count);
+    }
+
+    [Fact]
     public void XmlProjectorPreservesPortableIdentityAndPayload() {
         const string xml = """
             <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">

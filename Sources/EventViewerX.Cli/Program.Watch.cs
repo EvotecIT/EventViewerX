@@ -175,7 +175,10 @@ internal static partial class Program {
                     }
                     if (mailProfile != null &&
                         (durableBatch == null || !durableBatch.Delivery.TransportAcknowledgedUtc.HasValue)) {
-                        await mailProfile.SendAsync(email, report.Title).ConfigureAwait(false);
+                        Mailozaurr.SmtpResult result = await mailProfile.SendAsync(email, report.Title).ConfigureAwait(false);
+                        if (mailProfile.DryRun || !result.Status) {
+                            return;
+                        }
                         if (durableBatch != null) {
                             EventNotificationOutbox.MarkTransportAcknowledged(durableBatch);
                         }
@@ -368,7 +371,16 @@ internal static partial class Program {
                             : batch.Manifest.Title;
                         if (!batch.Delivery.TransportAcknowledgedUtc.HasValue) {
                             if (batch.Manifest.RequiresExternalTransport) {
-                                await mailProfile!.SendAsync(batch.Html, batch.PlainText, title).ConfigureAwait(false);
+                                Mailozaurr.SmtpResult result = await mailProfile!.SendAsync(
+                                    batch.Html,
+                                    batch.PlainText,
+                                    title).ConfigureAwait(false);
+                                if (mailProfile.DryRun || !result.Status) {
+                                    nextDelay = !nextDelay.HasValue || idleDelay < nextDelay.Value
+                                        ? idleDelay
+                                        : nextDelay;
+                                    continue;
+                                }
                             }
                             EventNotificationOutbox.MarkTransportAcknowledged(batch);
                         }

@@ -10,6 +10,7 @@ Describe 'evx portable host' {
             throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
         }
         $script:FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $script:TruncatedFixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples-Truncated.evtx'
         $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
     }
 
@@ -134,12 +135,59 @@ level: medium
         $Output = @(& $script:CliPath detect `
                 --sigma $SigmaPath `
                 --path $script:FixturePath `
-                --max 10 `
+                --max 0 `
                 --report-html $HtmlPath)
 
         $LASTEXITCODE | Should -Be 0
         Test-Path -LiteralPath $HtmlPath | Should -BeTrue
         $Output[-1] | Should -Be ([IO.Path]::GetFullPath($HtmlPath))
+    }
+
+    It 'marks generic detection incomplete only when the source limit truncates matching events' {
+        $SigmaPath = Join-Path $TestDrive 'source-limit-detection.yml'
+        @'
+title: Service configuration changed
+id: 88888888-8888-4888-8888-888888888888
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --max 1
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'propagates portable parser warnings into detection coverage' {
+        $SigmaPath = Join-Path $TestDrive 'portable-coverage-detection.yml'
+        @'
+title: Service configuration changed
+id: 99999999-9999-4999-8999-999999999999
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:TruncatedFixturePath `
+            --portable-evtx `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 2
     }
 
     It 'rejects generic event ID and provider selectors on typed detection sources' {

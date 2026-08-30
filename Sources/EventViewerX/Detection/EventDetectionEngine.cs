@@ -603,46 +603,6 @@ public static partial class EventDetectionEngine {
             _temporalStates.Remove(key);
         }
 
-        private void ProcessOrderedTemporal(
-            EventDetectionPlan.CompiledRule rule,
-            EventObservation observation,
-            int[] matchingSteps,
-            int matchingStepCount,
-            string groupValue,
-            StateKey key,
-            TemporalState state,
-            ICollection<EventDetectionFinding> findings) {
-
-            if (state.OrderedEvidence.Count != 0 &&
-                observation.EventTimeUtc - state.OrderedEvidence[0].EventTimeUtc > rule.Definition.Window) {
-                Release(state.OrderedEvidence);
-                state.OrderedEvidence.Clear();
-                state.NextStep = 0;
-            }
-            if (!ContainsIndex(matchingSteps, matchingStepCount, state.NextStep)) {
-                if (!ContainsIndex(matchingSteps, matchingStepCount, 0)) {
-                    return;
-                }
-                Release(state.OrderedEvidence);
-                state.OrderedEvidence.Clear();
-                state.NextStep = 0;
-            }
-            if (!CanRetainObservation(observation, findings)) {
-                return;
-            }
-            state.OrderedEvidence.Add(observation);
-            Retain(observation);
-            state.NextStep++;
-            if (state.NextStep < rule.Steps.Length) {
-                return;
-            }
-            findings.Add(CreateFinding(rule, state.OrderedEvidence.ToArray(), groupValue));
-            Release(state.OrderedEvidence);
-            state.OrderedEvidence.Clear();
-            state.NextStep = 0;
-            _temporalStates.Remove(key);
-        }
-
         private static bool ContainsIndex(int[] values, int count, int expected) {
             for (int index = 0; index < count; index++) {
                 if (values[index] == expected) {
@@ -674,7 +634,7 @@ public static partial class EventDetectionEngine {
                          .Where(item => item.Value.ExpiresUtc < current)
                          .ToArray()) {
                 ReleaseUnorderedCandidates(item.Value.UnorderedEvidence);
-                Release(item.Value.OrderedEvidence);
+                ReleaseOrderedPrefixes(item.Value.OrderedPrefixes);
                 _temporalStates.Remove(item.Key);
             }
             _nextStateExpiryUtc = _thresholdStates.Values.Select(static state => state.ExpiresUtc)
@@ -1067,11 +1027,11 @@ public static partial class EventDetectionEngine {
 
         private sealed class TemporalState {
             internal List<UnorderedTemporalCandidate> UnorderedEvidence { get; } = new();
-            internal List<EventObservation> OrderedEvidence { get; } = new();
-            internal int NextStep { get; set; }
+            internal List<OrderedTemporalPrefix?> OrderedPrefixes { get; } = new();
             internal long UnorderedMatchingWork { get; set; }
             internal bool UnorderedSafetyLimitReached { get; set; }
             internal DateTime ExpiresUtc { get; set; }
         }
+
     }
 }

@@ -117,9 +117,10 @@ public sealed class EventDetectionPlan {
                 definition.Severity = severity;
             }
             if (tuningSnapshot.ThresholdOverrides.TryGetValue(definition.RuleId, out int threshold)) {
-                if (definition.Kind != EventDetectionRuleKind.Threshold || threshold < 2) {
+                if (definition.Kind is not (EventDetectionRuleKind.Threshold or EventDetectionRuleKind.DistinctValue) ||
+                    threshold < 2) {
                     throw new InvalidDataException(
-                        $"Threshold override for '{definition.RuleId}' requires a threshold rule and value of at least two.");
+                        $"Threshold override for '{definition.RuleId}' requires a threshold or distinct-value rule and value of at least two.");
                 }
                 definition.Threshold = threshold;
             }

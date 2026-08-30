@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 
 namespace EventViewerX;
@@ -74,7 +75,7 @@ public static class EventLogBatchConsolidator {
             EventLogFileQuery[] mergedFiles = parserBackedFiles
                 .Select(static (file, index) => new { File = file, Index = index })
                 .GroupBy(static item => new {
-                    Path = Path.GetFullPath(item.File.Path).ToUpperInvariant(),
+                    Path = GetParserBackedPathIdentity(item.File.Path),
                     item.File.SavedEventReader,
                     item.File.SavedEventDiagnosticHandler,
                     item.File.BatchSourceIdentity,
@@ -107,6 +108,7 @@ public static class EventLogBatchConsolidator {
             EventLogBatchQuery nativeBatch = Consolidate(EventLogBatchQuery.Combine(remainderParts));
             return EventLogBatchQuery.Combine(new[] { parserBatch, nativeBatch });
         }
+
         QueryInput[] inputs = Snapshot(query);
         if (inputs.Length == 0) {
             throw new ArgumentException(
@@ -139,6 +141,13 @@ public static class EventLogBatchConsolidator {
         result.ContinueOnError = query.ContinueOnError;
         result.FailureHandler = query.FailureHandler;
         return result;
+    }
+
+    private static string GetParserBackedPathIdentity(string path) {
+        string fullPath = Path.GetFullPath(path);
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? fullPath.ToUpperInvariant()
+            : fullPath;
     }
 
     private static void CopyControls(

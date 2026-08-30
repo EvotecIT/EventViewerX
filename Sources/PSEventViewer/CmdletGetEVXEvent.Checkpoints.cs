@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -91,13 +92,11 @@ public sealed partial class CmdletGetEVXEvent {
                                  .OrderBy(static log => log, StringComparer.OrdinalIgnoreCase)),
             "Definition" => "Definition:" + JsonSerializer.Serialize(ResolveEventDefinition()) +
                             "|Path:" + string.Join(",", Path
-                                .Select(System.IO.Path.GetFullPath)
-                                .Select(static path => path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar).ToUpperInvariant())
-                                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)),
+                                .Select(NormalizeCheckpointPath)
+                                .OrderBy(static path => path, CheckpointPathComparer)),
             "Path" => "Path:" + string.Join(",", Path
-                .Select(System.IO.Path.GetFullPath)
-                .Select(static path => path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar).ToUpperInvariant())
-                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)),
+                .Select(NormalizeCheckpointPath)
+                .OrderBy(static path => path, CheckpointPathComparer)),
             "Hashtable" => "Hashtable",
             "Xml" =>
                 "Xml:" + FilterXml?.OuterXml,
@@ -174,6 +173,19 @@ public sealed partial class CmdletGetEVXEvent {
         byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(identity)));
         string fingerprint = BitConverter.ToString(hash).Replace("-", string.Empty);
         return $"{sourceIdentity}|q:{fingerprint}";
+    }
+
+    private static StringComparer CheckpointPathComparer =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
+    private static string NormalizeCheckpointPath(string path) {
+        string fullPath = System.IO.Path.GetFullPath(path)
+            .TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? fullPath.ToUpperInvariant()
+            : fullPath;
     }
 
     private static void AddHashtableIdentity(

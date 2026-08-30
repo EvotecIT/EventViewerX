@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -124,6 +125,16 @@ internal static partial class Program {
             throw new ArgumentOutOfRangeException("max");
         }
         var observations = new List<EventObservation>();
+        var sourceFailures = new ConcurrentQueue<string>();
+        Action<SavedEventReadDiagnostic>? savedEventDiagnosticHandler = portableEvtx
+            ? diagnostic => {
+                WriteSavedEventDiagnostic(diagnostic);
+                if (diagnostic.Severity != SavedEventReadDiagnosticSeverity.Information) {
+                    sourceFailures.Enqueue(
+                        $"Portable EVTX source reported {diagnostic.Code}: {diagnostic.Message}");
+                }
+            }
+            : null;
         EventTypeQueryExecutionInfo? typedExecution = null;
         EventTypeProjectionPlan? detectionProjection = plan.RequiredEventTypes.Count == 0
             ? null
@@ -135,7 +146,7 @@ internal static partial class Program {
             var query = new EventTypeQuery(types) {
                 Paths = paths.Length == 0 ? null : paths,
                 SavedEventReader = savedEventReader,
-                SavedEventDiagnosticHandler = portableEvtx ? WriteSavedEventDiagnostic : null,
+                SavedEventDiagnosticHandler = savedEventDiagnosticHandler,
                 MachineNames = NullWhenEmpty(options.GetMany("machine")),
                 CollectorLogName = options.GetMany("collector").Length > 0 ? "ForwardedEvents" : null,
                 StartTime = start,
@@ -174,52 +185,85 @@ internal static partial class Program {
                 if (targets.Length == 0) {
                     targets = new[] { string.Empty };
                 }
-                foreach (string target in targets) {
+                for (int targetIndex = 0; targetIndex < targets.Length; targetIndex++) {
+                    string target = targets[targetIndex];
+                    long remaining = Remaining(max, observations.Count);
+                    if (max > 0 && remaining == 0) {
+                        sourceFailures.Enqueue(
+                            $"The generic source result limit of {max} observations was reached before target '{DisplayTarget(target)}' was evaluated.");
+                        break;
+                    }
                     var query = new EventLogChannelQuery(logName) {
                         MachineName = target,
                         XPath = xpath,
                         Oldest = true,
                         ReadMode = EventReadMode.StructuredDataAndMessage,
-                        MaxEvents = Remaining(max, observations.Count)
+                        MaxEvents = ProbeLimit(max, remaining)
                     };
                     await foreach (EventObject source in EventLogEngine.ReadChannelAsync(query)) {
+                        if (max > 0 && observations.Count >= max) {
+                            sourceFailures.Enqueue(
+                                $"The generic source result limit of {max} observations was reached while reading target '{DisplayTarget(target)}'; later matching events were not evaluated.");
+                            break;
+                        }
                         EventTypeRecord? projected = detectionProjection == null
                             ? null
                             : EventTypeCatalog.CreateEventRule(source, detectionProjection);
                         observations.Add(EventObservation.Create(source, projected));
                     }
-                    if (max > 0 && observations.Count >= max) {
+                    if (max > 0 && observations.Count >= max && targetIndex + 1 < targets.Length) {
+                        sourceFailures.Enqueue(
+                            $"The generic source result limit of {max} observations was reached before {targets.Length - targetIndex - 1} later target(s) were evaluated.");
                         break;
                     }
                 }
             } else {
-                foreach (string path in paths) {
+                for (int pathIndex = 0; pathIndex < paths.Length; pathIndex++) {
+                    string path = paths[pathIndex];
+                    long remaining = Remaining(max, observations.Count);
+                    if (max > 0 && remaining == 0) {
+                        sourceFailures.Enqueue(
+                            $"The generic source result limit of {max} observations was reached before file '{Path.GetFullPath(path)}' was evaluated.");
+                        break;
+                    }
                     var query = new EventLogFileQuery(path) {
                         XPath = xpath,
                         SavedEventReader = savedEventReader,
-                        SavedEventDiagnosticHandler = portableEvtx ? WriteSavedEventDiagnostic : null,
+                        SavedEventDiagnosticHandler = savedEventDiagnosticHandler,
                         Oldest = true,
                         ReadMode = EventReadMode.StructuredDataAndMessage,
-                        MaxEvents = Remaining(max, observations.Count)
+                        MaxEvents = ProbeLimit(max, remaining)
                     };
                     await foreach (EventObject source in EventLogEngine.ReadFileAsync(query)) {
+                        if (max > 0 && observations.Count >= max) {
+                            sourceFailures.Enqueue(
+                                $"The generic source result limit of {max} observations was reached while reading file '{Path.GetFullPath(path)}'; later matching events were not evaluated.");
+                            break;
+                        }
                         EventTypeRecord? projected = detectionProjection == null
                             ? null
                             : EventTypeCatalog.CreateEventRule(source, detectionProjection);
                         observations.Add(EventObservation.Create(source, projected));
                     }
-                    if (max > 0 && observations.Count >= max) {
+                    if (max > 0 && observations.Count >= max && pathIndex + 1 < paths.Length) {
+                        sourceFailures.Enqueue(
+                            $"The generic source result limit of {max} observations was reached before {paths.Length - pathIndex - 1} later file(s) were evaluated.");
                         break;
                     }
                 }
             }
         }
 
-        string[] sourceFailures = CreateTypedSourceFailures(typedExecution);
+        foreach (string failure in CreateTypedSourceFailures(typedExecution)) {
+            sourceFailures.Enqueue(failure);
+        }
+        string[] sourceFailureSnapshot = sourceFailures
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
         EventDetectionCoverage coverage = options.Get("coverage") is string coveragePath
             ? EventDetectionCoverage.FromJson(
                     await File.ReadAllTextAsync(Path.GetFullPath(coveragePath)).ConfigureAwait(false))
-                .WithFailures(sourceFailures)
+                .WithFailures(sourceFailureSnapshot)
             : storedSource
                 ? EventDetectionCoverage.Create(
                     expectedTargets: new[] { Path.GetFullPath(storePath!) },
@@ -227,7 +271,7 @@ internal static partial class Program {
                     failures: new[] {
                         "Stored history ingestion coverage was not supplied. Pass --coverage with a versioned EventDetectionCoverage document before treating an empty historical result as clean."
                     })
-                : CreateDetectionCoverage(types, logName, paths, observations, plan, options, sourceFailures);
+                : CreateDetectionCoverage(types, logName, paths, observations, plan, options, sourceFailureSnapshot);
         var engineOptions = new EventDetectionEngineOptions(
             maximumObservations: options.GetLong("maximum-observations", 1000000),
             maximumGroups: options.GetInt("maximum-groups", 25000),
@@ -320,6 +364,12 @@ internal static partial class Program {
 
     private static long Remaining(long maximum, int current) =>
         maximum == 0 ? 0 : Math.Max(0, maximum - current);
+
+    private static long ProbeLimit(long maximum, long remaining) =>
+        maximum == 0 ? 0 : remaining == long.MaxValue ? long.MaxValue : remaining + 1;
+
+    private static string DisplayTarget(string target) =>
+        string.IsNullOrWhiteSpace(target) ? Environment.MachineName : target;
 
     private static EventDetectionCoverage CreateDetectionCoverage(
         IReadOnlyList<EventType> selectedTypes,
