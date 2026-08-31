@@ -18,12 +18,38 @@ env:
   SUMMARIZE_FAILURES: true # set to 'false' to disable summarizing failing tests
 
 jobs:
+  test-portability-linux:
+    name: 'Linux portability'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.111'
+
+      - name: Restore portability tests
+        run: dotnet restore Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj
+
+      - name: Run retained EVTX portability tests
+        run: dotnet test Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx
+        timeout-minutes: 10
+
+      - name: Upload portability test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-linux-portability
+          path: '**/*.trx'
+
   test-windows:
     name: 'Windows'
     runs-on: windows-latest
     strategy:
       matrix:
-        dotnet-version: ['10.0.x']
+        dotnet-version: ['10.0.111']
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -42,6 +68,19 @@ jobs:
       - name: Run tests (all TFMs)
         run: dotnet test Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
         timeout-minutes: 30
+
+      - name: Publish and run NativeAOT explicit catalog smoke test
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'eventviewerx-aot-smoke'
+          dotnet publish Sources/EventViewerX.AotSmoke/EventViewerX.AotSmoke.csproj `
+            --configuration Release `
+            --output $output
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          & (Join-Path $output 'EventViewerX.AotSmoke.exe')
+          exit $LASTEXITCODE
 
       - name: Summarize failing tests
         if: failure() && env.SUMMARIZE_FAILURES == 'true'

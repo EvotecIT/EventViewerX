@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EventViewerX supported Sigma correlation profile 2.1.0",
+  "type": "object",
+  "required": ["title", "correlation"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": ["stable", "test", "experimental", "deprecated", "unsupported"] },
+    "description": { "type": "string", "maxLength": 65535 },
+    "references": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "falsepositives": { "type": "array", "items": { "type": "string" } },
+    "level": { "enum": ["informational", "low", "medium", "high", "critical"] },
+    "correlation": {
+      "type": "object",
+      "required": ["type", "rules", "timespan"],
+      "properties": {
+        "type": { "enum": ["event_count", "value_count", "temporal", "temporal_ordered"] },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "group-by": {
+          "type": "array",
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "timespan": { "type": "string", "pattern": "^[1-9][0-9]*[smhdwM]$", "maxLength": 10 },
+        "condition": { "type": "object" },
+        "generate": { "type": "boolean" }
+      },
+      "not": { "required": ["aliases"] },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

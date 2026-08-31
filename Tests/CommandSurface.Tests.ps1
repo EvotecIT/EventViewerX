@@ -1,9 +1,13 @@
 Describe 'PSEventViewer v4 command surface' {
     BeforeAll {
         $ExpectedCommands = @(
+            'Backup-EVXStore'
             'Clear-EVXLog'
             'Export-EVXEvent'
+            'Get-EVXAnalysisContract'
             'Get-EVXCollectorSubscription'
+            'Get-EVXDetectionCoverage'
+            'Get-EVXDetectionPack'
             'Get-EVXEvent'
             'Get-EVXLog'
             'Get-EVXPowerShellScript'
@@ -11,7 +15,10 @@ Describe 'PSEventViewer v4 command surface' {
             'Get-EVXRequirement'
             'Get-EVXTarget'
             'Get-EVXWatcher'
+            'Import-EVXSigmaRule'
             'Install-EVXProviderPackage'
+            'Invoke-EVXDetection'
+            'Invoke-EVXStoreRetention'
             'Measure-EVXEvent'
             'New-EVXCollectorSubscription'
             'New-EVXFilter'
@@ -21,14 +28,18 @@ Describe 'PSEventViewer v4 command surface' {
             'Remove-EVXLog'
             'Remove-EVXSource'
             'Reset-EVXEventCheckpoint'
+            'Restore-EVXStore'
             'Set-EVXCollectorSubscription'
             'Set-EVXLog'
             'Show-EVXEvent'
             'Start-EVXWatcher'
             'Stop-EVXWatcher'
+            'Test-EVXDetectionPack'
             'Test-EVXLog'
             'Test-EVXProviderDefinition'
             'Test-EVXReadiness'
+            'Test-EVXSigmaRule'
+            'Test-EVXStore'
             'Uninstall-EVXProviderPackage'
             'Update-EVXLogArchive'
             'Write-EVXEvent'
@@ -70,11 +81,11 @@ Describe 'PSEventViewer v4 command surface' {
         }
     }
 
-    It 'declares the packaged module as AMD64' {
+    It 'leaves architecture selection to the edition-specific runtime loader' {
         $Module = Get-Module PSEventViewer
         $Manifest = Import-PowerShellDataFile -Path (Join-Path $Module.ModuleBase 'PSEventViewer.psd1')
 
-        $Manifest.ProcessorArchitecture | Should -Be 'Amd64'
+        $Manifest.ProcessorArchitecture | Should -Be 'None'
     }
 
     It 'uses the expected managed cmdlet architecture for the selected payload' {
@@ -87,15 +98,142 @@ Describe 'PSEventViewer v4 command surface' {
 
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::ILOnly) | Should -Not -Be 0
         ($PEKind -band [System.Reflection.PortableExecutableKinds]::Required32Bit) | Should -Be 0
-        $IsCoreDevelopmentPayload = $PSVersionTable.PSEdition -eq 'Core' -and
-            $AssemblyPath -like '*\Sources\PSEventViewer\bin\*'
-        if ($IsCoreDevelopmentPayload) {
+        if ($PSVersionTable.PSEdition -eq 'Core') {
+            # The PowerShell 7 payload is architecture-neutral IL. The module
+            # runtime selector chooses the matching native asset when needed.
             ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Be 0
             $Machine | Should -Be ([System.Reflection.ImageFileMachine]::I386)
         } else {
             ($PEKind -band [System.Reflection.PortableExecutableKinds]::PE32Plus) | Should -Not -Be 0
             $Machine | Should -Be ([System.Reflection.ImageFileMachine]::AMD64)
         }
+    }
+
+    It 'publishes isolated public contract types to the PowerShell type resolver' {
+        [EventViewerX.EventType].IsEnum | Should -BeTrue
+        [EventViewerX.Reporting.EventReport].IsClass | Should -BeTrue
+        [EventViewerX.Storage.EventStore].IsClass | Should -BeTrue
+        [EventViewerX.Sigma.SigmaRuleCompiler].IsClass | Should -BeTrue
+        [EventViewerX.Evtx.EvtxSavedEventReader].IsClass | Should -BeTrue
+    }
+
+    It 'accumulates piped Sigma files into one versioned detection pack' {
+        $FirstPath = Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml'
+        $SecondPath = Join-Path $TestDrive 'NtlmV1-Second.yml'
+        $SecondRule = (Get-Content -LiteralPath $FirstPath -Raw).Replace(
+            'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
+        $SecondRule = $SecondRule.Replace(
+            'NTLMv1 authentication observed',
+            'Second NTLMv1 authentication rule')
+        Set-Content -LiteralPath $SecondPath -Value $SecondRule -Encoding UTF8
+
+        $Pack = @($FirstPath, $SecondPath) |
+            Import-EVXSigmaRule `
+                -AsPack `
+                -PackId 'eventviewerx.test.pipeline' `
+                -Version '1.0.0'
+
+        $Pack | Should -BeOfType ([EventViewerX.EventDetectionPack])
+        $Pack.Rules.Count | Should -Be 2
+        @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
+    }
+
+    It 'resolves Sigma correlations across piped files' {
+        $BasePath = Join-Path $TestDrive 'cmdlet-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'cmdlet-correlation.yml'
+        @'
+title: Failed logon
+id: 75757575-7575-4575-8575-757575757575
+name: cmdlet_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated failed logons
+id: 76767676-7676-4676-8676-767676767676
+correlation:
+  type: event_count
+  rules:
+    - cmdlet_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Rule = @($BasePath, $CorrelationPath) | Import-EVXSigmaRule
+
+        $Rule.Definition.Kind | Should -Be ([EventViewerX.EventDetectionRuleKind]::Threshold)
+        $Rule.Definition.EventIds | Should -Be @(4625)
+    }
+
+    It 'tests Sigma correlations across piped files as one compilation unit' {
+        $BasePath = Join-Path $TestDrive 'test-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'test-correlation.yml'
+        @'
+title: Failed logon
+id: 77777777-7777-4777-8777-777777777771
+name: tested_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated tested failed logons
+id: 77777777-7777-4777-8777-777777777772
+correlation:
+  type: event_count
+  rules:
+    - tested_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Result = @($BasePath, $CorrelationPath) | Test-EVXSigmaRule
+
+        $Result | Should -BeOfType ([EventViewerX.Sigma.SigmaCompilationResult])
+        $Result.IsSupported | Should -BeTrue
+        $Result.Rules.Count | Should -Be 1
+        $Result.Rules[0].Definition.Kind | Should -Be ([EventViewerX.EventDetectionRuleKind]::Threshold)
+    }
+
+    It 'expands wildcard Sigma paths into one versioned detection pack' {
+        $Template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml') -Raw
+        $FirstPath = Join-Path $TestDrive 'Wildcard-First.yml'
+        $SecondPath = Join-Path $TestDrive 'Wildcard-Second.yml'
+        Set-Content -LiteralPath $FirstPath -Value $Template -Encoding UTF8
+        $SecondRule = $Template.Replace(
+            'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'ffffffff-ffff-4fff-8fff-ffffffffffff')
+        $SecondRule = $SecondRule.Replace(
+            'NTLMv1 authentication observed',
+            'Wildcard NTLMv1 authentication rule')
+        Set-Content -LiteralPath $SecondPath -Value $SecondRule -Encoding UTF8
+
+        $Pack = Import-EVXSigmaRule `
+            -Path (Join-Path $TestDrive 'Wildcard-*.yml') `
+            -AsPack `
+            -PackId 'eventviewerx.test.wildcard' `
+            -Version '1.0.0'
+
+        $Pack.Rules.Count | Should -Be 2
+        @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
     }
 
     It 'declares both collector subscription result shapes' {

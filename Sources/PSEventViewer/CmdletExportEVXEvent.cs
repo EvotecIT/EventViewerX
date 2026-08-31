@@ -359,8 +359,7 @@ public sealed class CmdletExportEVXEvent : PSCmdlet {
     }
 
     private string[] ResolvePaths() {
-        var paths = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
+        var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string pattern in Path) {
             try {
                 foreach (string path in SessionState.Path
@@ -388,7 +387,7 @@ public sealed class CmdletExportEVXEvent : PSCmdlet {
         return paths
             .OrderBy(static path =>
                 path,
-                StringComparer.OrdinalIgnoreCase)
+                FileSystemPathIdentity.Comparer)
             .ToArray();
     }
 

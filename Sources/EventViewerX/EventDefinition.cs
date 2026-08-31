@@ -9,6 +9,7 @@ public sealed class EventDefinition {
     public const string OutputMetadataFieldName = "_EventViewerX";
 
     private static readonly JsonSerializerOptions ReadOptions = CreateJsonOptions(writeIndented: false);
+    private static readonly JsonSerializerOptions WriteOptions = CreateJsonOptions(writeIndented: true);
     private static readonly HashSet<string> ReservedNames = new(
         Enum.GetNames(typeof(EventType)).Concat(new[] {
             "Generic",
@@ -54,7 +55,7 @@ public sealed class EventDefinition {
         if (!string.IsNullOrWhiteSpace(directory)) {
             Directory.CreateDirectory(directory!);
         }
-        File.WriteAllText(fullPath, JsonSerializer.Serialize(this, CreateJsonOptions(indented)));
+        File.WriteAllText(fullPath, JsonSerializer.Serialize(this, indented ? WriteOptions : ReadOptions));
     }
 
     /// <summary>Validates the declarative contract.</summary>
@@ -87,6 +88,7 @@ public sealed class EventDefinition {
             }
             source.ProviderNames = source.ProviderNames.Select(static provider => provider.Trim()).ToArray();
         }
+        ValidateNonOverlappingSources();
         if (Fields == null) {
             throw new InvalidDataException("Definition Fields cannot be null.");
         }
@@ -139,6 +141,29 @@ public sealed class EventDefinition {
             }
         }
     }
+
+    private void ValidateNonOverlappingSources() {
+        for (int leftIndex = 0; leftIndex < Sources.Count; leftIndex++) {
+            EventDefinitionSource left = Sources[leftIndex];
+            for (int rightIndex = leftIndex + 1; rightIndex < Sources.Count; rightIndex++) {
+                EventDefinitionSource right = Sources[rightIndex];
+                if (!string.Equals(left.LogName, right.LogName, StringComparison.OrdinalIgnoreCase) ||
+                    !left.EventIds.Intersect(right.EventIds).Any() ||
+                    !ProvidersOverlap(left.ProviderNames, right.ProviderNames)) {
+                    continue;
+                }
+                throw new InvalidDataException(
+                    $"Sources[{leftIndex}] and Sources[{rightIndex}] overlap. " +
+                    "Combine their channel, event ID, and provider selectors so subscriptions cannot deliver one event twice.");
+            }
+        }
+    }
+
+    private static bool ProvidersOverlap(
+        IReadOnlyList<string> left,
+        IReadOnlyList<string> right) =>
+        left.Count == 0 || right.Count == 0 ||
+        left.Intersect(right, StringComparer.OrdinalIgnoreCase).Any();
 
     private static void ValidateConfiguredLiteral(
         EventDefinitionField field,

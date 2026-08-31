@@ -16,7 +16,8 @@ public static class EventLogQueryFactory {
 
         string[] logs = NormalizeSources(
             logNames,
-            nameof(logNames));
+            nameof(logNames),
+            StringComparer.OrdinalIgnoreCase);
         string?[] machines = NormalizeMachines(
             machineNames);
         EventLogQueryOptions snapshot =
@@ -212,7 +213,8 @@ public static class EventLogQueryFactory {
 
         string[] files = NormalizeSources(
                 paths,
-                nameof(paths))
+                nameof(paths),
+                FileSystemPathIdentity.Comparer)
             .Select(Path.GetFullPath)
             .ToArray();
         EventFilter? namedDataSuppression =
@@ -358,7 +360,8 @@ public static class EventLogQueryFactory {
 
     private static string[] NormalizeSources(
         IEnumerable<string> sources,
-        string parameterName) {
+        string parameterName,
+        StringComparer comparer) {
 
         if (sources == null) {
             throw new ArgumentNullException(
@@ -370,8 +373,7 @@ public static class EventLogQueryFactory {
                 string.Empty)
             .Where(static source =>
                 source.Length > 0)
-            .Distinct(
-                StringComparer.OrdinalIgnoreCase)
+            .Distinct(comparer)
             .ToArray();
         if (normalized.Length == 0) {
             throw new ArgumentException(

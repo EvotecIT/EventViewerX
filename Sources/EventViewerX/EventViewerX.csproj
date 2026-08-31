@@ -18,16 +18,15 @@
         <IsWindows>true</IsWindows>
         <SupportedOSPlatform>windows</SupportedOSPlatform>
         <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
-        <RestoreAdditionalProjectFallbackFoldersExcludes>$(RestoreAdditionalProjectFallbackFoldersExcludes);C:\Program
-            Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages</RestoreAdditionalProjectFallbackFoldersExcludes>
         <RestoreFallbackFolders />
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\README.md" Pack="true" PackagePath="" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
         <PackageReference Include="System.Text.Json" Version="10.0.11" />
         <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
         <PackageReference Include="System.Threading.Channels" Version="10.0.11" />
@@ -43,22 +42,52 @@
         <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
             <_Parameter1>PSEventViewer</_Parameter1>
         </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>EventViewerX.Reporting</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>EventViewerX.Storage</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>EventViewerX.ProjectionBenchmark</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>EventViewerX.DetectionBenchmarks</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>EventViewerX.Portability.Tests</_Parameter1>
+        </AssemblyAttribute>
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1' Or '$(TargetFramework)' == 'net8.0-windows'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <!-- PowerShell 7.0 runs on .NET Core 3.1. Version 6 retains a compatible
+             Windows implementation while the modern targets use the current package. -->
+        <PackageReference Include="System.DirectoryServices" Version="6.0.0" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
         <PackageReference Include="System.DirectoryServices" Version="10.0.11" />
-        <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.11" />
+        <!-- System.Diagnostics.EventLog loads this assembly when creating classic
+             sources even though EventLog does not expose it in our compiled API. -->
         <PackageReference Include="System.Threading.AccessControl" Version="10.0.11" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
         <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+        <!-- PowerShell 7.0 runs on .NET Core 3.1. Version 6 retains the Windows
+             netcoreapp3.1 runtime implementation consumed by the module payload. -->
+        <PackageReference Include="System.Diagnostics.EventLog" Version="6.0.0" />
         <PackageReference Include="System.Threading.Channels" Version="10.0.11" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+        <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.11" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
         <PackageReference Include="System.DirectoryServices" Version="10.0.11" />
         <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.11" />
+        <PackageReference Include="System.Threading.AccessControl" Version="10.0.11" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

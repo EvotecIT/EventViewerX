@@ -1,4 +1,28 @@
 Describe 'Event analysis PowerShell surface' {
+    It 'accepts typed and custom Get-EVXEvent records through the detection pipeline' {
+        $Fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $Raw = Get-EVXEvent -Path $Fixture -Oldest -MaxEvents 1
+        $Typed = [EventViewerX.EventTypeRecord]::new($Raw)
+        $DefinitionPath = Join-Path $TestDrive 'pipeline-definition.json'
+        @{
+            Name = 'ServiceStartTypeChange'
+            Sources = @(@{
+                    LogName = 'System'
+                    EventIds = @(7040)
+                    ProviderNames = @('Service Control Manager')
+                })
+            Fields = @(@{
+                    Name = 'ServiceName'
+                    Source = 'Data'
+                    SourceName = 'param1'
+                })
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $DefinitionPath -Encoding UTF8
+        $Custom = Get-EVXEvent -Definition $DefinitionPath -Path $Fixture -Oldest -MaxEvents 1
+
+        { $null = @($Typed | Invoke-EVXDetection -ErrorAction Stop) } | Should -Not -Throw
+        { $null = @($Custom | Invoke-EVXDetection -ErrorAction Stop) } | Should -Not -Throw
+    }
+
     It 'accepts mixed string and hashtable measures through the pipeline' {
         $Schema = [EventViewerX.Reporting.EventReportSectionSchema]::new()
         $Schema.Name = 'Generic'

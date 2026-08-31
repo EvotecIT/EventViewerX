@@ -1,7 +1,7 @@
 ﻿@{
     AliasesToExport       = @('Find-WinEvent', 'Get-EVXFilter', 'Write-EVXEntry')
     Author                = 'Przemyslaw Klys'
-    CmdletsToExport       = @('Clear-EVXLog', 'Export-EVXEvent', 'Get-EVXCollectorSubscription', 'Get-EVXEvent', 'Get-EVXLog', 'Get-EVXPowerShellScript', 'Get-EVXProvider', 'Get-EVXRequirement', 'Get-EVXTarget', 'Get-EVXWatcher', 'Install-EVXProviderPackage', 'Measure-EVXEvent', 'New-EVXCollectorSubscription', 'New-EVXFilter', 'New-EVXLog', 'New-EVXProviderPackage', 'New-EVXSource', 'Remove-EVXLog', 'Remove-EVXSource', 'Reset-EVXEventCheckpoint', 'Set-EVXCollectorSubscription', 'Set-EVXLog', 'Show-EVXEvent', 'Start-EVXWatcher', 'Stop-EVXWatcher', 'Test-EVXLog', 'Test-EVXProviderDefinition', 'Test-EVXReadiness', 'Uninstall-EVXProviderPackage', 'Update-EVXLogArchive', 'Write-EVXEvent')
+    CmdletsToExport       = @('Backup-EVXStore', 'Clear-EVXLog', 'Export-EVXEvent', 'Get-EVXAnalysisContract', 'Get-EVXCollectorSubscription', 'Get-EVXDetectionCoverage', 'Get-EVXDetectionPack', 'Get-EVXEvent', 'Get-EVXLog', 'Get-EVXPowerShellScript', 'Get-EVXProvider', 'Get-EVXRequirement', 'Get-EVXTarget', 'Get-EVXWatcher', 'Import-EVXSigmaRule', 'Install-EVXProviderPackage', 'Invoke-EVXDetection', 'Invoke-EVXStoreRetention', 'Measure-EVXEvent', 'New-EVXCollectorSubscription', 'New-EVXFilter', 'New-EVXLog', 'New-EVXProviderPackage', 'New-EVXSource', 'Remove-EVXLog', 'Remove-EVXSource', 'Reset-EVXEventCheckpoint', 'Restore-EVXStore', 'Set-EVXCollectorSubscription', 'Set-EVXLog', 'Show-EVXEvent', 'Start-EVXWatcher', 'Stop-EVXWatcher', 'Test-EVXDetectionPack', 'Test-EVXLog', 'Test-EVXProviderDefinition', 'Test-EVXReadiness', 'Test-EVXSigmaRule', 'Test-EVXStore', 'Uninstall-EVXProviderPackage', 'Update-EVXLogArchive', 'Write-EVXEvent')
     CompanyName           = 'Evotec'
     CompatiblePSEditions  = @('Desktop', 'Core')
     Copyright             = '(c) 2011 - 2026 Przemyslaw Klys @ Evotec. All rights reserved.'
@@ -10,7 +10,7 @@
     GUID                  = '5df72a79-cdf6-4add-b38d-bcacf26fb7bc'
     ModuleVersion         = '4.0.0'
     PowerShellVersion     = '5.1'
-    ProcessorArchitecture = 'Amd64'
+    ProcessorArchitecture = 'None'
     PrivateData           = @{
         PSData = @{
             ExternalModuleDependencies = @()

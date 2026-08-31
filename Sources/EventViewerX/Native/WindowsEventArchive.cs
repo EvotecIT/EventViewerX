@@ -330,19 +330,18 @@ internal static class WindowsEventArchive {
                         queryPath);
             })
             .Where(static path => path.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(static source => source.StartsWith(
+                "file://",
+                StringComparison.OrdinalIgnoreCase)
+                    ? EventLogStructuredQueryParser.GetFilePath(source)
+                    : Path.GetFullPath(source.Trim().Trim('"', '\'')))
+            .Distinct(FileSystemPathIdentity.Comparer)
             .ToArray();
         if (sources.Length != 1) {
             throw new NotSupportedException(
                 "Native EVTX export can select several channels but cannot merge several offline log files. Use CSV, JSON Lines, or XML for a multi-file QueryList.");
         }
-        string source = sources[0];
-        return source.StartsWith(
-            "file://",
-            StringComparison.OrdinalIgnoreCase)
-                ? EventLogStructuredQueryParser.GetFilePath(source)
-                : Path.GetFullPath(
-                    source.Trim().Trim('"', '\''));
+        return sources[0];
     }
 
     internal static long GetFileRecordCount(string path) {

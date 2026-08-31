@@ -160,7 +160,7 @@ Generate the command cold-start table:
 .\Benchmarks\EventLogParsing\Invoke-EventLogParsingBenchmark.ps1 `
     -IterationCount 5 `
     -PSEventViewerPath .\Artefacts\Unpacked\Modules\PSEventViewer\PSEventViewer.psd1 `
-    -EventViewerXPortableCliPath .\Artefacts\Cli\Artifacts\DotNetPublish\EventViewerX.Cli\win-x64\net10.0-windows\PortableCompat\evx.exe `
+    -EventViewerXPortableCliPath .\Artefacts\Cli\Artifacts\DotNetPublish\EventViewerX.Cli\win-x64\net10.0\PortableCompat\evx.exe `
     -ReadmeTable ColdStart
 ```
 

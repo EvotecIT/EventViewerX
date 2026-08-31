@@ -508,6 +508,27 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void DefinitionRejectsOverlappingSubscriptionSources() {
+        EventDefinition definition = CreateDefinition();
+        definition.Sources = new[] {
+            new EventDefinitionSource {
+                LogName = "Security",
+                EventIds = new[] { 4624, 4625 },
+                ProviderNames = Array.Empty<string>()
+            },
+            new EventDefinitionSource {
+                LogName = "security",
+                EventIds = new[] { 4624 },
+                ProviderNames = new[] { "Microsoft-Windows-Security-Auditing" }
+            }
+        };
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(definition.Validate);
+
+        Assert.Contains("Sources[0] and Sources[1] overlap", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DefinitionRejectsInvalidConfiguredTypedLiteralsBeforeReadingEvents() {
         EventDefinition constant = CreateDefinition();
         constant.Fields = new[] {
@@ -771,6 +792,47 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Single(report.Coverage);
         Assert.Equal("Offline", report.Coverage[0].MachineName);
         Assert.Equal(fixture, report.Coverage[0].LogName);
+    }
+
+    [Fact]
+    public async Task LossBearingSavedEventDiagnosticsMarkEveryOfflineReportShapeIncomplete() {
+        string path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Tests", "Logs", "NamedFilterExamples.evtx"));
+        var reader = new LossBearingSavedEventReader();
+        EventReportRequest generic = EventReportRequest.ForFiles(path);
+        generic.SavedEventReader = reader;
+        EventReportRequest typed = EventReportRequest.ForTypes(EventType.ADUserLogon);
+        typed.Paths = new[] { path };
+        typed.SavedEventReader = reader;
+        EventReportRequest custom = EventReportRequest.ForDefinition(new EventDefinition {
+            Name = "PortableLogon",
+            Sources = new[] {
+                new EventDefinitionSource {
+                    LogName = "Security",
+                    EventIds = new[] { 4624 },
+                    ProviderNames = new[] { "Microsoft-Windows-Security-Auditing" }
+                }
+            }
+        });
+        custom.Paths = new[] { path };
+        custom.SavedEventReader = reader;
+
+        EventReport[] reports = {
+            await EventReportEngine.QueryAsync(generic),
+            await EventReportEngine.QueryAsync(typed),
+            await EventReportEngine.QueryAsync(custom)
+        };
+
+        foreach (EventReport report in reports) {
+            Assert.True(report.ScanLimitReached);
+            Assert.Contains("EVXEVTX202", report.CompletenessDiagnostic, StringComparison.Ordinal);
+            Assert.NotEmpty(report.Coverage);
+            Assert.All(report.Coverage, static coverage => {
+                Assert.False(coverage.Succeeded);
+                Assert.Equal("Incomplete", coverage.Status);
+                Assert.Contains("EVXEVTX202", coverage.Detail, StringComparison.Ordinal);
+            });
+        }
     }
 
     [Fact]
@@ -1165,6 +1227,36 @@ public sealed class TestEventDefinitionAndReporting {
             ContainerLog = "ForwardedEvents",
             GatheredLogName = "ForwardedEvents"
         };
+
+    private sealed class LossBearingSavedEventReader : ISavedEventReader {
+        public IEnumerable<SavedEventRecord> Read(
+            EventLogFileQuery query,
+            Action<SavedEventReadDiagnostic>? diagnosticHandler = null,
+            CancellationToken cancellationToken = default) {
+
+            diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
+                Code = "EVXEVTX202",
+                Severity = SavedEventReadDiagnosticSeverity.Warning,
+                Message = "The parser skipped one malformed record.",
+                Recovered = true,
+                AffectsCompleteness = true
+            });
+            yield return new SavedEventRecord {
+                ProviderName = "Microsoft-Windows-Security-Auditing",
+                EventId = 4624,
+                RecordId = 42,
+                Channel = "Security",
+                Computer = "server01",
+                TimeCreatedUtc = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                RawXml = "<Event><EventData><Data Name=\"TargetUserName\">alice</Data></EventData></Event>",
+                Data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["TargetUserName"] = "alice"
+                },
+                MessageRenderStatus = EventMessageRenderStatus.MessageResourceUnavailable,
+                Recovered = true
+            };
+        }
+    }
 
     private static string[] TableColumns(XDocument table, XNamespace spreadsheet) => table
         .Descendants(spreadsheet + "tableColumn")

@@ -21,7 +21,7 @@ public static class EventDefinitionCompiler {
             ProviderNames = (providerNames ?? Array.Empty<string>()).Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static provider => provider, StringComparer.OrdinalIgnoreCase).ToArray()
         });
-        return collector ? EventTypeEngine.AddOriginalChannelPredicate(xpath, logName) : xpath;
+        return collector ? EventFilterCompiler.AddOriginalChannelPredicate(xpath, logName) : xpath;
     }
 
     /// <summary>Compiles built-in leaf or composite types.</summary>

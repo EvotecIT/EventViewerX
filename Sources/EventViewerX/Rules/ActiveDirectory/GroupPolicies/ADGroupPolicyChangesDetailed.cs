@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Detailed audit information for group policy changes.
 /// </summary>
 public class ADGroupPolicyChangesDetailed : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 100;
+
     /// <summary>Domain controller that emitted the event.</summary>
     public string Computer;
 

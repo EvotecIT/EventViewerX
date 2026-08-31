@@ -90,7 +90,7 @@ public sealed class TestEventTypeDefinitions {
                 StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
 
-        string collector = EventTypeEngine.AddOriginalChannelPredicate(
+        string collector = EventFilterCompiler.AddOriginalChannelPredicate(
             native,
             "Security");
 
@@ -122,6 +122,144 @@ public sealed class TestEventTypeDefinitions {
 
         Assert.Equal("<Task version=\"current\" />", current.TaskContent);
         Assert.Equal("<Task version=\"legacy\" />", legacy.TaskContent);
+    }
+
+    [Fact]
+    public void AuthenticationCompositePrefersNtlmV1ProjectionOverGenericLogon() {
+        var snapshot = CreateSecuritySnapshot(4624);
+        snapshot.Data["LmPackageName"] = "NTLM V1";
+
+        EventTypeRecord? typed = EventTypeCatalog.CreateEventRule(
+            snapshot,
+            new[] { EventType.ActiveDirectoryAuthentication });
+
+        Assert.IsType<Rules.ActiveDirectory.ADUserLogonNTLMv1>(typed);
+    }
+
+    [Fact]
+    public void ProjectionPlanCanBeReusedAcrossEventsWithoutChangingSpecificity() {
+        EventTypeProjectionPlan plan = EventTypeCatalog.CompileProjectionPlan(
+            new[] { EventType.ActiveDirectoryAuthentication });
+        var ntlmSnapshot = CreateSecuritySnapshot(4624);
+        ntlmSnapshot.Data["LmPackageName"] = "NTLM V1";
+        var genericSnapshot = CreateSecuritySnapshot(4624);
+
+        EventTypeRecord? ntlm = EventTypeCatalog.CreateEventRule(ntlmSnapshot, plan);
+        EventTypeRecord? generic = EventTypeCatalog.CreateEventRule(genericSnapshot, plan);
+
+        Assert.Contains(EventType.ADUserLogonNTLMv1, plan.ExpandedTypes);
+        Assert.IsType<Rules.ActiveDirectory.ADUserLogonNTLMv1>(ntlm);
+        Assert.IsType<Rules.ActiveDirectory.ADUserLogon>(generic);
+    }
+
+    [Fact]
+    public void EveryCompositeAndSharedNativeCandidateSetCompilesCompletelyAndDeterministically() {
+        EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
+        EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
+        EventTypeProjectionPlan allPlan = EventTypeCatalog.CompileProjectionPlan(
+            leaves.Select(static definition => definition.Type));
+        EventTypeProjectionPlan repeatedPlan = EventTypeCatalog.CompileProjectionPlan(
+            leaves.Select(static definition => definition.Type));
+        var sharedSources = leaves
+            .SelectMany(definition => definition.Sources.SelectMany(source => source.EventIds.Select(eventId => new {
+                definition.Type,
+                LogName = source.LogName,
+                EventId = eventId
+            })))
+            .GroupBy(static item => (item.EventId, LogName: item.LogName.ToUpperInvariant()))
+            .Where(static group => group.Select(static item => item.Type).Distinct().Count() > 1)
+            .ToArray();
+
+        Assert.NotEmpty(sharedSources);
+        foreach (var source in sharedSources) {
+            EventType[] expected = source.Select(static item => item.Type).Distinct().ToArray();
+            EventType[] actual = allPlan.GetCandidates(source.Key.EventId, source.First().LogName)
+                .Select(static projector => projector.Type)
+                .ToArray();
+            EventType[] repeated = repeatedPlan.GetCandidates(source.Key.EventId, source.First().LogName)
+                .Select(static projector => projector.Type)
+                .ToArray();
+
+            Assert.Equal(expected.Length, actual.Length);
+            Assert.Empty(expected.Except(actual));
+            Assert.Equal(actual, repeated);
+        }
+
+        foreach (EventTypeDefinition composite in definitions.Where(static definition => definition.IsComposite)) {
+            EventType[] expanded = EventTypeCatalog.Expand(new[] { composite.Type }).ToArray();
+            EventTypeProjectionPlan plan = EventTypeCatalog.CompileProjectionPlan(new[] { composite.Type });
+            foreach (EventSourceDefinition source in composite.Sources) {
+                foreach (int eventId in source.EventIds) {
+                    EventType[] expected = leaves
+                        .Where(definition => expanded.Contains(definition.Type) && definition.Sources.Any(candidate =>
+                            string.Equals(candidate.LogName, source.LogName, StringComparison.OrdinalIgnoreCase) &&
+                            candidate.EventIds.Contains(eventId)))
+                        .Select(static definition => definition.Type)
+                        .ToArray();
+                    EventType[] actual = plan.GetCandidates(eventId, source.LogName)
+                        .Select(static projector => projector.Type)
+                        .ToArray();
+
+                    Assert.Equal(expected.Length, actual.Length);
+                    Assert.Empty(expected.Except(actual));
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(0, true, false)]
+    [InlineData(1, false, false)]
+    [InlineData(2, true, true)]
+    [InlineData(3, false, true)]
+    public void ActiveDirectoryChangesRoutesGpoLinksAndPreservesOptionBits(
+        int options,
+        bool expectedEnabled,
+        bool expectedEnforced) {
+
+        var snapshot = CreateSecuritySnapshot(5136);
+        snapshot.Data["ObjectClass"] = "organizationalUnit";
+        snapshot.Data["AttributeLDAPDisplayName"] = "gPLink";
+        snapshot.Data["AttributeValue"] = $"[LDAP://cn={{11111111-2222-3333-4444-555555555555}},cn=policies,cn=system,DC=example,DC=com;{options}]";
+        snapshot.Data["OperationType"] = "%%14674";
+
+        var typed = Assert.IsType<Rules.ActiveDirectory.ADGroupPolicyLinks>(
+            EventTypeCatalog.CreateEventRule(snapshot, new[] { EventType.ActiveDirectoryChanges }));
+        GroupPolicyLinks link = Assert.Single(typed.GroupPolicyLink);
+
+        Assert.Equal(options, link.Options);
+        Assert.Equal(expectedEnabled, link.IsEnabled);
+        Assert.Equal(expectedEnforced, link.IsEnforced);
+    }
+
+    [Theory]
+    [InlineData(5136, "versionNumber", typeof(Rules.ActiveDirectory.ADGroupPolicyEdits))]
+    [InlineData(5136, "displayName", typeof(Rules.ActiveDirectory.GpoModified))]
+    [InlineData(5137, null, typeof(Rules.ActiveDirectory.GpoCreated))]
+    [InlineData(5141, null, typeof(Rules.ActiveDirectory.GpoDeleted))]
+    public void GroupPolicyCompositePrefersTheMostSpecificLifecycleProjection(
+        int eventId,
+        string? attributeName,
+        Type expectedType) {
+
+        var snapshot = CreateSecuritySnapshot(eventId);
+        snapshot.Data["ObjectClass"] = "groupPolicyContainer";
+        if (attributeName != null) {
+            snapshot.Data["AttributeLDAPDisplayName"] = attributeName;
+        }
+
+        EventTypeRecord? typed = EventTypeCatalog.CreateEventRule(
+            snapshot,
+            new[] { EventType.ActiveDirectoryChanges });
+
+        Assert.IsType(expectedType, typed);
+    }
+
+    private static EventObject CreateSecuritySnapshot(int eventId) {
+        return new EventObject(
+            new ForwardedSecurityEventRecord(eventId),
+            "DC01",
+            EventReadMode.Metadata);
     }
 
     private sealed class ForwardedSecurityEventRecord : EventRecord {

@@ -349,6 +349,7 @@ namespace PSEventViewer {
                 throw new PSArgumentOutOfRangeException(nameof(TimeOut), TimeOut, "TimeOut must be greater than zero when provided.");
             }
             EventDefinition? definition = null;
+            EventTypeProjectionPlan? projectionPlan = null;
             IReadOnlyList<EventType> leaves = Array.Empty<EventType>();
             IReadOnlyList<(string LogName, IReadOnlyList<int> EventIds, IReadOnlyList<string> Providers)> sources;
             if (custom) {
@@ -371,7 +372,8 @@ namespace PSEventViewer {
                         (IReadOnlyList<string>)source.ProviderNames))
                     .ToArray();
             } else {
-                leaves = EventTypeCatalog.Expand(Type);
+                projectionPlan = EventTypeCatalog.CompileProjectionPlan(Type);
+                leaves = projectionPlan.ExpandedTypes;
                 sources = EventTypeCatalog.GetSources(leaves)
                     .Select(static source => (
                         source.LogName,
@@ -404,7 +406,7 @@ namespace PSEventViewer {
             bridge.AttachCleanup(RemoveSubscription);
             void Publish(EventObject source) {
                 object? target = definition == null
-                    ? EventTypeCatalog.CreateEventRule(source, leaves.ToList())
+                    ? EventTypeCatalog.CreateEventRule(source, projectionPlan!)
                     : EventDefinitionEngine.CreateRecord(definition, source);
                 if (target == null) {
                     return;

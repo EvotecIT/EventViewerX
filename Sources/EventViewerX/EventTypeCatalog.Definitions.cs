@@ -233,7 +233,13 @@ public static partial class EventTypeCatalog {
             includedTypes);
     }
 
-    private static IReadOnlyList<EventFieldDefinition> GetFields(Type recordType) {
+    private static IReadOnlyList<EventFieldDefinition> GetFields(
+#if NET5_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type recordType) {
         var fields = new List<EventFieldDefinition>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (PropertyInfo property in recordType.GetProperties(BindingFlags.Instance | BindingFlags.Public)) {

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EventViewerX supported Sigma detection profile 2.1.0",
+  "type": "object",
+  "required": ["title", "logsource", "detection"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": ["stable", "test", "experimental", "deprecated", "unsupported"] },
+    "description": { "type": "string", "maxLength": 65535 },
+    "license": { "type": "string" },
+    "references": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "falsepositives": { "type": "array", "items": { "type": "string" } },
+    "level": { "enum": ["informational", "low", "medium", "high", "critical"] },
+    "logsource": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "product": { "type": "string" },
+        "category": { "type": "string" },
+        "service": { "type": "string" },
+        "definition": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "detection": {
+      "type": "object",
+      "required": ["condition"],
+      "minProperties": 2,
+      "properties": {
+        "condition": { "type": "string", "minLength": 1 },
+        "timeframe": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

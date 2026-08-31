@@ -10,6 +10,11 @@ Locale: en-US
 High-performance typed Windows Event Log queries, reports, exports, watchers, WEC, custom providers, diagnostics, and administration for PowerShell.
 
 ## PSEventViewer Cmdlets
+### [Backup-EVXStore](Backup-EVXStore.md)
+Creates a consistent validated EventViewerX store backup.
+
+Uses SQLite snapshot semantics, validates the generated database, and returns its size and SHA-256 checksum.
+
 ### [Clear-EVXLog](Clear-EVXLog.md)
 Clears Windows Event Log channels through the native engine.
 
@@ -20,10 +25,25 @@ Streams Windows events directly to CSV, JSON Lines, XML, or native EVTX.
 
 Uses the EventViewerX native engine and writes directly to the destination without materializing PowerShell objects. Completed output is promoted atomically, so cancellation or failure does not replace an existing file.
 
+### [Get-EVXAnalysisContract](Get-EVXAnalysisContract.md)
+Gets versioned EventViewerX analysis JSON contracts.
+
+Returns Draft 2020-12 schemas for observations, findings, coverage, plans, packs, and rule traces.
+
 ### [Get-EVXCollectorSubscription](Get-EVXCollectorSubscription.md)
 Returns normalized Windows Event Collector subscription configuration.
 
 Reads local or remote WEC subscription inventory and returns detached snapshots with normalized XML details and query definitions. Remote access uses the caller's Windows identity.
+
+### [Get-EVXDetectionCoverage](Get-EVXDetectionCoverage.md)
+Gets evidence and readiness requirements for built-in EventViewerX detection packs.
+
+Returns channels, providers, event IDs, typed projections, audit policies, target roles, and configuration prerequisites.
+
+### [Get-EVXDetectionPack](Get-EVXDetectionPack.md)
+Gets the built-in versioned EventViewerX detection packs.
+
+Returns signed-content-ready pack manifests with rule provenance, versions, hashes, licenses, and ATT&CK tags.
 
 ### [Get-EVXEvent](Get-EVXEvent.md)
 Enhanced event querying cmdlet that replaces and extends Get-WinEvent functionality.
@@ -58,12 +78,29 @@ Retrieves information about active EVX watchers.
 
 Filters by watcher Id or Name and returns watcher metadata such as log, machine, filters, and runtime state.
 
+### [Import-EVXSigmaRule](Import-EVXSigmaRule.md)
+Imports supported Sigma YAML as native EventViewerX detection rules.
+
+The YAML adapter is separate from the detection engine because it adds a YAML dependency. Imported rules execute in the same bounded native engine as built-in rules.
+
 ### [Install-EVXProviderPackage](Install-EVXProviderPackage.md)
 Installs or upgrades a portable custom Windows event provider package.
 
 Verifies package hashes and signatures before changing machine state, enforces schema and version compatibility, stages resources under ProgramData, registers the manifest, verifies Windows metadata and channels, and rolls back to the previous provider if activation fails.
 
 The target machine does not require the Windows SDK, Visual Studio, a C# compiler, generated source, or package build tools.
+
+### [Invoke-EVXDetection](Invoke-EVXDetection.md)
+Evaluates EventViewerX events with native detection and correlation rules.
+
+Compiles one immutable indexed plan, projects each raw event once, and emits explainable findings with evidence and pack provenance.
+
+Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.
+
+### [Invoke-EVXStoreRetention](Invoke-EVXStoreRetention.md)
+Applies explicit EventViewerX event and finding retention.
+
+Prunes source events and durable findings independently and can compact free SQLite pages after deletion.
 
 ### [Measure-EVXEvent](Measure-EVXEvent.md)
 Computes bounded event counts, distinct values, first/last observations, rates, and time trends.
@@ -114,6 +151,11 @@ Resets persisted event-query checkpoint progress safely.
 
 Starts a new checkpoint generation under the shared file lock so an in-flight query from the previous generation cannot restore stale progress. Use this cmdlet instead of deleting only the RecordIdFile compatibility file because generation state is stored in a visible companion .state.json file.
 
+### [Restore-EVXStore](Restore-EVXStore.md)
+Restores an EventViewerX store from a validated backup.
+
+Validates the backup before replacement, uses an atomic recovery file, and restores the original database automatically when post-replacement validation fails. Stop active readers and writers first.
+
 ### [Set-EVXCollectorSubscription](Set-EVXCollectorSubscription.md)
 Applies a typed local WEC subscription definition or changes its enabled state.
 
@@ -141,6 +183,11 @@ Stops running EVX watchers by identifier, name, or en masse.
 
 Requires exactly one selector and reports missing identifiers or names instead of silently doing nothing. Use PassThru to return each watcher that was stopped.
 
+### [Test-EVXDetectionPack](Test-EVXDetectionPack.md)
+Runs the executable fixture contracts shipped with built-in EventViewerX detection packs.
+
+Runs positive, negative, exact-boundary, and known-benign scenarios against each rule in isolation.
+
 ### [Test-EVXLog](Test-EVXLog.md)
 Runs a bounded Windows Event Log connectivity and query probe.
 
@@ -155,6 +202,16 @@ Checks provider identity, channels, event versions, field references, maps, loca
 Assesses EventViewerX prerequisites without changing Windows configuration.
 
 Composes explicit target discovery, native Event Log probes, effective local audit policy, observed-event evidence, and safe provider configuration checks. Permission-limited evidence remains Unknown instead of being guessed.
+
+### [Test-EVXSigmaRule](Test-EVXSigmaRule.md)
+Validates and compiles Sigma YAML against the EventViewerX supported subset.
+
+Returns structured diagnostics and native rules without executing them. Unsupported behavior is reported explicitly and is never weakened silently.
+
+### [Test-EVXStore](Test-EVXStore.md)
+Validates an EventViewerX history store.
+
+Runs SQLite integrity checks and verifies the supported base, identity, and finding schema contracts.
 
 ### [Uninstall-EVXProviderPackage](Uninstall-EVXProviderPackage.md)
 Unregisters an EventViewerX-managed custom event provider.

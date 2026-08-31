@@ -57,6 +57,8 @@ internal static class EventLogQuerySnapshot {
             XPath = source.XPath,
             Oldest = source.Oldest,
             ReadMode = source.ReadMode,
+            SavedEventReader = source.SavedEventReader,
+            SavedEventDiagnosticHandler = source.SavedEventDiagnosticHandler,
             MessageCulture = CopyCulture(source.MessageCulture),
             FallbackMessageCulture =
                 CopyCulture(source.FallbackMessageCulture),

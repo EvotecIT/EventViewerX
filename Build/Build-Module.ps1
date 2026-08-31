@@ -36,6 +36,10 @@ Build-Module -ModuleName 'PSEventViewer' {
         # Tags applied to this module. These help with module discovery in online galleries.
         Tags                 = @('Events', 'Viewer', 'Windows', 'XML', 'XPATH', 'EVTX', 'WEC', 'Reporting')
 
+        # The Core payload is AnyCPU and selects RID-specific native assets at
+        # runtime. The module entry script rejects non-x64 Desktop hosts.
+        ProcessorArchitecture = 'None'
+
         IconUri              = 'https://evotec.xyz/wp-content/uploads/2018/10/PSEventViewer.png'
 
         ProjectUri           = 'https://github.com/EvotecIT/EventViewerX'
@@ -90,13 +94,21 @@ Build-Module -ModuleName 'PSEventViewer' {
         NETProjectName                    = 'PSEventViewer'
         NETProjectPath                    = 'Sources\PSEventViewer\PSEventViewer.csproj'
         NETConfiguration                  = 'Release'
-        # One portable Core payload keeps PowerShell 7.0+ deterministic; the NuGet packages still retain
-        # their optimized net8/net10 targets independently of the module's runtime selector.
+        # The portable payload supports PowerShell 7.0+. Its project publish target
+        # replaces the EventLog facade with the matching Windows runtime assembly.
         NETFramework                      = 'netstandard2.1', 'net472'
         NETSearchClass                    = 'PSEventViewer.CmdletGetEVXEvent'
         NETHandleAssemblyWithSameName     = $true
         NETAssemblyLoadContext            = $true
         NETHandleRuntimes                 = $true
+        NETAssemblyTypeAcceleratorMode    = 'Assembly'
+        NETAssemblyTypeAcceleratorAssemblies = @(
+            'EventViewerX'
+            'EventViewerX.Reporting'
+            'EventViewerX.Storage'
+            'EventViewerX.Detection'
+            'EventViewerX.Evtx'
+        )
         NETIgnoreLibraryOnLoad            = @(
             'HtmlForgeX.dll'
             'HtmlForgeX.Email.dll'

@@ -307,6 +307,12 @@ Describe 'Custom manifest provider lifecycle' {
                         $_.IsActive
                     }
             ).IsRegistered | Should -BeTrue
+        } catch {
+            if ($_.Exception.ToString() -match 'code 6801|Transaction support within the specified resource manager') {
+                Set-ItResult -Skipped -Because 'The Windows Transactional Registry resource manager is unavailable on this host.'
+            } else {
+                throw
+            }
         } finally {
             if ($Installed) {
                 Uninstall-EVXProviderPackage `

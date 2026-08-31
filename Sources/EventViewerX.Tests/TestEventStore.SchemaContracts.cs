@@ -110,7 +110,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
-    public async Task ExistingStoresAcquireNullableActivityMetadataColumns() {
+    public async Task ExistingStoresAcquireNullableSystemMetadataColumns() {
         string path = CreateStorePath();
         try {
             await new EventStore(path).WriteAsync(CreateReport((
@@ -121,6 +121,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
                 using SQLiteSession session = sqlite.OpenSession(path);
                 session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN activity_id;");
                 session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN related_activity_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN process_id;");
+                session.ExecuteNonQuery("ALTER TABLE evx_events DROP COLUMN thread_id;");
             }
 
             var migratedStore = new EventStore(path);
@@ -129,6 +131,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             Assert.Single(report.Rows);
             Assert.Null(report.Rows[0].ActivityId);
             Assert.Null(report.Rows[0].RelatedActivityId);
+            Assert.Null(report.Rows[0].ProcessId);
+            Assert.Null(report.Rows[0].ThreadId);
             using var verificationClient = new SQLite { BusyTimeoutMs = 10000 };
             using SQLiteSession verification = verificationClient.OpenSession(path);
             IReadOnlyList<string> columns = verification.QueryAsList(
@@ -136,6 +140,8 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
                 static record => record.GetString(1));
             Assert.Contains("activity_id", columns);
             Assert.Contains("related_activity_id", columns);
+            Assert.Contains("process_id", columns);
+            Assert.Contains("thread_id", columns);
         } finally {
             DeleteStore(path);
         }
@@ -634,6 +640,38 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
                 Assert.Contains("derived", exception.Message, StringComparison.OrdinalIgnoreCase);
             }
             Assert.Equal(2, (await store.ReadReportAsync(new EventStoreQuery())).Rows.Count);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task DetectionPresentationReportsCannotSeedEventHistory() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionFinding finding = CreateDetectionFinding(
+                "EVX-STORE-DERIVED-DETECTION",
+                "alice");
+            EventDetectionReportSnapshot snapshot = EventDetectionReportEngine.Create(
+                finding.Evidence,
+                new[] { finding },
+                metrics: new[] {
+                    new EventDecisionMetric(
+                        "finding_count",
+                        "Finding count",
+                        1,
+                        "count",
+                        "Number of selected findings.")
+                });
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "DetectionFinding");
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "IncidentTimeline");
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "DecisionMetric");
+
+            InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new EventStore(path).WriteAsync(snapshot.PresentationReport));
+
+            Assert.Contains("derived", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(path));
         } finally {
             DeleteStore(path);
         }

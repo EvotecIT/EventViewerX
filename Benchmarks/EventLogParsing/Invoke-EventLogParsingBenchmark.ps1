@@ -184,7 +184,7 @@ dotnet build (Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csp
 if ($LASTEXITCODE -ne 0) {
     throw "The PSEventViewer build failed with exit code $LASTEXITCODE."
 }
-dotnet build (Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\EventViewerX.Cli.csproj') --configuration Release --framework net10.0-windows
+dotnet build (Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\EventViewerX.Cli.csproj') --configuration Release --framework net10.0
 if ($LASTEXITCODE -ne 0) {
     throw "The EventViewerX CLI build failed with exit code $LASTEXITCODE."
 }

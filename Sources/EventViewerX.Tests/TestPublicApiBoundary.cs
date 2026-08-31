@@ -1,4 +1,5 @@
 using Xunit;
+using EventViewerX.Storage;
 
 namespace EventViewerX.Tests;
 
@@ -34,10 +35,23 @@ public class TestPublicApiBoundary {
     }
 
     [Fact]
-    public void ReportingEntryPointsAreExportedOnlyFromTheReportingAssembly() {
+    public void AnalysisEntryPointsAreExportedFromTheCoreAssembly() {
         Type[] supportedEntryPoints = {
             typeof(EventViewerX.Reporting.EventReportEngine),
             typeof(EventViewerX.Reporting.EventReportRequest),
+            typeof(EventViewerX.Reporting.EventAggregationEngine),
+            typeof(EventViewerX.Reporting.EventOccurrenceEngine)
+        };
+
+        Assert.All(supportedEntryPoints, type => {
+            Assert.True(type.IsPublic, type.FullName);
+            Assert.Equal("EventViewerX", type.Assembly.GetName().Name);
+        });
+    }
+
+    [Fact]
+    public void PresentationEntryPointsAreExportedFromTheReportingAssembly() {
+        Type[] supportedEntryPoints = {
             typeof(EventViewerX.Reporting.EventReportHtmlRenderer),
             typeof(EventViewerX.Reporting.EventReportExcelRenderer),
             typeof(EventViewerX.Reporting.EventReportEmailRenderer)
@@ -47,5 +61,15 @@ public class TestPublicApiBoundary {
             Assert.True(type.IsPublic, type.FullName);
             Assert.Equal("EventViewerX.Reporting", type.Assembly.GetName().Name);
         });
+    }
+
+    [Fact]
+    public void StorageAssemblyDoesNotReferenceReportingAssembly() {
+        string[] references = typeof(EventStore).Assembly.GetReferencedAssemblies()
+            .Select(static assembly => assembly.Name ?? string.Empty)
+            .ToArray();
+
+        Assert.DoesNotContain("EventViewerX.Reporting", references);
+        Assert.Contains("EventViewerX", references);
     }
 }

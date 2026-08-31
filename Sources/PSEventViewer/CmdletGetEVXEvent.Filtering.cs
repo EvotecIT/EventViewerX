@@ -135,12 +135,13 @@ public sealed partial class CmdletGetEVXEvent {
 
     private static string[] NormalizeRequiredValues(
         IEnumerable<string> values,
-        string parameterName) {
+        string parameterName,
+        StringComparer? comparer = null) {
 
         string[] normalized = values
             .Select(static value => value?.Trim() ?? string.Empty)
             .Where(static value => value.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(comparer ?? StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (normalized.Length == 0) {
             throw new PSArgumentException(
@@ -153,11 +154,11 @@ public sealed partial class CmdletGetEVXEvent {
         IEnumerable<string> values,
         string parameterName) {
 
-        var paths = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
+        var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string value in NormalizeRequiredValues(
                      values,
-                     parameterName)) {
+                     parameterName,
+                     FileSystemPathIdentity.Comparer)) {
             if (!WildcardPattern.ContainsWildcardCharacters(value)) {
                 paths.Add(System.IO.Path.GetFullPath(
                     value.Trim().Trim('"', '\'')));
@@ -183,7 +184,7 @@ public sealed partial class CmdletGetEVXEvent {
                 $"No event log files matched parameter '{parameterName}'.");
         }
         return paths
-            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, FileSystemPathIdentity.Comparer)
             .ToArray();
     }
 

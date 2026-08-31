@@ -34,6 +34,12 @@ public interface IEventRule {
 /// Base class for event rules with metadata
 /// </summary>
 public abstract class EventRuleBase : EventTypeRecord, IEventRule {
+    /// <summary>
+    /// Gets the relative priority used when multiple projections can handle the same native event.
+    /// Higher values are evaluated first; rules with the same value retain the requested composite order.
+    /// </summary>
+    public virtual int MatchPriority => 0;
+
     /// <summary>Event identifiers this rule is responsible for.</summary>
     public abstract List<int> EventIds { get; }
     /// <summary>Windows log name (channel) where the events are emitted.</summary>

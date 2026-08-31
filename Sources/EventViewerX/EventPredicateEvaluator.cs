@@ -15,13 +15,22 @@ public static class EventPredicateEvaluator {
     /// <summary>Compiles a predicate for built-in typed records.</summary>
     public static Func<EventTypeRecord, bool> Compile(EventPredicate predicate) {
         EventPredicate snapshot = ValidateAndClone(predicate);
-        return record => record != null && EvaluateSafely(snapshot, record);
+        Func<object, bool> compiled = CompileCore(snapshot);
+        return record => record != null && EvaluateSafely(compiled, record);
     }
 
     /// <summary>Compiles a predicate for declarative custom records.</summary>
     public static Func<CustomEventRecord, bool> CompileCustom(EventPredicate predicate) {
         EventPredicate snapshot = ValidateAndClone(predicate);
-        return record => record != null && EvaluateSafely(snapshot, record);
+        Func<object, bool> compiled = CompileCore(snapshot);
+        return record => record != null && EvaluateSafely(compiled, record);
+    }
+
+    /// <summary>Compiles a predicate for a case-insensitive canonical field dictionary.</summary>
+    public static Func<IReadOnlyDictionary<string, object?>, bool> CompileFields(EventPredicate predicate) {
+        EventPredicate snapshot = ValidateAndClone(predicate);
+        Func<object, bool> compiled = CompileCore(snapshot);
+        return fields => fields != null && EvaluateSafely(compiled, fields);
     }
 
     /// <summary>Evaluates a predicate against a built-in or custom event record.</summary>
@@ -67,6 +76,72 @@ public static class EventPredicateEvaluator {
         } catch (RegexMatchTimeoutException) {
             return false;
         }
+    }
+
+    private static bool EvaluateSafely(Func<object, bool> compiled, object record) {
+        try {
+            return compiled(record);
+        } catch (ArgumentException) {
+            return false;
+        } catch (FormatException) {
+            return false;
+        } catch (InvalidCastException) {
+            return false;
+        } catch (OverflowException) {
+            return false;
+        } catch (RegexMatchTimeoutException) {
+            return false;
+        }
+    }
+
+    private static Func<object, bool> CompileCore(EventPredicate predicate) {
+        switch (predicate.Kind) {
+            case EventPredicateKind.All: {
+                Func<object, bool>[] children = predicate.Children.Select(CompileCore).ToArray();
+                return record => children.All(child => child(record));
+            }
+            case EventPredicateKind.Any: {
+                Func<object, bool>[] children = predicate.Children.Select(CompileCore).ToArray();
+                return record => children.Any(child => child(record));
+            }
+            case EventPredicateKind.Not: {
+                Func<object, bool> child = CompileCore(predicate.Children[0]);
+                return record => !child(record);
+            }
+            case EventPredicateKind.Comparison: {
+                string field = predicate.Field!;
+                EventPredicateOperator comparison = predicate.Operator;
+                string?[] expectedValues = predicate.Values.ToArray();
+                bool ignoreCase = predicate.IgnoreCase;
+                Regex? pattern = CreateCompiledPattern(comparison, expectedValues, ignoreCase);
+                return record => {
+                    object? actual = ResolveValue(record, field);
+                    return pattern != null
+                        ? actual != null && pattern.IsMatch(ToText(actual))
+                        : Compare(actual, comparison, expectedValues, ignoreCase);
+                };
+            }
+            default:
+                throw new InvalidOperationException($"Unsupported predicate kind '{predicate.Kind}'.");
+        }
+    }
+
+    private static Regex? CreateCompiledPattern(
+        EventPredicateOperator comparison,
+        IReadOnlyList<string?> expectedValues,
+        bool ignoreCase) {
+
+        if (comparison is not EventPredicateOperator.MatchesWildcard and not EventPredicateOperator.MatchesRegex) {
+            return null;
+        }
+        string expression = comparison == EventPredicateOperator.MatchesWildcard
+            ? ToPowerShellWildcardRegex(expectedValues[0] ?? string.Empty)
+            : expectedValues[0] ?? string.Empty;
+        RegexOptions options = RegexOptions.CultureInvariant | RegexOptions.Compiled;
+        if (ignoreCase) {
+            options |= RegexOptions.IgnoreCase;
+        }
+        return new Regex(expression, options, RegexTimeout);
     }
 
     private static bool EvaluateCore(EventPredicate predicate, object record) {

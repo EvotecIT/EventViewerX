@@ -1,6 +1,11 @@
 ﻿<Project>
     <PropertyGroup>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
-    <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
+        <NoWarn>$(NoWarn);CA1416</NoWarn>
+        <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <RestoreLockedMode>true</RestoreLockedMode>
+        <NuGetLockFilePath Condition="'$(SelfContained)' == 'true' and '$(PublishSingleFile)' == 'true' and Exists('$(MSBuildProjectDirectory)/packages.release.lock.json')">packages.release.lock.json</NuGetLockFilePath>
+        <NuGetLockFilePath Condition="'$(SelfContained)' != 'true' and '$(RuntimeIdentifier)' != '' and Exists('$(MSBuildProjectDirectory)/packages.runtime.lock.json')">packages.runtime.lock.json</NuGetLockFilePath>
+        <NuGetLockFilePath Condition="'$(SelfContained)' != 'true' and '$(RuntimeIdentifiers)' != '' and Exists('$(MSBuildProjectDirectory)/packages.runtime.lock.json')">packages.runtime.lock.json</NuGetLockFilePath>
     </PropertyGroup>
 </Project>

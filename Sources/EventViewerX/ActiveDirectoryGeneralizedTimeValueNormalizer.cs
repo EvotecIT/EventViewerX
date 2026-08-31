@@ -3,13 +3,18 @@ using System.Text.RegularExpressions;
 
 namespace EventViewerX;
 
-internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValueNormalizer {
+internal sealed partial class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValueNormalizer {
+    private const string GeneralizedTimePattern =
+        @"^(?<date>\d{14})(?<fraction>[\.,]\d+)?(?<zone>Z|[+-]\d{4})$";
     private static readonly HashSet<string> FieldNames = new(
         new[] { "WhenChanged", "WhenCreated" },
         StringComparer.OrdinalIgnoreCase);
+#if !NET7_0_OR_GREATER
     private static readonly Regex GeneralizedTime = new(
-        @"^(?<date>\d{14})(?<fraction>[\.,]\d+)?(?<zone>Z|[+-]\d{4})$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        GeneralizedTimePattern,
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(250));
+#endif
 
     public string Name => "active-directory-generalized-time";
 
@@ -39,7 +44,7 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
         if (raw.Length == 0) {
             return EventValueNormalizer.Unchanged(context);
         }
-        Match match = GeneralizedTime.Match(raw);
+        Match match = GetGeneralizedTimeRegex().Match(raw);
         if (!match.Success || !DateTime.TryParseExact(
                 match.Groups["date"].Value,
                 "yyyyMMddHHmmss",
@@ -132,4 +137,14 @@ internal sealed class ActiveDirectoryGeneralizedTimeValueNormalizer : IEventValu
             : string.Empty;
         return value.Length > 0;
     }
+
+#if NET7_0_OR_GREATER
+    [GeneratedRegex(
+        GeneralizedTimePattern,
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+        matchTimeoutMilliseconds: 250)]
+    private static partial Regex GetGeneralizedTimeRegex();
+#else
+    private static Regex GetGeneralizedTimeRegex() => GeneralizedTime;
+#endif
 }

@@ -1,0 +1,2 @@
+PSEventViewer.psm1 whitespace=cr-at-eol
+**/packages*.lock.json text eol=crlf

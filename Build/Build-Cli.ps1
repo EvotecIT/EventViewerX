@@ -2,8 +2,15 @@ param(
     [ValidateSet('Plan', 'Build')]
     [string] $RunMode = 'Build',
 
-    [ValidateSet('win-x64', 'win-arm64')]
-    [string[]] $Runtime = @('win-x64', 'win-arm64'),
+    [ValidateSet('win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')]
+    [string[]] $Runtime = @(
+        'win-x64'
+        'win-arm64'
+        'linux-x64'
+        'linux-arm64'
+        'osx-x64'
+        'osx-arm64'
+    ),
 
     [ValidateSet('FrameworkDependent', 'PortableCompat')]
     [string[]] $Style = @('FrameworkDependent', 'PortableCompat')
@@ -21,13 +28,16 @@ $target = New-ConfigurationProjectTarget `
     -Name 'EventViewerX.Cli' `
     -ProjectPath 'Sources\EventViewerX.Cli\EventViewerX.Cli.csproj' `
     -Kind Cli `
-    -Framework 'net10.0-windows' `
+    -Framework 'net10.0' `
     -Runtimes $Runtime `
     -Styles $Style `
     -OutputType Tool `
     -Zip
 
-$release = New-ConfigurationProjectRelease -Configuration 'Release' -ToolOutput Tool
+$release = New-ConfigurationProjectRelease `
+    -Configuration 'Release' `
+    -ToolOutput Tool `
+    -BuildDuringPublish
 $output = New-ConfigurationProjectOutput `
     -OutputRoot $artefactRoot `
     -StageRoot $releaseRoot `

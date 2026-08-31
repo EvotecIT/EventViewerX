@@ -17,5 +17,7 @@ $moduleBuildSplat = @{
 & (Join-Path $PSScriptRoot 'Build-Module.ps1') @moduleBuildSplat
 
 if (-not $SkipCli -and $RunMode -ne 'Manifest') {
+    & (Join-Path $PSScriptRoot 'Test-ModuleRuntime.ps1')
     & (Join-Path $PSScriptRoot 'Build-Cli.ps1')
+    & (Join-Path $PSScriptRoot 'Test-ReleaseArchitecture.ps1')
 }

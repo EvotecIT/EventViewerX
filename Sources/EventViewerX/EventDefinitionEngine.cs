@@ -246,6 +246,8 @@ public static class EventDefinitionEngine {
                              useOriginalChannel: true)) {
                     files.Add(new EventLogFileQuery(fullPath) {
                         XPath = xpath,
+                        SavedEventReader = query.SavedEventReader,
+                        SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
                         Oldest = query.Oldest,
                         ReadMode = query.ReadMode,
                         IncludeBookmark = query.IncludeBookmark,
@@ -290,7 +292,7 @@ public static class EventDefinitionEngine {
             string xpath = EventFilterCompiler.BuildXPath(partition);
             string logName = source.LogName;
             if (useOriginalChannel) {
-                xpath = EventTypeEngine.AddOriginalChannelPredicate(xpath, source.LogName);
+                xpath = EventFilterCompiler.AddOriginalChannelPredicate(xpath, source.LogName);
                 if (!string.IsNullOrWhiteSpace(query.CollectorLogName)) {
                     logName = query.CollectorLogName!;
                 }
@@ -482,6 +484,8 @@ public static class EventDefinitionEngine {
         EventDefinition definition = CopyDefinition(query.Definition);
         return new EventDefinitionQuery(definition) {
             Paths = query.Paths?.ToArray(),
+            SavedEventReader = query.SavedEventReader,
+            SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
             MachineNames = targets,
             CollectorLogName = string.IsNullOrWhiteSpace(query.CollectorLogName) ? null : query.CollectorLogName!.Trim(),
             StartTime = query.StartTime,

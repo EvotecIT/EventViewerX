@@ -31,6 +31,15 @@ public sealed class EventLogFileQuery {
     public EventReadMode ReadMode { get; set; } = EventReadMode.Message;
 
     /// <summary>
+    /// Optional parser-neutral saved-event reader. Null uses the Windows Eventing API. A custom reader must
+    /// preserve query semantics and report corruption or unsupported behavior explicitly.
+    /// </summary>
+    public ISavedEventReader? SavedEventReader { get; set; }
+
+    /// <summary>Optional sink for per-region corruption, recovery, and fidelity diagnostics.</summary>
+    public Action<SavedEventReadDiagnostic>? SavedEventDiagnosticHandler { get; set; }
+
+    /// <summary>
     /// Culture used for provider messages and display names. A null value uses
     /// <see cref="CultureInfo.CurrentUICulture"/>.
     /// </summary>

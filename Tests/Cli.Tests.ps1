@@ -1,7 +1,16 @@
 Describe 'evx portable host' {
     BeforeAll {
-        $script:CliPath = Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Debug\net10.0-windows\evx.exe'
+        $cliCandidates = @(
+            $env:EVX_CLI_PATH
+            (Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe')
+            (Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Debug\net10.0\evx.exe')
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        $script:CliPath = $cliCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if (-not $script:CliPath) {
+            throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
+        }
         $script:FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        $script:TruncatedFixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples-Truncated.evtx'
         $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
     }
 
@@ -72,6 +81,324 @@ Describe 'evx portable host' {
 
         $LASTEXITCODE | Should -Be 1
         [string] $Output | Should -Match 'Auto, Top, or Right'
+    }
+
+    It 'dry-runs detection without opening an event source' {
+        $Plan = & $script:CliPath detect --dry-run |
+            ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Plan.RuleCount | Should -BeGreaterThan 0
+        $Plan.PlanHash | Should -Not -BeNullOrEmpty
+    }
+
+    It 'resolves Sigma correlations across repeated file arguments' {
+        $BasePath = Join-Path $TestDrive 'cli-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'cli-correlation.yml'
+        @'
+title: Failed logon
+id: 73737373-7373-4373-8373-737373737373
+name: cli_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated failed logons
+id: 74747474-7474-4474-8474-747474747474
+correlation:
+  type: event_count
+  rules:
+    - cli_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Plan = & $script:CliPath detect `
+            --sigma $BasePath `
+            --sigma $CorrelationPath `
+            --dry-run | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Plan.RuleCount | Should -Be 1
+        $Plan.StatefulRuleCount | Should -Be 1
+        $Plan.Rules[0].EventIds | Should -Be @(4625)
+    }
+
+    It 'rejects an invalid watch flush interval before opening subscriptions' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath watch --type OSStartup --interval 00:00:00 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'Flush interval must be greater than zero'
+    }
+
+    It 'emits canonical versioned finding and trace JSON contracts' {
+        $SigmaPath = Join-Path $TestDrive 'canonical-json.yml'
+        $FindingPath = Join-Path $TestDrive 'findings.jsonl'
+        $TracePath = Join-Path $TestDrive 'traces.jsonl'
+        @'
+title: Service configuration changed
+id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --max 0 `
+            --jsonl $FindingPath `
+            --trace-jsonl $TracePath
+
+        $LASTEXITCODE | Should -Be 0
+        $Finding = Get-Content -LiteralPath $FindingPath -TotalCount 1 | ConvertFrom-Json
+        $Trace = Get-Content -LiteralPath $TracePath -TotalCount 1 | ConvertFrom-Json
+        $Finding.schemaVersion | Should -Be 1
+        $Finding.evidenceIdentities.Count | Should -BeGreaterThan 0
+        $Finding.PSObject.Properties.Name | Should -Not -Contain 'evidence'
+        $Trace.schemaVersion | Should -Be 1
+        $Trace.observationIdentity | Should -Not -BeNullOrEmpty
+        $Trace.conditions | Should -Not -BeNull
+    }
+
+    It 'marks detection incomplete when an explicit event ID excludes the rule selector' {
+        $SigmaPath = Join-Path $TestDrive 'selector-coverage.yml'
+        @'
+title: Service configuration changed
+id: 66666666-6666-4666-8666-666666666666
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --event-id 1 `
+            --max 10
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'marks typed detection incomplete when its source selectors exclude a native rule' {
+        $SigmaPath = Join-Path $TestDrive 'typed-selector-coverage.yml'
+        @'
+title: Windows startup
+id: 67676767-6767-4767-8767-676767676767
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 6005
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --type ADUserLogonFailed `
+            --path $script:FixturePath `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'does not mark recovered checksum diagnostics as incomplete' {
+        $SigmaPath = Join-Path $TestDrive 'checksum-coverage.yml'
+        $FixtureCopy = Join-Path $TestDrive 'checksum-warning.evtx'
+        @'
+title: Service configuration changed
+id: 68686868-6868-4868-8868-686868686868
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+        [byte[]] $Bytes = [IO.File]::ReadAllBytes($script:FixturePath)
+        $Bytes[0x7C] = $Bytes[0x7C] -bxor 0xFF
+        [IO.File]::WriteAllBytes($FixtureCopy, $Bytes)
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $FixtureCopy `
+            --portable-evtx `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 0
+    }
+
+    It 'renders a detection report when an output consumes the report snapshot' {
+        $SigmaPath = Join-Path $TestDrive 'report-detection.yml'
+        $HtmlPath = Join-Path $TestDrive 'detection.html'
+        @'
+title: Service configuration changed
+id: 77777777-7777-4777-8777-777777777777
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $Output = @(& $script:CliPath detect `
+                --sigma $SigmaPath `
+                --path $script:FixturePath `
+                --max 0 `
+                --report-html $HtmlPath)
+
+        $LASTEXITCODE | Should -Be 0
+        Test-Path -LiteralPath $HtmlPath | Should -BeTrue
+        $Output[-1] | Should -Be ([IO.Path]::GetFullPath($HtmlPath))
+    }
+
+    It 'marks generic detection incomplete only when the source limit truncates matching events' {
+        $SigmaPath = Join-Path $TestDrive 'source-limit-detection.yml'
+        @'
+title: Service configuration changed
+id: 88888888-8888-4888-8888-888888888888
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --max 1
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'propagates portable parser warnings into detection coverage' {
+        $SigmaPath = Join-Path $TestDrive 'portable-coverage-detection.yml'
+        @'
+title: Service configuration changed
+id: 99999999-9999-4999-8999-999999999999
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:TruncatedFixturePath `
+            --portable-evtx `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'keeps generic log coverage incomplete when the plan requires other channels' {
+        $SigmaPath = Join-Path $TestDrive 'generic-log-coverage.yml'
+        @'
+title: Service configuration changed
+id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --log Application `
+            --since 00:00:01 `
+            --max 1
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'rejects generic event ID and provider selectors on typed detection sources' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $EventIdOutput = & $script:CliPath detect `
+                --type ADUserLogonFailed `
+                --path $script:FixturePath `
+                --event-id 4625 2>&1
+            $EventIdExitCode = $LASTEXITCODE
+            $ProviderOutput = & $script:CliPath detect `
+                --type ADUserLogonFailed `
+                --path $script:FixturePath `
+                --provider Microsoft-Windows-Security-Auditing 2>&1
+            $ProviderExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $EventIdExitCode | Should -Be 1
+        $ProviderExitCode | Should -Be 1
+        [string] $EventIdOutput | Should -Match '--event-id and --provider are available only for generic'
+        [string] $ProviderOutput | Should -Match '--event-id and --provider are available only for generic'
+    }
+
+    It 'rejects host targets combined with saved detection paths' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $MachineOutput = & $script:CliPath detect `
+                --path $script:FixturePath `
+                --machine server01 2>&1
+            $MachineExitCode = $LASTEXITCODE
+            $CollectorOutput = & $script:CliPath detect `
+                --path $script:FixturePath `
+                --collector wec01 2>&1
+            $CollectorExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $MachineExitCode | Should -Be 1
+        $CollectorExitCode | Should -Be 1
+        [string] $MachineOutput | Should -Match 'cannot be combined with saved --path'
+        [string] $CollectorOutput | Should -Match 'cannot be combined with saved --path'
     }
 
     It 'rejects ambiguous query sources' {

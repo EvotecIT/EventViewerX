@@ -66,6 +66,7 @@ namespace EventViewerX {
             _staging = staging;
             Watcher = new WatchEvents(new InternalLogger(false));
             Watcher.Stopped += OnWatcherStopped;
+            Watcher.SubscriptionFailed += OnSubscriptionFailed;
             _subscriptionQueries = new[] {
                 subscriptionQuery == null
                     ? CreateSubscriptionQuery(
@@ -184,6 +185,9 @@ namespace EventViewerX {
 
         /// <summary>Total number of matching events accepted for delivery by this watcher.</summary>
         public int EventsFound => Volatile.Read(ref _eventsAccepted);
+        /// <summary>The most recent native subscription failure, if any.</summary>
+        public EventLogSubscriptionFailure? LastSubscriptionFailure =>
+            Watcher.LastFailure;
         /// <summary>UTC start time of the watcher.</summary>
         public DateTime StartTime => Watcher.StartTime;
         /// <summary>UTC stop time of the watcher if it has ended; otherwise <c>null</c>.</summary>
@@ -424,6 +428,9 @@ namespace EventViewerX {
         /// <summary>Raised when the user-supplied <see cref="Action"/> throws.</summary>
         public event EventHandler<Exception>? ActionException;
 
+        /// <summary>Raised when a native event subscription reports a recoverable or terminal failure.</summary>
+        public event EventHandler<EventLogSubscriptionFailure>? SubscriptionFailed;
+
         /// <summary>Raised after the watcher has released its native resources.</summary>
         public event EventHandler? Stopped;
 
@@ -440,6 +447,19 @@ namespace EventViewerX {
             ScheduleStop();
         }
 
+        private void OnSubscriptionFailed(
+            object? sender,
+            EventLogSubscriptionFailure failure) {
+
+            try {
+                SubscriptionFailed?.Invoke(this, failure);
+            } catch (Exception exception) {
+                Settings._logger.WriteWarning(
+                    "Watcher subscription failure callback threw: {0}",
+                    exception.Message.Trim());
+            }
+        }
+
         /// <summary>Stops the watcher, disposes resources, and records end time.</summary>
         public void Stop() {
             lock (_stopSync) {
@@ -452,6 +472,7 @@ namespace EventViewerX {
 
             try {
                 Watcher.Stopped -= OnWatcherStopped;
+                Watcher.SubscriptionFailed -= OnSubscriptionFailed;
                 Cancellation.Cancel();
             } finally {
                 try {

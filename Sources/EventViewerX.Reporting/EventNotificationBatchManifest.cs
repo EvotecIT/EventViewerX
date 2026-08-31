@@ -1,0 +1,29 @@
+namespace EventViewerX.Reporting;
+
+/// <summary>Metadata stored with a completed notification outbox batch.</summary>
+public sealed class EventNotificationBatchManifest {
+    /// <summary>Newest manifest schema understood by this EventViewerX build.</summary>
+    public const int CurrentSchemaVersion = 1;
+
+    /// <summary>Version of the durable manifest contract.</summary>
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    /// <summary>Stable identifier used to make batch publication idempotent.</summary>
+    public string BatchId { get; set; } = string.Empty;
+
+    /// <summary>Number of events included in the batch.</summary>
+    public int EventCount { get; set; }
+
+    /// <summary>Report title used to rebuild the transport subject during retry.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>UTC time at which the completed batch was persisted.</summary>
+    public DateTime PersistedUtc { get; set; }
+
+    /// <summary>Whether completing this batch requires an external notification transport.</summary>
+    public bool RequiresExternalTransport { get; set; }
+
+    /// <summary>Checkpoint boundaries committed only after the batch transport is acknowledged.</summary>
+    public EventNotificationCheckpointBoundary[] Checkpoints { get; set; } =
+        Array.Empty<EventNotificationCheckpointBoundary>();
+}

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "DnsClientX": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "QTXEoQBzz00SFWbo7nAg1Ogd4f99lwqcO9uAJ7MYSLEUR28f6As32QktrqG2Fr9cfAfd1GjLyGYspE7Ipj7P6w=="
+      },
+      "System.DirectoryServices": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "kj7evAu1OcxBg2KOXWDgbLt12100t+1rlKk6M9/F/lK1NF68me6iQ/x9rJ8xEEt7AtVj4lMUFD/nr6N5zcQBKw=="
+      },
+      "System.Threading.AccessControl": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "GHX/QS0WfddVUHaxZuXGk/VW8NrQl1gPQQTcz5fdIT1CBeiSIi/MhIq50/XPB90qq0loFO7nmzftNeoU2qWwIQ=="
+      },
+      "eventviewerx": {
+        "type": "Project",
+        "dependencies": {
+          "DnsClientX": "[2.1.0, )",
+          "System.Diagnostics.EventLog": "[10.0.11, )",
+          "System.DirectoryServices": "[10.0.11, )",
+          "System.Threading.AccessControl": "[10.0.11, )"
+        }
+      }
+    }
+  }
+}

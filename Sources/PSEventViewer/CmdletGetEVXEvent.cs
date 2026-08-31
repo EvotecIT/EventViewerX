@@ -89,6 +89,8 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     private long _eventsOutput;
     private EventDefinition? _resolvedDefinition;
     private PowerShellEventPredicateBuilder? _typedFilter;
+    private readonly EvtxSavedEventReader _portableSavedEventReader = new();
+    private ISavedEventReader? _resolvedSavedEventReader;
     /// <summary>
     /// Name of the log to query.
     /// </summary>
@@ -112,6 +114,28 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
     [Parameter(Mandatory = false, ParameterSetName = "Preset")]
     [Parameter(Mandatory = false, ParameterSetName = "Definition")]
     public string[] Path { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Uses the dependency-isolated cross-platform EVTX parser for saved files instead of the Windows Eventing API.
+    /// Provider messages are unavailable and the portable parser has a higher allocation cost.
+    /// </summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Path")]
+    [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
+    [Parameter(Mandatory = false, ParameterSetName = "Definition")]
+    [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
+    public SwitchParameter PortableEvtx { get; set; }
+
+    /// <summary>
+    /// Uses the high-performance command-backed portable reader at the supplied evtx_dump executable path.
+    /// The executable remains caller-owned and is never downloaded or updated by EventViewerX.
+    /// </summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Path")]
+    [Parameter(Mandatory = false, ParameterSetName = "Type")]
+    [Parameter(Mandatory = false, ParameterSetName = "Preset")]
+    [Parameter(Mandatory = false, ParameterSetName = "Definition")]
+    [Parameter(Mandatory = false, ParameterSetName = "TypedFilter")]
+    public string? PortableEvtxExecutable { get; set; }
 
     /// <summary>
     /// Event identifiers used to filter results.
@@ -632,6 +656,10 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
                         Paths = Path.Length == 0
                             ? null
                             : Path,
+                        SavedEventReader = _resolvedSavedEventReader,
+                        SavedEventDiagnosticHandler = _resolvedSavedEventReader != null
+                            ? WriteSavedEventDiagnostic
+                            : null,
                         MachineNames = Collector ?? MachineName,
                         CollectorLogName = Collector == null
                             ? null
@@ -777,6 +805,8 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
         }
         var query = new EventDefinitionQuery(definition) {
             Paths = Path.Length == 0 ? null : Path,
+            SavedEventReader = _resolvedSavedEventReader,
+            SavedEventDiagnosticHandler = _resolvedSavedEventReader != null ? WriteSavedEventDiagnostic : null,
             MachineNames = Collector ?? MachineName,
             CollectorLogName = Collector == null ? null : "ForwardedEvents",
             StartTime = StartTime,

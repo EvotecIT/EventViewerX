@@ -76,7 +76,7 @@ internal sealed class WindowsEventBookmarkRenderer : IDisposable {
 #if NET472 || NETSTANDARD2_1
     private static Func<string, EventBookmark> CreateBookmarkFactory() {
         ConstructorInfo? constructor = typeof(EventBookmark).GetConstructor(
-            BindingFlags.Instance | BindingFlags.NonPublic,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             binder: null,
             new[] { typeof(string) },
             modifiers: null);

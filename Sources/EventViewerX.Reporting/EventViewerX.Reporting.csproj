@@ -18,7 +18,7 @@
     <SupportedOSPlatform>windows</SupportedOSPlatform>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
@@ -30,9 +30,6 @@
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>EventViewerX.Tests</_Parameter1>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>EventViewerX.Storage</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

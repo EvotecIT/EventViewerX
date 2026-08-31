@@ -4,6 +4,9 @@ namespace EventViewerX.Rules.ActiveDirectory;
 /// Represents a deleted group policy object event.
 /// </summary>
 public class GpoDeleted : EventRuleBase {
+    /// <inheritdoc />
+    public override int MatchPriority => 250;
+
     /// <summary>Computer where the GPO was deleted.</summary>
     public string Computer;
     /// <summary>Description of the action.</summary>

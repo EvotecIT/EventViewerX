@@ -33,8 +33,10 @@ public static partial class EventTypeEngine {
             executionInfo ??
             new EventTypeQueryExecutionInfo();
         info.Reset(query.MaxCandidates);
+        EventTypeProjectionPlan projectionPlan =
+            EventTypeCatalog.CompileProjectionPlan(query.Types);
         IReadOnlyList<EventType> resolvedTypes =
-            EventTypeCatalog.Expand(query.Types);
+            projectionPlan.ExpandedTypes;
         EventPredicate? exactPredicate = query.Predicate == null
             ? null
             : EventPredicateBuilder
@@ -84,7 +86,7 @@ public static partial class EventTypeEngine {
                            EventLogEngine.ReadBatchAsync(
                                batch,
                                cancellationToken),
-                            resolvedTypes,
+                            projectionPlan,
                             enricher,
                             candidateCounter
                                 .TryRecordCandidate,
@@ -263,7 +265,7 @@ public static partial class EventTypeEngine {
                     string logName = source.Key;
                     if (!string.IsNullOrWhiteSpace(
                             query.CollectorLogName)) {
-                        xpath = AddOriginalChannelPredicate(
+                        xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                             xpath,
                             source.Key);
                         logName = query.CollectorLogName!;
@@ -438,11 +440,13 @@ public static partial class EventTypeEngine {
                 }
                 foreach (EventFilter partition in
                          EventFilterPartitioner.Partition(filter)) {
-                    string xpath = AddOriginalChannelPredicate(
+                    string xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                         EventFilterCompiler.BuildXPath(partition),
                         source.Key);
                     fileQueries.Add(new EventLogFileQuery(fullPath) {
                         XPath = xpath,
+                        SavedEventReader = query.SavedEventReader,
+                        SavedEventDiagnosticHandler = query.SavedEventDiagnosticHandler,
                         Oldest = query.Oldest,
                         ReadMode = query.ReadMode,
                         IncludeBookmark = query.IncludeBookmark,
@@ -465,28 +469,6 @@ public static partial class EventTypeEngine {
             failure,
             executionInfo);
         return EventLogBatchConsolidator.Consolidate(batch);
-    }
-
-    internal static string AddOriginalChannelPredicate(
-        string xpath,
-        string originalChannel) {
-
-        if (string.IsNullOrWhiteSpace(originalChannel)) {
-            throw new ArgumentException(
-                "Original channel cannot be empty.",
-                nameof(originalChannel));
-        }
-        string channelLiteral =
-            WindowsEventFilterBuilder.FormatXPathStringLiteral(
-                originalChannel.Trim(),
-                nameof(originalChannel));
-        if (xpath == "*") {
-            return $"*[System[Channel={channelLiteral}]]";
-        }
-        if (string.IsNullOrWhiteSpace(xpath) || xpath.IndexOf("<QueryList", StringComparison.OrdinalIgnoreCase) >= 0) {
-            throw new ArgumentException("The typed filter must be a native XPath expression.", nameof(xpath));
-        }
-        return $"(*[System[Channel={channelLiteral}]]) and ({xpath})";
     }
 
     internal static void HandleFailure(

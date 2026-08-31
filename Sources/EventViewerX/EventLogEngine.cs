@@ -180,9 +180,10 @@ public static partial class EventLogEngine {
             .Where(static source =>
                 source.Kind == EventLogQuerySourceKind.File)
             .Select(static source =>
-                EventLogStructuredQueryParser
-                    .GetFileSourceIdentity(source.Query))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+                FileSystemPathIdentity.GetIdentity(
+                    EventLogStructuredQueryParser.GetFilePath(
+                        EventLogStructuredQueryParser.GetFileSourceIdentity(source.Query))))
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
         if (!string.IsNullOrWhiteSpace(
                 query.BookmarkXml) &&
@@ -220,8 +221,7 @@ public static partial class EventLogEngine {
             flags |= WindowsEventNativeMethods.QueryFlags.TolerateQueryErrors;
         }
         string? filePath = sourceKind == EventLogQuerySourceKind.File
-            ? EventLogStructuredQueryParser.GetFilePath(
-                fileSources[0])
+            ? fileSources[0]
             : null;
 
         return ReadSourceIterator(
@@ -270,6 +270,12 @@ public static partial class EventLogEngine {
         EventLogFileQuery query,
         CancellationToken cancellationToken = default) {
 
+        if (query == null) {
+            throw new ArgumentNullException(nameof(query));
+        }
+        if (query.SavedEventReader != null) {
+            return ReadSavedFileIterator(EventLogQuerySnapshot.Copy(query), cancellationToken);
+        }
         NativeEventQuery nativeQuery = CreateNativeFileQuery(
             query,
             out string path,
@@ -281,6 +287,38 @@ public static partial class EventLogEngine {
             maxEvents,
             readMode,
             cancellationToken);
+    }
+
+    private static IEnumerable<EventObject> ReadSavedFileIterator(
+        EventLogFileQuery query,
+        CancellationToken cancellationToken) {
+
+        EventReadModeValidation.EnsureDefined(query.ReadMode, nameof(query));
+        if (query.MaxEvents < 0) {
+            throw new ArgumentOutOfRangeException(nameof(query), "Maximum events must be greater than or equal to zero.");
+        }
+        if (query.IncludeBookmark || !string.IsNullOrWhiteSpace(query.BookmarkXml)) {
+            throw new NotSupportedException(
+                "The configured saved-event reader does not provide Windows bookmark semantics. " +
+                "Use record identifiers for portable checkpoints or omit SavedEventReader to use the Windows Eventing API.");
+        }
+        string path = Path.GetFullPath(query.Path.Trim().Trim('"', '\''));
+        EnsureFileReadable(path);
+        long returned = 0;
+        foreach (SavedEventRecord record in query.SavedEventReader!.Read(
+                     query,
+                     query.SavedEventDiagnosticHandler,
+                     cancellationToken)) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (record == null) {
+                throw new InvalidDataException("A saved-event reader returned a null record.");
+            }
+            yield return record.ToEventObject(path, query.ReadMode);
+            returned++;
+            if (query.MaxEvents > 0 && returned >= query.MaxEvents) {
+                yield break;
+            }
+        }
     }
 
     internal static IEnumerable<string> ReadFileXml(

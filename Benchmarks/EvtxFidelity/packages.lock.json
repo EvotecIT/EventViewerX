@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Crc32.NET": {
+        "type": "Transitive",
+        "resolved": "1.2.0",
+        "contentHash": "wNW/huzolu8MNKUnwCVKxjfAlCFpeI8AZVfF46iAWJ1+P6bTU1AZct7VAkDDEjgeeTJCVTkGZaD6jSd/fOiUkA==",
+        "dependencies": {
+          "NETStandard.Library": "2.0.0"
+        }
+      },
+      "DnsClientX": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+      },
+      "evtx": {
+        "type": "Transitive",
+        "resolved": "1.5.2",
+        "contentHash": "tLpjK3xESvWWxrZOtmu7MKKGY8NpvWxcx2ZF2Kgu1M48TKfbSCuKfyYcg5N5HuLhWe7AvyrT2ExnUBk1u8RruQ==",
+        "dependencies": {
+          "Crc32.NET": "1.2.0",
+          "FluentValidation": "11.11.0",
+          "Serilog": "4.2.0",
+          "ServiceStack.Text": "8.5.2",
+          "YamlDotNet": "16.3.0"
+        }
+      },
+      "FluentValidation": {
+        "type": "Transitive",
+        "resolved": "11.11.0",
+        "contentHash": "cyIVdQBwSipxWG8MA3Rqox7iNbUNUTK5bfJi9tIdm4CAfH71Oo5ABLP4/QyrUwuakqpUEPGtE43BDddvEehuYw=="
+      },
+      "Microsoft.NETCore.Platforms": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A=="
+      },
+      "Microsoft.Win32.SystemEvents": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "hqTM5628jSsQiv+HGpiq3WKBl2c8v1KZfby2J6Pr7pEPlK9waPdgEO6b8A/+/xn/yZ9ulv8HuqK71ONy2tg67A=="
+      },
+      "NETStandard.Library": {
+        "type": "Transitive",
+        "resolved": "2.0.0",
+        "contentHash": "7jnbRU+L08FXKMxqUflxEXtVymWvNOrS8yHgu9s6EM8Anr6T/wIX4nZ08j/u3Asz+tCufp3YVwFSEvFTPYmBPA==",
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "1.1.0"
+        }
+      },
+      "Serilog": {
+        "type": "Transitive",
+        "resolved": "4.2.0",
+        "contentHash": "gmoWVOvKgbME8TYR+gwMf7osROiWAURterc6Rt2dQyX7wtjZYpqFiA/pY6ztjGQKKV62GGCyOcmtP1UKMHgSmA=="
+      },
+      "ServiceStack.Text": {
+        "type": "Transitive",
+        "resolved": "8.5.2",
+        "contentHash": "BHSJMxh+rIv7cgAqDHXl3FJM3xoY+SCN8CqiKjR5+AUb1ZK9lrJtGjzKYIo+5AQSD0lQDBjWxhYXcqE8ST+Rbw=="
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw=="
+      },
+      "System.DirectoryServices": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "kp/Op0nxDVGlElDKh8TsXO0GKXftQgAB6sJk0wUetZK1Rr0Pbd86Tn7AllLLlROFZa4BTl/LVHakljtGELFzCg==",
+        "dependencies": {
+          "System.Security.Permissions": "6.0.0"
+        }
+      },
+      "System.Drawing.Common": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "NfuoKUiP2nUWwKZN6twGqXioIe1zVD0RIj2t976A+czLHr2nY454RwwXs6JU9Htc6mwqL6Dn/nEL3dpVf2jOhg==",
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "6.0.0"
+        }
+      },
+      "System.Security.Permissions": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "T/uuc7AklkDoxmcJ7LGkyX1CcSviZuLCa4jg3PekfJ7SU0niF0IVTXwUiNVP9DSpzou2PpxJ+eNY2IfDM90ZCg==",
+        "dependencies": {
+          "System.Windows.Extensions": "6.0.0"
+        }
+      },
+      "System.Windows.Extensions": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "IXoJOXIqc39AIe+CIR7koBtRGMiCt/LPM3lI+PELtDIy9XdyeSrwXFdWV9dzJ2Awl0paLWUaknLxFQ5HpHZUog==",
+        "dependencies": {
+          "System.Drawing.Common": "6.0.0"
+        }
+      },
+      "YamlDotNet": {
+        "type": "Transitive",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
+      },
+      "eventviewerx": {
+        "type": "Project",
+        "dependencies": {
+          "DnsClientX": "[2.1.0, )",
+          "System.Diagnostics.EventLog": "[6.0.0, )",
+          "System.DirectoryServices": "[6.0.0, )"
+        }
+      },
+      "eventviewerx.evtx": {
+        "type": "Project",
+        "dependencies": {
+          "EventViewerX": "[4.0.0, )",
+          "evtx": "[1.5.2, )"
+        }
+      }
+    }
+  }
+}

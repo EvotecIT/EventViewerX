@@ -16,12 +16,11 @@ namespace EventViewerX {
         /// Builds the appropriate event object based on the EventType value
         /// </summary>
     /// <param name="eventObject">Event to evaluate.</param>
-    /// <param name="typeEventsList">List of target event types.</param>
+    /// <param name="projectionPlan">Compiled projection plan for the owning query.</param>
     /// <returns>Concrete event rule instance or null.</returns>
     /// <exception cref="ArgumentException"></exception>
-        private static EventTypeRecord? BuildTargetEvents(EventObject eventObject, IReadOnlyList<EventType> typeEventsList) {
-            // Use the new reflection-based system - let each rule decide if it can handle the event
-            return EventTypeCatalog.CreateEventRule(eventObject, typeEventsList.ToList());
+        private static EventTypeRecord? BuildTargetEvents(EventObject eventObject, EventTypeProjectionPlan projectionPlan) {
+            return EventTypeCatalog.CreateEventRule(eventObject, projectionPlan);
         }
 
         /// <summary>
@@ -29,11 +28,11 @@ namespace EventViewerX {
         /// </summary>
         private static async Task<EventTypeRecord?> BuildAndEnrichTargetAsync(
             EventObject eventObject,
-            IReadOnlyList<EventType> typeEventsList,
+            EventTypeProjectionPlan projectionPlan,
             EventEnricher? enricher,
             CancellationToken cancellationToken) {
 
-            EventTypeRecord? targetEvent = BuildTargetEvents(eventObject, typeEventsList);
+            EventTypeRecord? targetEvent = BuildTargetEvents(eventObject, projectionPlan);
             if (targetEvent != null && enricher != null) {
                 await enricher.EnrichAsync(targetEvent, cancellationToken).ConfigureAwait(false);
             }
@@ -44,9 +43,28 @@ namespace EventViewerX {
         /// Projects a bounded batch concurrently, then exposes it in source order so observers and checkpoints
         /// cannot move past an event whose projection or enrichment has not completed.
         /// </summary>
-        internal static async IAsyncEnumerable<EventTypeProjection> ProjectCandidatesInOrderAsync(
+        internal static IAsyncEnumerable<EventTypeProjection> ProjectCandidatesInOrderAsync(
             IAsyncEnumerable<EventObject> candidates,
             IReadOnlyList<EventType> typeEventsList,
+            EventEnricher? enricher,
+            Func<bool> candidateAdmission,
+            CancellationToken cancellationToken) {
+
+            EventTypeProjectionPlan projectionPlan = EventTypeCatalog.CompileProjectionPlan(typeEventsList);
+            return ProjectCandidatesInOrderAsync(
+                candidates,
+                projectionPlan,
+                enricher,
+                candidateAdmission,
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Projects a bounded batch using a precompiled source and specificity plan.
+        /// </summary>
+        internal static async IAsyncEnumerable<EventTypeProjection> ProjectCandidatesInOrderAsync(
+            IAsyncEnumerable<EventObject> candidates,
+            EventTypeProjectionPlan projectionPlan,
             EventEnricher? enricher,
             Func<bool> candidateAdmission,
             [EnumeratorCancellation] CancellationToken cancellationToken) {
@@ -66,7 +84,7 @@ namespace EventViewerX {
 
                     batch.Add(new PendingEventTypeProjection(
                         source,
-                        BuildAndEnrichTargetAsync(source, typeEventsList, enricher, cancellationToken)));
+                        BuildAndEnrichTargetAsync(source, projectionPlan, enricher, cancellationToken)));
                 }
 
                 if (batch.Count == 0) {

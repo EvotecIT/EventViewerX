@@ -66,6 +66,48 @@ public static class EventLogBatchConsolidator {
             return EventLogBatchQuery.Combine(
                 new[] { forwardedBatch, remainder });
         }
+        EventLogFileQuery[] parserBackedFiles = query.FileQueries
+            .Where(static file => file.SavedEventReader != null)
+            .Select(static file => EventLogQuerySnapshot.Copy(file))
+            .ToArray();
+        if (parserBackedFiles.Length > 0) {
+            EventLogFileQuery[] mergedFiles = parserBackedFiles
+                .Select(static (file, index) => new { File = file, Index = index })
+                .GroupBy(static item => new {
+                    Path = GetParserBackedPathIdentity(item.File.Path),
+                    item.File.SavedEventReader,
+                    item.File.SavedEventDiagnosticHandler,
+                    item.File.BatchSourceIdentity,
+                    ConsolidationScope = GetParserBackedConsolidationScope(item.File, item.Index)
+                 })
+                .Select(static group => MergeParserBackedFiles(group.Select(static item => item.File).ToArray()))
+                .ToArray();
+            EventLogBatchQuery parserBatch = EventLogBatchQuery.ForFiles(mergedFiles);
+            CopyControls(query, parserBatch);
+
+            var remainderParts = new List<EventLogBatchQuery>();
+            if (query.ChannelQueries.Count > 0) {
+                remainderParts.Add(EventLogBatchQuery.ForChannels(query.ChannelQueries));
+            }
+            EventLogFileQuery[] nativeFiles = query.FileQueries
+                .Where(static file => file.SavedEventReader == null)
+                .ToArray();
+            if (nativeFiles.Length > 0) {
+                remainderParts.Add(EventLogBatchQuery.ForFiles(nativeFiles));
+            }
+            if (query.StructuredQueries.Count > 0) {
+                remainderParts.Add(EventLogBatchQuery.ForStructured(query.StructuredQueries));
+            }
+            foreach (EventLogBatchQuery part in remainderParts) {
+                CopyControls(query, part);
+            }
+            if (remainderParts.Count == 0) {
+                return parserBatch;
+            }
+            EventLogBatchQuery nativeBatch = Consolidate(EventLogBatchQuery.Combine(remainderParts));
+            return EventLogBatchQuery.Combine(new[] { parserBatch, nativeBatch });
+        }
+
         QueryInput[] inputs = Snapshot(query);
         if (inputs.Length == 0) {
             throw new ArgumentException(
@@ -100,6 +142,10 @@ public static class EventLogBatchConsolidator {
         return result;
     }
 
+    private static string GetParserBackedPathIdentity(string path) {
+        return FileSystemPathIdentity.GetIdentity(path);
+    }
+
     private static void CopyControls(
         EventLogBatchQuery source,
         EventLogBatchQuery target) {
@@ -108,6 +154,30 @@ public static class EventLogBatchConsolidator {
         target.MaxConcurrency = source.MaxConcurrency;
         target.ContinueOnError = source.ContinueOnError;
         target.FailureHandler = source.FailureHandler;
+    }
+
+    private static EventLogFileQuery MergeParserBackedFiles(
+        EventLogFileQuery[] files) {
+        QueryProfile profile = QueryProfile.From(files[0]);
+        foreach (EventLogFileQuery file in files.Skip(1)) {
+            profile.ValidateCompatible(QueryProfile.From(file));
+        }
+        EventLogFileQuery result = EventLogQuerySnapshot.Copy(files[0]);
+        string[] expressions = files
+            .Select(static file => file.XPath)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        result.XPath = expressions.Contains("*", StringComparer.Ordinal)
+            ? "*"
+            : string.Join(" or ", expressions.Select(static expression => $"({expression})"));
+        return result;
+    }
+
+    private static string GetParserBackedConsolidationScope(EventLogFileQuery file, int index) {
+        if (file.MaxEvents <= 0 || !string.IsNullOrWhiteSpace(file.BatchSourceIdentity)) {
+            return string.Empty;
+        }
+        return "independent:" + index.ToString(CultureInfo.InvariantCulture);
     }
 
     private static EventLogStructuredQuery CreateStructuredQuery(

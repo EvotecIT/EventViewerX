@@ -15,6 +15,18 @@ public sealed class EventLogChannelQuery {
         LogName = logName;
     }
 
+    /// <summary>Creates a query against a collector's ForwardedEvents channel constrained to the source channel.</summary>
+    /// <param name="originalLogName">Original source channel stored in each forwarded event, for example Security.</param>
+    /// <param name="machineName">Collector computer. A null or empty value targets the local collector.</param>
+    /// <param name="xpath">Additional native XPath filter applied with the original-channel constraint.</param>
+    public static EventLogChannelQuery ForCollector(
+        string originalLogName,
+        string? machineName = null,
+        string xpath = "*") => new(ForwardedEventsQuerySafety.ChannelName) {
+            MachineName = machineName,
+            XPath = EventFilterCompiler.AddOriginalChannelPredicate(xpath, originalLogName)
+        };
+
     /// <summary>Windows event channel name.</summary>
     public string LogName { get; }
 

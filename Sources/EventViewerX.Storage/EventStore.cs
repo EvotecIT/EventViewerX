@@ -48,8 +48,10 @@ public sealed partial class EventStore {
             ValidateSchemaVersion(session.ExecuteScalar(
                 "SELECT schema_version FROM evx_store_metadata WHERE singleton_id = 1;"));
             EnsureActivityMetadataSchema(session);
+            EnsureExecutionMetadataSchema(session);
             EnsureEventIdentitySchema(session);
             EnsureCheckpointIdentitySchema(session);
+            EnsureFindingSchema(session);
             _initialized = true;
         }
     }
@@ -109,11 +111,27 @@ public sealed partial class EventStore {
                 transaction.ExecuteScalar(
                     "SELECT event_identity_version FROM evx_store_metadata WHERE singleton_id = 1;"),
                 CultureInfo.InvariantCulture);
+            if (identityVersion > 3) {
+                throw new InvalidDataException(
+                    $"Event identity schema version '{identityVersion}' is newer than this EventViewerX build supports.");
+            }
             if (originalKeyMissing || transportKindMissing || identityVersion < 2) {
                 MigrateEventIdentity(transaction);
                 transaction.ExecuteNonQuery(
                     "UPDATE evx_store_metadata SET event_identity_version = 2 WHERE singleton_id = 1;");
             }
+            if (!columns.Contains("observation_identity", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_events ADD COLUMN observation_identity TEXT NOT NULL DEFAULT ''; ");
+            }
+            if (!columns.Contains("received_time_utc", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN received_time_utc TEXT NULL;");
+            }
+            if (!columns.Contains("processed_time_utc", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN processed_time_utc TEXT NULL;");
+            }
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET event_identity_version = 3 WHERE singleton_id = 1;");
         });
         session.ExecuteNonQuery(
             "CREATE INDEX IF NOT EXISTS ix_evx_events_original_transport " +
@@ -133,6 +151,54 @@ public sealed partial class EventStore {
             if (!columns.Contains("related_activity_id", StringComparer.OrdinalIgnoreCase)) {
                 transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN related_activity_id TEXT NULL;");
             }
+        });
+    }
+
+    private static void EnsureExecutionMetadataSchema(SQLiteSession session) {
+        session.RunInTransaction(transaction => {
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET schema_version = schema_version WHERE singleton_id = 1;");
+            IReadOnlyList<string> columns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_events);",
+                static record => record.GetString(1));
+            if (!columns.Contains("process_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN process_id INTEGER NULL;");
+            }
+            if (!columns.Contains("thread_id", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_events ADD COLUMN thread_id INTEGER NULL;");
+            }
+        });
+    }
+
+    private static void EnsureFindingSchema(SQLiteSession session) {
+        session.RunInTransaction(transaction => {
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET schema_version = schema_version WHERE singleton_id = 1;");
+            IReadOnlyList<string> columns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_store_metadata);",
+                static record => record.GetString(1));
+            if (!columns.Contains("finding_schema_version", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_store_metadata ADD COLUMN finding_schema_version INTEGER NOT NULL DEFAULT 0;");
+            }
+            int version = Convert.ToInt32(
+                transaction.ExecuteScalar(
+                    "SELECT finding_schema_version FROM evx_store_metadata WHERE singleton_id = 1;"),
+                CultureInfo.InvariantCulture);
+            if (version > 2) {
+                throw new InvalidDataException(
+                    $"Finding store schema version '{version}' is newer than this EventViewerX build supports.");
+            }
+            transaction.ExecuteNonQuery(FindingSchemaSql);
+            IReadOnlyList<string> findingColumns = transaction.QueryAsList(
+                "PRAGMA table_info(evx_findings);",
+                static record => record.GetString(1));
+            if (!findingColumns.Contains("coverage_json", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery(
+                    "ALTER TABLE evx_findings ADD COLUMN coverage_json TEXT NOT NULL DEFAULT ''; ");
+            }
+            transaction.ExecuteNonQuery(
+                "UPDATE evx_store_metadata SET finding_schema_version = 2 WHERE singleton_id = 1;");
         });
     }
 
@@ -221,7 +287,7 @@ public sealed partial class EventStore {
 CREATE TABLE IF NOT EXISTS evx_store_metadata (
     singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
     schema_version INTEGER NOT NULL,
-    event_identity_version INTEGER NOT NULL DEFAULT 2,
+    event_identity_version INTEGER NOT NULL DEFAULT 3,
     created_utc TEXT NOT NULL
 );
 INSERT OR IGNORE INTO evx_store_metadata (singleton_id, schema_version, created_utc)
@@ -241,6 +307,7 @@ CREATE TABLE IF NOT EXISTS evx_events (
     event_key TEXT NOT NULL PRIMARY KEY,
     original_event_key TEXT NOT NULL,
     transport_kind INTEGER NOT NULL,
+    observation_identity TEXT NOT NULL DEFAULT '',
     definition_name TEXT NOT NULL COLLATE NOCASE,
     event_time_utc TEXT NOT NULL,
     event_id INTEGER NOT NULL,
@@ -254,8 +321,12 @@ CREATE TABLE IF NOT EXISTS evx_events (
     level_value INTEGER NULL,
     activity_id TEXT NULL,
     related_activity_id TEXT NULL,
+    process_id INTEGER NULL,
+    thread_id INTEGER NULL,
     message TEXT NOT NULL,
     values_json TEXT NOT NULL,
+    received_time_utc TEXT NULL,
+    processed_time_utc TEXT NULL,
     inserted_utc TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_evx_events_time ON evx_events (event_time_utc);
@@ -281,6 +352,69 @@ CREATE TABLE IF NOT EXISTS evx_checkpoints (
     updated_utc TEXT NOT NULL,
     PRIMARY KEY (consumer, computer, container)
 );";
+
+    private const string FindingSchemaSql = @"
+CREATE TABLE IF NOT EXISTS evx_findings (
+    finding_key TEXT NOT NULL PRIMARY KEY,
+    rule_id TEXT NOT NULL COLLATE NOCASE,
+    rule_version TEXT NOT NULL,
+    pack_id TEXT NOT NULL COLLATE NOCASE,
+    pack_version TEXT NOT NULL,
+    source_kind TEXT NOT NULL COLLATE NOCASE,
+    source_id TEXT NOT NULL COLLATE NOCASE,
+    source_status TEXT NOT NULL,
+    source_hash TEXT NOT NULL,
+    content_license TEXT NOT NULL,
+    title TEXT NOT NULL,
+    severity INTEGER NOT NULL,
+    confidence INTEGER NOT NULL,
+    finding_status INTEGER NOT NULL,
+    start_time_utc TEXT NOT NULL,
+    end_time_utc TEXT NOT NULL,
+    tags_json TEXT NOT NULL,
+    false_positives_json TEXT NOT NULL,
+    references_json TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    completeness_diagnostic TEXT NULL,
+    coverage_json TEXT NOT NULL DEFAULT '',
+    inserted_utc TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_evx_findings_start ON evx_findings (start_time_utc);
+CREATE INDEX IF NOT EXISTS ix_evx_findings_rule_start ON evx_findings (rule_id, start_time_utc);
+CREATE INDEX IF NOT EXISTS ix_evx_findings_pack_start ON evx_findings (pack_id, start_time_utc);
+CREATE INDEX IF NOT EXISTS ix_evx_findings_status_severity_start
+    ON evx_findings (finding_status, severity, start_time_utc);
+
+CREATE TABLE IF NOT EXISTS evx_finding_evidence (
+    finding_key TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    evidence_identity TEXT NOT NULL,
+    type_name TEXT NOT NULL,
+    event_id INTEGER NOT NULL,
+    record_id INTEGER NULL,
+    provider TEXT NOT NULL,
+    source_log TEXT NOT NULL,
+    container_log TEXT NOT NULL,
+    source_computer TEXT NOT NULL,
+    collector_computer TEXT NOT NULL,
+    event_time_utc TEXT NOT NULL,
+    received_time_utc TEXT NOT NULL,
+    processed_time_utc TEXT NOT NULL,
+    PRIMARY KEY (finding_key, ordinal),
+    FOREIGN KEY (finding_key) REFERENCES evx_findings(finding_key) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ix_evx_finding_evidence_identity
+    ON evx_finding_evidence (evidence_identity);
+
+CREATE TABLE IF NOT EXISTS evx_finding_entities (
+    finding_key TEXT NOT NULL,
+    field_name TEXT NOT NULL COLLATE NOCASE,
+    field_value TEXT NOT NULL COLLATE NOCASE,
+    PRIMARY KEY (finding_key, field_name),
+    FOREIGN KEY (finding_key) REFERENCES evx_findings(finding_key) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ix_evx_finding_entities_field_value
+    ON evx_finding_entities (field_name, field_value, finding_key);";
 
     private sealed class LegacyIdentityRow {
         internal LegacyIdentityRow(
