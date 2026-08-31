@@ -256,7 +256,9 @@ public static partial class EventNotificationOutbox {
             usage.StagingBytes);
     }
 
-    /// <summary>Loads pending batches whose persisted retry backoff has elapsed.</summary>
+    /// <summary>
+    /// Loads the oldest contiguous pending batches whose retry backoff has elapsed, without bypassing an older batch.
+    /// </summary>
     public static IReadOnlyList<EventNotificationOutboxBatch> GetReady(
         string outboxPath,
         EventNotificationRetryPolicy? retryPolicy = null,
@@ -265,9 +267,14 @@ public static partial class EventNotificationOutbox {
         retryPolicy ??= new EventNotificationRetryPolicy();
         retryPolicy.Validate();
         DateTime now = (nowUtc ?? DateTime.UtcNow).ToUniversalTime();
-        return GetPending(outboxPath)
-            .Where(batch => retryPolicy.IsReady(batch.Delivery, now))
-            .ToArray();
+        var ready = new List<EventNotificationOutboxBatch>();
+        foreach (EventNotificationOutboxBatch batch in GetPending(outboxPath)) {
+            if (!retryPolicy.IsReady(batch.Delivery, now)) {
+                break;
+            }
+            ready.Add(batch);
+        }
+        return ready;
     }
 
     /// <summary>Records one failed delivery attempt atomically without changing the batch payload.</summary>

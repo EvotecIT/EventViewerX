@@ -61,6 +61,35 @@ public sealed partial class TestEventDetection {
     }
 
     [Fact]
+    public void BuiltInFailedThenSuccessfulLogonAcceptsSpecializedSuccessProjection() {
+        EventObject failed = CreateEvent(
+            4625,
+            Utc(10, 0),
+            41,
+            "Security",
+            "Microsoft-Windows-Security-Auditing");
+        failed.Data["TargetDomainName"] = "EVOTEC";
+        failed.Data["TargetUserName"] = "alice";
+        EventObject succeeded = CreateEvent(
+            4624,
+            Utc(10, 1),
+            42,
+            "Security",
+            "Microsoft-Windows-Security-Auditing");
+        succeeded.Data["TargetDomainName"] = "EVOTEC";
+        succeeded.Data["TargetUserName"] = "alice";
+        succeeded.Data["LmPackageName"] = "NTLM V1";
+        EventDetectionPlan plan = EventDetectionPlan.Compile(EventDetectionCatalog.GetBuiltInRules());
+
+        EventDetectionFinding finding = Assert.Single(
+            EventDetectionEngine.Stream(new[] { failed, succeeded }, plan),
+            static candidate => candidate.RuleId == "EVX-AUTH-0003");
+
+        Assert.Equal(new long?[] { 41, 42 }, finding.Evidence.Select(static item => item.RecordId));
+        Assert.Equal("EVOTEC\\alice", finding.Entities["ObjectAffected"]);
+    }
+
+    [Fact]
     public void PlanHashIsDeterministicAndCoversEffectiveTuning() {
         IEventDetectionRule[] rules = { Rule("EVX-TEST-PLAN-HASH") };
         EventDetectionPlan first = EventDetectionPlan.Compile(rules);

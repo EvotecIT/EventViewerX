@@ -155,6 +155,41 @@ CREATE TABLE evx_checkpoints (
     }
 
     [Fact]
+    public async Task OverwrittenBackupDoesNotRetainDestinationWalSidecars() {
+        string path = CreateStorePath();
+        string backup = CreateStorePath();
+        try {
+            var source = new EventStore(path);
+            await source.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "source")));
+            var destination = new EventStore(backup);
+            await destination.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 9, 0, 0, DateTimeKind.Utc),
+                99,
+                "stale")));
+            File.WriteAllBytes(backup + "-wal", new byte[] { 1, 2, 3, 4 });
+            File.WriteAllBytes(backup + "-shm", new byte[] { 5, 6, 7, 8 });
+
+            await source.BackupAsync(backup, overwrite: true);
+            EventStoreIntegrityResult integrity = await new EventStore(backup).CheckIntegrityAsync();
+            EventReport report = await new EventStore(backup).ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.True(integrity.IsHealthy);
+            Assert.Equal("source", Assert.Single(report.Rows).Values["User"]);
+            Assert.False(File.Exists(backup + "-wal"));
+            Assert.False(File.Exists(backup + "-shm"));
+            Assert.Empty(Directory.GetFiles(
+                Path.GetDirectoryName(backup)!,
+                Path.GetFileName(backup) + "-*.replace-quarantine-*"));
+        } finally {
+            DeleteStore(path);
+            DeleteStore(backup);
+        }
+    }
+
+    [Fact]
     public async Task RestoreSnapshotsCommittedWalChangesIntoTheReplacementDatabase() {
         string path = CreateStorePath();
         string backup = CreateStorePath();

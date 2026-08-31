@@ -133,7 +133,10 @@ public static partial class EventDetectionCatalog {
                     },
                     new EventDetectionStepDefinition {
                         Name = "successful-logon",
-                        EventTypes = new[] { EventType.ADUserLogon }
+                        EventTypes = new[] {
+                            EventType.ADUserLogon,
+                            EventType.ADUserLogonNTLMv1
+                        }
                     }
                 },
                 Tags = new[] { "authentication", "account-compromise", "attack.t1078" },

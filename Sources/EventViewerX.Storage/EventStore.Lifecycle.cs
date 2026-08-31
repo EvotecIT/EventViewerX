@@ -175,7 +175,7 @@ public sealed partial class EventStore {
                     "Generated EventStore backup failed integrity validation: " + string.Join(" ", integrity.Diagnostics));
             }
             if (File.Exists(destination)) {
-                File.Replace(pending, destination, destinationBackupFileName: null);
+                ReplaceDatabaseWithoutSidecars(pending, destination);
             } else {
                 File.Move(pending, destination);
             }
@@ -380,6 +380,32 @@ public sealed partial class EventStore {
         using SHA256 sha256 = SHA256.Create();
         using FileStream stream = File.OpenRead(path);
         return BitConverter.ToString(sha256.ComputeHash(stream)).Replace("-", string.Empty);
+    }
+
+    private static void ReplaceDatabaseWithoutSidecars(string source, string destination) {
+        string quarantineSuffix = ".replace-quarantine-" + Guid.NewGuid().ToString("N");
+        var quarantined = new List<(string Original, string Quarantine)>();
+        bool published = false;
+        try {
+            foreach (string sidecar in new[] { destination + "-wal", destination + "-shm" }) {
+                if (!File.Exists(sidecar)) {
+                    continue;
+                }
+                string quarantine = sidecar + quarantineSuffix;
+                File.Move(sidecar, quarantine);
+                quarantined.Add((sidecar, quarantine));
+            }
+            File.Replace(source, destination, destinationBackupFileName: null);
+            published = true;
+        } finally {
+            foreach ((string original, string quarantine) in quarantined) {
+                if (!published && !File.Exists(original) && File.Exists(quarantine)) {
+                    File.Move(quarantine, original);
+                } else {
+                    DeleteSidecar(quarantine);
+                }
+            }
+        }
     }
 
     private static void DeleteSidecar(string path) {

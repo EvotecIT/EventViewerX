@@ -170,6 +170,40 @@ public sealed class TestEventNotificationOutbox {
     }
 
     [Fact]
+    public async Task ReadyBatchesNeverBypassAnOlderBatchInBackoff() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Ordered retry batches");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            EventNotificationOutbox.Save(outbox, "batch-001", report, email, 1);
+            EventNotificationOutbox.Save(outbox, "batch-002", report, email, 1);
+            EventNotificationOutboxBatch oldest = EventNotificationOutbox.GetPending(outbox)[0];
+            EventNotificationOutbox.RecordFailure(oldest, new IOException("Retry later."));
+            EventNotificationOutboxBatch[] pending = EventNotificationOutbox.GetPending(outbox).ToArray();
+            var retryPolicy = new EventNotificationRetryPolicy {
+                InitialDelay = TimeSpan.FromHours(1),
+                MaximumDelay = TimeSpan.FromHours(1)
+            };
+            DateTime lastAttempt = pending[0].Delivery.LastAttemptUtc!.Value;
+
+            IReadOnlyList<EventNotificationOutboxBatch> blocked = EventNotificationOutbox.GetReady(
+                outbox,
+                retryPolicy,
+                lastAttempt.AddMinutes(1));
+            IReadOnlyList<EventNotificationOutboxBatch> ready = EventNotificationOutbox.GetReady(
+                outbox,
+                retryPolicy,
+                lastAttempt.AddHours(1));
+
+            Assert.Equal(new[] { "batch-001", "batch-002" }, pending.Select(static batch => batch.Manifest.BatchId));
+            Assert.Empty(blocked);
+            Assert.Equal(new[] { "batch-001", "batch-002" }, ready.Select(static batch => batch.Manifest.BatchId));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task BatchRetainsCheckpointCompareAndSwapBoundaryAcrossRestart() {
         string outbox = CreateTemporaryDirectory();
         try {

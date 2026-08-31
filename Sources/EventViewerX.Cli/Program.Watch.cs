@@ -132,6 +132,10 @@ internal static partial class Program {
         async Task FlushAsync() {
             await flushGate.WaitAsync().ConfigureAwait(false);
             try {
+                if (!string.IsNullOrWhiteSpace(outbox) &&
+                    EventNotificationOutbox.GetPending(outbox!).Count > 0) {
+                    return;
+                }
                 List<WatchBufferedNotification> batch;
                 string batchStem;
                 lock (bufferLock) {
@@ -306,17 +310,13 @@ internal static partial class Program {
             }
         }
 
-        async Task RefreshActiveBatchCheckpointsAsync(string batchId) {
+        async Task RefreshBufferedCheckpointsAsync() {
             if (checkpointStore == null) {
                 return;
             }
             WatchCheckpointContext[] contexts;
             lock (bufferLock) {
-                if (activeBatch == null ||
-                    !string.Equals(activeBatchStem, batchId, StringComparison.Ordinal)) {
-                    return;
-                }
-                contexts = activeBatch
+                contexts = buffer
                     .Select(static item => item.Delivery.Checkpoint)
                     .Distinct()
                     .ToArray();
@@ -341,7 +341,6 @@ internal static partial class Program {
             }
             await flushGate.WaitAsync().ConfigureAwait(false);
             try {
-                TimeSpan? nextDelay = null;
                 foreach (EventNotificationOutboxBatch batch in EventNotificationOutbox.GetPending(outbox!)) {
                     if (batch.Delivery.FailedAttempts >= deadLetterAfter) {
                         EventNotificationOutbox.MoveToDeadLetter(batch);
@@ -355,14 +354,13 @@ internal static partial class Program {
                             completed.TrySetException(new InvalidOperationException(
                                 $"Notification batch '{batch.Manifest.BatchId}' reached the dead-letter threshold; its checkpoint was not advanced."));
                         }
-                        continue;
+                        throw new InvalidOperationException(
+                            $"Notification batch '{batch.Manifest.BatchId}' reached the dead-letter threshold; " +
+                            "newer batches cannot be delivered past its unadvanced checkpoint.");
                     }
                     TimeSpan remaining = retryPolicy.GetRemainingDelay(batch.Delivery);
                     if (remaining > TimeSpan.Zero) {
-                        nextDelay = !nextDelay.HasValue || remaining < nextDelay.Value
-                            ? remaining
-                            : nextDelay;
-                        continue;
+                        return remaining;
                     }
                     if (!batch.Delivery.TransportAcknowledgedUtc.HasValue &&
                         batch.Manifest.RequiresExternalTransport &&
@@ -385,18 +383,18 @@ internal static partial class Program {
                                     batch.PlainText,
                                     title).ConfigureAwait(false);
                                 if (mailProfile.DryRun || !result.Status) {
-                                    nextDelay = !nextDelay.HasValue || idleDelay < nextDelay.Value
-                                        ? idleDelay
-                                        : nextDelay;
-                                    continue;
+                                    return idleDelay;
                                 }
                             }
                             EventNotificationOutbox.MarkTransportAcknowledged(batch);
                         }
                         await AdvancePersistedCheckpointsAsync(batch.Manifest.Checkpoints).ConfigureAwait(false);
-                        await RefreshActiveBatchCheckpointsAsync(batch.Manifest.BatchId).ConfigureAwait(false);
+                        await RefreshBufferedCheckpointsAsync().ConfigureAwait(false);
                         EventNotificationOutbox.MarkDelivered(batch);
                         bool hasBufferedNotifications = CompleteActiveBatch(batch.Manifest.BatchId);
+                        lock (bufferLock) {
+                            hasBufferedNotifications |= buffer.Count > 0;
+                        }
                         Interlocked.Increment(ref resumedBatches);
                         if (hasBufferedNotifications) {
                             QueueFlush();
@@ -420,15 +418,15 @@ internal static partial class Program {
                                 completed.TrySetException(new InvalidOperationException(
                                     $"Notification batch '{failed.Manifest.BatchId}' reached the dead-letter threshold; its checkpoint was not advanced."));
                             }
-                            continue;
+                            throw new InvalidOperationException(
+                                $"Notification batch '{failed.Manifest.BatchId}' reached the dead-letter threshold; " +
+                                "newer batches cannot be delivered past its unadvanced checkpoint.");
                         }
                         TimeSpan retry = retryPolicy.GetRemainingDelay(failed.Delivery);
-                        nextDelay = !nextDelay.HasValue || retry < nextDelay.Value
-                            ? retry
-                            : nextDelay;
+                        return retry;
                     }
                 }
-                return nextDelay ?? idleDelay;
+                return idleDelay;
             } finally {
                 flushGate.Release();
             }
