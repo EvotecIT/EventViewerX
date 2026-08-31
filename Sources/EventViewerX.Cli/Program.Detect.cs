@@ -312,13 +312,13 @@ internal static partial class Program {
                              observation,
                              plan,
                              execution.Coverage)) {
-                    await traceWriter.WriteLineAsync(JsonSerializer.Serialize(trace, JsonOptions)).ConfigureAwait(false);
+                    await traceWriter.WriteLineAsync(EventAnalysisJson.Serialize(trace)).ConfigureAwait(false);
                 }
             }
         }
         using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
         foreach (EventDetectionFinding finding in execution.Findings) {
-            string json = JsonSerializer.Serialize(finding, JsonOptions);
+            string json = EventAnalysisJson.Serialize(finding);
             if (jsonLines != null) {
                 await jsonLines.WriteLineAsync(json).ConfigureAwait(false);
             } else {

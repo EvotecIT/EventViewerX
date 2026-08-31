@@ -26,6 +26,12 @@ public static class EventDecisionReportEngine {
         EventDetectionFinding[] selectedFindings = allFindings
             .Where(finding => SelectFinding(definition, finding))
             .ToArray();
+        EventObservation[] reportObservations = selectedObservations
+            .Concat(selectedFindings.SelectMany(static finding => finding.Evidence))
+            .GroupBy(static observation => observation.Identity, StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .OrderBy(static observation => observation.EventTimeUtc)
+            .ToArray();
         EventDetectionPack[] selectedPacks = allPacks
             .Where(pack => SelectPack(definition, pack))
             .ToArray();
@@ -42,11 +48,11 @@ public static class EventDecisionReportEngine {
             options.Coverage);
         EventDecisionMetric[] metrics = BuildMetrics(
             definition,
-            selectedObservations,
+            reportObservations,
             selectedFindings,
             selectedPacks);
         EventDetectionReportSnapshot report = EventDetectionReportEngine.Create(
-            selectedObservations,
+            reportObservations,
             selectedFindings,
             selectedPacks,
             effectiveOptions,

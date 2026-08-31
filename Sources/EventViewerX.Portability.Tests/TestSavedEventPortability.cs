@@ -192,6 +192,20 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void NewestFirstBufferRetainsOnlyTheRequestedTailInReverseOrder() {
+        IEnumerable<SavedEventRecord> source = Enumerable.Range(1, 10)
+            .Select(static value => new SavedEventRecord { RecordId = value });
+
+        SavedEventRecord[] records = NewestFirstSavedEventBuffer.Read(
+                source,
+                maximumRecords: 3,
+                CancellationToken.None)
+            .ToArray();
+
+        Assert.Equal(new long?[] { 10, 9, 8 }, records.Select(static record => record.RecordId));
+    }
+
+    [Fact]
     public void XmlProjectorPreservesPortableIdentityAndPayload() {
         const string xml = """
             <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">

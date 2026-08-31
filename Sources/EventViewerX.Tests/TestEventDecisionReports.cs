@@ -73,6 +73,48 @@ public sealed class TestEventDecisionReports {
         Assert.NotEmpty(authentication.Analysis.PresentationReport.Sections);
     }
 
+    [Fact]
+    public void DecisionMetricsIncludeEvidenceAddedBySelectedFindings() {
+        EventObject source = CreateEvent(4625, "Security", 31);
+        EventTypeRecord typed = Assert.IsAssignableFrom<EventTypeRecord>(
+            EventTypeCatalog.CreateEventRule(source, new[] { EventType.ADUserLogonFailed }));
+        EventObservation evidence = EventObservation.Create(source, typed);
+        var finding = new EventDetectionFinding(
+            "EVX-ENGINE-BOUNDS",
+            "1.0.0",
+            string.Empty,
+            string.Empty,
+            "Engine",
+            "EVX-ENGINE-BOUNDS",
+            "stable",
+            string.Empty,
+            string.Empty,
+            "Incomplete detection evaluation",
+            EventDetectionSeverity.Medium,
+            100,
+            EventDetectionFindingStatus.Incomplete,
+            evidence.EventTimeUtc,
+            evidence.EventTimeUtc,
+            new[] { evidence },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new Dictionary<string, string>(),
+            EventDetectionCoverage.Create(failures: new[] { "The evaluation was incomplete." }),
+            "The evaluation was incomplete.",
+            "The evaluation was incomplete.");
+
+        EventDecisionReportSnapshot report = EventDecisionReportEngine.Create(
+            EventDecisionReportKind.UnknownEventAndSchemaDrift,
+            Array.Empty<EventObservation>(),
+            new[] { finding });
+
+        Assert.Single(report.Analysis.Observations);
+        Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "ObservationCount").Value);
+        Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "TargetCount").Value);
+        Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "ChannelCount").Value);
+    }
+
     private static EventObject CreateEvent(
         int eventId,
         string logName,

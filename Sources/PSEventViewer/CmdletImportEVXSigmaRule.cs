@@ -23,6 +23,7 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
     /// <summary>One or more Sigma YAML files to import.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [Alias("FullName")]
+    [SupportsWildcards]
     public string[] Path { get; set; } = Array.Empty<string>();
 
     /// <summary>Returns one versioned EventViewerX pack instead of individual rules.</summary>
@@ -40,8 +41,8 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
     /// <inheritdoc />
     protected override void ProcessRecord() {
         var rules = new List<IEventDetectionRule>();
-        foreach (string path in Path) {
-            SigmaCompilationResult result = SigmaRuleCompiler.Load(GetUnresolvedProviderPathFromPSPath(path));
+        foreach (string path in ResolvePaths()) {
+            SigmaCompilationResult result = SigmaRuleCompiler.Load(path);
             foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
                 if (diagnostic.Severity == SigmaDiagnosticSeverity.Warning) {
                     WriteWarning($"{diagnostic.Code}: {diagnostic.Message}");
@@ -65,6 +66,32 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
                 WriteObject(rule, enumerateCollection: false);
             }
         }
+    }
+
+    private IReadOnlyList<string> ResolvePaths() {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string pattern in Path) {
+            try {
+                foreach (string path in SessionState.Path.GetResolvedProviderPathFromPSPath(
+                             pattern,
+                             out ProviderInfo provider)) {
+                    if (!string.Equals(provider.Name, "FileSystem", StringComparison.OrdinalIgnoreCase)) {
+                        throw new PSArgumentException(
+                            $"Sigma path '{pattern}' must use the FileSystem provider.",
+                            nameof(Path));
+                    }
+                    paths.Add(System.IO.Path.GetFullPath(path));
+                }
+            } catch (ItemNotFoundException) {
+                throw new PSArgumentException(
+                    $"No Sigma rule files match path '{pattern}'.",
+                    nameof(Path));
+            }
+        }
+        if (paths.Count == 0) {
+            throw new PSArgumentException("At least one Sigma rule file is required.", nameof(Path));
+        }
+        return paths.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     /// <inheritdoc />

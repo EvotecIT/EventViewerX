@@ -92,6 +92,41 @@ Describe 'evx portable host' {
         $Plan.PlanHash | Should -Not -BeNullOrEmpty
     }
 
+    It 'emits canonical versioned finding and trace JSON contracts' {
+        $SigmaPath = Join-Path $TestDrive 'canonical-json.yml'
+        $FindingPath = Join-Path $TestDrive 'findings.jsonl'
+        $TracePath = Join-Path $TestDrive 'traces.jsonl'
+        @'
+title: Service configuration changed
+id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $script:FixturePath `
+            --max 0 `
+            --jsonl $FindingPath `
+            --trace-jsonl $TracePath
+
+        $LASTEXITCODE | Should -Be 0
+        $Finding = Get-Content -LiteralPath $FindingPath -TotalCount 1 | ConvertFrom-Json
+        $Trace = Get-Content -LiteralPath $TracePath -TotalCount 1 | ConvertFrom-Json
+        $Finding.schemaVersion | Should -Be 1
+        $Finding.evidenceIdentities.Count | Should -BeGreaterThan 0
+        $Finding.PSObject.Properties.Name | Should -Not -Contain 'evidence'
+        $Trace.schemaVersion | Should -Be 1
+        $Trace.observationIdentity | Should -Not -BeNullOrEmpty
+        $Trace.conditions | Should -Not -BeNull
+    }
+
     It 'marks detection incomplete when an explicit event ID excludes the rule selector' {
         $SigmaPath = Join-Path $TestDrive 'selector-coverage.yml'
         @'

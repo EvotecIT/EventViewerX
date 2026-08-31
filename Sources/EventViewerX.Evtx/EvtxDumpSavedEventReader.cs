@@ -56,17 +56,15 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
             Code = "EVXEVTX101",
             Severity = SavedEventReadDiagnosticSeverity.Information,
-            Message = "Newest-first EVTX enumeration buffers matching records. Use Oldest=true for bounded-memory streaming."
+            Message = query.MaxEvents > 0
+                ? $"Newest-first EVTX enumeration retains at most the newest {query.MaxEvents} matching record(s)."
+                : "Newest-first EVTX enumeration buffers all matching records. Use Oldest=true or set MaxEvents for bounded-memory streaming."
         });
-        SavedEventRecord[] records = ReadForward(
-                query.Path,
-                matcher,
-                diagnosticHandler,
-                cancellationToken)
-            .ToArray();
-        for (int index = records.Length - 1; index >= 0; index--) {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return records[index];
+        foreach (SavedEventRecord record in NewestFirstSavedEventBuffer.Read(
+                     ReadForward(query.Path, matcher, diagnosticHandler, cancellationToken),
+                     query.MaxEvents,
+                     cancellationToken)) {
+            yield return record;
         }
     }
 

@@ -51,19 +51,21 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
         diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
             Code = "EVXEVTX101",
             Severity = SavedEventReadDiagnosticSeverity.Information,
-            Message = "Newest-first EVTX enumeration buffers matching records because the parser streams chunks forward. Use Oldest=true for bounded-memory streaming."
+            Message = query.MaxEvents > 0
+                ? $"Newest-first EVTX enumeration retains at most the newest {query.MaxEvents} matching record(s) because the parser streams chunks forward."
+                : "Newest-first EVTX enumeration buffers all matching records because the parser streams chunks forward. Use Oldest=true or set MaxEvents for bounded-memory streaming."
         });
         IEnumerable<SavedEventRecord> newestSource = literalBinXml
             ? ReadLiteral(stream, matcher, cancellationToken)
             : ReadForward(eventLog, matcher, diagnosticHandler, cancellationToken);
-        SavedEventRecord[] records = newestSource
-            .ToArray();
+        foreach (SavedEventRecord record in NewestFirstSavedEventBuffer.Read(
+                     newestSource,
+                     query.MaxEvents,
+                     cancellationToken)) {
+            yield return record;
+        }
         if (!literalBinXml) {
             ReportParserErrors(eventLog, diagnosticHandler);
-        }
-        for (int index = records.Length - 1; index >= 0; index--) {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return records[index];
         }
     }
 

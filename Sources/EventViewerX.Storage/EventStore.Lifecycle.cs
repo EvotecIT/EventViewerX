@@ -209,18 +209,22 @@ public sealed partial class EventStore {
         if (string.Equals(backup, Path, StringComparison.OrdinalIgnoreCase)) {
             throw new ArgumentException("Backup path must differ from the live store.", nameof(backupPath));
         }
-        EventStoreIntegrityResult backupIntegrity = await new EventStore(backup)
-            .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
-        if (!backupIntegrity.IsHealthy) {
-            throw new InvalidDataException(
-                "EventStore backup failed integrity validation: " + string.Join(" ", backupIntegrity.Diagnostics));
-        }
         using FileStream maintenance = await AcquireMaintenanceLockAsync(cancellationToken).ConfigureAwait(false);
         string pending = Path + ".restore-pending-" + Guid.NewGuid().ToString("N");
         string recovery = Path + ".restore-recovery-" + Guid.NewGuid().ToString("N");
         bool replaced = false;
         try {
-            await CopyFileAsync(backup, pending, cancellationToken).ConfigureAwait(false);
+            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+            await sqlite.BackupDatabaseIncrementalAsync(
+                backup,
+                pending,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            EventStoreIntegrityResult backupIntegrity = await new EventStore(pending)
+                .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+            if (!backupIntegrity.IsHealthy) {
+                throw new InvalidDataException(
+                    "EventStore backup failed integrity validation: " + string.Join(" ", backupIntegrity.Diagnostics));
+            }
             if (File.Exists(Path)) {
                 File.Replace(pending, Path, recovery);
                 replaced = true;
@@ -315,13 +319,6 @@ public sealed partial class EventStore {
                 await Task.Delay(100, cancellationToken).ConfigureAwait(false);
             }
         }
-    }
-
-    private static async Task CopyFileAsync(string source, string destination, CancellationToken cancellationToken) {
-        using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await input.CopyToAsync(output, 81920, cancellationToken).ConfigureAwait(false);
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static long GetDatabaseBytes(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;

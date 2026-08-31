@@ -139,6 +139,29 @@ Describe 'PSEventViewer v4 command surface' {
         @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
     }
 
+    It 'expands wildcard Sigma paths into one versioned detection pack' {
+        $Template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml') -Raw
+        $FirstPath = Join-Path $TestDrive 'Wildcard-First.yml'
+        $SecondPath = Join-Path $TestDrive 'Wildcard-Second.yml'
+        Set-Content -LiteralPath $FirstPath -Value $Template -Encoding UTF8
+        $SecondRule = $Template.Replace(
+            'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'ffffffff-ffff-4fff-8fff-ffffffffffff')
+        $SecondRule = $SecondRule.Replace(
+            'NTLMv1 authentication observed',
+            'Wildcard NTLMv1 authentication rule')
+        Set-Content -LiteralPath $SecondPath -Value $SecondRule -Encoding UTF8
+
+        $Pack = Import-EVXSigmaRule `
+            -Path (Join-Path $TestDrive 'Wildcard-*.yml') `
+            -AsPack `
+            -PackId 'eventviewerx.test.wildcard' `
+            -Version '1.0.0'
+
+        $Pack.Rules.Count | Should -Be 2
+        @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
+    }
+
     It 'declares both collector subscription result shapes' {
         $OutputTypes = (Get-Command Set-EVXCollectorSubscription).OutputType.Name
 

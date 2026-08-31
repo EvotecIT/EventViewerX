@@ -155,6 +155,47 @@ CREATE TABLE evx_checkpoints (
     }
 
     [Fact]
+    public async Task RestoreSnapshotsCommittedWalChangesIntoTheReplacementDatabase() {
+        string path = CreateStorePath();
+        string backup = CreateStorePath();
+        try {
+            var targetStore = new EventStore(path);
+            await targetStore.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 9, 0, 0, DateTimeKind.Utc),
+                99,
+                "target-only")));
+            var backupStore = new EventStore(backup);
+            await backupStore.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "main")));
+
+            var sqlite = new SQLite();
+            using SQLiteSession pinnedReader = sqlite.OpenSession(backup);
+            pinnedReader.ExecuteNonQuery("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;");
+            pinnedReader.ExecuteNonQuery("BEGIN;");
+            Assert.Equal(1L, Convert.ToInt64(
+                pinnedReader.ExecuteScalar("SELECT COUNT(*) FROM evx_events;"),
+                System.Globalization.CultureInfo.InvariantCulture));
+            await backupStore.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 5, 0, DateTimeKind.Utc),
+                2,
+                "wal")));
+
+            Assert.True(File.Exists(backup + "-wal"));
+            EventStoreIntegrityResult restored = await targetStore.RestoreAsync(backup);
+            EventReport report = await targetStore.ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.True(restored.IsHealthy);
+            Assert.Equal(2, restored.EventCount);
+            Assert.Equal(new[] { "main", "wal" }, report.Rows.Select(static row => row.Values["User"]));
+        } finally {
+            DeleteStore(path);
+            DeleteStore(backup);
+        }
+    }
+
+    [Fact]
     public async Task RetentionPrunesEventsAndFindingsIndependentlyAndReportsCompaction() {
         string path = CreateStorePath();
         try {
