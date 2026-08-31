@@ -177,9 +177,9 @@ public static class SigmaRuleCompiler {
         try {
             string title = RequiredText(root, "title");
             string sourceId = OptionalText(root, "id");
-            string sourceHash = Hash(root.ToString());
+            string documentHash = Hash(root.ToString());
             if (sourceId.Length == 0) {
-                sourceId = "generated-" + sourceHash.Substring(0, 24).ToLowerInvariant();
+                sourceId = "generated-" + documentHash.Substring(0, 24).ToLowerInvariant();
             }
             YamlMappingNode correlation = Mapping(root, "correlation");
             if (TryGet(correlation, "aliases", out _)) {
@@ -192,6 +192,10 @@ public static class SigmaRuleCompiler {
                 throw new InvalidDataException("Sigma correlation.rules requires at least one rule reference.");
             }
             CompiledBaseRule[] related = references.Select(reference => ResolveBaseRule(baseRules, reference)).ToArray();
+            string sourceHash = Hash(
+                documentHash + "\n" +
+                string.Join("\n", related.Select(static rule =>
+                    rule.SourceId + ":" + rule.Definition.SourceHash)));
             string type = RequiredText(correlation, "type").ToLowerInvariant();
             TimeSpan window = ParseTimespan(RequiredText(correlation, "timespan"));
             string[] groupBy = TextList(correlation, "group-by");

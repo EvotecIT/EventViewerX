@@ -64,7 +64,8 @@ internal static class EvtxLiteralRecordReader {
             while (recordOffset + RecordHeaderSize + RecordTrailerSize <= chunkEnd) {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (BitConverter.ToInt32(buffer, recordOffset) != 0x00002A2A) {
-                    break;
+                    throw new InvalidDataException(
+                        $"Literal BinXML record at file offset 0x{chunkFileOffset + recordOffset:X} has an invalid record signature before the declared free-space offset.");
                 }
 
                 int recordSize = checked((int)BitConverter.ToUInt32(buffer, recordOffset + 4));

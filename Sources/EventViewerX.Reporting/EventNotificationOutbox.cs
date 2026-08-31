@@ -198,14 +198,23 @@ public static partial class EventNotificationOutbox {
             if (!File.Exists(manifestPath) || !File.Exists(htmlPath) || !File.Exists(textPath)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' is incomplete.");
             }
-            EventNotificationBatchManifest? manifest = JsonSerializer.Deserialize<EventNotificationBatchManifest>(
-                File.ReadAllText(manifestPath));
+            string manifestJson = File.ReadAllText(manifestPath);
+            using JsonDocument manifestDocument = JsonDocument.Parse(manifestJson);
+            if (!manifestDocument.RootElement.TryGetProperty(
+                    nameof(EventNotificationBatchManifest.SchemaVersion),
+                    out JsonElement schemaVersion) ||
+                schemaVersion.ValueKind != JsonValueKind.Number ||
+                !schemaVersion.TryGetInt32(out _)) {
+                throw new InvalidDataException(
+                    $"Outbox batch '{directory}' has no explicit manifest schema version and cannot be delivered safely.");
+            }
+            EventNotificationBatchManifest? manifest =
+                JsonSerializer.Deserialize<EventNotificationBatchManifest>(manifestJson);
             if (manifest == null || string.IsNullOrWhiteSpace(manifest.BatchId) ||
                 !string.Equals(manifest.BatchId, name, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' has invalid identity metadata.");
             }
-            if (manifest.SchemaVersion < 0 ||
-                manifest.SchemaVersion > EventNotificationBatchManifest.CurrentSchemaVersion) {
+            if (manifest.SchemaVersion != EventNotificationBatchManifest.CurrentSchemaVersion) {
                 throw new InvalidDataException(
                     $"Outbox batch '{directory}' uses unsupported manifest schema {manifest.SchemaVersion}. " +
                     $"This build supports schema {EventNotificationBatchManifest.CurrentSchemaVersion}; " +

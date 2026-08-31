@@ -164,6 +164,58 @@ level: medium
         $LASTEXITCODE | Should -Be 2
     }
 
+    It 'marks typed detection incomplete when its source selectors exclude a native rule' {
+        $SigmaPath = Join-Path $TestDrive 'typed-selector-coverage.yml'
+        @'
+title: Windows startup
+id: 67676767-6767-4767-8767-676767676767
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 6005
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --type ADUserLogonFailed `
+            --path $script:FixturePath `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'does not mark recovered checksum diagnostics as incomplete' {
+        $SigmaPath = Join-Path $TestDrive 'checksum-coverage.yml'
+        $FixtureCopy = Join-Path $TestDrive 'checksum-warning.evtx'
+        @'
+title: Service configuration changed
+id: 68686868-6868-4868-8868-686868686868
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7040
+  condition: selection
+level: medium
+'@ | Set-Content -LiteralPath $SigmaPath -Encoding UTF8
+        [byte[]] $Bytes = [IO.File]::ReadAllBytes($script:FixturePath)
+        $Bytes[0x7C] = $Bytes[0x7C] -bxor 0xFF
+        [IO.File]::WriteAllBytes($FixtureCopy, $Bytes)
+
+        $null = & $script:CliPath detect `
+            --sigma $SigmaPath `
+            --path $FixtureCopy `
+            --portable-evtx `
+            --max 0
+
+        $LASTEXITCODE | Should -Be 0
+    }
+
     It 'renders a detection report when an output consumes the report snapshot' {
         $SigmaPath = Join-Path $TestDrive 'report-detection.yml'
         $HtmlPath = Join-Path $TestDrive 'detection.html'

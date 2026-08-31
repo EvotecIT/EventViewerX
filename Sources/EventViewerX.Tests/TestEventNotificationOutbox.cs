@@ -411,6 +411,38 @@ public sealed class TestEventNotificationOutbox {
         }
     }
 
+    [Fact]
+    public async Task MissingManifestSchemaFailsClosedWithoutAcknowledgingLegacyBatch() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Legacy outbox schema");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            string directory = EventNotificationOutbox.Save(
+                outbox,
+                "legacy-schema",
+                report,
+                email,
+                1,
+                Array.Empty<EventNotificationCheckpointBoundary>(),
+                requiresExternalTransport: true);
+            string manifestPath = Path.Combine(directory, "batch.json");
+            Dictionary<string, JsonElement> manifest = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+                File.ReadAllText(manifestPath))!;
+            Assert.True(manifest.Remove(nameof(EventNotificationBatchManifest.SchemaVersion)));
+            Assert.True(manifest.Remove(nameof(EventNotificationBatchManifest.RequiresExternalTransport)));
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                EventNotificationOutbox.GetPending(outbox));
+
+            Assert.Contains("no explicit manifest schema version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(Directory.Exists(directory));
+            Assert.False(File.Exists(Path.Combine(directory, "delivery.json")));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory() {
         string path = Path.Combine(Path.GetTempPath(), "EventViewerX.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);

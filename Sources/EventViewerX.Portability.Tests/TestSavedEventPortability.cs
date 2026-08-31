@@ -61,6 +61,21 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void LiteralReaderRejectsInvalidRecordSignaturesInsideUsedChunkSpace() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
+        byte[] bytes = File.ReadAllBytes(source);
+        const int recordOffset = 4096 + 512;
+        Array.Clear(bytes, recordOffset, sizeof(int));
+        using var stream = new MemoryStream(bytes, writable: false);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            EvtxLiteralRecordReader.Read(stream, CancellationToken.None).ToArray());
+
+        Assert.Contains("invalid record signature", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("free-space offset", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ManagedReaderRejectsDeterministicMalformedContainersWithoutFatalFailures() {
         var random = new Random(811_221);
         foreach (int length in new[] { 0, 1, 8, 512, 4095, 4096, 8192, 65_536 }) {

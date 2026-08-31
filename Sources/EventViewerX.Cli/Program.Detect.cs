@@ -129,7 +129,7 @@ internal static partial class Program {
         Action<SavedEventReadDiagnostic>? savedEventDiagnosticHandler = portableEvtx
             ? diagnostic => {
                 WriteSavedEventDiagnostic(diagnostic);
-                if (diagnostic.Severity != SavedEventReadDiagnosticSeverity.Information) {
+                if (diagnostic.AffectsCompleteness) {
                     sourceFailures.Enqueue(
                         $"Portable EVTX source reported {diagnostic.Code}: {diagnostic.Message}");
                 }
@@ -399,11 +399,12 @@ internal static partial class Program {
                 .Select(static type => type!.Value)
                 .Distinct()
                 .ToArray();
-        string[] expectedChannels = selectedTypes.Count > 0
-            ? EventTypeCatalog.GetSources(selectedTypes).Select(static source => source.LogName).ToArray()
-            : GetRequiredChannels(plan);
+        EventSourceDefinition[] selectedSources = selectedTypes.Count > 0
+            ? EventTypeCatalog.GetSources(selectedTypes).ToArray()
+            : Array.Empty<EventSourceDefinition>();
+        string[] expectedChannels = GetRequiredChannels(plan);
         string[] successfulChannels = selectedTypes.Count > 0
-            ? expectedChannels
+            ? selectedSources.Select(static source => source.LogName).ToArray()
             : logName != null
                 ? new[] { logName }
                 : observations.Select(static observation => observation.SourceLog)
@@ -427,9 +428,11 @@ internal static partial class Program {
                     StringComparer.OrdinalIgnoreCase)).ToArray();
         int[] expectedEventIds = GetRequiredEventIds(plan);
         int[] requestedEventIds = ParseInts(options.GetMany("event-id")) ?? Array.Empty<int>();
-        int[] successfulEventIds = requestedEventIds.Length == 0
-            ? expectedEventIds
-            : expectedEventIds.Where(requestedEventIds.Contains).ToArray();
+        int[] successfulEventIds = selectedTypes.Count > 0
+            ? selectedSources.SelectMany(static source => source.EventIds).Distinct().ToArray()
+            : requestedEventIds.Length == 0
+                ? expectedEventIds
+                : expectedEventIds.Where(requestedEventIds.Contains).ToArray();
         return EventDetectionCoverage.Create(
             expectedTargets: requestedTargets,
             observedTargets: requestedTargets,

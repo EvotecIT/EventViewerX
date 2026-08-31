@@ -167,6 +167,45 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void SigmaCorrelationHashIncludesResolvedBaseRuleContent() {
+        const string template = """
+            title: Failed logon
+            id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+            name: failed_logon
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: __EVENT_ID__
+              condition: selection
+            ---
+            title: Repeated failures
+            id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+            correlation:
+              type: event_count
+              rules:
+                - failed_logon
+              group-by:
+                - TargetUserName
+              timespan: 5m
+              condition:
+                gte: 2
+            level: medium
+            """;
+
+        EventDetectionRuleDefinition first = Assert.Single(
+            SigmaRuleCompiler.CompileYaml(template.Replace("__EVENT_ID__", "4625", StringComparison.Ordinal)).Rules)
+            .Definition;
+        EventDetectionRuleDefinition second = Assert.Single(
+            SigmaRuleCompiler.CompileYaml(template.Replace("__EVENT_ID__", "4776", StringComparison.Ordinal)).Rules)
+            .Definition;
+
+        Assert.Equal(first.SourceId, second.SourceId);
+        Assert.NotEqual(first.SourceHash, second.SourceHash);
+    }
+
+    [Fact]
     public void ProcessCreationCategoryDoesNotSilentlyRestrictSecurityEventsToSysmon() {
         const string yaml = """
             title: Security process creation
