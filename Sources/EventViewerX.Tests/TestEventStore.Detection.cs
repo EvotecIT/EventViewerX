@@ -244,6 +244,55 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task StoredDetectionRetainsWarmupBoundFailuresForTheRequestedWindow() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.Create(new object[] {
+                CreateHistoricalEvent(1, minute: 0, "alice"),
+                CreateHistoricalEvent(2, minute: 1, "bob"),
+                CreateHistoricalEvent(3, minute: 4, "charlie")
+            }));
+            EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-WARMUP-BOUND",
+                    Title = "Warm-up bounded threshold",
+                    Kind = EventDetectionRuleKind.Threshold,
+                    EventIds = new[] { 1001 },
+                    Threshold = 2,
+                    Window = TimeSpan.FromMinutes(5),
+                    GroupBy = "Account"
+                })
+            });
+            EventDetectionCoverage coverage = EventDetectionCoverage.Create(
+                expectedTargets: new[] { path },
+                observedTargets: new[] { path },
+                expectedChannels: new[] { "Security" },
+                observedChannels: new[] { "Security" },
+                expectedEventIds: new[] { 1001 },
+                observedEventIds: new[] { 1001 });
+            DateTime resultStart = new(2026, 8, 28, 10, 4, 0, DateTimeKind.Utc);
+
+            EventDetectionExecutionResult result = await store.EvaluateDetectionAsync(
+                new EventStoreQuery { StartTime = resultStart, EndTime = resultStart },
+                plan,
+                new EventDetectionEngineOptions(
+                    maximumObservations: 0,
+                    maximumGroups: 1,
+                    maximumStateObservations: 10,
+                    coverage: coverage));
+
+            EventDetectionFinding incomplete = Assert.Single(result.Findings);
+            Assert.Equal(EventDetectionFindingStatus.Incomplete, incomplete.Status);
+            Assert.True(incomplete.EndTimeUtc < resultStart);
+            Assert.Contains("MaximumGroups", incomplete.CompletenessDiagnostic);
+            Assert.False(result.IsComplete);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public void FindingSchemaUpgradeIsAdditiveForExistingEventStores() {
         string path = CreateStorePath();
         try {

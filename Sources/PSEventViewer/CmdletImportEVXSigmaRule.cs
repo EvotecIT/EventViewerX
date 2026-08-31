@@ -69,7 +69,7 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
     }
 
     private IReadOnlyList<string> ResolvePaths() {
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string pattern in Path) {
             try {
                 foreach (string path in SessionState.Path.GetResolvedProviderPathFromPSPath(
@@ -91,7 +91,7 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
         if (paths.Count == 0) {
             throw new PSArgumentException("At least one Sigma rule file is required.", nameof(Path));
         }
-        return paths.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+        return paths.OrderBy(static path => path, FileSystemPathIdentity.Comparer).ToArray();
     }
 
     /// <inheritdoc />

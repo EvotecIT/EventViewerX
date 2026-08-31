@@ -92,6 +92,19 @@ Describe 'evx portable host' {
         $Plan.PlanHash | Should -Not -BeNullOrEmpty
     }
 
+    It 'rejects an invalid watch flush interval before opening subscriptions' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $Output = & $script:CliPath watch --type OSStartup --interval 00:00:00 2>&1
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $LASTEXITCODE | Should -Be 1
+        [string] $Output | Should -Match 'Flush interval must be greater than zero'
+    }
+
     It 'emits canonical versioned finding and trace JSON contracts' {
         $SigmaPath = Join-Path $TestDrive 'canonical-json.yml'
         $FindingPath = Join-Path $TestDrive 'findings.jsonl'

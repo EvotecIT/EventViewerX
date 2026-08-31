@@ -23,6 +23,15 @@ internal static partial class Program {
         TimeSpan? interval = options.Get("interval") is string intervalText
             ? TimeSpan.Parse(intervalText, CultureInfo.InvariantCulture)
             : null;
+        if (stopAfter < 0) {
+            throw new ArgumentOutOfRangeException("stop-after", "Stop-after must be zero or greater.");
+        }
+        if (timeout.HasValue && timeout.Value <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException("timeout", "Timeout must be greater than zero.");
+        }
+        if (interval.HasValue && interval.Value <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException("interval", "Flush interval must be greater than zero.");
+        }
         string? outbox = options.Get("outbox");
         string? readyFile = options.Get("ready-file");
         string? summaryFile = options.Get("summary-file");

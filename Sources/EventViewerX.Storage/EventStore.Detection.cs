@@ -90,7 +90,9 @@ public sealed partial class EventStore {
             coverage);
         EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(read.Observations, plan, engineOptions);
         EventDetectionFinding[] selected = resultStart.HasValue
-            ? evaluated.Findings.Where(finding => finding.EndTimeUtc >= resultStart.Value).ToArray()
+            ? evaluated.Findings.Where(finding =>
+                finding.Status != EventDetectionFindingStatus.Matched ||
+                finding.EndTimeUtc >= resultStart.Value).ToArray()
             : evaluated.Findings.ToArray();
         return new EventDetectionExecutionResult(evaluated.Observations, selected, evaluated.Coverage);
     }

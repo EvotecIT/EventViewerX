@@ -7,7 +7,14 @@ namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
     private static readonly HashSet<string> DerivedReportTypes = new(
-        new[] { "EventStoreSummary", "EventAggregation", "EventOccurrence" },
+        new[] {
+            "EventStoreSummary",
+            "EventAggregation",
+            "EventOccurrence",
+            "DetectionFinding",
+            "IncidentTimeline",
+            "DecisionMetric"
+        },
         StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Stores one normalized report and optional checkpoint in a single transaction.</summary>

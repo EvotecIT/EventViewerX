@@ -646,6 +646,38 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
     }
 
     [Fact]
+    public async Task DetectionPresentationReportsCannotSeedEventHistory() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionFinding finding = CreateDetectionFinding(
+                "EVX-STORE-DERIVED-DETECTION",
+                "alice");
+            EventDetectionReportSnapshot snapshot = EventDetectionReportEngine.Create(
+                finding.Evidence,
+                new[] { finding },
+                metrics: new[] {
+                    new EventDecisionMetric(
+                        "finding_count",
+                        "Finding count",
+                        1,
+                        "count",
+                        "Number of selected findings.")
+                });
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "DetectionFinding");
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "IncidentTimeline");
+            Assert.Contains(snapshot.PresentationReport.Sections, static section => section.Name == "DecisionMetric");
+
+            InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new EventStore(path).WriteAsync(snapshot.PresentationReport));
+
+            Assert.Contains("derived", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(path));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task EmptyDerivedSchemasCannotSeedEventHistory() {
         string path = CreateStorePath();
         try {

@@ -112,7 +112,7 @@ public sealed class TestSigmaDetection {
             Observe(4624, 1, "alice", "10.0.0.1"),
             Observe(4625, 2, "alice", "10.0.0.1"),
             Observe(4624, 3, "bob", "10.0.0.2"),
-            Observe(4624, 4, "alice", "10.0.0.1")
+            Observe(4624, 4, "alice", "10.0.0.1", domain: "CONTOSO")
         };
 
         EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(observations, plan));
@@ -121,7 +121,7 @@ public sealed class TestSigmaDetection {
         Assert.Single(compilation.Rules);
         Assert.Equal(EventDetectionRuleKind.OrderedTemporal, plan.Rules[0].Kind);
         Assert.Equal(new long?[] { 2, 4 }, finding.Evidence.Select(static item => item.RecordId));
-        Assert.Equal("EVOTEC\\alice", finding.Entities["ObjectAffected"]);
+        Assert.Equal("alice", finding.Entities["TargetUserName"]);
     }
 
     [Fact]
@@ -295,10 +295,11 @@ public sealed class TestSigmaDetection {
         long recordId,
         string account,
         string address,
-        string? lmPackage = null) {
+        string? lmPackage = null,
+        string domain = "EVOTEC") {
 
         EventObject source = CreateEvent(eventId, recordId);
-        source.Data["TargetDomainName"] = "EVOTEC";
+        source.Data["TargetDomainName"] = domain;
         source.Data["TargetUserName"] = account;
         source.Data["IpAddress"] = address;
         if (lmPackage != null) {

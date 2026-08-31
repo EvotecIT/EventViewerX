@@ -446,7 +446,7 @@ public static class SigmaRuleCompiler {
             return null;
         }
         return field!.ToLowerInvariant() switch {
-            "targetusername" => "ObjectAffected",
+            "targetusername" => "TargetUserName",
             "username" or "user" => "Who",
             "computer" or "computername" => "SourceComputer",
             "sourceip" or "ipaddress" => "IpAddress",
