@@ -82,6 +82,9 @@ public sealed class EventDetectionRuleDefinition {
             throw new InvalidDataException("Confidence must be between zero and one hundred.");
         }
         EventTypes = (EventTypes ?? Array.Empty<EventType>()).Distinct().ToArray();
+        if (EventTypes.Any(static type => !Enum.IsDefined(typeof(EventType), type))) {
+            throw new InvalidDataException("EventTypes contains an unsupported EventType value.");
+        }
         EventIds = (EventIds ?? Array.Empty<int>()).Distinct().ToArray();
         if (EventIds.Any(static id => id <= 0)) {
             throw new InvalidDataException("EventIds must contain positive values.");

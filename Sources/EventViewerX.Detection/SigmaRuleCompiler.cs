@@ -135,7 +135,7 @@ public static class SigmaRuleCompiler {
             }
             string condition = RequiredText(detection, "condition");
             EventPredicate predicate = SigmaConditionCompiler.Compile(condition, selections);
-            LogSourceSelectors selectors = CompileLogSource(root, documentIndex, diagnostics);
+            LogSourceSelectors selectors = CompileLogSource(root, predicate, documentIndex, diagnostics);
             string status = OptionalText(root, "status");
             var definition = new EventDetectionRuleDefinition {
                 RuleId = "SIGMA-" + sourceId,
@@ -327,6 +327,7 @@ public static class SigmaRuleCompiler {
 
     private static LogSourceSelectors CompileLogSource(
         YamlMappingNode root,
+        EventPredicate predicate,
         int documentIndex,
         ICollection<SigmaDiagnostic> diagnostics) {
 
@@ -359,17 +360,32 @@ public static class SigmaRuleCompiler {
                 "EVXSIGMA022",
                 $"Sigma Windows logsource service '{service}' has no lossless EventViewerX channel mapping.")
         };
-        if (service.Length == 0 && category.Length != 0 &&
-            !string.Equals(category, "process_creation", StringComparison.OrdinalIgnoreCase)) {
-            diagnostics.Add(new SigmaDiagnostic(
+        if (category.Length != 0 && !HasGuaranteedEventIdConstraint(predicate)) {
+            throw new SigmaConditionException(
                 "EVXSIGMA023",
-                SigmaDiagnosticSeverity.Warning,
-                $"Sigma category '{category}' has no lossless EventViewerX channel mapping; exact rule predicates remain enforced without a channel prefilter.",
-                documentIndex));
+                $"Sigma category '{category}' cannot be preserved losslessly without an explicit EventID constraint on every matching branch.");
         }
         return new LogSourceSelectors(
             channel == null ? Array.Empty<string>() : new[] { channel },
             Array.Empty<string>());
+    }
+
+    private static bool HasGuaranteedEventIdConstraint(EventPredicate predicate) {
+        if (predicate.Kind == EventPredicateKind.Comparison) {
+            return string.Equals(predicate.Field, "EventId", StringComparison.OrdinalIgnoreCase) &&
+                   predicate.Operator is EventPredicateOperator.Equal or EventPredicateOperator.In &&
+                   predicate.Values.Count > 0 &&
+                   predicate.Values.All(static value =>
+                       int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int eventId) &&
+                       eventId > 0);
+        }
+        if (predicate.Kind == EventPredicateKind.All) {
+            return predicate.Children.Any(HasGuaranteedEventIdConstraint);
+        }
+        if (predicate.Kind == EventPredicateKind.Any) {
+            return predicate.Children.Count > 0 && predicate.Children.All(HasGuaranteedEventIdConstraint);
+        }
+        return false;
     }
 
     private static CompiledBaseRule ResolveBaseRule(

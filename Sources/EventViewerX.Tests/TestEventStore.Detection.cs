@@ -9,6 +9,37 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public void RestoredObservationsKeepNativeMetadataAuthoritativeOverStoredFields() {
+        DateTime time = new(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc);
+        EventObject source = CreateHistoricalEvent(42, 0, "alice");
+        var stored = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
+            ["EventId"] = 9999,
+            ["ProviderName"] = "spoofed-provider",
+            ["ProcessId"] = 999,
+            ["ThreadId"] = 888,
+            ["SourceLog"] = "spoofed-log",
+            ["CustomField"] = "retained"
+        };
+
+        EventObservation observation = EventObservation.Restore(
+            source,
+            "stored-identity",
+            "StoredType",
+            stored,
+            time,
+            time);
+
+        Assert.Equal(source.Id, observation.Fields["EventId"]);
+        Assert.Equal(source.ProviderName, observation.Fields["ProviderName"]);
+        Assert.Equal(source.ProcessId, observation.Fields["ProcessId"]);
+        Assert.Equal(source.ThreadId, observation.Fields["ThreadId"]);
+        Assert.Equal(source.OriginalLogName, observation.Fields["SourceLog"]);
+        Assert.Equal("stored-identity", observation.Fields["Identity"]);
+        Assert.Equal("StoredType", observation.Fields["TypeName"]);
+        Assert.Equal("retained", observation.Fields["CustomField"]);
+    }
+
+    [Fact]
     public async Task FindingHistoryIsIdempotentQueryableAndRetainsEvidenceProvenance() {
         string path = CreateStorePath();
         try {

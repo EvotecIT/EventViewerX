@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace EventViewerX;
@@ -503,11 +502,8 @@ public sealed class EventDetectionPack {
         }
     }
 
-    private static JsonSerializerOptions CreateJsonOptions() => new() {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false,
-        Converters = { new JsonStringEnumConverter() }
-    };
+    private static JsonSerializerOptions CreateJsonOptions() =>
+        EventAnalysisJson.CreateSerializerOptions();
 
     private class PackPayload {
         public string PackId { get; set; } = string.Empty;

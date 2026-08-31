@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 
 namespace EventViewerX.Reporting;
@@ -16,10 +17,17 @@ public static class EventReportEngine {
         long scanned = 0;
         bool scanLimitReached = false;
         bool resultLimitReached = false;
+        var savedEventDiagnostics = new ConcurrentQueue<SavedEventReadDiagnostic>();
+        Action<SavedEventReadDiagnostic> savedEventDiagnosticHandler = diagnostic => {
+            if (diagnostic.AffectsCompleteness) {
+                savedEventDiagnostics.Enqueue(diagnostic);
+            }
+            request.SavedEventDiagnosticHandler?.Invoke(diagnostic);
+        };
 
         if (request.Types != null && request.Types.Count > 0) {
             var info = new EventTypeQueryExecutionInfo();
-            EventTypeQuery query = CreateTypedQuery(request);
+            EventTypeQuery query = CreateTypedQuery(request, savedEventDiagnosticHandler);
             projections = new List<EventReportProjection>();
             await foreach (EventTypeRecord record in EventTypeEngine.ReadAsync(query, info, cancellationToken)) {
                 projections.Add(EventReportProjectionFactory.Create(record));
@@ -34,7 +42,7 @@ public static class EventReportEngine {
             var query = new EventDefinitionQuery(request.Definition) {
                 Paths = request.Paths,
                 SavedEventReader = request.SavedEventReader,
-                SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
+                SavedEventDiagnosticHandler = savedEventDiagnosticHandler,
                 MachineNames = request.Collectors != null && request.Collectors.Count > 0 ? request.Collectors : request.MachineNames,
                 CollectorLogName = request.Collectors != null && request.Collectors.Count > 0 ? request.CollectorLogName : null,
                 StartTime = request.StartTime,
@@ -61,10 +69,15 @@ public static class EventReportEngine {
             resultLimitReached = info.ResultLimitReached;
             coverage = BuildCustomCoverage(request, info);
         } else {
-            (projections, coverage, resultLimitReached) = await QueryGenericAsync(request, cancellationToken);
+            (projections, coverage, resultLimitReached) = await QueryGenericAsync(
+                request,
+                savedEventDiagnosticHandler,
+                cancellationToken);
             scanned = projections.Count + (resultLimitReached ? 1L : 0L);
         }
         stopwatch.Stop();
+        string? savedEventDiagnostic = CreateSavedEventCompletenessDiagnostic(savedEventDiagnostics);
+        ApplySavedEventCoverage(coverage, savedEventDiagnostic);
         string title = string.IsNullOrWhiteSpace(request.Title)
             ? request.Types != null && request.Types.Count > 0
                 ? string.Join(", ", request.Types.Select(static type => EventTypeCatalog.GetDefinition(type).DisplayName))
@@ -82,8 +95,12 @@ public static class EventReportEngine {
             EventReportSectionBuilder.Build(projections, emptyDefinitions),
             coverage,
             scanned,
-            scanLimitReached || resultLimitReached,
-            CreateResultLimitDiagnostic(request.MaxEvents, scanLimitReached, resultLimitReached));
+            scanLimitReached || resultLimitReached || savedEventDiagnostic != null,
+            CreateCompletenessDiagnostic(
+                request.MaxEvents,
+                scanLimitReached,
+                resultLimitReached,
+                savedEventDiagnostic));
     }
 
     /// <summary>Creates a report snapshot from previously queried EventViewerX objects without reading logs again.</summary>
@@ -399,12 +416,15 @@ public static class EventReportEngine {
         };
     }
 
-    private static EventTypeQuery CreateTypedQuery(EventReportRequest request) {
+    private static EventTypeQuery CreateTypedQuery(
+        EventReportRequest request,
+        Action<SavedEventReadDiagnostic> savedEventDiagnosticHandler) {
+
         bool collectors = request.Collectors != null && request.Collectors.Count > 0;
         return new EventTypeQuery(request.Types!) {
             Paths = request.Paths,
             SavedEventReader = request.SavedEventReader,
-            SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
+            SavedEventDiagnosticHandler = savedEventDiagnosticHandler,
             MachineNames = collectors ? request.Collectors : request.MachineNames,
             CollectorLogName = collectors ? request.CollectorLogName : null,
             StartTime = request.StartTime,
@@ -428,7 +448,9 @@ public static class EventReportEngine {
     }
 
     private static async Task<(List<EventReportProjection> Rows, List<EventReportCoverage> Coverage, bool ResultLimitReached)> QueryGenericAsync(
-        EventReportRequest request, CancellationToken cancellationToken) {
+        EventReportRequest request,
+        Action<SavedEventReadDiagnostic> savedEventDiagnosticHandler,
+        CancellationToken cancellationToken) {
         (DateTime? startTime, DateTime? endTime) = EventTimeRange.Resolve(request.StartTime, request.EndTime, request.TimePeriod);
         EventFilter filter = new() {
             EventIds = request.EventIds?.ToArray(),
@@ -446,7 +468,7 @@ public static class EventReportEngine {
                 return new EventLogFileQuery(fullPath) {
                     XPath = EventFilterCompiler.BuildXPath(pathFilter),
                     SavedEventReader = request.SavedEventReader,
-                    SavedEventDiagnosticHandler = request.SavedEventDiagnosticHandler,
+                    SavedEventDiagnosticHandler = savedEventDiagnosticHandler,
                     Oldest = request.Oldest,
                     ReadMode = EventReadMode.StructuredDataAndMessage,
                     BookmarkXml = request.BookmarkXmlResolver?.Invoke(
@@ -544,14 +566,46 @@ public static class EventReportEngine {
         return rows;
     }
 
-    private static string? CreateResultLimitDiagnostic(
+    private static string? CreateCompletenessDiagnostic(
         long maximum,
         bool scanLimitReached,
-        bool resultLimitReached) => EventCompletenessDiagnostic.Compose(
+        bool resultLimitReached,
+        string? savedEventDiagnostic) => EventCompletenessDiagnostic.Compose(
             scanLimitReached ? "The source candidate scan limit was reached" : null,
             resultLimitReached
                 ? $"The result limit MaxEvents {maximum:N0} was reached; additional matching events exist"
-                : null);
+                : null,
+            savedEventDiagnostic);
+
+    private static string? CreateSavedEventCompletenessDiagnostic(
+        IEnumerable<SavedEventReadDiagnostic> diagnostics) {
+
+        string[] loss = diagnostics
+            .Where(static diagnostic => diagnostic.AffectsCompleteness)
+            .Select(static diagnostic =>
+                $"{diagnostic.Code?.Trim() ?? string.Empty}: {diagnostic.Message?.Trim() ?? string.Empty}".Trim(' ', ':'))
+            .Where(static diagnostic => diagnostic.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return loss.Length == 0
+            ? null
+            : "Saved-event parsing did not represent every source record or region: " + string.Join(" ", loss);
+    }
+
+    private static void ApplySavedEventCoverage(
+        IEnumerable<EventReportCoverage> coverage,
+        string? savedEventDiagnostic) {
+
+        if (savedEventDiagnostic == null) {
+            return;
+        }
+        foreach (EventReportCoverage source in coverage.Where(static source =>
+                     string.Equals(source.MachineName, "Offline", StringComparison.OrdinalIgnoreCase))) {
+            source.Succeeded = false;
+            source.Status = "Incomplete";
+            source.Detail = EventCompletenessDiagnostic.Compose(source.Detail, savedEventDiagnostic) ?? string.Empty;
+        }
+    }
 
     private static List<EventReportCoverage> BuildCustomCoverage(
         EventReportRequest request,

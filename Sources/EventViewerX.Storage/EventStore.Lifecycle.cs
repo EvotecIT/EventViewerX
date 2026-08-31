@@ -212,27 +212,40 @@ public sealed partial class EventStore {
         using FileStream maintenance = await AcquireMaintenanceLockAsync(cancellationToken).ConfigureAwait(false);
         string pending = Path + ".restore-pending-" + Guid.NewGuid().ToString("N");
         string recovery = Path + ".restore-recovery-" + Guid.NewGuid().ToString("N");
-        bool replaced = false;
+        bool liveStoreExisted = File.Exists(Path);
+        bool mutationStarted = false;
         try {
-            using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
-            await sqlite.BackupDatabaseIncrementalAsync(
+            await CreateConsistentSnapshotAsync(
                 backup,
                 pending,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
             EventStoreIntegrityResult backupIntegrity = await new EventStore(pending)
                 .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
             if (!backupIntegrity.IsHealthy) {
                 throw new InvalidDataException(
                     "EventStore backup failed integrity validation: " + string.Join(" ", backupIntegrity.Diagnostics));
             }
-            if (File.Exists(Path)) {
-                File.Replace(pending, Path, recovery);
-                replaced = true;
+            if (liveStoreExisted) {
+                await CreateConsistentSnapshotAsync(
+                    Path,
+                    recovery,
+                    cancellationToken).ConfigureAwait(false);
+                EventStoreIntegrityResult recoveryIntegrity = await new EventStore(recovery)
+                    .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+                if (!recoveryIntegrity.IsHealthy) {
+                    throw new InvalidDataException(
+                        "Live EventStore recovery snapshot failed integrity validation: " +
+                        string.Join(" ", recoveryIntegrity.Diagnostics));
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                mutationStarted = true;
+                DeleteSidecar(Path + "-wal");
+                DeleteSidecar(Path + "-shm");
+                File.Replace(pending, Path, destinationBackupFileName: null);
             } else {
+                mutationStarted = true;
                 File.Move(pending, Path);
             }
-            DeleteSidecar(Path + "-wal");
-            DeleteSidecar(Path + "-shm");
             lock (_initializationLock) {
                 _initialized = false;
             }
@@ -244,8 +257,21 @@ public sealed partial class EventStore {
             DeleteSidecar(recovery);
             return restored;
         } catch {
-            if (replaced && File.Exists(recovery)) {
-                File.Replace(recovery, Path, destinationBackupFileName: null);
+            if (mutationStarted && liveStoreExisted && File.Exists(recovery)) {
+                DeleteSidecar(Path + "-wal");
+                DeleteSidecar(Path + "-shm");
+                if (File.Exists(Path)) {
+                    File.Replace(recovery, Path, destinationBackupFileName: null);
+                } else {
+                    File.Move(recovery, Path);
+                }
+                lock (_initializationLock) {
+                    _initialized = false;
+                }
+            } else if (mutationStarted && !liveStoreExisted) {
+                DeleteSidecar(Path + "-wal");
+                DeleteSidecar(Path + "-shm");
+                DeleteSidecar(Path);
                 lock (_initializationLock) {
                     _initialized = false;
                 }
@@ -255,6 +281,21 @@ public sealed partial class EventStore {
             DeleteSidecar(pending);
             DeleteSidecar(recovery);
         }
+    }
+
+    /// <summary>
+    /// Creates a standalone SQLite snapshot that includes committed WAL state and can be moved without sidecars.
+    /// </summary>
+    internal static async Task CreateConsistentSnapshotAsync(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken = default) {
+
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await sqlite.BackupDatabaseIncrementalAsync(
+            sourcePath,
+            destinationPath,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Applies explicit event and finding retention with optional SQLite compaction.</summary>

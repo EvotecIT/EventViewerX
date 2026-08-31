@@ -196,6 +196,45 @@ CREATE TABLE evx_checkpoints (
     }
 
     [Fact]
+    public async Task RecoverySnapshotIncludesCommittedLiveWalChangesWithoutSidecars() {
+        string path = CreateStorePath();
+        string recovery = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "main")));
+
+            var sqlite = new SQLite();
+            using SQLiteSession pinnedReader = sqlite.OpenSession(path);
+            pinnedReader.ExecuteNonQuery("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;");
+            pinnedReader.ExecuteNonQuery("BEGIN;");
+            Assert.Equal(1L, Convert.ToInt64(
+                pinnedReader.ExecuteScalar("SELECT COUNT(*) FROM evx_events;"),
+                System.Globalization.CultureInfo.InvariantCulture));
+            await store.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 5, 0, DateTimeKind.Utc),
+                2,
+                "wal")));
+
+            Assert.True(File.Exists(path + "-wal"));
+            await EventStore.CreateConsistentSnapshotAsync(path, recovery);
+            EventStoreIntegrityResult integrity = await new EventStore(recovery).CheckIntegrityAsync();
+            EventReport report = await new EventStore(recovery).ReadReportAsync(new EventStoreQuery { Oldest = true });
+
+            Assert.True(integrity.IsHealthy);
+            Assert.Equal(2, integrity.EventCount);
+            Assert.Equal(new[] { "main", "wal" }, report.Rows.Select(static row => row.Values["User"]));
+            Assert.False(File.Exists(recovery + "-wal"));
+            Assert.False(File.Exists(recovery + "-shm"));
+        } finally {
+            DeleteStore(path);
+            DeleteStore(recovery);
+        }
+    }
+
+    [Fact]
     public async Task RetentionPrunesEventsAndFindingsIndependentlyAndReportsCompaction() {
         string path = CreateStorePath();
         try {

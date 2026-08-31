@@ -150,7 +150,8 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     Code = "EVXEVTX304",
                     Severity = SavedEventReadDiagnosticSeverity.Warning,
                     Message = $"Rejected {rejectedRecords} malformed evtx_dump JSONL record(s) while retaining valid records. First failure: {firstRejection}",
-                    Recovered = normalizedRecords > 0
+                    Recovered = normalizedRecords > 0,
+                    AffectsCompleteness = true
                 });
             }
             if (process.ExitCode != 0) {

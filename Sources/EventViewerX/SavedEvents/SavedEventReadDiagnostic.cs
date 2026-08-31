@@ -12,4 +12,9 @@ public sealed class SavedEventReadDiagnostic {
     public long? FileOffset { get; set; }
     /// <summary>Whether parsing continued after this condition.</summary>
     public bool Recovered { get; set; }
+    /// <summary>
+    /// Whether the diagnostic proves that one or more source records or regions were not represented
+    /// in the returned sequence, so downstream reports and detections must disclose incomplete coverage.
+    /// </summary>
+    public bool AffectsCompleteness { get; set; }
 }

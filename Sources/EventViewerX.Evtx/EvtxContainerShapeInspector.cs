@@ -14,7 +14,8 @@ internal static class EvtxContainerShapeInspector {
                 Code = "EVXEVTX002",
                 Severity = SavedEventReadDiagnosticSeverity.Error,
                 Message = "The EVTX container is shorter than its file header.",
-                FileOffset = length
+                FileOffset = length,
+                AffectsCompleteness = true
             });
         } else if (payloadLength % chunkSize != 0) {
             diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
@@ -22,7 +23,8 @@ internal static class EvtxContainerShapeInspector {
                 Severity = SavedEventReadDiagnosticSeverity.Warning,
                 Message = $"The EVTX container ends inside a chunk ({payloadLength % chunkSize} of {chunkSize} bytes in the final region). Parseable records may still be retained.",
                 FileOffset = length,
-                Recovered = true
+                Recovered = true,
+                AffectsCompleteness = true
             });
         }
     }

@@ -1,5 +1,6 @@
 using EventViewerX.Native;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 
@@ -597,11 +598,17 @@ public sealed partial class TestEventDetection {
         EventDetectionPack pack = EventDetectionCatalog.GetBuiltInPacks()[0];
         string json = pack.ToJson();
         EventDetectionPack restored = EventDetectionPack.ParseJson(json);
+        using JsonDocument packDocument = JsonDocument.Parse(json);
         using RSA signingKey = RSA.Create(2048);
         using RSA wrongKey = RSA.Create(2048);
         EventDetectionPack signed = pack.Sign(signingKey);
 
         Assert.True(restored.Validate().IsValid);
+        Assert.True(packDocument.RootElement.TryGetProperty("packId", out _));
+        Assert.False(packDocument.RootElement.TryGetProperty("PackId", out _));
+        JsonElement serializedRule = packDocument.RootElement.GetProperty("rules")[0];
+        Assert.True(serializedRule.TryGetProperty("ruleId", out _));
+        Assert.False(serializedRule.TryGetProperty("RuleId", out _));
         Assert.Equal(EventDetectionPackSignatureStatus.Unsigned, restored.Validate().SignatureStatus);
         Assert.True(signed.Validate(signingKey, requireSignature: true).IsValid);
         Assert.False(signed.Validate(wrongKey, requireSignature: true).IsValid);
@@ -619,8 +626,8 @@ public sealed partial class TestEventDetection {
     public void DetectionPackRejectsRuleIdentityThatDisagreesWithManifest() {
         EventDetectionPack pack = EventDetectionCatalog.GetBuiltInPacks()[0];
         JsonObject envelope = JsonNode.Parse(pack.ToJson())!.AsObject();
-        JsonObject firstRule = envelope["Rules"]!.AsArray()[0]!.AsObject();
-        firstRule["PackId"] = "eventviewerx.unrelated-pack";
+        JsonObject firstRule = envelope["rules"]!.AsArray()[0]!.AsObject();
+        firstRule["packId"] = "eventviewerx.unrelated-pack";
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             EventDetectionPack.ParseJson(envelope.ToJsonString()));
@@ -1044,7 +1051,10 @@ public sealed partial class TestEventDetection {
         Assert.Equal(coverage.ExpectedTargets, restored.ExpectedTargets);
         Assert.Equal(coverage.ObservedEventIds, restored.ObservedEventIds);
         Assert.Equal(coverage.ExpectedEventTypes, restored.ExpectedEventTypes);
-        string future = json.Replace("\"SchemaVersion\":1", "\"SchemaVersion\":2", StringComparison.Ordinal);
+        using JsonDocument coverageDocument = JsonDocument.Parse(json);
+        Assert.True(coverageDocument.RootElement.TryGetProperty("schemaVersion", out _));
+        Assert.False(coverageDocument.RootElement.TryGetProperty("SchemaVersion", out _));
+        string future = json.Replace("\"schemaVersion\":1", "\"schemaVersion\":2", StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => EventDetectionCoverage.FromJson(future));
     }
 
@@ -1089,6 +1099,31 @@ public sealed partial class TestEventDetection {
             Kind = EventDetectionRuleKind.Threshold,
             Threshold = 1
         }));
+        InvalidDataException ruleType = Assert.Throws<InvalidDataException>(() =>
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-INVALID-TYPE",
+                Title = "Invalid event type",
+                EventTypes = new[] { (EventType)int.MaxValue }
+            }));
+        InvalidDataException stepType = Assert.Throws<InvalidDataException>(() =>
+            new EventDetectionRule(new EventDetectionRuleDefinition {
+                RuleId = "EVX-TEST-INVALID-STEP-TYPE",
+                Title = "Invalid temporal event type",
+                Kind = EventDetectionRuleKind.Temporal,
+                Steps = new[] {
+                    new EventDetectionStepDefinition {
+                        Name = "invalid",
+                        EventTypes = new[] { (EventType)int.MaxValue }
+                    },
+                    new EventDetectionStepDefinition {
+                        Name = "valid",
+                        EventIds = new[] { 4624 }
+                    }
+                }
+            }));
+
+        Assert.Contains("EventTypes", ruleType.Message, StringComparison.Ordinal);
+        Assert.Contains("Steps[0].EventTypes", stepType.Message, StringComparison.Ordinal);
     }
 
     private static EventDetectionRule Rule(

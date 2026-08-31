@@ -156,7 +156,8 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                 Severity = SavedEventReadDiagnosticSeverity.Warning,
                 Message = $"The EVTX container ends inside a chunk ({payloadLength % chunkSize} of {chunkSize} bytes in the final region). Parseable records were retained.",
                 FileOffset = stream.Length,
-                Recovered = true
+                Recovered = true,
+                AffectsCompleteness = true
             });
         }
         var signature = new byte[8];
@@ -169,7 +170,8 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                     Code = "EVXEVTX002",
                     Severity = SavedEventReadDiagnosticSeverity.Error,
                     Message = $"EVTX chunk {index} is truncated before its header signature.",
-                    FileOffset = offset
+                    FileOffset = offset,
+                    AffectsCompleteness = true
                 });
                 break;
             }
@@ -186,7 +188,8 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                     Severity = SavedEventReadDiagnosticSeverity.Warning,
                     Message = $"EVTX chunk {index} has an invalid header signature and cannot be parsed normally.",
                     FileOffset = offset,
-                    Recovered = true
+                    Recovered = true,
+                    AffectsCompleteness = true
                 });
             }
         }
@@ -214,7 +217,8 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                 Code = "EVXEVTX202",
                 Severity = SavedEventReadDiagnosticSeverity.Warning,
                 Message = $"The parser skipped {group.Count()} record(s); first record number {first.Key}: {first.Value}",
-                Recovered = true
+                Recovered = true,
+                AffectsCompleteness = true
             });
         }
     }

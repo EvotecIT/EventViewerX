@@ -193,6 +193,31 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void SigmaCategoryWithoutGuaranteedEventIdFailsClosed() {
+        const string yaml = """
+            title: Unbounded process creation category
+            id: 45454545-4545-4545-8545-454545454545
+            logsource:
+              product: windows
+              category: process_creation
+            detection:
+              selection:
+                Image|endswith: \\powershell.exe
+              condition: selection
+            level: medium
+            """;
+
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.False(compilation.IsSupported);
+        Assert.Empty(compilation.Rules);
+        SigmaDiagnostic diagnostic = Assert.Single(compilation.Diagnostics);
+        Assert.Equal("EVXSIGMA023", diagnostic.Code);
+        Assert.Equal(SigmaDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("explicit EventID", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnsupportedSigmaBehaviorProducesStructuredErrorsWithoutRules() {
         const string yaml = """
             title: Unsupported Linux base64 rule

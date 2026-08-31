@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace EventViewerX;
 
@@ -225,9 +224,7 @@ public sealed class EventDetectionCoverage {
         (values ?? Array.Empty<int>()).Where(static value => value >= 0).Distinct().OrderBy(static value => value).ToArray();
 
     private static JsonSerializerOptions CreateJsonOptions() {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        options.Converters.Add(new JsonStringEnumConverter());
-        return options;
+        return EventAnalysisJson.CreateSerializerOptions();
     }
 
     private static EventType[] ValidateEventTypes(IEnumerable<EventType>? values, string field) {

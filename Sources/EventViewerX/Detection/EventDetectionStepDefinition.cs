@@ -21,6 +21,9 @@ public sealed class EventDetectionStepDefinition {
             throw new InvalidDataException($"Steps[{index}].Name is required and cannot exceed 200 characters.");
         }
         EventType[] eventTypes = (EventTypes ?? Array.Empty<EventType>()).Distinct().ToArray();
+        if (eventTypes.Any(static type => !Enum.IsDefined(typeof(EventType), type))) {
+            throw new InvalidDataException($"Steps[{index}].EventTypes contains an unsupported EventType value.");
+        }
         int[] eventIds = (EventIds ?? Array.Empty<int>()).Distinct().ToArray();
         if (eventIds.Any(static id => id <= 0)) {
             throw new InvalidDataException($"Steps[{index}].EventIds must contain positive values.");

@@ -63,30 +63,11 @@ public sealed class EventObservation {
             AddTypedMembers(fields, typedRecord);
         }
         AddCanonicalAliases(fields, source);
-        fields["Identity"] = EventCheckpointBoundaryIdentity.Create(source);
-        fields["Type"] = typeName;
-        fields["TypeName"] = typeName;
-        fields["EventId"] = source.Id;
-        fields["Id"] = source.Id;
-        fields["RecordId"] = source.RecordId;
-        fields["ProviderName"] = source.ProviderName;
-        fields["Provider"] = source.ProviderName;
-        fields["SourceLog"] = source.OriginalLogName;
-        fields["LogName"] = source.OriginalLogName;
-        fields["ContainerLog"] = source.ContainerLogName;
-        fields["SourceComputer"] = source.SourceComputer;
-        fields["Computer"] = source.SourceComputer;
-        fields["CollectorComputer"] = source.CollectorComputer;
-        fields["ActivityId"] = source.ActivityId;
-        fields["RelatedActivityId"] = source.RelatedActivityId;
-        fields["ProcessId"] = source.ProcessId;
-        fields["ThreadId"] = source.ThreadId;
-        fields["Message"] = source.Message;
-        fields["EventTimeUtc"] = source.TimeCreated.ToUniversalTime();
-        fields["TimeCreated"] = source.TimeCreated.ToUniversalTime();
+        string identity = EventCheckpointBoundaryIdentity.Create(source);
+        AddCanonicalFields(fields, source, identity, typeName);
         return new EventObservation(
             source,
-            EventCheckpointBoundaryIdentity.Create(source),
+            identity,
             typeName,
             received,
             processed,
@@ -115,13 +96,13 @@ public sealed class EventObservation {
         foreach (KeyValuePair<string, object?> field in storedFields) {
             fields[field.Key] = field.Value;
         }
-        fields["Identity"] = identity.Trim();
-        fields["Type"] = typeName.Trim();
-        fields["TypeName"] = typeName.Trim();
+        string restoredIdentity = identity.Trim();
+        string restoredTypeName = typeName.Trim();
+        AddCanonicalFields(fields, source, restoredIdentity, restoredTypeName);
         return new EventObservation(
             source,
-            identity.Trim(),
-            typeName.Trim(),
+            restoredIdentity,
+            restoredTypeName,
             receivedTimeUtc.ToUniversalTime(),
             processedTimeUtc.ToUniversalTime(),
             new ReadOnlyDictionary<string, object?>(fields));
@@ -177,6 +158,35 @@ public sealed class EventObservation {
                 fields["IpAddress"] = address;
             }
         }
+    }
+
+    private static void AddCanonicalFields(
+        IDictionary<string, object?> fields,
+        EventObject source,
+        string identity,
+        string typeName) {
+
+        fields["Identity"] = identity;
+        fields["Type"] = typeName;
+        fields["TypeName"] = typeName;
+        fields["EventId"] = source.Id;
+        fields["Id"] = source.Id;
+        fields["RecordId"] = source.RecordId;
+        fields["ProviderName"] = source.ProviderName;
+        fields["Provider"] = source.ProviderName;
+        fields["SourceLog"] = source.OriginalLogName;
+        fields["LogName"] = source.OriginalLogName;
+        fields["ContainerLog"] = source.ContainerLogName;
+        fields["SourceComputer"] = source.SourceComputer;
+        fields["Computer"] = source.SourceComputer;
+        fields["CollectorComputer"] = source.CollectorComputer;
+        fields["ActivityId"] = source.ActivityId;
+        fields["RelatedActivityId"] = source.RelatedActivityId;
+        fields["ProcessId"] = source.ProcessId;
+        fields["ThreadId"] = source.ThreadId;
+        fields["Message"] = source.Message;
+        fields["EventTimeUtc"] = source.TimeCreated.ToUniversalTime();
+        fields["TimeCreated"] = source.TimeCreated.ToUniversalTime();
     }
 
     private static void AddAccountAlias(
