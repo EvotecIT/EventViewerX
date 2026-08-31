@@ -41,37 +41,11 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
 
     /// <inheritdoc />
     protected override void ProcessRecord() {
-        foreach (string path in ResolvePaths()) {
+        foreach (string path in SigmaPathResolver.Resolve(SessionState, Path, nameof(Path))) {
             if (_resolvedPathIdentities.Add(path)) {
                 _resolvedPaths.Add(path);
             }
         }
-    }
-
-    private IReadOnlyList<string> ResolvePaths() {
-        var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
-        foreach (string pattern in Path) {
-            try {
-                foreach (string path in SessionState.Path.GetResolvedProviderPathFromPSPath(
-                             pattern,
-                             out ProviderInfo provider)) {
-                    if (!string.Equals(provider.Name, "FileSystem", StringComparison.OrdinalIgnoreCase)) {
-                        throw new PSArgumentException(
-                            $"Sigma path '{pattern}' must use the FileSystem provider.",
-                            nameof(Path));
-                    }
-                    paths.Add(System.IO.Path.GetFullPath(path));
-                }
-            } catch (ItemNotFoundException) {
-                throw new PSArgumentException(
-                    $"No Sigma rule files match path '{pattern}'.",
-                    nameof(Path));
-            }
-        }
-        if (paths.Count == 0) {
-            throw new PSArgumentException("At least one Sigma rule file is required.", nameof(Path));
-        }
-        return paths.OrderBy(static path => path, FileSystemPathIdentity.Comparer).ToArray();
     }
 
     /// <inheritdoc />

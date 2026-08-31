@@ -107,6 +107,11 @@ internal static partial class Program {
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive.");
         }
+        if (paths.Length > 0 &&
+            (options.GetMany("machine").Length > 0 || options.GetMany("collector").Length > 0)) {
+            throw new ArgumentException(
+                "--machine and --collector cannot be combined with saved --path detection sources.");
+        }
         if (portableEvtx && paths.Length == 0) {
             throw new ArgumentException("--portable-evtx requires at least one --path source.");
         }

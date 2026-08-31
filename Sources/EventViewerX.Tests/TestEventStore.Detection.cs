@@ -286,6 +286,8 @@ public sealed partial class TestEventStore {
                 new EventDetectionEngineOptions(coverage: coverage));
 
             EventDetectionFinding finding = Assert.Single(result.Findings);
+            EventObservation requestedWindowObservation = Assert.Single(result.Observations);
+            Assert.Equal(secondLive.Identity, requestedWindowObservation.Identity);
             Assert.All(result.Observations, static observation => {
                 Assert.Equal(10, observation.SourceEvent.ProcessId);
                 Assert.Equal(20, observation.SourceEvent.ThreadId);

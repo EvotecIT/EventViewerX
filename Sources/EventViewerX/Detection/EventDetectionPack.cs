@@ -371,10 +371,8 @@ public sealed class EventDetectionPack {
     private static bool RulesEquivalent(
         EventDetectionRuleDefinition left,
         EventDetectionRuleDefinition right) =>
-        string.Equals(
-            ComputeRuleHash(left),
-            ComputeRuleHash(right),
-            StringComparison.OrdinalIgnoreCase);
+        string.Equals(left.SourceHash, right.SourceHash, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(ComputeRuleHash(left), ComputeRuleHash(right), StringComparison.OrdinalIgnoreCase);
 
     private static string ComputeContentHash(
         string packId,

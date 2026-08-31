@@ -175,6 +175,44 @@ level: high
         $Rule.Definition.EventIds | Should -Be @(4625)
     }
 
+    It 'tests Sigma correlations across piped files as one compilation unit' {
+        $BasePath = Join-Path $TestDrive 'test-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'test-correlation.yml'
+        @'
+title: Failed logon
+id: 77777777-7777-4777-8777-777777777771
+name: tested_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated tested failed logons
+id: 77777777-7777-4777-8777-777777777772
+correlation:
+  type: event_count
+  rules:
+    - tested_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Result = @($BasePath, $CorrelationPath) | Test-EVXSigmaRule
+
+        $Result | Should -BeOfType ([EventViewerX.Sigma.SigmaCompilationResult])
+        $Result.IsSupported | Should -BeTrue
+        $Result.Rules.Count | Should -Be 1
+        $Result.Rules[0].Definition.Kind | Should -Be ([EventViewerX.EventDetectionRuleKind]::Threshold)
+    }
+
     It 'expands wildcard Sigma paths into one versioned detection pack' {
         $Template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml') -Raw
         $FirstPath = Join-Path $TestDrive 'Wildcard-First.yml'

@@ -12,16 +12,27 @@ namespace PSEventViewer;
 [Cmdlet(VerbsDiagnostic.Test, "EVXSigmaRule")]
 [OutputType(typeof(SigmaCompilationResult))]
 public sealed class CmdletTestEVXSigmaRule : PSCmdlet {
+    private readonly List<string> _resolvedPaths = new();
+    private readonly HashSet<string> _resolvedPathIdentities = new(FileSystemPathIdentity.Comparer);
+
     /// <summary>One or more Sigma YAML files to validate.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [Alias("FullName")]
+    [SupportsWildcards]
     public string[] Path { get; set; } = Array.Empty<string>();
 
     /// <inheritdoc />
     protected override void ProcessRecord() {
-        foreach (string path in Path) {
-            SigmaCompilationResult result = SigmaRuleCompiler.Load(GetUnresolvedProviderPathFromPSPath(path));
-            WriteObject(result, enumerateCollection: false);
+        foreach (string path in SigmaPathResolver.Resolve(SessionState, Path, nameof(Path))) {
+            if (_resolvedPathIdentities.Add(path)) {
+                _resolvedPaths.Add(path);
+            }
         }
+    }
+
+    /// <inheritdoc />
+    protected override void EndProcessing() {
+        SigmaCompilationResult result = SigmaRuleCompiler.Load(_resolvedPaths);
+        WriteObject(result, enumerateCollection: false);
     }
 }

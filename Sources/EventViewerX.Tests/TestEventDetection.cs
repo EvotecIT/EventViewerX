@@ -757,6 +757,29 @@ public sealed partial class TestEventDetection {
     }
 
     [Fact]
+    public void PackComparisonPreservesProvenanceOnlySourceHashChanges() {
+        EventDetectionRuleDefinition original = Rule("EVX-TEST-PROVENANCE-DIFF").Definition;
+        original.SourceHash = new string('A', 64);
+        EventDetectionPack previous = EventDetectionPack.Create(
+            "eventviewerx.test.provenance-diff",
+            "1.0.0",
+            new[] { original },
+            createdUtc: Utc(10, 0));
+        EventDetectionRuleDefinition changed = Assert.Single(previous.Rules);
+        changed.SourceHash = new string('B', 64);
+        EventDetectionPack current = EventDetectionPack.Create(
+            previous.PackId,
+            "1.1.0",
+            new[] { changed },
+            createdUtc: Utc(10, 1));
+
+        EventDetectionPackComparison comparison = previous.CompareTo(current);
+
+        Assert.Contains(original.RuleId, comparison.ChangedRuleIds);
+        Assert.Empty(comparison.UnchangedRuleIds);
+    }
+
+    [Fact]
     public void FixtureApiComparesFindingOrderAndMultiplicity() {
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { Rule("EVX-TEST-FIXTURE") });
         var fixture = new EventDetectionFixture {

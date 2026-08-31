@@ -379,6 +379,28 @@ level: medium
         [string] $ProviderOutput | Should -Match '--event-id and --provider are available only for generic'
     }
 
+    It 'rejects host targets combined with saved detection paths' {
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $MachineOutput = & $script:CliPath detect `
+                --path $script:FixturePath `
+                --machine server01 2>&1
+            $MachineExitCode = $LASTEXITCODE
+            $CollectorOutput = & $script:CliPath detect `
+                --path $script:FixturePath `
+                --collector wec01 2>&1
+            $CollectorExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $MachineExitCode | Should -Be 1
+        $CollectorExitCode | Should -Be 1
+        [string] $MachineOutput | Should -Match 'cannot be combined with saved --path'
+        [string] $CollectorOutput | Should -Match 'cannot be combined with saved --path'
+    }
+
     It 'rejects ambiguous query sources' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

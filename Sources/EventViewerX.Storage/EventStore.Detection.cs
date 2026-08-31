@@ -96,7 +96,11 @@ public sealed partial class EventStore {
                 finding.Status != EventDetectionFindingStatus.Matched ||
                 finding.EndTimeUtc >= resultStart.Value).ToArray()
             : evaluated.Findings.ToArray();
-        return new EventDetectionExecutionResult(evaluated.Observations, selected, evaluated.Coverage);
+        EventObservation[] selectedObservations = resultStart.HasValue
+            ? evaluated.Observations.Where(observation =>
+                observation.EventTimeUtc >= resultStart.Value).ToArray()
+            : evaluated.Observations.ToArray();
+        return new EventDetectionExecutionResult(selectedObservations, selected, evaluated.Coverage);
     }
 
     private static void ApplySafeDetectionSelectors(EventStoreQuery query, EventDetectionPlan plan) {

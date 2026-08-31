@@ -175,6 +175,16 @@ public static class SigmaRuleCompiler {
                 FalsePositives = TextList(root, "falsepositives"),
                 References = TextList(root, "references")
             };
+            if (rules.Any(rule => string.Equals(
+                    rule.Definition.RuleId,
+                    definition.RuleId,
+                    StringComparison.OrdinalIgnoreCase))) {
+                diagnostics.Add(Error(
+                    "EVXSIGMA013",
+                    $"Sigma rule ID '{sourceId}' is duplicated in the compilation unit.",
+                    documentIndex));
+                return;
+            }
             rules.Add(new CompiledBaseRule(sourceId, name, definition));
         } catch (SigmaConditionException exception) {
             diagnostics.Add(Error(exception.Code, exception.Message, documentIndex));
@@ -232,6 +242,20 @@ public static class SigmaRuleCompiler {
                 window,
                 groupBy.SingleOrDefault(),
                 related);
+            if (baseRules.Any(rule => string.Equals(
+                    rule.Definition.RuleId,
+                    definition.RuleId,
+                    StringComparison.OrdinalIgnoreCase)) ||
+                correlations.Any(correlationRule => string.Equals(
+                    correlationRule.Definition.RuleId,
+                    definition.RuleId,
+                    StringComparison.OrdinalIgnoreCase))) {
+                diagnostics.Add(Error(
+                    "EVXSIGMA013",
+                    $"Sigma rule ID '{sourceId}' is duplicated in the compilation unit.",
+                    documentIndex));
+                return;
+            }
             bool generate = OptionalBoolean(correlation, "generate");
             correlations.Add(new CompiledCorrelation(definition, related, generate));
         } catch (SigmaConditionException exception) {

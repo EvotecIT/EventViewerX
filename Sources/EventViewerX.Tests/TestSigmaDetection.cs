@@ -6,6 +6,40 @@ namespace EventViewerX.Tests;
 
 public sealed class TestSigmaDetection {
     [Fact]
+    public void DuplicateSigmaRuleIdsProduceStructuredCompilationErrors() {
+        const string yaml = """
+            title: First duplicate
+            id: 10101010-1010-4010-8010-101010101010
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4624
+              condition: selection
+            ---
+            title: Second duplicate
+            id: 10101010-1010-4010-8010-101010101010
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4625
+              condition: selection
+            """;
+
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.False(compilation.IsSupported);
+        SigmaDiagnostic diagnostic = Assert.Single(compilation.Diagnostics);
+        Assert.Equal("EVXSIGMA013", diagnostic.Code);
+        Assert.Equal(SigmaDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("duplicated", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<InvalidDataException>(() => compilation.CompilePlan());
+    }
+
+    [Fact]
     public void SigmaSchemaPreservesQuotedPrimitiveLikeStrings() {
         const string yaml = """
             title: "123"
