@@ -6,6 +6,27 @@ namespace EventViewerX.Tests;
 
 public sealed class TestSigmaDetection {
     [Fact]
+    public void SigmaSchemaPreservesQuotedPrimitiveLikeStrings() {
+        const string yaml = """
+            title: "123"
+            id: "123"
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4624
+              condition: selection
+            """;
+
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.True(compilation.IsSupported);
+        Assert.Empty(compilation.Diagnostics);
+        Assert.Equal("123", Assert.Single(compilation.Rules).Definition.Title);
+    }
+
+    [Fact]
     public void SigmaSelectionsConditionsAndModifiersCompileToNativePredicates() {
         const string yaml = """
             title: NTLMv1 except approved service identities

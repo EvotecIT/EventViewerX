@@ -15,6 +15,9 @@ public sealed class TestEventDecisionReports {
             Assert.False(string.IsNullOrWhiteSpace(definition.Title));
             Assert.False(string.IsNullOrWhiteSpace(definition.Description));
         });
+        Assert.Contains(
+            EventType.ADUserLogonNTLMv1,
+            EventDecisionReportCatalog.GetDefinition(EventDecisionReportKind.PrivilegedAccess).EventTypes);
     }
 
     [Fact]
@@ -25,11 +28,13 @@ public sealed class TestEventDecisionReports {
             ["TargetDomainName"] = "CONTOSO"
         });
         EventObject generic = CreateEvent(9001, "Application", 21);
+        EventObject failed = CreateEvent(4625, "Security", 22);
+        EventObject succeeded = CreateEvent(4624, "Security", 23);
         EventDetectionPack[] packs = EventDetectionCatalog.GetBuiltInPacks().ToArray();
         EventDetectionPlan plan = EventDetectionPlan.Compile(
             packs.SelectMany(static pack => pack.GetRules()));
         EventDetectionExecutionResult execution = EventDetectionEngine.Evaluate(
-            new[] { generic, ntlm },
+            new[] { generic, ntlm, failed, succeeded },
             plan);
         EventDetectionCoverage declaredCoverage = EventDetectionCoverage.Create();
 
@@ -54,10 +59,14 @@ public sealed class TestEventDecisionReports {
             execution.Findings,
             packs);
 
-        Assert.Equal(2, execution.Observations.Count);
+        Assert.Equal(4, execution.Observations.Count);
         Assert.Single(authentication.Analysis.Findings, static finding => finding.RuleId == "EVX-AUTH-0001");
         Assert.Contains(authentication.Analysis.Observations,
             static observation => observation.TypeName == nameof(EventType.ADUserLogonNTLMv1));
+        Assert.Contains(authentication.Analysis.Observations,
+            static observation => observation.TypeName == nameof(EventType.ADUserLogon));
+        Assert.Contains(authentication.Analysis.Observations,
+            static observation => observation.TypeName == nameof(EventType.ADUserLogonFailed));
         Assert.Equal("Decision report fixture", authentication.Analysis.QueryOwner);
         Assert.True(authentication.Analysis.UsedStorageHistory);
         Assert.True(authentication.Analysis.Coverage.IsDeclared);
@@ -68,6 +77,10 @@ public sealed class TestEventDecisionReports {
         Assert.Equal(packs.Length, health.Analysis.Packs.Count);
         Assert.Contains(authentication.Metrics,
             static metric => metric.Name == "NtlmV1Count" && metric.Value == 1);
+        Assert.Contains(authentication.Metrics,
+            static metric => metric.Name == "SuccessfulLogonCount" && metric.Value == 2);
+        Assert.Contains(authentication.Metrics,
+            static metric => metric.Name == "FailedLogonCount" && metric.Value == 1);
         Assert.Contains(authentication.Analysis.PresentationReport.Sections,
             static section => section.Name == "DecisionMetric");
         Assert.NotEmpty(authentication.Analysis.PresentationReport.Sections);

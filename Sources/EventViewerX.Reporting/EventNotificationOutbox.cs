@@ -285,6 +285,7 @@ public static partial class EventNotificationOutbox {
         if (exception == null) {
             throw new ArgumentNullException(nameof(exception));
         }
+        using FileStream writeLock = AcquireBatchMutationLock(batch.DirectoryPath);
         EventNotificationDeliveryState current = ReadDeliveryState(batch.DirectoryPath);
         current.FailedAttempts++;
         current.LastAttemptUtc = DateTime.UtcNow;
@@ -298,6 +299,7 @@ public static partial class EventNotificationOutbox {
         if (batch == null) {
             throw new ArgumentNullException(nameof(batch));
         }
+        using FileStream writeLock = AcquireBatchMutationLock(batch.DirectoryPath);
         EventNotificationDeliveryState current = ReadDeliveryState(batch.DirectoryPath);
         current.LastAttemptUtc = DateTime.UtcNow;
         current.LastError = null;
@@ -311,6 +313,7 @@ public static partial class EventNotificationOutbox {
         if (batch == null) {
             throw new ArgumentNullException(nameof(batch));
         }
+        using FileStream writeLock = AcquireBatchMutationLock(batch.DirectoryPath);
         EventNotificationDeliveryState current = ReadDeliveryState(batch.DirectoryPath);
         current.LastAttemptUtc = DateTime.UtcNow;
         current.LastError = null;
@@ -325,6 +328,10 @@ public static partial class EventNotificationOutbox {
         }
         string root = Path.GetDirectoryName(batch.DirectoryPath) ??
             throw new InvalidDataException("Outbox batch has no parent directory.");
+        using FileStream writeLock = AcquireWriteLock(
+            root,
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
         string deadLetterRoot = Path.Combine(root, "dead-letter");
         Directory.CreateDirectory(deadLetterRoot);
         string batchName = Path.GetFileName(batch.DirectoryPath);
@@ -335,6 +342,15 @@ public static partial class EventNotificationOutbox {
         }
         Directory.Move(batch.DirectoryPath, destination);
         return destination;
+    }
+
+    private static FileStream AcquireBatchMutationLock(string batchDirectory) {
+        string root = Path.GetDirectoryName(batchDirectory) ??
+            throw new InvalidDataException("Outbox batch has no parent directory.");
+        return AcquireWriteLock(
+            root,
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
     }
 
     private static EventNotificationDeliveryState ReadDeliveryState(string directory) {

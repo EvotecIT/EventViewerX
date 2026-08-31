@@ -52,6 +52,9 @@ public static class SigmaSchemaCatalog {
             return null;
         }
         string value = scalar.Value ?? string.Empty;
+        if (scalar.Style != YamlDotNet.Core.ScalarStyle.Plain) {
+            return value;
+        }
         if (string.Equals(value, "null", StringComparison.OrdinalIgnoreCase) || value == "~") {
             return null;
         }

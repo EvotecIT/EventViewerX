@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -450,8 +451,8 @@ public sealed class EventDetectionPack {
     }
 
     private static int CompareSemanticCore(string left, string right) {
-        int[] leftParts = ParseSemanticCore(left);
-        int[] rightParts = ParseSemanticCore(right);
+        BigInteger[] leftParts = ParseSemanticCore(left);
+        BigInteger[] rightParts = ParseSemanticCore(right);
         for (int index = 0; index < leftParts.Length; index++) {
             int comparison = leftParts[index].CompareTo(rightParts[index]);
             if (comparison != 0) {
@@ -461,9 +462,11 @@ public sealed class EventDetectionPack {
         return 0;
     }
 
-    private static int[] ParseSemanticCore(string value) {
+    private static BigInteger[] ParseSemanticCore(string value) {
         string core = value.Split('-', '+')[0];
-        return core.Split('.').Select(static part => int.Parse(part, CultureInfo.InvariantCulture)).ToArray();
+        return core.Split('.')
+            .Select(static part => BigInteger.Parse(part, CultureInfo.InvariantCulture))
+            .ToArray();
     }
 
     private static bool SemanticContractEquals(string left, string right) =>

@@ -88,6 +88,7 @@ public sealed class EventDefinition {
             }
             source.ProviderNames = source.ProviderNames.Select(static provider => provider.Trim()).ToArray();
         }
+        ValidateNonOverlappingSources();
         if (Fields == null) {
             throw new InvalidDataException("Definition Fields cannot be null.");
         }
@@ -140,6 +141,29 @@ public sealed class EventDefinition {
             }
         }
     }
+
+    private void ValidateNonOverlappingSources() {
+        for (int leftIndex = 0; leftIndex < Sources.Count; leftIndex++) {
+            EventDefinitionSource left = Sources[leftIndex];
+            for (int rightIndex = leftIndex + 1; rightIndex < Sources.Count; rightIndex++) {
+                EventDefinitionSource right = Sources[rightIndex];
+                if (!string.Equals(left.LogName, right.LogName, StringComparison.OrdinalIgnoreCase) ||
+                    !left.EventIds.Intersect(right.EventIds).Any() ||
+                    !ProvidersOverlap(left.ProviderNames, right.ProviderNames)) {
+                    continue;
+                }
+                throw new InvalidDataException(
+                    $"Sources[{leftIndex}] and Sources[{rightIndex}] overlap. " +
+                    "Combine their channel, event ID, and provider selectors so subscriptions cannot deliver one event twice.");
+            }
+        }
+    }
+
+    private static bool ProvidersOverlap(
+        IReadOnlyList<string> left,
+        IReadOnlyList<string> right) =>
+        left.Count == 0 || right.Count == 0 ||
+        left.Intersect(right, StringComparer.OrdinalIgnoreCase).Any();
 
     private static void ValidateConfiguredLiteral(
         EventDefinitionField field,

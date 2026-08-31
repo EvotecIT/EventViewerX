@@ -508,6 +508,27 @@ public sealed class TestEventDefinitionAndReporting {
     }
 
     [Fact]
+    public void DefinitionRejectsOverlappingSubscriptionSources() {
+        EventDefinition definition = CreateDefinition();
+        definition.Sources = new[] {
+            new EventDefinitionSource {
+                LogName = "Security",
+                EventIds = new[] { 4624, 4625 },
+                ProviderNames = Array.Empty<string>()
+            },
+            new EventDefinitionSource {
+                LogName = "security",
+                EventIds = new[] { 4624 },
+                ProviderNames = new[] { "Microsoft-Windows-Security-Auditing" }
+            }
+        };
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(definition.Validate);
+
+        Assert.Contains("Sources[0] and Sources[1] overlap", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DefinitionRejectsInvalidConfiguredTypedLiteralsBeforeReadingEvents() {
         EventDefinition constant = CreateDefinition();
         constant.Fields = new[] {

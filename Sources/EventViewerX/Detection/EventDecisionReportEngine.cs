@@ -159,7 +159,9 @@ public static class EventDecisionReportEngine {
         } else if (kind == EventDecisionReportKind.AuthenticationPosture) {
             yield return ("NtlmV1Count", "NTLMv1 events", CountType(EventType.ADUserLogonNTLMv1), "Successful logons explicitly identified as NTLMv1.");
             yield return ("FailedLogonCount", "Failed logons", CountType(EventType.ADUserLogonFailed), "Failed authentication events.");
-            yield return ("SuccessfulLogonCount", "Successful logons", CountType(EventType.ADUserLogon), "Successful authentication events.");
+            yield return ("SuccessfulLogonCount", "Successful logons", CountType(
+                EventType.ADUserLogon,
+                EventType.ADUserLogonNTLMv1), "Successful authentication events.");
             yield return ("WeakKerberosFindingCount", "Weak Kerberos findings", CountTag("kerberos-weak-encryption"), "Findings involving weak Kerberos encryption.");
             yield return ("LdapSigningFindingCount", "LDAP signing findings", CountTag("ldap-signing"), "Unsigned or cleartext LDAP bind findings.");
         } else if (kind == EventDecisionReportKind.IdentityLifecycle) {

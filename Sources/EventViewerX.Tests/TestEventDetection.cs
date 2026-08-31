@@ -678,9 +678,15 @@ public sealed partial class TestEventDetection {
             "1.0.0",
             new[] { rule },
             observationSchemaVersion: "2.0.0");
+        EventDetectionPack arbitraryPrecisionEngine = EventDetectionPack.Create(
+            "eventviewerx.test.arbitrary-precision-engine",
+            "1.0.0",
+            new[] { rule },
+            minimumEngineVersion: "999999999999999999999999999999.0.0");
 
         EventDetectionPackValidationResult engineValidation = futureEngine.Validate();
         EventDetectionPackValidationResult schemaValidation = unknownSchema.Validate();
+        EventDetectionPackValidationResult arbitraryPrecisionValidation = arbitraryPrecisionEngine.Validate();
 
         Assert.False(engineValidation.IsValid);
         Assert.Contains(engineValidation.Diagnostics, static diagnostic =>
@@ -690,6 +696,10 @@ public sealed partial class TestEventDetection {
             diagnostic.Contains("observation schema 2.0.0", StringComparison.Ordinal));
         Assert.Throws<InvalidDataException>(() => futureEngine.GetRules());
         Assert.Throws<InvalidDataException>(() => unknownSchema.GetRules());
+        Assert.False(arbitraryPrecisionValidation.IsValid);
+        Assert.Contains(arbitraryPrecisionValidation.Diagnostics, static diagnostic =>
+            diagnostic.Contains("999999999999999999999999999999.0.0", StringComparison.Ordinal));
+        Assert.Throws<InvalidDataException>(() => arbitraryPrecisionEngine.GetRules());
     }
 
     [Fact]

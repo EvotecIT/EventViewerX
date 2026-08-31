@@ -33,9 +33,9 @@ namespace PSEventViewer;
 public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
     private readonly List<EventObject> _events = new();
 
-    /// <summary>Detached EventViewerX event to evaluate.</summary>
+    /// <summary>Detached, typed, or custom EventViewerX event to evaluate.</summary>
     [Parameter(ValueFromPipeline = true)]
-    public EventObject? InputObject { get; set; }
+    public object? InputObject { get; set; }
 
     /// <summary>Optional EventStore database used as the historical source instead of pipeline input.</summary>
     [Parameter]
@@ -108,8 +108,21 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
 
     /// <inheritdoc />
     protected override void ProcessRecord() {
-        if (InputObject != null && (MaximumObservations == 0 || _events.Count <= MaximumObservations)) {
-            _events.Add(InputObject);
+        object? value = InputObject;
+        while (value is PSObject wrapper && wrapper.BaseObject != value) {
+            value = wrapper.BaseObject;
+        }
+        EventObject? source = value switch {
+            null => null,
+            EventObject eventObject => eventObject,
+            EventTypeRecord typed => typed.SourceEvent,
+            CustomEventRecord custom => custom.SourceEvent,
+            _ => throw new PSArgumentException(
+                "InputObject must be an EventObject, EventTypeRecord, or CustomEventRecord.",
+                nameof(InputObject))
+        };
+        if (source != null && (MaximumObservations == 0 || _events.Count <= MaximumObservations)) {
+            _events.Add(source);
         }
     }
 

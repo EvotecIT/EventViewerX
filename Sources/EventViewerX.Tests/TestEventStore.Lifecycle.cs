@@ -190,6 +190,42 @@ CREATE TABLE evx_checkpoints (
     }
 
     [Fact]
+    public async Task ConcurrentNonOverwriteBackupsPublishExactlyOneDestination() {
+        string path = CreateStorePath();
+        string backup = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "source")));
+
+            Task<EventStoreBackupResult>[] attempts = Enumerable.Range(0, 2)
+                .Select(_ => store.BackupAsync(backup, overwrite: false))
+                .ToArray();
+            try {
+                await Task.WhenAll(attempts);
+            } catch (IOException) {
+                // Exactly one atomic no-replace publication must lose the destination race.
+            }
+
+            Task<EventStoreBackupResult> completed = Assert.Single(
+                attempts,
+                static attempt => attempt.Status == TaskStatus.RanToCompletion);
+            Task<EventStoreBackupResult> failed = Assert.Single(
+                attempts,
+                static attempt => attempt.IsFaulted &&
+                attempt.Exception!.GetBaseException() is IOException);
+            Assert.True(completed.IsCompletedSuccessfully);
+            Assert.True(failed.IsFaulted);
+            Assert.True((await new EventStore(backup).CheckIntegrityAsync()).IsHealthy);
+        } finally {
+            DeleteStore(path);
+            DeleteStore(backup);
+        }
+    }
+
+    [Fact]
     public async Task RestoreSnapshotsCommittedWalChangesIntoTheReplacementDatabase() {
         string path = CreateStorePath();
         string backup = CreateStorePath();

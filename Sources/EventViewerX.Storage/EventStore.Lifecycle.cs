@@ -174,10 +174,10 @@ public sealed partial class EventStore {
                 throw new InvalidDataException(
                     "Generated EventStore backup failed integrity validation: " + string.Join(" ", integrity.Diagnostics));
             }
-            if (File.Exists(destination)) {
-                ReplaceDatabaseWithoutSidecars(pending, destination);
-            } else {
+            if (!overwrite) {
                 File.Move(pending, destination);
+            } else {
+                PublishOverwritingBackup(pending, destination);
             }
             return new EventStoreBackupResult(
                 destination,
@@ -405,6 +405,18 @@ public sealed partial class EventStore {
                     DeleteSidecar(quarantine);
                 }
             }
+        }
+    }
+
+    private static void PublishOverwritingBackup(string source, string destination) {
+        if (File.Exists(destination)) {
+            ReplaceDatabaseWithoutSidecars(source, destination);
+            return;
+        }
+        try {
+            File.Move(source, destination);
+        } catch (IOException) when (File.Exists(destination)) {
+            ReplaceDatabaseWithoutSidecars(source, destination);
         }
     }
 

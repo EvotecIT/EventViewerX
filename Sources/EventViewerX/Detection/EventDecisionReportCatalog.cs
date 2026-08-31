@@ -43,7 +43,10 @@ public static class EventDecisionReportCatalog {
             EventDecisionReportKind.AuthenticationPosture,
             "Authentication posture",
             "Summarizes NTLMv1, Kerberos encryption, LDAP signing, SMB1, failures, and successful access.",
-            EventTypeCatalog.Expand(new[] { EventType.AuthenticationHealth }).ToArray(),
+            EventTypeCatalog.Expand(new[] { EventType.AuthenticationHealth })
+                .Concat(new[] { EventType.ADUserLogon, EventType.ADUserLogonFailed })
+                .Distinct()
+                .ToArray(),
             new[] { "eventviewerx.authentication-modernization" },
             new[] { "authentication", "ntlmv1", "kerberos", "ldap-signing", "smb1" });
         yield return Definition(
@@ -59,7 +62,8 @@ public static class EventDecisionReportCatalog {
             "Connects privileged membership and rights changes to actors, targets, and logons.",
             new[] {
                 EventType.ADGroupMembershipChange, EventType.ADUserRightsAssignment,
-                EventType.ADUserPrivilegeUse, EventType.ADUserLogon, EventType.ADUserLogonFailed
+                EventType.ADUserPrivilegeUse, EventType.ADUserLogon,
+                EventType.ADUserLogonNTLMv1, EventType.ADUserLogonFailed
             },
             new[] { "eventviewerx.identity-privilege" },
             new[] { "privilege", "privileged-logon" });

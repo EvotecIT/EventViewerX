@@ -204,6 +204,37 @@ public sealed class TestEventNotificationOutbox {
     }
 
     [Fact]
+    public async Task ConcurrentDeliveryUpdatesPreserveEveryFailureAndTransportAcknowledgement() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Concurrent delivery state");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            EventNotificationOutbox.Save(outbox, "concurrent-state", report, email, 1);
+            EventNotificationOutboxBatch batch = Assert.Single(EventNotificationOutbox.GetPending(outbox));
+            using var start = new ManualResetEventSlim(false);
+            Task[] updates = Enumerable.Range(0, 32)
+                .Select(index => Task.Run(() => {
+                    start.Wait();
+                    EventNotificationOutbox.RecordFailure(batch, new IOException($"failure-{index}"));
+                }))
+                .Append(Task.Run(() => {
+                    start.Wait();
+                    EventNotificationOutbox.MarkTransportAcknowledged(batch);
+                }))
+                .ToArray();
+
+            start.Set();
+            await Task.WhenAll(updates);
+
+            EventNotificationOutboxBatch persisted = Assert.Single(EventNotificationOutbox.GetPending(outbox));
+            Assert.Equal(32, persisted.Delivery.FailedAttempts);
+            Assert.NotNull(persisted.Delivery.TransportAcknowledgedUtc);
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task BatchRetainsCheckpointCompareAndSwapBoundaryAcrossRestart() {
         string outbox = CreateTemporaryDirectory();
         try {
