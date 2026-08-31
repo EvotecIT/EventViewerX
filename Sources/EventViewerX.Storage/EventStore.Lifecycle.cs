@@ -145,7 +145,11 @@ public sealed partial class EventStore {
         if (string.IsNullOrWhiteSpace(destinationPath)) {
             throw new ArgumentException("Backup destination cannot be empty.", nameof(destinationPath));
         }
-        EnsureInitialized();
+        EventStoreIntegrityResult sourceIntegrity = await CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
+        if (!sourceIntegrity.IsHealthy) {
+            throw new InvalidDataException(
+                "Source EventStore failed integrity validation: " + string.Join(" ", sourceIntegrity.Diagnostics));
+        }
         string destination = System.IO.Path.GetFullPath(destinationPath);
         if (FileSystemPathIdentity.Equals(destination, Path)) {
             throw new ArgumentException("Backup destination must differ from the live store.", nameof(destinationPath));
@@ -208,6 +212,10 @@ public sealed partial class EventStore {
         }
         if (FileSystemPathIdentity.Equals(backup, Path)) {
             throw new ArgumentException("Backup path must differ from the live store.", nameof(backupPath));
+        }
+        string? targetDirectory = System.IO.Path.GetDirectoryName(Path);
+        if (!string.IsNullOrWhiteSpace(targetDirectory)) {
+            Directory.CreateDirectory(targetDirectory!);
         }
         using FileStream maintenance = await AcquireMaintenanceLockAsync(cancellationToken).ConfigureAwait(false);
         string pending = Path + ".restore-pending-" + Guid.NewGuid().ToString("N");

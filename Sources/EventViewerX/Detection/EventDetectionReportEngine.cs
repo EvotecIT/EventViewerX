@@ -52,7 +52,13 @@ public static class EventDetectionReportEngine {
             .Concat(findingSnapshot.Cast<object>())
             .Concat(timeline.Entries.Cast<object>())
             .ToArray();
-        EventReport presentation = EventReportEngine.Create(presentationInput, title);
+        EventReport presentation = EventReportEngine.Create(
+            presentationInput,
+            title,
+            CreatePresentationCoverage(executionCoverage),
+            executionCoverage.IsComplete
+                ? null
+                : "Detection coverage is incomplete. Review the coverage rows for missing scope and failures.");
         string[] limits = Normalize(options.Limits);
         string[] failures = Normalize(options.Failures)
             .Concat(findingSnapshot
@@ -110,4 +116,72 @@ public static class EventDetectionReportEngine {
             .Select(static value => value.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private static IReadOnlyList<EventReportCoverage> CreatePresentationCoverage(
+        EventDetectionCoverage coverage) {
+
+        var result = new List<EventReportCoverage>();
+        AddObserved(result, coverage.ObservedTargets, "Observed target");
+        AddObserved(result, coverage.ObservedChannels, "Observed channel");
+        AddObserved(result, coverage.ObservedProviders, "Observed provider");
+        AddObserved(result, coverage.ObservedEventIds.Select(static value =>
+            value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "Observed event ID");
+        AddObserved(result, coverage.ObservedEventTypes.Select(static value => value.ToString()), "Observed event type");
+        AddMissing(result, coverage.MissingTargets, "Missing target");
+        AddMissing(result, coverage.MissingChannels, "Missing channel");
+        AddMissing(result, coverage.MissingProviders, "Missing provider");
+        AddMissing(result, coverage.MissingEventIds.Select(static value =>
+            value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "Missing event ID");
+        AddMissing(result, coverage.MissingEventTypes.Select(static value => value.ToString()), "Missing event type");
+        foreach (string failure in coverage.Failures) {
+            result.Add(new EventReportCoverage {
+                MachineName = "Detection",
+                LogName = "Coverage",
+                Succeeded = false,
+                Status = "Detection coverage failure",
+                Detail = failure
+            });
+        }
+        return result;
+    }
+
+    private static void AddObserved(
+        ICollection<EventReportCoverage> result,
+        IEnumerable<string> values,
+        string status) {
+
+        foreach (string value in values) {
+            result.Add(new EventReportCoverage {
+                MachineName = string.Equals(status, "Observed target", StringComparison.Ordinal)
+                    ? value
+                    : "Detection",
+                LogName = string.Equals(status, "Observed channel", StringComparison.Ordinal)
+                    ? value
+                    : status,
+                Succeeded = true,
+                Status = status,
+                Detail = value
+            });
+        }
+    }
+
+    private static void AddMissing(
+        ICollection<EventReportCoverage> result,
+        IEnumerable<string> values,
+        string status) {
+
+        foreach (string value in values) {
+            result.Add(new EventReportCoverage {
+                MachineName = string.Equals(status, "Missing target", StringComparison.Ordinal)
+                    ? value
+                    : "Detection",
+                LogName = string.Equals(status, "Missing channel", StringComparison.Ordinal)
+                    ? value
+                    : status,
+                Succeeded = false,
+                Status = status,
+                Detail = value
+            });
+        }
+    }
 }

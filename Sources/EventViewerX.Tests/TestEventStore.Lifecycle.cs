@@ -36,6 +36,59 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task BackupRejectsMissingAndUnrelatedSourcesWithoutInitializingThem() {
+        string missing = CreateStorePath();
+        string unrelated = CreateStorePath();
+        string backup = CreateStorePath();
+        try {
+            var sqlite = new SQLite();
+            sqlite.ExecuteNonQuery(unrelated, "CREATE TABLE unrelated (value INTEGER NOT NULL);");
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new EventStore(missing).BackupAsync(backup, overwrite: true));
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new EventStore(unrelated).BackupAsync(backup, overwrite: true));
+
+            Assert.False(File.Exists(missing));
+            Assert.False(File.Exists(backup));
+            using SQLiteSession verification = sqlite.OpenSession(unrelated);
+            Assert.Equal(0L, Convert.ToInt64(verification.ExecuteScalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name LIKE 'evx_%';")));
+        } finally {
+            DeleteStore(missing);
+            DeleteStore(unrelated);
+            DeleteStore(backup);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreCreatesANestedTargetDirectoryForANewStore() {
+        string sourcePath = CreateStorePath();
+        string root = Path.Combine(Path.GetTempPath(), $"eventviewerx-restore-{Guid.NewGuid():N}");
+        string backup = Path.Combine(root, "source-backup.db");
+        string target = Path.Combine(root, "nested", "restored.db");
+        try {
+            var source = new EventStore(sourcePath);
+            await source.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "alice")));
+            await source.BackupAsync(backup);
+
+            EventStoreIntegrityResult restored = await new EventStore(target).RestoreAsync(backup);
+
+            Assert.True(restored.IsHealthy);
+            Assert.True(File.Exists(target));
+            Assert.Equal(1, restored.EventCount);
+        } finally {
+            DeleteStore(sourcePath);
+            if (Directory.Exists(root)) {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RestoreRejectsAnEmptyBackupWithoutReplacingLiveHistory() {
         string path = CreateStorePath();
         string backup = CreateStorePath();

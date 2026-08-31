@@ -126,6 +126,12 @@ public sealed class TestEventDecisionReports {
         Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "ObservationCount").Value);
         Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "TargetCount").Value);
         Assert.Equal(1, report.Metrics.Single(static metric => metric.Name == "ChannelCount").Value);
+        Assert.Equal(0, report.Metrics.Single(static metric => metric.Name == "UnknownProviderCount").Value);
+        Assert.Equal(0, report.Metrics.Single(static metric => metric.Name == "UnknownEventShapeCount").Value);
+        Assert.Contains(report.Analysis.PresentationReport.Coverage, static item =>
+            !item.Succeeded && item.Detail.Contains("evaluation was incomplete", StringComparison.OrdinalIgnoreCase));
+        Assert.False(report.Analysis.PresentationReport.ScanLimitReached);
+        Assert.NotNull(report.Analysis.PresentationReport.CompletenessDiagnostic);
     }
 
     private static EventObject CreateEvent(

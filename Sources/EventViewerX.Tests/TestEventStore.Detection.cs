@@ -115,6 +115,37 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task FindingHistoryRetainsPackProvenanceChangesForTheSameEvidence() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionFinding first = CreateDetectionFinding(
+                "EVX-STORE-PACK-PROVENANCE",
+                "alice",
+                packId: "eventviewerx.tests.first",
+                packVersion: "1.0.0");
+            EventDetectionFinding second = CreateDetectionFinding(
+                "EVX-STORE-PACK-PROVENANCE",
+                "alice",
+                packId: "eventviewerx.tests.second",
+                packVersion: "2.0.0");
+            var store = new EventStore(path);
+
+            EventFindingStoreWriteResult write = await store.WriteFindingsAsync(new[] { first, second });
+            IReadOnlyList<StoredEventDetectionFinding> stored = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery { RuleIds = new[] { "EVX-STORE-PACK-PROVENANCE" } });
+
+            Assert.Equal(2, write.Inserted);
+            Assert.Equal(2, stored.Count);
+            Assert.Contains(stored, static finding =>
+                finding.PackId == "eventviewerx.tests.first" && finding.PackVersion == "1.0.0");
+            Assert.Contains(stored, static finding =>
+                finding.PackId == "eventviewerx.tests.second" && finding.PackVersion == "2.0.0");
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task UnicodeEntityQueriesRemainBoundedAcrossFindingPages() {
         string path = CreateStorePath();
         try {
@@ -325,6 +356,78 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task StoredDetectionClampsStatefulWarmupAtDateTimeMinimum() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            store.Initialize();
+            EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-MINIMUM-TIME",
+                    Title = "Minimum time threshold",
+                    Kind = EventDetectionRuleKind.Threshold,
+                    EventIds = new[] { 1001 },
+                    Threshold = 2,
+                    Window = TimeSpan.FromMinutes(5)
+                })
+            });
+
+            EventDetectionExecutionResult result = await store.EvaluateDetectionAsync(
+                new EventStoreQuery { StartTime = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc) },
+                plan);
+
+            Assert.Empty(result.Observations);
+            Assert.Empty(result.Findings);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StoredTemporalDetectionDoesNotPushDownPartiallyBoundedStepEventIds() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(EventReportEngine.Create(new object[] {
+                CreateHistoricalEvent(1, minute: 0, "alice", eventId: 1001),
+                CreateHistoricalEvent(2, minute: 1, "alice", eventId: 9001)
+            }));
+            EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
+                new EventDetectionRule(new EventDetectionRuleDefinition {
+                    RuleId = "EVX-STORE-PARTIAL-STEP-SELECTOR",
+                    Title = "Partially bounded temporal selector",
+                    Kind = EventDetectionRuleKind.OrderedTemporal,
+                    Window = TimeSpan.FromMinutes(5),
+                    GroupBy = "Account",
+                    Steps = new[] {
+                        new EventDetectionStepDefinition {
+                            Name = "bounded",
+                            EventIds = new[] { 1001 }
+                        },
+                        new EventDetectionStepDefinition {
+                            Name = "predicate-only",
+                            Predicate = EventPredicate.Compare(
+                                "EventId",
+                                EventPredicateOperator.Equal,
+                                9001)
+                        }
+                    }
+                })
+            });
+
+            EventDetectionExecutionResult result = await store.EvaluateDetectionAsync(
+                new EventStoreQuery { Oldest = true },
+                plan,
+                new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create()));
+
+            EventDetectionFinding finding = Assert.Single(result.Findings);
+            Assert.Equal(new[] { 1001, 9001 }, finding.Evidence.Select(static item => item.EventId));
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public void FindingSchemaUpgradeIsAdditiveForExistingEventStores() {
         string path = CreateStorePath();
         try {
@@ -399,7 +502,9 @@ public sealed partial class TestEventStore {
         string ruleId,
         string account,
         int minute = 0,
-        EventDetectionCoverage? coverage = null) {
+        EventDetectionCoverage? coverage = null,
+        string packId = "eventviewerx.tests",
+        string packVersion = "1.2.0") {
 
         DateTime time = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc).AddMinutes(minute);
         var metadata = new NativeEventMetadata(
@@ -427,8 +532,8 @@ public sealed partial class TestEventStore {
         return new EventDetectionFinding(
             ruleId,
             "1.0.0",
-            "eventviewerx.tests",
-            "1.2.0",
+            packId,
+            packVersion,
             "Native",
             ruleId,
             "stable",
@@ -454,12 +559,16 @@ public sealed partial class TestEventStore {
             completenessDiagnostic: null);
     }
 
-    private static EventObject CreateHistoricalEvent(long recordId, int minute, string account) {
+    private static EventObject CreateHistoricalEvent(
+        long recordId,
+        int minute,
+        string account,
+        int eventId = 1001) {
         DateTime time = new(2026, 8, 28, 10, minute, 0, DateTimeKind.Utc);
         var metadata = new NativeEventMetadata(
             "Provider-A",
             null,
-            1001,
+            eventId,
             qualifiers: null,
             level: 0,
             task: 0,

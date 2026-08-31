@@ -322,6 +322,8 @@ public sealed partial class EventStore {
         var canonical = new StringBuilder();
         AppendFindingKeyPart(canonical, finding.RuleId);
         AppendFindingKeyPart(canonical, finding.RuleVersion);
+        AppendFindingKeyPart(canonical, finding.PackId);
+        AppendFindingKeyPart(canonical, finding.PackVersion);
         AppendFindingKeyPart(canonical, finding.SourceHash);
         AppendFindingKeyPart(canonical, ((int)finding.Status).ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, finding.StartTimeUtc.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));

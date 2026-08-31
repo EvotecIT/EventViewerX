@@ -69,7 +69,9 @@ public sealed partial class EventStore {
         EventStoreQuery historical = query.Snapshot();
         DateTime? resultStart = historical.StartTime;
         if (resultStart.HasValue && plan.MaximumStatefulWindow > TimeSpan.Zero) {
-            historical.StartTime = resultStart.Value - plan.MaximumStatefulWindow;
+            historical.StartTime = SubtractClamped(
+                resultStart.Value,
+                plan.MaximumStatefulWindow);
         }
         historical.Oldest = true;
         ApplySafeDetectionSelectors(historical, plan);
@@ -101,19 +103,56 @@ public sealed partial class EventStore {
         if (query.EventIds is { Count: > 0 }) {
             return;
         }
-        int[][] perRule = plan.Rules.Select(rule => rule.EventIds
-                .Concat(rule.Steps.SelectMany(static step => step.EventIds))
-                .Concat(EventTypeCatalog.Expand(rule.EventTypes
-                        .Concat(rule.Steps.SelectMany(static step => step.EventTypes)))
-                    .SelectMany(static type => EventTypeCatalog.GetSources(new[] { type }))
-                    .SelectMany(static source => source.EventIds))
-                .Distinct()
-                .ToArray())
+        int[][] perRule = plan.Rules
+            .Select(GetSafeRuleEventIds)
             .ToArray();
         if (perRule.Length > 0 && perRule.All(static ids => ids.Length > 0)) {
             query.EventIds = perRule.SelectMany(static ids => ids).Distinct().ToArray();
         }
     }
+
+    private static int[] GetSafeRuleEventIds(EventDetectionRuleDefinition rule) {
+        int[] baseIds = GetBoundedSelectorEventIds(rule.EventIds, rule.EventTypes);
+        if (baseIds.Length > 0) {
+            return baseIds;
+        }
+        if (rule.Steps.Count == 0) {
+            return Array.Empty<int>();
+        }
+        int[][] stepIds = rule.Steps
+            .Select(static step => GetBoundedSelectorEventIds(step.EventIds, step.EventTypes))
+            .ToArray();
+        return stepIds.All(static ids => ids.Length > 0)
+            ? stepIds.SelectMany(static ids => ids).Distinct().ToArray()
+            : Array.Empty<int>();
+    }
+
+    private static int[] GetBoundedSelectorEventIds(
+        IReadOnlyList<int> eventIds,
+        IReadOnlyList<EventType> eventTypes) {
+
+        if (eventIds.Count > 0) {
+            return eventIds.Distinct().ToArray();
+        }
+        EventType[] expanded = EventTypeCatalog.Expand(eventTypes).ToArray();
+        if (expanded.Length == 0) {
+            return Array.Empty<int>();
+        }
+        int[][] perType = expanded
+            .Select(static type => EventTypeCatalog.GetSources(new[] { type })
+                .SelectMany(static source => source.EventIds)
+                .Distinct()
+                .ToArray())
+            .ToArray();
+        return perType.All(static ids => ids.Length > 0)
+            ? perType.SelectMany(static ids => ids).Distinct().ToArray()
+            : Array.Empty<int>();
+    }
+
+    private static DateTime SubtractClamped(DateTime value, TimeSpan duration) =>
+        value.Ticks <= duration.Ticks
+            ? new DateTime(DateTime.MinValue.Ticks, value.Kind)
+            : value - duration;
 
     private static EventObject RestoreSource(EventReportRow row) {
         var metadata = new NativeEventMetadata(

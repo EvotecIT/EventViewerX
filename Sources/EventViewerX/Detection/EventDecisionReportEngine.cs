@@ -187,8 +187,11 @@ public static class EventDecisionReportEngine {
             yield return ("ValidPackHashCount", "Valid pack hashes", packs.LongCount(static pack => pack.Validate().ContentHashValid), "Packs whose content matches the declared hash.");
             yield return ("FindingWithCompletenessDiagnosticCount", "Completeness diagnostics", findings.LongCount(static finding => !string.IsNullOrWhiteSpace(finding.CompletenessDiagnostic)), "Findings carrying an explicit incomplete-result reason.");
         } else if (kind == EventDecisionReportKind.UnknownEventAndSchemaDrift) {
-            yield return ("UnknownProviderCount", "Unknown providers", observations.Select(static item => item.ProviderName).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "Providers contributing unmapped observations.");
-            yield return ("UnknownEventShapeCount", "Unknown event shapes", observations.Select(static item => item.ProviderName + "\0" + item.EventId).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "Distinct provider and event-ID pairs without a selected typed contract.");
+            EventObservation[] generic = observations
+                .Where(static item => string.Equals(item.TypeName, "Generic", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            yield return ("UnknownProviderCount", "Unknown providers", generic.Select(static item => item.ProviderName).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "Providers contributing unmapped observations.");
+            yield return ("UnknownEventShapeCount", "Unknown event shapes", generic.Select(static item => item.ProviderName + "\0" + item.EventId).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "Distinct provider and event-ID pairs without a selected typed contract.");
         } else if (kind == EventDecisionReportKind.IncidentTimeline) {
             yield return ("EvidenceIdentityCount", "Evidence identities", findings.SelectMany(static finding => finding.EvidenceIdentities).Distinct(StringComparer.Ordinal).Count(), "Distinct raw evidence identities retained by findings.");
             yield return ("PivotCount", "Pivot values", findings.SelectMany(static finding => finding.Entities).Select(static item => item.Key + "\0" + item.Value).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "Distinct actor, target, host, account, and related pivot values.");

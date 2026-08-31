@@ -104,7 +104,16 @@ public static class EventReportEngine {
     }
 
     /// <summary>Creates a report snapshot from previously queried EventViewerX objects without reading logs again.</summary>
-    public static EventReport Create(IEnumerable<object> input, string? title = null) {
+    public static EventReport Create(IEnumerable<object> input, string? title = null) =>
+        Create(input, title, coverage: null, completenessDiagnostic: null);
+
+    /// <summary>Creates a report snapshot with caller-supplied source coverage without reading logs again.</summary>
+    public static EventReport Create(
+        IEnumerable<object> input,
+        string? title,
+        IEnumerable<EventReportCoverage>? coverage,
+        string? completenessDiagnostic = null) {
+
         if (input == null) {
             throw new ArgumentNullException(nameof(input));
         }
@@ -113,7 +122,7 @@ public static class EventReportEngine {
             projections.Add(CreateProjection(item));
         }
         EventReportRow[] rows = projections.Select(static projection => projection.Row).ToArray();
-        List<EventReportCoverage> coverage = rows
+        EventReportCoverage[] coverageSnapshot = coverage?.Select(CloneCoverage).ToArray() ?? rows
             .GroupBy(static row => row.CollectorComputer + "\0" + row.SourceLog, StringComparer.OrdinalIgnoreCase)
             .Select(static group => {
                 EventReportRow first = group.First();
@@ -124,10 +133,11 @@ public static class EventReportEngine {
                     Status = "Supplied",
                     Detail = string.Empty
                 };
-            }).ToList();
+            }).ToArray();
         return new EventReport(string.IsNullOrWhiteSpace(title) ? "EventViewerX events" : title!.Trim(),
             DateTime.UtcNow, TimeSpan.Zero, rows, EventReportSectionBuilder.Build(projections),
-            coverage, rows.Length, scanLimitReached: false);
+            coverageSnapshot, rows.Length, scanLimitReached: false,
+            completenessDiagnostic);
     }
 
     /// <summary>Rehydrates persisted normalized rows without querying Windows Event Log again.</summary>
@@ -238,6 +248,19 @@ public static class EventReportEngine {
     /// <summary>Normalizes one generic, built-in typed, or custom event without querying the event log.</summary>
     public static EventReportRow CreateRow(object input) {
         return CreateProjection(input).Row;
+    }
+
+    private static EventReportCoverage CloneCoverage(EventReportCoverage item) {
+        if (item == null) {
+            throw new ArgumentException("Coverage cannot contain null values.", nameof(item));
+        }
+        return new EventReportCoverage {
+            MachineName = item.MachineName,
+            LogName = item.LogName,
+            Succeeded = item.Succeeded,
+            Status = item.Status,
+            Detail = item.Detail
+        };
     }
 
     private static EventReportProjection CreateProjection(object input) {

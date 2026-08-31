@@ -56,6 +56,7 @@ public static class EventReportHtmlRenderer {
         IReadOnlyList<EventReportPresentationSection> sections) {
 
         int failures = report.Coverage.Count(static item => !item.Succeeded);
+        bool isComplete = !report.ScanLimitReached && failures == 0;
         page.AddMetric(metric => metric.Title("Events").Value(report.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
             .Change($"{sections.Count:N0} populated type{(sections.Count == 1 ? string.Empty : "s")}"));
@@ -65,11 +66,15 @@ public static class EventReportHtmlRenderer {
         page.AddMetric(metric => metric.Title("Query time").Value($"{report.QueryDuration.TotalSeconds:N2}s")
             .Icon(TablerIconType.Bolt).State(MonitoringHealthState.Healthy)
             .Change($"{report.EventsScanned:N0} candidates scanned"));
-        page.AddMetric(metric => metric.Title("Result limit").Value(report.ScanLimitReached ? "Reached" : "Complete")
-            .Icon(report.ScanLimitReached ? TablerIconType.AlertTriangle : TablerIconType.ShieldCheck)
-            .State(report.ScanLimitReached ? MonitoringHealthState.Warning : MonitoringHealthState.Healthy)
+        page.AddMetric(metric => metric.Title("Completeness").Value(isComplete ? "Complete" : "Incomplete")
+            .Icon(isComplete ? TablerIconType.ShieldCheck : TablerIconType.AlertTriangle)
+            .State(isComplete ? MonitoringHealthState.Healthy : MonitoringHealthState.Warning)
             .Change(report.CompletenessDiagnostic ??
-                    (report.ScanLimitReached ? "More matching candidates may exist" : "No truncation detected")));
+                    (report.ScanLimitReached
+                        ? "More matching candidates may exist"
+                        : failures > 0
+                            ? "One or more sources were not covered"
+                            : "No truncation detected")));
 
         page.Grid(grid => {
             var breakdown = new MonitoringConnectionBreakdown()

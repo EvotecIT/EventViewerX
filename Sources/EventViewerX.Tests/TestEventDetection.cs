@@ -1041,6 +1041,10 @@ public sealed partial class TestEventDetection {
             static section => section.Name == "IncidentTimeline");
         Assert.Equal(2, timeline.Rows.Count);
         Assert.Equal(3, report.PresentationReport.Rows.Count);
+        Assert.Contains(report.PresentationReport.Coverage, static item =>
+            item.Succeeded && item.Status == "Observed target" && item.Detail == "server01");
+        Assert.Contains(report.PresentationReport.Coverage, static item =>
+            item.Succeeded && item.Status == "Observed channel" && item.Detail == "Security");
     }
 
     [Fact]
@@ -1067,6 +1071,9 @@ public sealed partial class TestEventDetection {
         EventDetectionPackHealth health = Assert.Single(report.Packs);
         Assert.False(health.HasRequiredDataCoverage);
         Assert.Equal(new[] { "System" }, health.MissingRequiredChannels);
+        Assert.Contains(report.PresentationReport.Coverage, static item =>
+            !item.Succeeded && item.Status == "Detection coverage failure" &&
+            item.Detail.Contains("did not declare", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
