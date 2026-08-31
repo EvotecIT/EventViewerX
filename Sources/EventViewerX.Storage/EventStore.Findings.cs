@@ -5,6 +5,8 @@ using DBAClientX;
 namespace EventViewerX.Storage;
 
 public sealed partial class EventStore {
+    private const int ManagedFindingPageSize = 128;
+
     /// <summary>Stores immutable finding and evidence snapshots in one idempotent transaction.</summary>
     public async Task<EventFindingStoreWriteResult> WriteFindingsAsync(
         IEnumerable<EventDetectionFinding> findings,
@@ -69,6 +71,16 @@ public sealed partial class EventStore {
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
+        return await session.RunInTransactionAsync(
+            (transaction, token) => ReadFindingSnapshotAsync(transaction, snapshot, token),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<StoredEventDetectionFinding>> ReadFindingSnapshotAsync(
+        SQLiteAsyncSession session,
+        EventFindingStoreQuery snapshot,
+        CancellationToken cancellationToken) {
+
         var where = new List<string>();
         var parameters = new Dictionary<string, object?>();
         AddBoundary(where, parameters, "f.end_time_utc", "$start", ">=", ToUtcText(snapshot.StartTime));
@@ -98,23 +110,99 @@ public sealed partial class EventStore {
         sql += snapshot.Oldest
             ? " ORDER BY f.start_time_utc, f.finding_key"
             : " ORDER BY f.start_time_utc DESC, f.finding_key DESC";
-        if (snapshot.MaxFindings > 0 && !managedText) {
-            sql += " LIMIT $limit";
-            parameters["$limit"] = snapshot.MaxFindings;
+        StoredFindingRow[] rows;
+        if (snapshot.MaxFindings > 0 && managedText) {
+            rows = await ReadManagedFindingRowsAsync(
+                session,
+                sql,
+                parameters,
+                snapshot,
+                entityCanPush,
+                cancellationToken).ConfigureAwait(false);
+        } else {
+            if (snapshot.MaxFindings > 0) {
+                sql += " LIMIT $limit";
+                parameters["$limit"] = snapshot.MaxFindings;
+            }
+            sql += ";";
+            IReadOnlyList<StoredFindingRow> candidates = await session.QueryAsListAsync(
+                sql,
+                MapFindingRow,
+                parameters,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            rows = candidates.Where(row =>
+                    MatchesText(snapshot.RuleIds, row.RuleId) &&
+                    MatchesText(snapshot.PackIds, row.PackId))
+                .ToArray();
         }
-        sql += ";";
-        IReadOnlyList<StoredFindingRow> candidates = await session.QueryAsListAsync(
-            sql,
-            MapFindingRow,
-            parameters,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        IEnumerable<StoredFindingRow> selected = candidates.Where(row =>
-            MatchesText(snapshot.RuleIds, row.RuleId) &&
-            MatchesText(snapshot.PackIds, row.PackId));
-        StoredFindingRow[] rows = (snapshot.MaxFindings > 0 && entityCanPush
-                ? selected.Take(snapshot.MaxFindings)
-                : selected)
-            .ToArray();
+        return await RestoreFindingRowsAsync(
+            session,
+            rows,
+            snapshot,
+            entityCanPush,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<StoredFindingRow[]> ReadManagedFindingRowsAsync(
+        SQLiteAsyncSession session,
+        string sql,
+        IDictionary<string, object?> parameters,
+        EventFindingStoreQuery snapshot,
+        bool entityCanPush,
+        CancellationToken cancellationToken) {
+
+        var rows = new List<StoredFindingRow>();
+        long offset = 0;
+        while (rows.Count < snapshot.MaxFindings) {
+            var pageParameters = new Dictionary<string, object?>(parameters) {
+                ["$pageLimit"] = ManagedFindingPageSize,
+                ["$pageOffset"] = offset
+            };
+            IReadOnlyList<StoredFindingRow> page = await session.QueryAsListAsync(
+                sql + " LIMIT $pageLimit OFFSET $pageOffset;",
+                MapFindingRow,
+                pageParameters,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (page.Count == 0) {
+                break;
+            }
+            offset += page.Count;
+            StoredFindingRow[] matching = page.Where(row =>
+                    MatchesText(snapshot.RuleIds, row.RuleId) &&
+                    MatchesText(snapshot.PackIds, row.PackId))
+                .ToArray();
+            if (snapshot.EntityField != null && !entityCanPush && matching.Length > 0) {
+                IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> entities =
+                    await ReadFindingEntitiesAsync(
+                        session,
+                        matching.Select(static row => row.FindingId).ToArray(),
+                        cancellationToken).ConfigureAwait(false);
+                matching = matching.Where(row =>
+                        entities.TryGetValue(row.FindingId, out IReadOnlyDictionary<string, string>? findingEntities) &&
+                        findingEntities.TryGetValue(snapshot.EntityField, out string? value) &&
+                        string.Equals(value, snapshot.EntityValue, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+            }
+            foreach (StoredFindingRow row in matching) {
+                rows.Add(row);
+                if (rows.Count >= snapshot.MaxFindings) {
+                    break;
+                }
+            }
+            if (page.Count < ManagedFindingPageSize) {
+                break;
+            }
+        }
+        return rows.ToArray();
+    }
+
+    private static async Task<IReadOnlyList<StoredEventDetectionFinding>> RestoreFindingRowsAsync(
+        SQLiteAsyncSession session,
+        StoredFindingRow[] rows,
+        EventFindingStoreQuery snapshot,
+        bool entityCanPush,
+        CancellationToken cancellationToken) {
+
         if (rows.Length == 0) {
             return Array.Empty<StoredEventDetectionFinding>();
         }
@@ -127,11 +215,8 @@ public sealed partial class EventStore {
             MapEvidenceRow,
             detailParameters,
             cancellationToken: cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<StoredEntityRow> entityRows = await session.QueryAsListAsync(
-            SelectFindingEntitiesSql,
-            static record => new StoredEntityRow(record.GetString(0), record.GetString(1), record.GetString(2)),
-            detailParameters,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> entitiesByFinding =
+            await ReadFindingEntitiesAsync(session, findingIds, cancellationToken).ConfigureAwait(false);
         var evidenceByFinding = evidenceRows.GroupBy(static row => row.FindingId)
             .ToDictionary(
                 static group => group.Key,
@@ -140,14 +225,6 @@ public sealed partial class EventStore {
                     .Select(static row => row.Evidence)
                     .ToArray(),
                 StringComparer.Ordinal);
-        var entitiesByFinding = entityRows.GroupBy(static row => row.FindingId)
-            .ToDictionary(
-                static group => group.Key,
-                static group => (IReadOnlyDictionary<string, string>)group.ToDictionary(
-                    static row => row.Field,
-                    static row => row.Value,
-                    StringComparer.OrdinalIgnoreCase),
-                StringComparer.Ordinal);
         IEnumerable<StoredFindingRow> entitySelected = rows;
         if (snapshot.EntityField != null && !entityCanPush) {
             entitySelected = entitySelected.Where(row =>
@@ -155,17 +232,41 @@ public sealed partial class EventStore {
                 entities.TryGetValue(snapshot.EntityField, out string? value) &&
                 string.Equals(value, snapshot.EntityValue, StringComparison.OrdinalIgnoreCase));
         }
-        IEnumerable<StoredEventDetectionFinding> restored = entitySelected.Select(row => row.Create(
+        return entitySelected.Select(row => row.Create(
                 evidenceByFinding.TryGetValue(row.FindingId, out IReadOnlyList<StoredEventDetectionEvidence>? evidence)
                     ? evidence
                     : Array.Empty<StoredEventDetectionEvidence>(),
                 entitiesByFinding.TryGetValue(row.FindingId, out IReadOnlyDictionary<string, string>? entities)
                     ? entities
-                    : new Dictionary<string, string>()));
-        return (snapshot.MaxFindings > 0
-                ? restored.Take(snapshot.MaxFindings)
-                : restored)
+                    : new Dictionary<string, string>()))
+            .Take(snapshot.MaxFindings > 0 ? snapshot.MaxFindings : int.MaxValue)
             .ToArray();
+    }
+
+    private static async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> ReadFindingEntitiesAsync(
+        SQLiteAsyncSession session,
+        string[] findingIds,
+        CancellationToken cancellationToken) {
+
+        if (findingIds.Length == 0) {
+            return new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        }
+        var parameters = new Dictionary<string, object?> {
+            ["$findingIds"] = JsonSerializer.Serialize(findingIds, JsonOptions)
+        };
+        IReadOnlyList<StoredEntityRow> entityRows = await session.QueryAsListAsync(
+            SelectFindingEntitiesSql,
+            static record => new StoredEntityRow(record.GetString(0), record.GetString(1), record.GetString(2)),
+            parameters,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return entityRows.GroupBy(static row => row.FindingId)
+            .ToDictionary(
+                static group => group.Key,
+                static group => (IReadOnlyDictionary<string, string>)group.ToDictionary(
+                    static row => row.Field,
+                    static row => row.Value,
+                    StringComparer.OrdinalIgnoreCase),
+                StringComparer.Ordinal);
     }
 
     private static Dictionary<string, object?> CreateFindingParameters(

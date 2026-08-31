@@ -292,7 +292,7 @@ public static class EventDefinitionEngine {
             string xpath = EventFilterCompiler.BuildXPath(partition);
             string logName = source.LogName;
             if (useOriginalChannel) {
-                xpath = EventTypeEngine.AddOriginalChannelPredicate(xpath, source.LogName);
+                xpath = EventFilterCompiler.AddOriginalChannelPredicate(xpath, source.LogName);
                 if (!string.IsNullOrWhiteSpace(query.CollectorLogName)) {
                     logName = query.CollectorLogName!;
                 }

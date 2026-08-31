@@ -50,6 +50,19 @@ public class TestQueryBuilders {
     }
 
     [Fact]
+    public void CollectorChannelFactoryTargetsForwardedEventsAndPreservesTheOriginalChannel() {
+        EventLogChannelQuery query = EventLogChannelQuery.ForCollector(
+            "Security",
+            "WEC01",
+            "*[System[EventID=4624]]");
+
+        Assert.Equal("ForwardedEvents", query.LogName);
+        Assert.Equal("WEC01", query.MachineName);
+        Assert.Contains("Channel='Security'", query.XPath, StringComparison.Ordinal);
+        Assert.Contains("EventID=4624", query.XPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StoreQueryBuilderNormalizesAndDetachesInputs() {
         var types = new[] { EventType.ADUserLogonFailed, EventType.ADUserLogonFailed };
         var computers = new[] { " SERVER01 ", "server01", "SERVER02" };

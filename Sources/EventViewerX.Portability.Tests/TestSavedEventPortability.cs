@@ -172,6 +172,34 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void FileQueryBuilderPreservesCaseDistinctPathsOnCaseSensitivePlatforms() {
+        if (OperatingSystem.IsWindows()) {
+            return;
+        }
+        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-builder-case-{Guid.NewGuid():N}");
+        string lower = Path.Combine(directory, "events.evtx");
+        string upper = Path.Combine(directory, "Events.evtx");
+        var builder = new EventQueryDefinitionBuilder();
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(lower, Array.Empty<byte>());
+        File.WriteAllBytes(upper, Array.Empty<byte>());
+        try {
+            builder.FromFiles(lower, upper);
+            EventQueryDefinition definition = builder.Build();
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(definition);
+            EventLogStructuredQuery structured = EventLogStructuredQuery.ForFiles(new[] { lower, upper });
+
+            Assert.False(FileSystemPathIdentity.Equals(lower, upper));
+            Assert.Equal(2, definition.Paths!.Count);
+            Assert.Equal(2, batch.StructuredQueries.SelectMany(static query => query.ResolveSources()).Count());
+            Assert.Equal(2, structured.ResolveSources().Count);
+            Assert.Equal(2, structured.GetIndependentSourceCount());
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task TypedPortableQueryEvaluatesCombinedChannelAndEventSelectors() {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
         var query = new EventTypeQuery(new[] { EventType.ADUserLogonFailed }) {

@@ -90,7 +90,7 @@ public sealed class TestEventTypeDefinitions {
                 StartTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
 
-        string collector = EventTypeEngine.AddOriginalChannelPredicate(
+        string collector = EventFilterCompiler.AddOriginalChannelPredicate(
             native,
             "Security");
 

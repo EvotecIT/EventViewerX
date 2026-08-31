@@ -147,7 +147,7 @@ public sealed partial class EventStore {
         }
         EnsureInitialized();
         string destination = System.IO.Path.GetFullPath(destinationPath);
-        if (string.Equals(destination, Path, StringComparison.OrdinalIgnoreCase)) {
+        if (FileSystemPathIdentity.Equals(destination, Path)) {
             throw new ArgumentException("Backup destination must differ from the live store.", nameof(destinationPath));
         }
         string? directory = System.IO.Path.GetDirectoryName(destination);
@@ -206,7 +206,7 @@ public sealed partial class EventStore {
         if (!File.Exists(backup)) {
             throw new FileNotFoundException("EventStore backup was not found.", backup);
         }
-        if (string.Equals(backup, Path, StringComparison.OrdinalIgnoreCase)) {
+        if (FileSystemPathIdentity.Equals(backup, Path)) {
             throw new ArgumentException("Backup path must differ from the live store.", nameof(backupPath));
         }
         using FileStream maintenance = await AcquireMaintenanceLockAsync(cancellationToken).ConfigureAwait(false);

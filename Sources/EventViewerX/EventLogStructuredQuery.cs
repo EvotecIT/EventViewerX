@@ -216,7 +216,7 @@ public sealed class EventLogStructuredQuery {
                 ? EventLogStructuredQueryParser
                     .CreateFileSourceIdentity(source)
                 : source)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(filePaths ? FileSystemPathIdentity.Comparer : StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (normalized.Length == 0) {
             throw new ArgumentException(

@@ -204,9 +204,10 @@ public static partial class EventDetectionEngine {
         }
         Array.Sort(snapshot, CompareObservations);
         EventDetectionCoverage coverage = options?.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown();
+        EventDetectionFinding[] findings = Stream(snapshot, plan, options).ToArray();
         return new EventDetectionExecutionResult(
-            snapshot,
-            Stream(snapshot, plan, options).ToArray(),
+            GetEvaluatedItems(snapshot, options?.MaximumObservations ?? 1_000_000),
+            findings,
             coverage);
     }
 
@@ -233,10 +234,18 @@ public static partial class EventDetectionEngine {
                 : EventTypeCatalog.CreateEventRule(source, projectionPlan);
             return EventObservation.Create(source, typed);
         }).ToArray();
+        EventDetectionFinding[] findings = Stream(observations, plan, options).ToArray();
         return new EventDetectionExecutionResult(
-            observations,
-            Stream(observations, plan, options).ToArray(),
+            GetEvaluatedItems(observations, options?.MaximumObservations ?? 1_000_000),
+            findings,
             options?.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown());
+    }
+
+    private static T[] GetEvaluatedItems<T>(T[] snapshot, long maximumObservations) {
+        if (maximumObservations == 0 || snapshot.LongLength <= maximumObservations) {
+            return snapshot;
+        }
+        return snapshot.Take(checked((int)maximumObservations)).ToArray();
     }
 
     private static T[] SnapshotBounded<T>(IEnumerable<T> source, long maximumObservations) {

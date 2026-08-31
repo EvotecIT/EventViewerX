@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Xml.Linq;
 
 namespace EventViewerX;
@@ -144,10 +143,7 @@ public static class EventLogBatchConsolidator {
     }
 
     private static string GetParserBackedPathIdentity(string path) {
-        string fullPath = Path.GetFullPath(path);
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? fullPath.ToUpperInvariant()
-            : fullPath;
+        return FileSystemPathIdentity.GetIdentity(path);
     }
 
     private static void CopyControls(

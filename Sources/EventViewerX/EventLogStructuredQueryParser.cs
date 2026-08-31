@@ -92,8 +92,7 @@ internal static class EventLogStructuredQueryParser {
         EventLogQuerySourceKind declaredKind) {
 
         var sources = new List<EventLogStructuredQuerySource>();
-        var identities = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
+        var identities = new HashSet<string>(StringComparer.Ordinal);
         foreach (XElement query in ParseQueries(queryXml)) {
             EventLogQuerySourceKind sourceKind =
                 ResolveSourceKind(query, declaredKind);
@@ -106,11 +105,11 @@ internal static class EventLogStructuredQueryParser {
                 string source = isFile
                     ? GetFilePath(path)
                     : path;
-                string identity =
-                    ((int)sourceKind).ToString(
-                        System.Globalization.CultureInfo.InvariantCulture) +
-                    ":" +
-                    source;
+                string sourceIdentity = isFile
+                    ? FileSystemPathIdentity.GetIdentity(source)
+                    : source.ToUpperInvariant();
+                string identity = ((int)sourceKind).ToString(
+                    System.Globalization.CultureInfo.InvariantCulture) + ":" + sourceIdentity;
                 if (identities.Add(identity)) {
                     sources.Add(
                         new EventLogStructuredQuerySource(
@@ -148,7 +147,9 @@ internal static class EventLogStructuredQueryParser {
             EventLogQuerySourceKind sourceKind =
                 ResolveSourceKind(query, declaredKind);
             foreach (string path in GetPaths(query)
-                         .Distinct(StringComparer.OrdinalIgnoreCase)) {
+                         .Distinct(sourceKind == EventLogQuerySourceKind.File
+                             ? FileSystemPathIdentity.Comparer
+                             : StringComparer.OrdinalIgnoreCase)) {
                 bool isFile = IsFileSource(path);
                 if (isFile !=
                     (sourceKind == EventLogQuerySourceKind.File)) {
@@ -184,12 +185,11 @@ internal static class EventLogStructuredQueryParser {
                     ResolveSourceKind(
                         query,
                         declaredKind);
-                return sourceKind ==
-                       EventLogQuerySourceKind.File
-                    ? "F:" + GetFileSourceIdentity(query)
+                return sourceKind == EventLogQuerySourceKind.File
+                    ? "F:" + FileSystemPathIdentity.GetIdentity(GetFilePath(GetFileSourceIdentity(query)))
                     : "C:";
             })
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.Ordinal)
             .Count();
     }
 
@@ -198,7 +198,7 @@ internal static class EventLogStructuredQueryParser {
 
         string[] sources = GetPaths(query)
             .Where(IsFileSource)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(FileSystemPathIdentity.Comparer)
             .ToArray();
         if (sources.Length != 1) {
             throw new ArgumentException(

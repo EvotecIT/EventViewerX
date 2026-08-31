@@ -265,7 +265,7 @@ public static partial class EventTypeEngine {
                     string logName = source.Key;
                     if (!string.IsNullOrWhiteSpace(
                             query.CollectorLogName)) {
-                        xpath = AddOriginalChannelPredicate(
+                        xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                             xpath,
                             source.Key);
                         logName = query.CollectorLogName!;
@@ -440,7 +440,7 @@ public static partial class EventTypeEngine {
                 }
                 foreach (EventFilter partition in
                          EventFilterPartitioner.Partition(filter)) {
-                    string xpath = AddOriginalChannelPredicate(
+                    string xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                         EventFilterCompiler.BuildXPath(partition),
                         source.Key);
                     fileQueries.Add(new EventLogFileQuery(fullPath) {
@@ -469,28 +469,6 @@ public static partial class EventTypeEngine {
             failure,
             executionInfo);
         return EventLogBatchConsolidator.Consolidate(batch);
-    }
-
-    internal static string AddOriginalChannelPredicate(
-        string xpath,
-        string originalChannel) {
-
-        if (string.IsNullOrWhiteSpace(originalChannel)) {
-            throw new ArgumentException(
-                "Original channel cannot be empty.",
-                nameof(originalChannel));
-        }
-        string channelLiteral =
-            WindowsEventFilterBuilder.FormatXPathStringLiteral(
-                originalChannel.Trim(),
-                nameof(originalChannel));
-        if (xpath == "*") {
-            return $"*[System[Channel={channelLiteral}]]";
-        }
-        if (string.IsNullOrWhiteSpace(xpath) || xpath.IndexOf("<QueryList", StringComparison.OrdinalIgnoreCase) >= 0) {
-            throw new ArgumentException("The typed filter must be a native XPath expression.", nameof(xpath));
-        }
-        return $"(*[System[Channel={channelLiteral}]]) and ({xpath})";
     }
 
     internal static void HandleFailure(

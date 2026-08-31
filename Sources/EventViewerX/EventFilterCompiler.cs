@@ -73,6 +73,23 @@ public static class EventFilterCompiler {
             maximumEventRecordIdExclusive: filter.MaximumRecordIdExclusive);
     }
 
+    /// <summary>Adds an original-channel predicate for records read from a collector log such as ForwardedEvents.</summary>
+    public static string AddOriginalChannelPredicate(string xpath, string originalChannel) {
+        if (string.IsNullOrWhiteSpace(originalChannel)) {
+            throw new ArgumentException("Original channel cannot be empty.", nameof(originalChannel));
+        }
+        string channelLiteral = WindowsEventFilterBuilder.FormatXPathStringLiteral(
+            originalChannel.Trim(),
+            nameof(originalChannel));
+        if (xpath == "*") {
+            return $"*[System[Channel={channelLiteral}]]";
+        }
+        if (string.IsNullOrWhiteSpace(xpath) || xpath.IndexOf("<QueryList", StringComparison.OrdinalIgnoreCase) >= 0) {
+            throw new ArgumentException("The filter must be a native XPath expression.", nameof(xpath));
+        }
+        return $"(*[System[Channel={channelLiteral}]]) and ({xpath})";
+    }
+
     /// <summary>
     /// Builds a structured XML query that can select and suppress records across several channels.
     /// </summary>

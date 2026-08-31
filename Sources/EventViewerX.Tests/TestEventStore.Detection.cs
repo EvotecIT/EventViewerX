@@ -83,6 +83,42 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task UnicodeEntityQueriesRemainBoundedAcrossFindingPages() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionFinding[] findings = Enumerable.Range(0, 130)
+                .Select(index => CreateDetectionFinding(
+                    index == 129 ? "EVX-STORE-ŁUKASZ" : "EVX-STORE-UNICODE-PAGE",
+                    index == 129 ? "Łukasz" : $"account-{index}",
+                    index))
+                .ToArray();
+            var store = new EventStore(path);
+            await store.WriteFindingsAsync(findings);
+
+            IReadOnlyList<StoredEventDetectionFinding> byRule = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery {
+                    RuleIds = new[] { "evx-store-łukasz" },
+                    MaxFindings = 1,
+                    Oldest = true
+                });
+            IReadOnlyList<StoredEventDetectionFinding> byEntity = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery {
+                    EntityField = "Account",
+                    EntityValue = "łUKASZ",
+                    MaxFindings = 1,
+                    Oldest = true
+                });
+
+            Assert.Equal("EVX-STORE-ŁUKASZ", Assert.Single(byRule).RuleId);
+            StoredEventDetectionFinding finding = Assert.Single(byEntity);
+            Assert.Equal("Łukasz", finding.Entities["Account"]);
+            Assert.Single(finding.Evidence);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task FindingHistoryUsesOverlappingEvidenceWindowsAndBoundedOrdering() {
         string path = CreateStorePath();
         try {
@@ -283,7 +319,7 @@ public sealed partial class TestEventStore {
         string account,
         int minute = 0) {
 
-        DateTime time = new(2026, 8, 28, 10, minute, 0, DateTimeKind.Utc);
+        DateTime time = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc).AddMinutes(minute);
         var metadata = new NativeEventMetadata(
             "Provider-A",
             null,

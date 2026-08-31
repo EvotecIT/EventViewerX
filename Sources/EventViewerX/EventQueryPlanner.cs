@@ -297,7 +297,7 @@ public static class EventQueryPlanner {
     }
 
     private static string[] ExpandPaths(IReadOnlyList<string> paths) {
-        var output = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var output = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string? raw in paths) {
             string value = raw?.Trim() ?? string.Empty;
             if (value.Length == 0) {
@@ -326,7 +326,7 @@ public static class EventQueryPlanner {
                 output.Add(Path.GetFullPath(file));
             }
         }
-        return output.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+        return output.OrderBy(static path => path, FileSystemPathIdentity.Comparer).ToArray();
     }
 
     private static string?[] NormalizeMachines(IReadOnlyList<string?>? machines) {

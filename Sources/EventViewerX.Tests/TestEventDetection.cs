@@ -458,7 +458,7 @@ public sealed partial class TestEventDetection {
             new EventDetectionEngineOptions(maximumObservations: 2));
 
         Assert.Equal(3, enumerated);
-        Assert.Equal(3, execution.ObservationCount);
+        Assert.Equal(2, execution.ObservationCount);
         Assert.Single(execution.Findings, static finding =>
             finding.Status == EventDetectionFindingStatus.Incomplete &&
             finding.CompletenessDiagnostic!.Contains("MaximumObservations", StringComparison.Ordinal));

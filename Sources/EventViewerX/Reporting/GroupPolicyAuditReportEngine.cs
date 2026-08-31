@@ -52,7 +52,7 @@ public static class GroupPolicyAuditReportEngine {
             return query.Paths.Select(path => {
                 string fullPath = Path.GetFullPath(path);
                 EventLogQueryTargetFailure? failure = failures.FirstOrDefault(item =>
-                    string.Equals(Path.GetFullPath(item.LogName), fullPath, StringComparison.OrdinalIgnoreCase));
+                    FileSystemPathIdentity.Equals(item.LogName, fullPath));
                 return new EventReportCoverage {
                     MachineName = "Offline",
                     LogName = fullPath,

@@ -82,22 +82,22 @@ public sealed class EventQueryDefinitionBuilder {
         IEnumerable<string>? providers,
         string? queryXml) {
 
-        _logNames = Normalize(logNames);
-        _paths = Normalize(paths);
-        _providerNames = Normalize(providers);
+        _logNames = Normalize(logNames, StringComparer.OrdinalIgnoreCase);
+        _paths = Normalize(paths, FileSystemPathIdentity.Comparer);
+        _providerNames = Normalize(providers, StringComparer.OrdinalIgnoreCase);
         _queryXml = string.IsNullOrWhiteSpace(queryXml) ? null : queryXml!.Trim();
     }
 
     private static int HasValues(IReadOnlyList<string>? values) => values is { Count: > 0 } ? 1 : 0;
 
-    private static string[]? Normalize(IEnumerable<string>? values) {
+    private static string[]? Normalize(IEnumerable<string>? values, StringComparer comparer) {
         if (values == null) {
             return null;
         }
         string[] result = values
             .Where(static value => !string.IsNullOrWhiteSpace(value))
             .Select(static value => value.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(comparer)
             .ToArray();
         return result.Length == 0 ? null : result;
     }

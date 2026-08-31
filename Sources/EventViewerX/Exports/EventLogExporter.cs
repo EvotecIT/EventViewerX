@@ -39,7 +39,7 @@ public static class EventLogExporter {
 
         string destination = ResolveDestination(outputPath);
         string source = Path.GetFullPath(query.Path.Trim().Trim('"', '\''));
-        if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase)) {
+        if (FileSystemPathIdentity.Equals(source, destination)) {
             throw new IOException("The export destination cannot overwrite the source event log.");
         }
         if (format == EventExportFormat.Evtx) {
@@ -659,10 +659,7 @@ public static class EventLogExporter {
                 continue;
             }
             string sourcePath = Path.GetFullPath(source.Source);
-            if (string.Equals(
-                    sourcePath,
-                    destination,
-                    StringComparison.OrdinalIgnoreCase)) {
+            if (FileSystemPathIdentity.Equals(sourcePath, destination)) {
                 throw new IOException(
                     "The export destination cannot overwrite a source event log.");
             }

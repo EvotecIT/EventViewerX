@@ -180,9 +180,10 @@ public static partial class EventLogEngine {
             .Where(static source =>
                 source.Kind == EventLogQuerySourceKind.File)
             .Select(static source =>
-                EventLogStructuredQueryParser
-                    .GetFileSourceIdentity(source.Query))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+                FileSystemPathIdentity.GetIdentity(
+                    EventLogStructuredQueryParser.GetFilePath(
+                        EventLogStructuredQueryParser.GetFileSourceIdentity(source.Query))))
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
         if (!string.IsNullOrWhiteSpace(
                 query.BookmarkXml) &&
@@ -220,8 +221,7 @@ public static partial class EventLogEngine {
             flags |= WindowsEventNativeMethods.QueryFlags.TolerateQueryErrors;
         }
         string? filePath = sourceKind == EventLogQuerySourceKind.File
-            ? EventLogStructuredQueryParser.GetFilePath(
-                fileSources[0])
+            ? fileSources[0]
             : null;
 
         return ReadSourceIterator(

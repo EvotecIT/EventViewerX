@@ -179,8 +179,10 @@ internal static partial class Program {
             };
             string xpath = EventFilterCompiler.BuildXPath(filter);
             if (logName != null) {
-                string[] targets = options.GetMany("collector").Length > 0
-                    ? options.GetMany("collector")
+                string[] collectors = options.GetMany("collector");
+                bool useCollectorLog = collectors.Length > 0;
+                string[] targets = useCollectorLog
+                    ? collectors
                     : options.GetMany("machine");
                 if (targets.Length == 0) {
                     targets = new[] { string.Empty };
@@ -193,13 +195,15 @@ internal static partial class Program {
                             $"The generic source result limit of {max} observations was reached before target '{DisplayTarget(target)}' was evaluated.");
                         break;
                     }
-                    var query = new EventLogChannelQuery(logName) {
-                        MachineName = target,
-                        XPath = xpath,
-                        Oldest = true,
-                        ReadMode = EventReadMode.StructuredDataAndMessage,
-                        MaxEvents = ProbeLimit(max, remaining)
-                    };
+                    EventLogChannelQuery query = useCollectorLog
+                        ? EventLogChannelQuery.ForCollector(logName, target, xpath)
+                        : new EventLogChannelQuery(logName) {
+                            MachineName = target,
+                            XPath = xpath
+                        };
+                    query.Oldest = true;
+                    query.ReadMode = EventReadMode.StructuredDataAndMessage;
+                    query.MaxEvents = ProbeLimit(max, remaining);
                     await foreach (EventObject source in EventLogEngine.ReadChannelAsync(query)) {
                         if (max > 0 && observations.Count >= max) {
                             sourceFailures.Enqueue(
