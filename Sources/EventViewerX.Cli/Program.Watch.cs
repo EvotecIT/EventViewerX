@@ -156,8 +156,20 @@ internal static partial class Program {
                 if (string.IsNullOrWhiteSpace(outbox) && mailProfile == null) {
                     return;
                 }
+                object[] projected = batch
+                    .Where(static item => item.Projected != null)
+                    .Select(static item => item.Projected!)
+                    .ToArray();
+                if (projected.Length == 0) {
+                    await AdvanceCheckpointsAsync(batch.Select(static item => item.Delivery)).ConfigureAwait(false);
+                    bool hasBufferedDeliveries = CompleteActiveBatch(batchStem);
+                    if (hasBufferedDeliveries) {
+                        QueueFlush();
+                    }
+                    return;
+                }
                 EventReport report = EventReportEngine.Create(
-                    batch.Select(static item => item.Projected).ToArray(),
+                    projected,
                     options.Get("title") ?? "EventViewerX notification");
                 EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report).ConfigureAwait(false);
                 EventNotificationCheckpointBoundary[] checkpointBoundaries = CreateCheckpointBoundaries(
@@ -169,7 +181,7 @@ internal static partial class Program {
                         batchStem,
                         report,
                         email,
-                        batch.Count,
+                        projected.Length,
                         checkpointBoundaries,
                         requiresExternalTransport: mailProfile != null,
                         limits: outboxLimits);
@@ -469,6 +481,23 @@ internal static partial class Program {
             }
         }
 
+        void BufferNotification(object? projected, WatchDelivery delivery) {
+            bool accepted;
+            lock (bufferLock) {
+                accepted = buffer.Count < notificationBufferCapacity;
+                if (accepted) {
+                    buffer.Add(new WatchBufferedNotification(projected, delivery));
+                }
+            }
+            if (!accepted) {
+                throw new InvalidOperationException(
+                    $"The notification buffer reached its capacity of {notificationBufferCapacity} events before delivery completed.");
+            }
+            if (interval == null) {
+                QueueFlush();
+            }
+        }
+
         async ValueTask ProcessAsync(WatchDelivery delivery, CancellationToken cancellationToken) {
             cancellationToken.ThrowIfCancellationRequested();
             if (stopAfter > 0 && Volatile.Read(ref processed) >= stopAfter) {
@@ -479,6 +508,11 @@ internal static partial class Program {
                 ? EventDefinitionEngine.CreateRecord(definition, source)
                 : EventTypeCatalog.CreateEventRule(source, projectionPlan!);
             if (projected == null) {
+                if (bufferNotifications) {
+                    BufferNotification(null, delivery);
+                } else {
+                    await AdvanceCheckpointsAsync(new[] { delivery }).ConfigureAwait(false);
+                }
                 return;
             }
             string serialized = JsonSerializer.Serialize(EventReportEngine.CreateRow(projected), JsonOptions);
@@ -492,20 +526,7 @@ internal static partial class Program {
                 }
             }
             if (bufferNotifications) {
-                bool accepted;
-                lock (bufferLock) {
-                    accepted = buffer.Count < notificationBufferCapacity;
-                    if (accepted) {
-                        buffer.Add(new WatchBufferedNotification(projected, delivery));
-                    }
-                }
-                if (!accepted) {
-                    throw new InvalidOperationException(
-                        $"The notification buffer reached its capacity of {notificationBufferCapacity} events before delivery completed.");
-                }
-                if (interval == null) {
-                    QueueFlush();
-                }
+                BufferNotification(projected, delivery);
             } else {
                 jsonLines?.Flush();
                 await AdvanceCheckpointsAsync(new[] { delivery }).ConfigureAwait(false);
@@ -779,12 +800,12 @@ internal static partial class Program {
     }
 
     private sealed class WatchBufferedNotification {
-        internal WatchBufferedNotification(object projected, WatchDelivery delivery) {
+        internal WatchBufferedNotification(object? projected, WatchDelivery delivery) {
             Projected = projected;
             Delivery = delivery;
         }
 
-        internal object Projected { get; }
+        internal object? Projected { get; }
         internal WatchDelivery Delivery { get; }
     }
 }

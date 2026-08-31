@@ -41,6 +41,35 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void ManagedReaderAppliesCompiledUtcTimeBounds() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
+        var reader = new EvtxSavedEventReader();
+        SavedEventRecord source = Assert.Single(reader.Read(new EventLogFileQuery(path) {
+            Oldest = true,
+            XPath = "*"
+        }));
+        string inclusiveXPath = EventFilterCompiler.BuildXPath(new EventFilter {
+            StartTime = source.TimeCreatedUtc,
+            EndTime = source.TimeCreatedUtc
+        });
+        string excludedXPath = EventFilterCompiler.BuildXPath(new EventFilter {
+            StartTime = source.TimeCreatedUtc.AddTicks(1)
+        });
+
+        SavedEventRecord included = Assert.Single(reader.Read(new EventLogFileQuery(path) {
+            Oldest = true,
+            XPath = inclusiveXPath
+        }));
+        SavedEventRecord[] excluded = reader.Read(new EventLogFileQuery(path) {
+            Oldest = true,
+            XPath = excludedXPath
+        }).ToArray();
+
+        Assert.Equal(source.RecordId, included.RecordId);
+        Assert.Empty(excluded);
+    }
+
+    [Fact]
     public void ManagedReaderRejectsOutOfBoundsLiteralNameReferences() {
         string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
         string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-literal-bounds-{Guid.NewGuid():N}.evtx");

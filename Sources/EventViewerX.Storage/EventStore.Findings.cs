@@ -325,10 +325,11 @@ public sealed partial class EventStore {
         AppendFindingKeyPart(canonical, finding.PackId);
         AppendFindingKeyPart(canonical, finding.PackVersion);
         AppendFindingKeyPart(canonical, finding.SourceHash);
+        AppendFindingKeyPart(canonical, ((int)finding.Severity).ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, ((int)finding.Status).ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, finding.StartTimeUtc.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, finding.EndTimeUtc.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
-        AppendFindingKeyPart(canonical, finding.Coverage.ToJson());
+        AppendCanonicalCoverage(canonical, finding.Coverage);
         if (finding.Status != EventDetectionFindingStatus.Matched) {
             AppendFindingKeyPart(canonical, finding.CompletenessDiagnostic ?? string.Empty);
             AppendFindingKeyPart(canonical, finding.Explanation);
@@ -339,6 +340,49 @@ public sealed partial class EventStore {
         using SHA256 sha256 = SHA256.Create();
         byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical.ToString()));
         return BitConverter.ToString(hash).Replace("-", string.Empty);
+    }
+
+    private static void AppendCanonicalCoverage(
+        StringBuilder builder,
+        EventDetectionCoverage coverage) {
+
+        AppendFindingKeyPart(builder, coverage.IsDeclared ? "1" : "0");
+        AppendCanonicalTextSet(builder, coverage.ExpectedTargets);
+        AppendCanonicalTextSet(builder, coverage.ObservedTargets);
+        AppendCanonicalTextSet(builder, coverage.ExpectedChannels);
+        AppendCanonicalTextSet(builder, coverage.ObservedChannels);
+        AppendCanonicalTextSet(builder, coverage.ExpectedProviders);
+        AppendCanonicalTextSet(builder, coverage.ObservedProviders);
+        AppendCanonicalIntegerSet(builder, coverage.ExpectedEventIds.Select(static value => (int)value));
+        AppendCanonicalIntegerSet(builder, coverage.ObservedEventIds.Select(static value => (int)value));
+        AppendCanonicalIntegerSet(builder, coverage.ExpectedEventTypes.Select(static value => (int)value));
+        AppendCanonicalIntegerSet(builder, coverage.ObservedEventTypes.Select(static value => (int)value));
+        AppendCanonicalTextSet(builder, coverage.Failures);
+    }
+
+    private static void AppendCanonicalTextSet(
+        StringBuilder builder,
+        IEnumerable<string> values) {
+
+        string[] snapshot = values
+            .Select(static value => value.ToUpperInvariant())
+            .OrderBy(static value => value, StringComparer.Ordinal)
+            .ToArray();
+        AppendFindingKeyPart(builder, snapshot.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (string value in snapshot) {
+            AppendFindingKeyPart(builder, value);
+        }
+    }
+
+    private static void AppendCanonicalIntegerSet(
+        StringBuilder builder,
+        IEnumerable<int> values) {
+
+        int[] snapshot = values.OrderBy(static value => value).ToArray();
+        AppendFindingKeyPart(builder, snapshot.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (int value in snapshot) {
+            AppendFindingKeyPart(builder, value.ToString(CultureInfo.InvariantCulture));
+        }
     }
 
     private static void AppendFindingKeyPart(StringBuilder builder, string value) {

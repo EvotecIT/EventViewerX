@@ -40,6 +40,64 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void OversizedSigmaTimespansProduceStructuredSafetyDiagnostics() {
+        const string yaml = """
+            title: Base event
+            id: 20202020-2020-4020-8020-202020202020
+            name: oversized_base
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4624
+              condition: selection
+            ---
+            title: Oversized correlation
+            id: 30303030-3030-4030-8030-303030303030
+            correlation:
+              type: event_count
+              rules:
+                - oversized_base
+              group-by:
+                - TargetUserName
+              timespan: 999999999h
+              condition:
+                gte: 2
+            """;
+
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.False(compilation.IsSupported);
+        Assert.Contains(compilation.Diagnostics, static diagnostic =>
+            diagnostic.Code == "EVXSIGMA208" && diagnostic.Severity == SigmaDiagnosticSeverity.Error);
+    }
+
+    [Theory]
+    [InlineData("title: First\nTitle: Second")]
+    [InlineData("? [complex, key]\n: value\ntitle: Valid title")]
+    public void UnsupportedSigmaMappingKeysProduceStructuredSchemaDiagnostics(string mappingPrefix) {
+        string yaml = mappingPrefix + """
+
+            id: 40404040-4040-4040-8040-404040404040
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4624
+              condition: selection
+            """;
+
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+
+        Assert.False(compilation.IsSupported);
+        SigmaDiagnostic diagnostic = Assert.Single(compilation.Diagnostics);
+        Assert.Equal("EVXSIGMA004", diagnostic.Code);
+        Assert.Equal(SigmaDiagnosticSeverity.Error, diagnostic.Severity);
+    }
+
+    [Fact]
     public void SigmaSchemaPreservesQuotedPrimitiveLikeStrings() {
         const string yaml = """
             title: "123"

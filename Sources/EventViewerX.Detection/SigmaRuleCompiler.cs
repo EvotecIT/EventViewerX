@@ -35,7 +35,18 @@ public static class SigmaRuleCompiler {
                 continue;
             }
             bool correlation = TryGet(root, "correlation", out _);
-            if (!SigmaSchemaCatalog.Validate(root, correlation)) {
+            bool schemaValid;
+            try {
+                schemaValid = SigmaSchemaCatalog.Validate(root, correlation);
+            } catch (InvalidDataException exception) {
+                diagnostics.Add(Error(
+                    "EVXSIGMA004",
+                    "The Sigma document cannot be represented by the supported schema profile: " + exception.Message,
+                    index));
+                invalidSchemaDocuments.Add(index);
+                continue;
+            }
+            if (!schemaValid) {
                 diagnostics.Add(Error(
                     "EVXSIGMA004",
                     $"The document does not satisfy the bundled EventViewerX Sigma {SigmaSchemaCatalog.SupportedSpecificationVersion} " +
@@ -440,20 +451,28 @@ public static class SigmaRuleCompiler {
             count <= 0) {
             throw new InvalidDataException($"Sigma timespan '{value}' is invalid.");
         }
-        TimeSpan result = value[value.Length - 1] switch {
+        char unit = value[value.Length - 1];
+        int maximum = unit switch {
+            's' => 30 * 24 * 60 * 60,
+            'm' => 30 * 24 * 60,
+            'h' => 30 * 24,
+            'd' => 30,
+            'w' => 4,
+            _ => throw new SigmaConditionException(
+                "EVXSIGMA207",
+                "EventViewerX supports bounded Sigma timespans in seconds, minutes, hours, days, or weeks; months and years are rejected.")
+        };
+        if (count > maximum) {
+            throw new SigmaConditionException("EVXSIGMA208", "Sigma correlation timespan exceeds the 30-day EVX safety bound.");
+        }
+        return unit switch {
             's' => TimeSpan.FromSeconds(count),
             'm' => TimeSpan.FromMinutes(count),
             'h' => TimeSpan.FromHours(count),
             'd' => TimeSpan.FromDays(count),
             'w' => TimeSpan.FromDays(count * 7D),
-            _ => throw new SigmaConditionException(
-                "EVXSIGMA207",
-                "EventViewerX supports bounded Sigma timespans in seconds, minutes, hours, days, or weeks; months and years are rejected.")
+            _ => throw new InvalidOperationException("The Sigma timespan unit was validated before conversion.")
         };
-        if (result > TimeSpan.FromDays(30)) {
-            throw new SigmaConditionException("EVXSIGMA208", "Sigma correlation timespan exceeds the 30-day EVX safety bound.");
-        }
-        return result;
     }
 
     private static EventDetectionSeverity ParseSeverity(string value) => value.ToLowerInvariant() switch {

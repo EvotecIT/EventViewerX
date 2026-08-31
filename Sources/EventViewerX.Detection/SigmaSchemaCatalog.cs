@@ -40,10 +40,18 @@ public static class SigmaSchemaCatalog {
 
     private static object? ConvertNode(YamlNode node) {
         if (node is YamlMappingNode mapping) {
-            return mapping.Children.ToDictionary(
-                static item => ((YamlScalarNode)item.Key).Value ?? string.Empty,
-                static item => ConvertNode(item.Value),
-                StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<YamlNode, YamlNode> item in mapping.Children) {
+                if (item.Key is not YamlScalarNode scalarKey || string.IsNullOrWhiteSpace(scalarKey.Value)) {
+                    throw new InvalidDataException("YAML mapping keys must be non-empty scalar strings.");
+                }
+                string key = scalarKey.Value!;
+                if (!result.TryAdd(key, ConvertNode(item.Value))) {
+                    throw new InvalidDataException(
+                        $"YAML mapping key '{key}' is duplicated when compared case-insensitively.");
+                }
+            }
+            return result;
         }
         if (node is YamlSequenceNode sequence) {
             return sequence.Children.Select(ConvertNode).ToArray();

@@ -169,7 +169,7 @@ public static class EventLogBatchConsolidator {
             .ToArray();
         result.XPath = expressions.Contains("*", StringComparer.Ordinal)
             ? "*"
-            : string.Join(" | ", expressions);
+            : string.Join(" or ", expressions.Select(static expression => $"({expression})"));
         return result;
     }
 

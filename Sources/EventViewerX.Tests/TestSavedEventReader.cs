@@ -106,7 +106,7 @@ public sealed class TestSavedEventReader {
         EventLogFileQuery result = Assert.Single(consolidated.FileQueries);
         Assert.Empty(consolidated.StructuredQueries);
         Assert.Same(reader, result.SavedEventReader);
-        Assert.Equal("*[System/EventID=1001] | *[System/EventID=1002]", result.XPath);
+        Assert.Equal("(*[System/EventID=1001]) or (*[System/EventID=1002])", result.XPath);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class TestSavedEventReader {
         Assert.Equal(2, independent.FileQueries.Count);
         Assert.All(independent.FileQueries, static query => Assert.Equal(1, query.MaxEvents));
         Assert.Equal(
-            "*[System/EventID=1001] | *[System/EventID=1002]",
+            "(*[System/EventID=1001]) or (*[System/EventID=1002])",
             Assert.Single(shared.FileQueries).XPath);
     }
 

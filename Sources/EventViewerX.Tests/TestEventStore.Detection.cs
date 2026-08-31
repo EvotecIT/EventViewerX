@@ -115,6 +115,68 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task FindingHistoryTreatsReorderedCoverageSetsAsTheSameEvidence() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionCoverage firstCoverage = EventDetectionCoverage.Create(
+                expectedTargets: new[] { "server01", "server02" },
+                observedTargets: new[] { "server01", "server02" },
+                expectedChannels: new[] { "Security", "System" },
+                observedChannels: new[] { "Security", "System" });
+            EventDetectionCoverage reorderedCoverage = EventDetectionCoverage.Create(
+                expectedTargets: new[] { "SERVER02", "SERVER01" },
+                observedTargets: new[] { "SERVER02", "SERVER01" },
+                expectedChannels: new[] { "system", "security" },
+                observedChannels: new[] { "system", "security" });
+            EventDetectionFinding first = CreateDetectionFinding(
+                "EVX-STORE-CANONICAL-COVERAGE",
+                "alice",
+                coverage: firstCoverage);
+            EventDetectionFinding reordered = CreateDetectionFinding(
+                "EVX-STORE-CANONICAL-COVERAGE",
+                "alice",
+                coverage: reorderedCoverage);
+            var store = new EventStore(path);
+
+            EventFindingStoreWriteResult write = await store.WriteFindingsAsync(new[] { first, reordered });
+            IReadOnlyList<StoredEventDetectionFinding> stored = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery { RuleIds = new[] { "EVX-STORE-CANONICAL-COVERAGE" } });
+
+            Assert.Equal(1, write.Inserted);
+            Assert.Equal(1, write.Duplicates);
+            Assert.Single(stored);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task FindingHistoryRetainsEffectiveSeverityChangesForTheSameEvidence() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionFinding high = CreateDetectionFinding(
+                "EVX-STORE-SEVERITY",
+                "alice",
+                severity: EventDetectionSeverity.High);
+            EventDetectionFinding critical = CreateDetectionFinding(
+                "EVX-STORE-SEVERITY",
+                "alice",
+                severity: EventDetectionSeverity.Critical);
+            var store = new EventStore(path);
+
+            EventFindingStoreWriteResult write = await store.WriteFindingsAsync(new[] { high, critical });
+            IReadOnlyList<StoredEventDetectionFinding> stored = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery { RuleIds = new[] { "EVX-STORE-SEVERITY" } });
+
+            Assert.Equal(2, write.Inserted);
+            Assert.Contains(stored, static finding => finding.Severity == EventDetectionSeverity.High);
+            Assert.Contains(stored, static finding => finding.Severity == EventDetectionSeverity.Critical);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task FindingHistoryRetainsPackProvenanceChangesForTheSameEvidence() {
         string path = CreateStorePath();
         try {
@@ -506,7 +568,8 @@ public sealed partial class TestEventStore {
         int minute = 0,
         EventDetectionCoverage? coverage = null,
         string packId = "eventviewerx.tests",
-        string packVersion = "1.2.0") {
+        string packVersion = "1.2.0",
+        EventDetectionSeverity severity = EventDetectionSeverity.High) {
 
         DateTime time = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc).AddMinutes(minute);
         var metadata = new NativeEventMetadata(
@@ -542,7 +605,7 @@ public sealed partial class TestEventStore {
             new string('A', 64),
             "MIT",
             "Durable finding",
-            EventDetectionSeverity.High,
+            severity,
             90,
             EventDetectionFindingStatus.Matched,
             time,
