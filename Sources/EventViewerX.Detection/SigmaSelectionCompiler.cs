@@ -1,4 +1,5 @@
 using YamlDotNet.RepresentationModel;
+using YamlDotNet.Core;
 
 namespace EventViewerX.Sigma;
 
@@ -82,6 +83,15 @@ internal static class SigmaSelectionCompiler {
         string? value,
         bool ignoreCase) {
 
+        if (value == null) {
+            if (modifier != null) {
+                throw new SigmaConditionException(
+                    "EVXSIGMA128",
+                    $"Sigma null selector for '{field}' cannot use the '{modifier}' modifier.");
+            }
+            return EventPredicate.Compare(field, EventPredicateOperator.IsNull);
+        }
+
         EventPredicateOperator comparison = modifier switch {
             "contains" => EventPredicateOperator.Contains,
             "startswith" => EventPredicateOperator.StartsWith,
@@ -98,6 +108,56 @@ internal static class SigmaSelectionCompiler {
         predicate.IgnoreCase = ignoreCase;
         predicate.Validate();
         return predicate;
+    }
+
+    internal static int[] GetGuaranteedEventIds(EventPredicate predicate) =>
+        TryGetGuaranteedEventIds(predicate, out HashSet<int> eventIds)
+            ? eventIds.OrderBy(static eventId => eventId).ToArray()
+            : Array.Empty<int>();
+
+    private static bool TryGetGuaranteedEventIds(
+        EventPredicate predicate,
+        out HashSet<int> eventIds) {
+
+        eventIds = new HashSet<int>();
+        if (predicate.Kind == EventPredicateKind.Comparison) {
+            if (!string.Equals(predicate.Field, "EventId", StringComparison.OrdinalIgnoreCase) ||
+                predicate.Operator is not EventPredicateOperator.Equal and not EventPredicateOperator.In) {
+                return false;
+            }
+            foreach (string? value in predicate.Values) {
+                if (!int.TryParse(value, System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out int eventId) || eventId <= 0) {
+                    return false;
+                }
+                eventIds.Add(eventId);
+            }
+            return eventIds.Count > 0;
+        }
+        if (predicate.Kind == EventPredicateKind.Not) {
+            return false;
+        }
+        if (predicate.Kind == EventPredicateKind.All) {
+            foreach (EventPredicate child in predicate.Children) {
+                if (!TryGetGuaranteedEventIds(child, out HashSet<int> childIds)) {
+                    continue;
+                }
+                if (eventIds.Count == 0) {
+                    eventIds.UnionWith(childIds);
+                } else {
+                    eventIds.IntersectWith(childIds);
+                }
+            }
+            return eventIds.Count > 0;
+        }
+        foreach (EventPredicate child in predicate.Children) {
+            if (!TryGetGuaranteedEventIds(child, out HashSet<int> childIds)) {
+                eventIds.Clear();
+                return false;
+            }
+            eventIds.UnionWith(childIds);
+        }
+        return eventIds.Count > 0;
     }
 
     private static string MapField(string value) {
@@ -149,6 +209,12 @@ internal static class SigmaSelectionCompiler {
     private static string? ScalarOrNull(YamlNode node) {
         if (node is not YamlScalarNode scalar) {
             throw new SigmaConditionException("EVXSIGMA126", "Sigma field values must be scalars or scalar lists.");
+        }
+        if (scalar.Style == ScalarStyle.Plain &&
+            (string.IsNullOrEmpty(scalar.Value) ||
+             string.Equals(scalar.Value, "~", StringComparison.Ordinal) ||
+             string.Equals(scalar.Value, "null", StringComparison.OrdinalIgnoreCase))) {
+            return null;
         }
         return scalar.Value;
     }

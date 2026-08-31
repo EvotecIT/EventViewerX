@@ -326,6 +326,7 @@ public sealed partial class EventStore {
         AppendFindingKeyPart(canonical, ((int)finding.Status).ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, finding.StartTimeUtc.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
         AppendFindingKeyPart(canonical, finding.EndTimeUtc.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
+        AppendFindingKeyPart(canonical, finding.Coverage.ToJson());
         if (finding.Status != EventDetectionFindingStatus.Matched) {
             AppendFindingKeyPart(canonical, finding.CompletenessDiagnostic ?? string.Empty);
             AppendFindingKeyPart(canonical, finding.Explanation);

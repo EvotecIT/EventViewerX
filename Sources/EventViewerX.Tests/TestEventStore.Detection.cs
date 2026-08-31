@@ -83,6 +83,38 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task FindingHistoryRetainsCoverageChangesForTheSameMatchedEvidence() {
+        string path = CreateStorePath();
+        try {
+            EventDetectionCoverage complete = EventDetectionCoverage.Create(
+                expectedTargets: new[] { "server01" },
+                observedTargets: new[] { "server01" },
+                expectedChannels: new[] { "Security" },
+                observedChannels: new[] { "Security" });
+            EventDetectionFinding first = CreateDetectionFinding(
+                "EVX-STORE-COVERAGE",
+                "alice",
+                coverage: complete);
+            EventDetectionFinding second = CreateDetectionFinding(
+                "EVX-STORE-COVERAGE",
+                "alice",
+                coverage: complete.WithFailures(new[] { "Collector disconnected." }));
+            var store = new EventStore(path);
+
+            EventFindingStoreWriteResult write = await store.WriteFindingsAsync(new[] { first, second });
+            IReadOnlyList<StoredEventDetectionFinding> stored = await store.ReadFindingsAsync(
+                new EventFindingStoreQuery { RuleIds = new[] { "EVX-STORE-COVERAGE" } });
+
+            Assert.Equal(2, write.Inserted);
+            Assert.Equal(2, stored.Count);
+            Assert.Contains(stored, static finding => finding.Coverage.IsComplete);
+            Assert.Contains(stored, static finding => !finding.Coverage.IsComplete);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task UnicodeEntityQueriesRemainBoundedAcrossFindingPages() {
         string path = CreateStorePath();
         try {
@@ -366,7 +398,8 @@ public sealed partial class TestEventStore {
     private static EventDetectionFinding CreateDetectionFinding(
         string ruleId,
         string account,
-        int minute = 0) {
+        int minute = 0,
+        EventDetectionCoverage? coverage = null) {
 
         DateTime time = new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc).AddMinutes(minute);
         var metadata = new NativeEventMetadata(
@@ -412,7 +445,7 @@ public sealed partial class TestEventStore {
             new[] { "Approved test activity" },
             new[] { "https://example.invalid/rule" },
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Account"] = account },
-            EventDetectionCoverage.Create(
+            coverage ?? EventDetectionCoverage.Create(
                 expectedTargets: new[] { "server01" },
                 observedTargets: new[] { "server01" },
                 expectedChannels: new[] { "Security" },

@@ -57,8 +57,16 @@ internal static class EvtxLiteralRecordReader {
                 continue;
             }
 
-            int freeSpaceOffset = checked((int)BitConverter.ToUInt32(buffer, 0x30));
-            int chunkEnd = Math.Min(chunkLength, Math.Max(ChunkHeaderSize, freeSpaceOffset));
+            uint freeSpaceValue = BitConverter.ToUInt32(buffer, 0x30);
+            uint lastRecordValue = BitConverter.ToUInt32(buffer, 0x2C);
+            if (freeSpaceValue < ChunkHeaderSize || freeSpaceValue > chunkLength ||
+                (lastRecordValue != 0 &&
+                 (lastRecordValue < ChunkHeaderSize ||
+                  lastRecordValue > freeSpaceValue - RecordHeaderSize - RecordTrailerSize))) {
+                throw new InvalidDataException(
+                    $"Literal BinXML chunk at file offset 0x{chunkFileOffset:X} has inconsistent record and free-space offsets.");
+            }
+            int chunkEnd = (int)freeSpaceValue;
             int recordOffset = ChunkHeaderSize;
             var names = new Dictionary<uint, EvtxBinXmlName>();
             while (recordOffset + RecordHeaderSize + RecordTrailerSize <= chunkEnd) {

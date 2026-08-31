@@ -76,6 +76,20 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void LiteralReaderRejectsFreeSpaceBeforeTheFirstRecord() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");
+        byte[] bytes = File.ReadAllBytes(source);
+        const int freeSpaceOffset = 4096 + 0x30;
+        BitConverter.GetBytes(512u).CopyTo(bytes, freeSpaceOffset);
+        using var stream = new MemoryStream(bytes, writable: false);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            EvtxLiteralRecordReader.Read(stream, CancellationToken.None).ToArray());
+
+        Assert.Contains("record and free-space offsets", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ManagedReaderRejectsDeterministicMalformedContainersWithoutFatalFailures() {
         var random = new Random(811_221);
         foreach (int length in new[] { 0, 1, 8, 512, 4095, 4096, 8192, 65_536 }) {
@@ -166,10 +180,10 @@ public sealed class TestSavedEventPortability {
 
     [Fact]
     public void ParserBackedConsolidationPreservesCaseDistinctFilesOnCaseSensitivePlatforms() {
-        if (OperatingSystem.IsWindows()) {
+        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-case-{Guid.NewGuid():N}");
+        if (!FileSystemPathIdentity.IsCaseSensitive(directory)) {
             return;
         }
-        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-case-{Guid.NewGuid():N}");
         var reader = new PortableFixtureReader();
         var lower = new EventLogFileQuery(Path.Combine(directory, "events.evtx")) {
             SavedEventReader = reader,
@@ -188,17 +202,17 @@ public sealed class TestSavedEventPortability {
 
     [Fact]
     public void FileQueryBuilderPreservesCaseDistinctPathsOnCaseSensitivePlatforms() {
-        if (OperatingSystem.IsWindows()) {
-            return;
-        }
         string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-builder-case-{Guid.NewGuid():N}");
         string lower = Path.Combine(directory, "events.evtx");
         string upper = Path.Combine(directory, "Events.evtx");
         var builder = new EventQueryDefinitionBuilder();
         Directory.CreateDirectory(directory);
-        File.WriteAllBytes(lower, Array.Empty<byte>());
-        File.WriteAllBytes(upper, Array.Empty<byte>());
         try {
+            if (!FileSystemPathIdentity.IsCaseSensitive(directory)) {
+                return;
+            }
+            File.WriteAllBytes(lower, Array.Empty<byte>());
+            File.WriteAllBytes(upper, Array.Empty<byte>());
             builder.FromFiles(lower, upper);
             EventQueryDefinition definition = builder.Build();
             EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(definition);
@@ -209,6 +223,24 @@ public sealed class TestSavedEventPortability {
             Assert.Equal(2, batch.StructuredQueries.SelectMany(static query => query.ResolveSources()).Count());
             Assert.Equal(2, structured.ResolveSources().Count);
             Assert.Equal(2, structured.GetIndependentSourceCount());
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PathComparerUsesTheContainingFilesystemCaseRules() {
+        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-path-identity-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string actual = Path.Combine(directory, "CaseProbe.evtx");
+        string alternate = Path.Combine(directory, "caseProbe.evtx");
+        File.WriteAllBytes(actual, Array.Empty<byte>());
+        try {
+            bool caseSensitive = FileSystemPathIdentity.IsCaseSensitive(directory);
+
+            Assert.Equal(caseSensitive, !File.Exists(alternate));
+            Assert.Equal(caseSensitive ? 2 : 1,
+                new[] { actual, alternate }.Distinct(FileSystemPathIdentity.Comparer).Count());
         } finally {
             Directory.Delete(directory, recursive: true);
         }

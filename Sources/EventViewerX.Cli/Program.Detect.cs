@@ -40,13 +40,13 @@ internal static partial class Program {
             packs.Add(pack);
             rules.AddRange(pack.GetRules());
         }
-        foreach (string sigmaPath in sigmaPaths) {
-            SigmaCompilationResult result = SigmaRuleCompiler.Load(sigmaPath);
+        if (sigmaPaths.Length > 0) {
+            SigmaCompilationResult result = SigmaRuleCompiler.Load(sigmaPaths);
             foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
                 Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Code}: {diagnostic.Message}");
             }
             if (!result.IsSupported) {
-                throw new InvalidDataException($"Sigma input '{sigmaPath}' contains unsupported or invalid behavior.");
+                throw new InvalidDataException("The Sigma input set contains unsupported or invalid behavior.");
             }
             rules.AddRange(result.Rules);
         }

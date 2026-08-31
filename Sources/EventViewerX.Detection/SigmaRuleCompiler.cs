@@ -84,6 +84,23 @@ public static class SigmaRuleCompiler {
         return CompileYaml(File.ReadAllText(Path.GetFullPath(path)));
     }
 
+    /// <summary>Loads several Sigma YAML files as one compilation unit so correlations can resolve across files.</summary>
+    public static SigmaCompilationResult Load(IEnumerable<string> paths) {
+        if (paths == null) {
+            throw new ArgumentNullException(nameof(paths));
+        }
+        string[] resolved = paths
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Select(static path => Path.GetFullPath(path))
+            .ToArray();
+        if (resolved.Length == 0) {
+            throw new ArgumentException("At least one Sigma path is required.", nameof(paths));
+        }
+        return CompileYaml(string.Join(
+            Environment.NewLine + "---" + Environment.NewLine,
+            resolved.Select(File.ReadAllText)));
+    }
+
     /// <summary>Creates a native integrity-protected pack from fully supported Sigma input.</summary>
     public static EventDetectionPack CompilePack(
         string yaml,
@@ -152,6 +169,7 @@ public static class SigmaRuleCompiler {
                 Kind = EventDetectionRuleKind.Stateless,
                 Channels = selectors.Channels,
                 Providers = selectors.Providers,
+                EventIds = SigmaSelectionCompiler.GetGuaranteedEventIds(predicate),
                 Predicate = predicate,
                 Tags = TextList(root, "tags"),
                 FalsePositives = TextList(root, "falsepositives"),
@@ -375,21 +393,7 @@ public static class SigmaRuleCompiler {
     }
 
     private static bool HasGuaranteedEventIdConstraint(EventPredicate predicate) {
-        if (predicate.Kind == EventPredicateKind.Comparison) {
-            return string.Equals(predicate.Field, "EventId", StringComparison.OrdinalIgnoreCase) &&
-                   predicate.Operator is EventPredicateOperator.Equal or EventPredicateOperator.In &&
-                   predicate.Values.Count > 0 &&
-                   predicate.Values.All(static value =>
-                       int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int eventId) &&
-                       eventId > 0);
-        }
-        if (predicate.Kind == EventPredicateKind.All) {
-            return predicate.Children.Any(HasGuaranteedEventIdConstraint);
-        }
-        if (predicate.Kind == EventPredicateKind.Any) {
-            return predicate.Children.Count > 0 && predicate.Children.All(HasGuaranteedEventIdConstraint);
-        }
-        return false;
+        return SigmaSelectionCompiler.GetGuaranteedEventIds(predicate).Length > 0;
     }
 
     private static CompiledBaseRule ResolveBaseRule(

@@ -92,6 +92,47 @@ Describe 'evx portable host' {
         $Plan.PlanHash | Should -Not -BeNullOrEmpty
     }
 
+    It 'resolves Sigma correlations across repeated file arguments' {
+        $BasePath = Join-Path $TestDrive 'cli-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'cli-correlation.yml'
+        @'
+title: Failed logon
+id: 73737373-7373-4373-8373-737373737373
+name: cli_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated failed logons
+id: 74747474-7474-4474-8474-747474747474
+correlation:
+  type: event_count
+  rules:
+    - cli_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Plan = & $script:CliPath detect `
+            --sigma $BasePath `
+            --sigma $CorrelationPath `
+            --dry-run | ConvertFrom-Json
+
+        $LASTEXITCODE | Should -Be 0
+        $Plan.RuleCount | Should -Be 1
+        $Plan.StatefulRuleCount | Should -Be 1
+        $Plan.Rules[0].EventIds | Should -Be @(4625)
+    }
+
     It 'rejects an invalid watch flush interval before opening subscriptions' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

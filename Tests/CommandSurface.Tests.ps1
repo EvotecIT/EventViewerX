@@ -139,6 +139,42 @@ Describe 'PSEventViewer v4 command surface' {
         @($Pack.Rules.RuleId | Sort-Object -Unique).Count | Should -Be 2
     }
 
+    It 'resolves Sigma correlations across piped files' {
+        $BasePath = Join-Path $TestDrive 'cmdlet-correlation-base.yml'
+        $CorrelationPath = Join-Path $TestDrive 'cmdlet-correlation.yml'
+        @'
+title: Failed logon
+id: 75757575-7575-4575-8575-757575757575
+name: cmdlet_failed_logon
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+'@ | Set-Content -LiteralPath $BasePath -Encoding UTF8
+        @'
+title: Repeated failed logons
+id: 76767676-7676-4676-8676-767676767676
+correlation:
+  type: event_count
+  rules:
+    - cmdlet_failed_logon
+  group-by:
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gte: 2
+level: high
+'@ | Set-Content -LiteralPath $CorrelationPath -Encoding UTF8
+
+        $Rule = @($BasePath, $CorrelationPath) | Import-EVXSigmaRule
+
+        $Rule.Definition.Kind | Should -Be ([EventViewerX.EventDetectionRuleKind]::Threshold)
+        $Rule.Definition.EventIds | Should -Be @(4625)
+    }
+
     It 'expands wildcard Sigma paths into one versioned detection pack' {
         $Template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Fixtures\Sigma\NtlmV1.yml') -Raw
         $FirstPath = Join-Path $TestDrive 'Wildcard-First.yml'

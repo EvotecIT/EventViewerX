@@ -44,6 +44,87 @@ public sealed class TestSigmaDetection {
     }
 
     [Fact]
+    public void SigmaNullSelectionUsesIsNullAndPromotesGuaranteedEventIds() {
+        const string yaml = """
+            title: Missing optional authentication field
+            id: 61616161-6161-4161-8161-616161616161
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4624
+                OptionalField: null
+              condition: selection
+            level: medium
+            """;
+        SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml);
+        EventDetectionRuleDefinition definition = Assert.Single(compilation.Rules).Definition;
+        EventObservation missing = Observe(4624, 1, "alice", "10.0.0.1");
+        EventObject populatedSource = CreateEvent(4624, 2);
+        populatedSource.Data["OptionalField"] = "present";
+        EventObservation populated = EventObservation.Create(populatedSource);
+
+        Assert.True(compilation.IsSupported);
+        Assert.Equal(new[] { 4624 }, definition.EventIds);
+        Assert.Contains("IsNull", definition.Predicate!.ToJson(), StringComparison.Ordinal);
+        Assert.True(EventPredicateEvaluator.Matches(definition.Predicate, missing.Fields));
+        Assert.False(EventPredicateEvaluator.Matches(definition.Predicate, populated.Fields));
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(
+            new[] { missing, populated },
+            compilation.CompilePlan()));
+
+        Assert.Equal(missing.Identity, finding.EvidenceIdentities[0]);
+    }
+
+    [Fact]
+    public void SigmaFilesLoadAsOneCorrelationCompilationUnit() {
+        const string baseYaml = """
+            title: Failed logon
+            id: 71717171-7171-4171-8171-717171717171
+            name: failed_logon_file
+            logsource:
+              product: windows
+              service: security
+            detection:
+              selection:
+                EventID: 4625
+              condition: selection
+            """;
+        const string correlationYaml = """
+            title: Repeated failed logons
+            id: 72727272-7272-4272-8272-727272727272
+            correlation:
+              type: event_count
+              rules:
+                - failed_logon_file
+              group-by:
+                - TargetUserName
+              timespan: 5m
+              condition:
+                gte: 2
+            level: high
+            """;
+        string directory = Path.Combine(Path.GetTempPath(), $"eventviewerx-sigma-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string basePath = Path.Combine(directory, "base.yml");
+        string correlationPath = Path.Combine(directory, "correlation.yml");
+        try {
+            File.WriteAllText(basePath, baseYaml);
+            File.WriteAllText(correlationPath, correlationYaml);
+
+            SigmaCompilationResult compilation = SigmaRuleCompiler.Load(new[] { basePath, correlationPath });
+            EventDetectionRuleDefinition definition = Assert.Single(compilation.Rules).Definition;
+
+            Assert.True(compilation.IsSupported);
+            Assert.Equal(EventDetectionRuleKind.Threshold, definition.Kind);
+            Assert.Equal(new[] { 4625 }, definition.EventIds);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SigmaScalarSelectionMatchesTheRenderedEventMessage() {
         const string yaml = """
             title: Suspicious rendered message

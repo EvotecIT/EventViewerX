@@ -18,7 +18,8 @@ namespace PSEventViewer;
 [OutputType(typeof(IEventDetectionRule), ParameterSetName = new[] { "Rule" })]
 [OutputType(typeof(EventDetectionPack), ParameterSetName = new[] { "Pack" })]
 public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
-    private readonly List<IEventDetectionRule> _packRules = new();
+    private readonly List<string> _resolvedPaths = new();
+    private readonly HashSet<string> _resolvedPathIdentities = new(FileSystemPathIdentity.Comparer);
 
     /// <summary>One or more Sigma YAML files to import.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
@@ -40,30 +41,9 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
 
     /// <inheritdoc />
     protected override void ProcessRecord() {
-        var rules = new List<IEventDetectionRule>();
         foreach (string path in ResolvePaths()) {
-            SigmaCompilationResult result = SigmaRuleCompiler.Load(path);
-            foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
-                if (diagnostic.Severity == SigmaDiagnosticSeverity.Warning) {
-                    WriteWarning($"{diagnostic.Code}: {diagnostic.Message}");
-                } else if (diagnostic.Severity == SigmaDiagnosticSeverity.Information) {
-                    WriteVerbose($"{diagnostic.Code}: {diagnostic.Message}");
-                }
-            }
-            if (!result.IsSupported) {
-                string errors = string.Join(" ", result.Diagnostics
-                    .Where(static item => item.Severity == SigmaDiagnosticSeverity.Error)
-                    .Select(static item => $"{item.Code}: {item.Message}"));
-                throw new PSArgumentException($"Sigma import failed for '{path}'. {errors}", nameof(Path));
-            }
-            rules.AddRange(result.Rules);
-        }
-
-        if (AsPack) {
-            _packRules.AddRange(rules);
-        } else {
-            foreach (IEventDetectionRule rule in rules) {
-                WriteObject(rule, enumerateCollection: false);
+            if (_resolvedPathIdentities.Add(path)) {
+                _resolvedPaths.Add(path);
             }
         }
     }
@@ -96,13 +76,30 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
 
     /// <inheritdoc />
     protected override void EndProcessing() {
+        SigmaCompilationResult result = SigmaRuleCompiler.Load(_resolvedPaths);
+        foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
+            if (diagnostic.Severity == SigmaDiagnosticSeverity.Warning) {
+                WriteWarning($"{diagnostic.Code}: {diagnostic.Message}");
+            } else if (diagnostic.Severity == SigmaDiagnosticSeverity.Information) {
+                WriteVerbose($"{diagnostic.Code}: {diagnostic.Message}");
+            }
+        }
+        if (!result.IsSupported) {
+            string errors = string.Join(" ", result.Diagnostics
+                .Where(static item => item.Severity == SigmaDiagnosticSeverity.Error)
+                .Select(static item => $"{item.Code}: {item.Message}"));
+            throw new PSArgumentException($"Sigma import failed. {errors}", nameof(Path));
+        }
         if (!AsPack) {
+            foreach (IEventDetectionRule rule in result.Rules) {
+                WriteObject(rule, enumerateCollection: false);
+            }
             return;
         }
         EventDetectionPack pack = EventDetectionPack.Create(
             PackId!,
             Version!,
-            _packRules.Select(static rule => rule.Definition));
+            result.Rules.Select(static rule => rule.Definition));
         WriteObject(pack, enumerateCollection: false);
     }
 }
