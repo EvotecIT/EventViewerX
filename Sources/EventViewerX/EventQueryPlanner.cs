@@ -299,12 +299,12 @@ public static class EventQueryPlanner {
     private static string[] ExpandPaths(IReadOnlyList<string> paths) {
         var output = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string value in FileSystemPathIdentity.NormalizeUnresolvedPaths(paths)) {
-            bool containsWildcard = ContainsWildcard(value);
+            bool containsWildcard = FileSystemPathIdentity.ContainsWildcard(value);
             if (!containsWildcard) {
-                string fullPath = Path.GetFullPath(value);
+                string fullPath = FileSystemPathIdentity.GetFullPath(value);
                 if (Directory.Exists(fullPath)) {
                     foreach (string file in Directory.EnumerateFiles(fullPath, "*.evtx", SearchOption.TopDirectoryOnly)) {
-                        output.Add(Path.GetFullPath(file));
+                        output.Add(FileSystemPathIdentity.GetFullPath(file));
                     }
                     continue;
                 }
@@ -323,7 +323,7 @@ public static class EventQueryPlanner {
 
     private static IEnumerable<string> ExpandFilePattern(string pattern) {
         string root = Path.GetPathRoot(pattern) ?? string.Empty;
-        if (ContainsWildcard(root)) {
+        if (FileSystemPathIdentity.ContainsWildcard(root)) {
             throw new ArgumentException(
                 "Wildcards are not supported in a path root, UNC server name, or UNC share name.",
                 nameof(pattern));
@@ -339,13 +339,13 @@ public static class EventQueryPlanner {
         var directories = new HashSet<string>(FileSystemPathIdentity.Comparer) {
             string.IsNullOrEmpty(root)
                 ? Directory.GetCurrentDirectory()
-                : Path.GetFullPath(root)
+                : FileSystemPathIdentity.GetFullPath(root)
         };
         for (int index = 0; index < segments.Length - 1; index++) {
             string segment = segments[index];
             var next = new HashSet<string>(FileSystemPathIdentity.Comparer);
             foreach (string directory in directories) {
-                if (ContainsWildcard(segment)) {
+                if (FileSystemPathIdentity.ContainsWildcard(segment)) {
                     if (!Directory.Exists(directory)) {
                         continue;
                     }
@@ -353,12 +353,13 @@ public static class EventQueryPlanner {
                                  directory,
                                  segment,
                                  SearchOption.TopDirectoryOnly)) {
-                        next.Add(Path.GetFullPath(match));
+                        next.Add(FileSystemPathIdentity.GetFullPath(match));
                     }
                     continue;
                 }
 
-                string candidate = Path.GetFullPath(Path.Combine(directory, segment));
+                string candidate = FileSystemPathIdentity.GetFullPath(
+                    Path.Combine(directory, segment));
                 if (Directory.Exists(candidate)) {
                     next.Add(candidate);
                 }
@@ -375,7 +376,7 @@ public static class EventQueryPlanner {
                          directory,
                          filePattern,
                          SearchOption.TopDirectoryOnly)) {
-                yield return Path.GetFullPath(file);
+                yield return FileSystemPathIdentity.GetFullPath(file);
             }
         }
     }

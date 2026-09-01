@@ -161,15 +161,20 @@ public sealed partial class CmdletGetEVXEvent {
                 $"Parameter '{parameterName}' requires at least one non-empty value.");
         }
         foreach (string value in requestedPaths) {
-            if (!WildcardPattern.ContainsWildcardCharacters(value)) {
-                paths.Add(System.IO.Path.GetFullPath(
-                    value.Trim().Trim('"', '\'')));
+            string pathValue = FileSystemPathIdentity
+                .NormalizeWindowsExtendedLengthPath(
+                    value.Trim().Trim('"', '\''));
+            string wildcardCandidate =
+                FileSystemPathIdentity.GetWildcardCandidate(pathValue);
+            if (!WildcardPattern.ContainsWildcardCharacters(wildcardCandidate)) {
+                paths.Add(FileSystemPathIdentity.GetFullPath(
+                    pathValue));
                 continue;
             }
             ProviderInfo provider;
             foreach (string resolved in
                      SessionState.Path.GetResolvedProviderPathFromPSPath(
-                         value,
+                         pathValue,
                          out provider)) {
                 if (!string.Equals(
                         provider.Name,
@@ -178,7 +183,7 @@ public sealed partial class CmdletGetEVXEvent {
                     throw new PSArgumentException(
                         $"Path pattern '{value}' resolved through provider '{provider.Name}', but event log paths must use FileSystem.");
                 }
-                paths.Add(System.IO.Path.GetFullPath(resolved));
+                paths.Add(FileSystemPathIdentity.GetFullPath(resolved));
             }
         }
         if (paths.Count == 0) {

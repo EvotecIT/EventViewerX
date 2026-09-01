@@ -613,6 +613,29 @@ Describe 'Get-EVXEvent - wildcard source parity' {
         $events | Should -HaveCount 2
     }
 
+    It 'expands a wildcard after an extended-length path prefix' {
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-one.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-two.evtx')
+        $pattern = '\\?\' + [System.IO.Path]::Combine(
+            [System.IO.Path]::GetFullPath($TestDrive),
+            'extended-*.evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $pattern `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
     It 'matches offline provider wildcards from event metadata' {
         $filePath = [System.IO.Path]::Combine(
             $PSScriptRoot,
@@ -663,6 +686,24 @@ Describe 'Get-EVXEvent - pipeline parity' {
 
         $events | Should -HaveCount 1
         $events[0].GatheredFrom | Should -Be $FilePath
+    }
+
+    It 'accepts an extended-length file path without treating its prefix as a wildcard' {
+        $FilePath = [System.IO.Path]::Combine(
+            $PSScriptRoot,
+            'Logs',
+            'NamedFilterExamples.evtx')
+        $ExtendedPath = '\\?\' + [System.IO.Path]::GetFullPath($FilePath)
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $ExtendedPath `
+                -MaxEvents 1 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 1
+        $events[0].GatheredFrom | Should -Be ([System.IO.Path]::GetFullPath($FilePath))
     }
 
     It 'accepts hashtable queries from the pipeline' {

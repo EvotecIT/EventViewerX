@@ -244,7 +244,7 @@ internal static class EventLogStructuredQueryParser {
     internal static string CreateFileSourceIdentity(
         string path) {
 
-        string fullPath = Path.GetFullPath(path);
+        string fullPath = FileSystemPathIdentity.GetFullPath(path);
         string escapedPath = fullPath
             .Replace("%", "%25")
             .Replace("#", "%23")

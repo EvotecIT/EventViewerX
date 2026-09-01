@@ -153,6 +153,104 @@ public class TestEventQueryPlanner {
     }
 
     [Fact]
+    public void AcceptsWindowsExtendedLengthFilePathWithoutTreatingPrefixAsWildcard() {
+        string path = Path.GetTempFileName();
+        try {
+            string extendedPath = @"\\?\" + Path.GetFullPath(path);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPath }
+                });
+
+            EventLogStructuredQuery query = Assert.Single(batch.StructuredQueries);
+            Assert.Equal(EventLogQuerySourceKind.File, query.SourceKind);
+            Assert.False(FileSystemPathIdentity.ContainsWildcard(extendedPath));
+            EventLogStructuredQuerySource source = Assert.Single(query.ResolveSources());
+            Assert.Equal(Path.GetFullPath(path), source.Source);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ExpandsWildcardAfterWindowsExtendedLengthPrefix() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-ExtendedPaths-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            File.WriteAllText(Path.Combine(directory, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "ignore.txt"), string.Empty);
+            string extendedPattern = Path.Combine(
+                @"\\?\" + Path.GetFullPath(directory),
+                "*.evtx");
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPattern }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\logs\*.evtx")]
+    [InlineData(@"\\?\UNC\server\share\log?.evtx")]
+    public void DetectsWildcardsAfterWindowsExtendedLengthPrefix(string path) {
+        Assert.True(FileSystemPathIdentity.ContainsWildcard(path));
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\logs\archive.evtx")]
+    [InlineData(@"\\?\UNC\server\share\archive.evtx")]
+    public void DoesNotTreatWindowsExtendedLengthPrefixAsWildcard(string path) {
+        Assert.False(FileSystemPathIdentity.ContainsWildcard(path));
+    }
+
+    [Fact]
+    public void NormalizesWindowsExtendedLengthDriveAndUncPaths() {
+        Assert.Equal(
+            @"C:\logs\archive.evtx",
+            FileSystemPathIdentity.NormalizeWindowsExtendedLengthPath(
+                @"\\?\C:\logs\archive.evtx"));
+        Assert.Equal(
+            @"\\server\share\archive.evtx",
+            FileSystemPathIdentity.NormalizeWindowsExtendedLengthPath(
+                @"\\?\UNC\server\share\archive.evtx"));
+    }
+
+    [Fact]
+    public void ReadsAnEventFileSuppliedWithAnExtendedLengthPath() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string extendedPath = @"\\?\" + fixture;
+
+        EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+            new EventQueryDefinition {
+                Paths = new[] { extendedPath },
+                Options = new EventLogQueryOptions {
+                    MaxEvents = 1,
+                    ReadMode = EventReadMode.Metadata
+                }
+            });
+        EventObject item = Assert.Single(EventLogBatchEngine.Read(batch));
+
+        Assert.Equal(
+            fixture,
+            item.GatheredFrom,
+            ignoreCase: true,
+            ignoreLineEndingDifferences: false,
+            ignoreWhiteSpaceDifferences: false);
+    }
+
+    [Fact]
     public void RejectsBookmarkFanOut() {
         string directory = Path.Combine(
             Path.GetTempPath(),
