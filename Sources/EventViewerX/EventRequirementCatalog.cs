@@ -41,7 +41,7 @@ public static class EventRequirementCatalog {
                     "KDCsvc RC4 event schema",
                     "The domain controller must include the Kerberos update that registers Kdcsvc System events 201 through 209. Event emission also depends on the effective rollout phase and a matching request or configuration; absence of an event is not proof that every client and service is compatible.",
                     "Domain controllers",
-                    "https://support.microsoft.com/en-US/servicing/os/windows/2025/11/how-to-manage-kerberos-kdc-usage-of-rc4-for-service-account-ticket-issuance-changes-related-to-cve-2")
+                    "https://support.microsoft.com/en-us/topic/how-to-manage-kerberos-kdc-usage-of-rc4-for-service-account-ticket-issuance-changes-related-to-cve-2026-20833-1ebcda33-720a-4da8-93c1-b0496e1910dc")
             },
             [EventType.AuditPolicyChange] = new[] { Audit("audit-policy-change", "Audit Audit Policy Change", EventAuditOutcome.Success, "Target computer", "audit-audit-policy-change") },
             [EventType.FirewallRuleChange] = new[] { Audit("mpssvc-rule-change", "Audit MPSSVC Rule-Level Policy Change", EventAuditOutcome.Success, "Target computer", "audit-mpssvc-rule-level-policy-change") },

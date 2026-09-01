@@ -1,6 +1,5 @@
-using System.Diagnostics.Eventing.Reader;
 using System.Reflection;
-using System.Security.Principal;
+using EventViewerX.Native;
 using EventViewerX.Rules.Kerberos;
 using Xunit;
 
@@ -17,6 +16,8 @@ public class TestKerberosEncryptionContracts
         KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1,
         true,
         true)]
+    [InlineData("0x20", KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1SessionKey, true, false)]
+    [InlineData("0x24", KerberosSupportedEncryptionTypes.Rc4Hmac | KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1SessionKey, true, true)]
     [InlineData("24", KerberosSupportedEncryptionTypes.Aes128CtsHmacSha1 | KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1, true, false)]
     [InlineData("0", KerberosSupportedEncryptionTypes.NotDefined, false, false)]
     public void SupportedEncryptionTypes_PreserveCorrectWindowsBitAssignments(
@@ -108,6 +109,68 @@ public class TestKerberosEncryptionContracts
             rule.DomainControllerSupportedEncryptionTypes);
         Assert.Equal("192.168.241.50", rule.ClientAddress);
         Assert.Equal("RC4-HMAC-NT", rule.ClientAdvertizedEncryptionTypes);
+    }
+
+    [Fact]
+    public void KdcRc4Event_UsesVersionZeroPayloadPositionsWithoutEnglishMessageLabels()
+    {
+        object?[] properties = {
+            "RC4-HMAC",
+            "CLIENT01$",
+            "AD.EVOTEC.XYZ",
+            "0x4 (RC4)",
+            "RC4",
+            "svc-legacy",
+            "S-1-5-21-1-2-3-1001",
+            "0x1C (RC4, AES128-SHA96, AES256-SHA96)",
+            "AES-SHA1, RC4",
+            "0x18 (AES128-SHA96, AES256-SHA96)",
+            "0x18",
+            "AES-SHA1, RC4",
+            "::ffff:192.168.241.50",
+            53001,
+            "RC4-HMAC-NT"
+        };
+        EventObject source = BuildEventObject(
+            201,
+            "System",
+            "Kdcsvc",
+            new Dictionary<string, string>(),
+            "Lokalisierte Meldung ohne englische Feldnamen.",
+            properties);
+
+        var rule = new KerberosKdcRc4Audit(source);
+
+        Assert.Equal("RC4-HMAC", rule.CipherName);
+        Assert.Equal("CLIENT01$", rule.AccountName);
+        Assert.Equal("AD.EVOTEC.XYZ", rule.SuppliedRealmName);
+        Assert.Equal(KerberosSupportedEncryptionTypes.Rc4Hmac, rule.AccountSupportedEncryptionTypes);
+        Assert.Equal("svc-legacy", rule.ServiceName);
+        Assert.Equal("S-1-5-21-1-2-3-1001", rule.ServiceSid);
+        Assert.True(EventsHelper.SupportsKerberosAes(rule.ServiceSupportedEncryptionTypes));
+        Assert.True(EventsHelper.SupportsKerberosAes(rule.DomainControllerSupportedEncryptionTypes));
+        Assert.Equal("0x18", rule.DefaultDomainSupportedEncTypesRaw);
+        Assert.Equal("192.168.241.50", rule.ClientAddress);
+        Assert.Equal("53001", rule.ClientPort);
+        Assert.Equal("RC4-HMAC-NT", rule.ClientAdvertizedEncryptionTypes);
+    }
+
+    [Fact]
+    public void KdcRc4Event205_UsesVersionZeroPayloadPositionsWithoutMessageResources()
+    {
+        EventObject source = BuildEventObject(
+            205,
+            "System",
+            "Kdcsvc",
+            new Dictionary<string, string>(),
+            string.Empty,
+            new object?[] { "RC4-HMAC", "0x1C" });
+
+        var rule = new KerberosKdcRc4Audit(source);
+
+        Assert.Equal("RC4-HMAC", rule.EnabledInsecureCiphers);
+        Assert.Equal("0x1C", rule.DefaultDomainSupportedEncTypesRaw);
+        Assert.True(EventsHelper.SupportsKerberosRc4(rule.DefaultDomainSupportedEncTypes));
     }
 
     [Fact]
@@ -241,6 +304,10 @@ public class TestKerberosEncryptionContracts
         Assert.Contains(requirement.Prerequisites, prerequisite =>
             prerequisite.Key == "configuration:kdcsvc-rc4-event-schema" &&
             prerequisite.Kind == EventRequirementKind.Configuration);
+        Assert.Contains(requirement.Prerequisites, prerequisite =>
+            prerequisite.Key == "configuration:kdcsvc-rc4-event-schema" &&
+            prerequisite.DocumentationUri ==
+            "https://support.microsoft.com/en-us/topic/how-to-manage-kerberos-kdc-usage-of-rc4-for-service-account-ticket-issuance-changes-related-to-cve-2026-20833-1ebcda33-720a-4da8-93c1-b0496e1910dc");
         Assert.DoesNotContain(requirement.Prerequisites, prerequisite => prerequisite.Kind == EventRequirementKind.AuditPolicy);
         EventMonitoringPresetDefinition preset = EventMonitoringPresetCatalog.Get(EventMonitoringPreset.AuthenticationHealth);
         Assert.Contains(EventType.KerberosKdcRc4Audit, EventTypeCatalog.Expand(preset.Types));
@@ -255,15 +322,52 @@ public class TestKerberosEncryptionContracts
         string log,
         string provider,
         Dictionary<string, string> data,
-        string message)
+        string message,
+        IReadOnlyList<object?>? properties = null,
+        byte? version = 0)
     {
-        var record = new FakeEventRecord(id, log, provider, message);
-        var source = new EventObject(record, "testhost", EventReadMode.Full) {
-            ContainerLog = log,
-            XMLData = "<Event />",
-            GatheredFrom = "testhost",
-            GatheredLogName = log
-        };
+        var metadata = new NativeEventMetadata(
+            provider,
+            providerId: null,
+            id,
+            qualifiers: null,
+            level: 3,
+            task: null,
+            opcode: 0,
+            keywords: null,
+            new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
+            recordId: 1,
+            activityId: null,
+            relatedActivityId: null,
+            processId: 0,
+            threadId: 0,
+            log,
+            "DC01.ad.evotec.xyz",
+            userId: null,
+            version);
+        var nativeMessage = new NativeEventMessage(
+            metadata,
+            message,
+            "Warning",
+            string.Empty,
+            string.Empty,
+            Array.Empty<string>(),
+            bookmark: null,
+            "de-DE",
+            string.IsNullOrEmpty(message)
+                ? EventMessageRenderStatus.MessageResourceUnavailable
+                : EventMessageRenderStatus.Rendered,
+            renderErrorCode: 0);
+        var nativeStructured = new NativeEventStructured(
+            metadata,
+            "<Event />",
+            properties?.Select(static value => new EventPropertyValue(value)).ToArray() ??
+            Array.Empty<EventPropertyValue>(),
+            bookmark: null);
+        var source = new EventObject(
+            new NativeEventFull(nativeMessage, nativeStructured),
+            "testhost",
+            log);
         SetProperty(source, nameof(EventObject.Data), data);
         SetProperty(source, nameof(EventObject.Attachments), Array.Empty<byte[]>());
         SetProperty(source, nameof(EventObject.NicIdentifiers), new List<string>());
@@ -311,48 +415,4 @@ public class TestKerberosEncryptionContracts
         property!.SetValue(target, value);
     }
 
-    private sealed class FakeEventRecord : EventRecord
-    {
-        private readonly int _id;
-        private readonly string _log;
-        private readonly string _provider;
-        private readonly string _message;
-
-        internal FakeEventRecord(int id, string log, string provider, string message)
-        {
-            _id = id;
-            _log = log;
-            _provider = provider;
-            _message = message;
-        }
-
-        public override string ProviderName => _provider;
-        public override string LogName => _log;
-        public override string MachineName => "DC01.ad.evotec.xyz";
-        public override int Id => _id;
-        public override byte? Level => 3;
-        public override int? Task => null;
-        public override long? Keywords => null;
-        public override IEnumerable<string> KeywordsDisplayNames => Array.Empty<string>();
-        public override short? Opcode => 0;
-        public override string OpcodeDisplayName => string.Empty;
-        public override string TaskDisplayName => string.Empty;
-        public override Guid? ProviderId => null;
-        public override Guid? ActivityId => null;
-        public override Guid? RelatedActivityId => null;
-        public override int? ProcessId => 0;
-        public override int? ThreadId => 0;
-        public override string LevelDisplayName => "Warning";
-        public override string FormatDescription() => _message;
-        public override string FormatDescription(IEnumerable<object> values) => _message;
-        public override IList<EventProperty> Properties => Array.Empty<EventProperty>();
-        public override DateTime? TimeCreated => new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
-        public override int? Qualifiers => null;
-        public override long? RecordId => 1;
-        public override byte? Version => 0;
-        public override SecurityIdentifier? UserId => null;
-        public override EventBookmark? Bookmark => null;
-        protected override void Dispose(bool disposing) { }
-        public override string ToXml() => "<Event />";
-    }
 }

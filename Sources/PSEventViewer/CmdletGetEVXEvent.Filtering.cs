@@ -157,8 +157,7 @@ public sealed partial class CmdletGetEVXEvent {
         var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string value in NormalizeRequiredValues(
                      values,
-                     parameterName,
-                     FileSystemPathIdentity.Comparer)) {
+                     parameterName)) {
             if (!WildcardPattern.ContainsWildcardCharacters(value)) {
                 paths.Add(System.IO.Path.GetFullPath(
                     value.Trim().Trim('"', '\'')));

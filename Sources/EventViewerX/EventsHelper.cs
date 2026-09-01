@@ -183,6 +183,7 @@ internal static class EventsHelper {
         const KerberosSupportedEncryptionTypes aes =
             KerberosSupportedEncryptionTypes.Aes128CtsHmacSha1 |
             KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1 |
+            KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1SessionKey |
             KerberosSupportedEncryptionTypes.Aes128CtsHmacSha256 |
             KerberosSupportedEncryptionTypes.Aes256CtsHmacSha384;
         return (value.Value & aes) != 0;

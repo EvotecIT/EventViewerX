@@ -574,7 +574,7 @@ Describe 'Get-EVXEvent - wildcard source parity' {
         $pattern = [System.IO.Path]::Combine(
             $PSScriptRoot,
             'Logs',
-            'NamedFilter*.evtx')
+            'NamedFilterEx?mples.evtx')
 
         $events = @(
             Get-EVXEvent `

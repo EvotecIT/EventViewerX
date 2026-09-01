@@ -79,49 +79,76 @@ public sealed class KerberosKdcRc4Audit : EventRuleBase
         Action = SourceEvent.MessageSubject;
         (Issue, Disposition) = Classify(SourceEvent.Id);
 
+        KerberosKdcPayloadFields payload = KerberosKdcPayloadFields.Parse(SourceEvent);
         KerberosKdcMessageFields message = KerberosKdcMessageFields.Parse(SourceEvent.Message);
-        CipherName = ReadData("CipherName", "Cipher", "Cipher Name");
+        CipherName = First(ReadData("CipherName", "Cipher", "Cipher Name"), payload.CipherName);
         EnabledInsecureCiphers = First(
             ReadData("EnabledInsecureCiphers", "Enabled Insecure Ciphers", "Ciphers"),
+            payload.EnabledInsecureCiphers,
             message.TopLevel("Cipher(s)", "Enabled Insecure Ciphers"));
 
-        AccountName = First(ReadData("AccountName", "TargetUserName"), message.Account("Account Name"));
-        SuppliedRealmName = First(ReadData("SuppliedRealmName", "TargetDomainName"), message.Account("Supplied Realm Name"));
+        AccountName = First(
+            ReadData("AccountName", "TargetUserName"),
+            payload.AccountName,
+            message.Account("Account Name"));
+        SuppliedRealmName = First(
+            ReadData("SuppliedRealmName", "TargetDomainName"),
+            payload.SuppliedRealmName,
+            message.Account("Supplied Realm Name"));
         AccountSupportedEncryptionTypesRaw = First(
             ReadData("AccountSupportedEncryptionTypes", "SupportedEncryptionTypes"),
+            payload.AccountSupportedEncryptionTypes,
             message.Account("msds-SupportedEncryptionTypes", "MSDS-SupportedEncryptionTypes"));
         AccountSupportedEncryptionTypes = EventsHelper.GetKerberosSupportedEncryptionTypes(AccountSupportedEncryptionTypesRaw);
-        AccountAvailableKeys = First(ReadData("AccountAvailableKeys"), message.Account("Available Keys"));
+        AccountAvailableKeys = First(
+            ReadData("AccountAvailableKeys"),
+            payload.AccountAvailableKeys,
+            message.Account("Available Keys"));
 
-        ServiceName = First(ReadData("ServiceName"), message.Service("Service Name"));
-        ServiceSid = First(ReadData("ServiceSid", "ServiceID"), message.Service("Service ID", "Service SID"));
+        ServiceName = First(ReadData("ServiceName"), payload.ServiceName, message.Service("Service Name"));
+        ServiceSid = First(
+            ReadData("ServiceSid", "ServiceID"),
+            payload.ServiceSid,
+            message.Service("Service ID", "Service SID"));
         ServiceSupportedEncryptionTypesRaw = First(
             ReadData("ServiceSupportedEncryptionTypes"),
+            payload.ServiceSupportedEncryptionTypes,
             message.Service("msds-SupportedEncryptionTypes", "MSDS-SupportedEncryptionTypes"));
         ServiceSupportedEncryptionTypes = EventsHelper.GetKerberosSupportedEncryptionTypes(ServiceSupportedEncryptionTypesRaw);
-        ServiceAvailableKeys = First(ReadData("ServiceAvailableKeys"), message.Service("Available Keys"));
+        ServiceAvailableKeys = First(
+            ReadData("ServiceAvailableKeys"),
+            payload.ServiceAvailableKeys,
+            message.Service("Available Keys"));
 
         DomainControllerSupportedEncryptionTypesRaw = First(
             ReadData("DCSupportedEncryptionTypes", "DomainControllerSupportedEncryptionTypes"),
+            payload.DomainControllerSupportedEncryptionTypes,
             message.DomainController("msds-SupportedEncryptionTypes", "MSDS-SupportedEncryptionTypes"));
         DomainControllerSupportedEncryptionTypes = EventsHelper.GetKerberosSupportedEncryptionTypes(
             DomainControllerSupportedEncryptionTypesRaw);
         DefaultDomainSupportedEncTypesRaw = First(
             ReadData("DefaultDomainSupportedEncTypes"),
+            payload.DefaultDomainSupportedEncTypes,
             message.DomainController("DefaultDomainSupportedEncTypes"),
             message.TopLevel("DefaultDomainSupportedEncTypes"));
         DefaultDomainSupportedEncTypes = EventsHelper.GetKerberosSupportedEncryptionTypes(
             DefaultDomainSupportedEncTypesRaw);
         DomainControllerAvailableKeys = First(
             ReadData("DCAvailableKeys", "DomainControllerAvailableKeys"),
+            payload.DomainControllerAvailableKeys,
             message.DomainController("Available Keys"));
 
         ClientAddress = RuleHelpers.NormalizeIp(First(
             ReadData("ClientAddress", "IpAddress"),
+            payload.ClientAddress,
             message.Network("Client Address")));
-        ClientPort = First(ReadData("ClientPort", "IpPort"), message.Network("Client Port"));
+        ClientPort = First(
+            ReadData("ClientPort", "IpPort"),
+            payload.ClientPort,
+            message.Network("Client Port"));
         ClientAdvertizedEncryptionTypes = First(
             ReadData("ClientAdvertizedEncryptionTypes", "AdvertizedEtypes"),
+            payload.ClientAdvertizedEncryptionTypes,
             message.Network("Advertized Etypes", "Advertised Etypes"));
         When = SourceEvent.TimeCreated;
     }
