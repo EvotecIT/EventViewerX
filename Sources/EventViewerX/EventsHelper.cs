@@ -133,6 +133,79 @@ internal static class EventsHelper {
     }
 
     /// <summary>
+    /// Parses an <c>msDS-SupportedEncryptionTypes</c> value from a Kerberos
+    /// event while preserving unknown flag bits.
+    /// </summary>
+    /// <param name="value">
+    /// A hexadecimal or decimal value, optionally followed by a provider
+    /// description such as <c>0x1C (RC4, AES128-SHA96, AES256-SHA96)</c>.
+    /// </param>
+    /// <returns>
+    /// Parsed flags, including <see cref="KerberosSupportedEncryptionTypes.NotDefined"/>
+    /// for an explicit zero; <c>null</c> when the field is missing or cannot be parsed.
+    /// </returns>
+    public static KerberosSupportedEncryptionTypes? GetKerberosSupportedEncryptionTypes(string value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+
+        string trimmed = value.Trim();
+        if (trimmed.Equals("-", StringComparison.Ordinal) ||
+            trimmed.Equals("N/A", StringComparison.OrdinalIgnoreCase)) {
+            return null;
+        }
+
+        int separator = trimmed.IndexOfAny(new[] { ' ', '\t', '(' });
+        string token = separator >= 0 ? trimmed.Substring(0, separator) : trimmed;
+        NumberStyles style = NumberStyles.Integer;
+        if (token.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
+            token = token.Substring(2);
+            style = NumberStyles.HexNumber;
+        }
+
+        if (uint.TryParse(token, style, CultureInfo.InvariantCulture, out uint numeric)) {
+            return (KerberosSupportedEncryptionTypes)numeric;
+        }
+
+        return Enum.TryParse(trimmed, ignoreCase: true, out KerberosSupportedEncryptionTypes parsed)
+            ? parsed
+            : null;
+    }
+
+    /// <summary>Returns whether a parsed supported-encryption mask includes AES.</summary>
+    /// <param name="value">Parsed supported-encryption flags, or <c>null</c> when the event did not provide them.</param>
+    /// <returns><c>null</c> for missing evidence; otherwise whether any AES flag is present.</returns>
+    public static bool? SupportsKerberosAes(KerberosSupportedEncryptionTypes? value) {
+        if (!value.HasValue) {
+            return null;
+        }
+
+        const KerberosSupportedEncryptionTypes aes =
+            KerberosSupportedEncryptionTypes.Aes128CtsHmacSha1 |
+            KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1 |
+            KerberosSupportedEncryptionTypes.Aes128CtsHmacSha256 |
+            KerberosSupportedEncryptionTypes.Aes256CtsHmacSha384;
+        return (value.Value & aes) != 0;
+    }
+
+    /// <summary>Returns whether a parsed supported-encryption mask includes RC4.</summary>
+    /// <param name="value">Parsed supported-encryption flags, or <c>null</c> when the event did not provide them.</param>
+    /// <returns><c>null</c> for missing evidence; otherwise whether RC4 is present.</returns>
+    public static bool? SupportsKerberosRc4(KerberosSupportedEncryptionTypes? value) {
+        return value.HasValue
+            ? (value.Value & KerberosSupportedEncryptionTypes.Rc4Hmac) != 0
+            : null;
+    }
+
+    /// <summary>Returns whether a ticket or session-key encryption type is DES or RC4.</summary>
+    public static bool IsWeakKerberosEncryption(TicketEncryptionType? value) {
+        return value is TicketEncryptionType.DES_CBC_CRC
+            or TicketEncryptionType.DES_CBC_MD5
+            or TicketEncryptionType.RC4_HMAC
+            or TicketEncryptionType.RC4_HMAC_EXP;
+    }
+
+    /// <summary>
     /// Translates a string value to a PreAuthType enum.
     /// </summary>
     /// <param name="value">The value to translate.</param>

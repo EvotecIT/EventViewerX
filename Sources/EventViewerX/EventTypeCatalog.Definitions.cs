@@ -52,12 +52,14 @@ public static partial class EventTypeCatalog {
                 EventType.KerberosTGTRequest,
                 EventType.KerberosServiceTicket,
                 EventType.KerberosTicketFailure,
-                EventType.KerberosPolicyChange
+                EventType.KerberosPolicyChange,
+                EventType.KerberosKdcRc4Audit
             },
             [EventType.AuthenticationHealth] = new[] {
                 EventType.ADUserLogonNTLMv1,
                 EventType.KerberosTGTRequest,
                 EventType.KerberosServiceTicket,
+                EventType.KerberosKdcRc4Audit,
                 EventType.ADLdapBindingSummary,
                 EventType.ADLdapBindingDetails
             },

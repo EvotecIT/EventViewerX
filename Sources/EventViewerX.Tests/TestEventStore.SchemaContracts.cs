@@ -718,6 +718,14 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             ["TypeName"] = nameof(EventType.KerberosServiceTicket),
             ["WeakEncryptionAlgorithm"] = true
         }));
+        Assert.True(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosKdcRc4Audit)
+        }));
+        Assert.True(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosTGTRequest),
+            ["WeakEncryptionAlgorithm"] = false,
+            ["WeakSessionKeyEncryptionAlgorithm"] = true
+        }));
     }
 
     private static EventReportSectionSchema CreateSchema(string name, string column) => new() {

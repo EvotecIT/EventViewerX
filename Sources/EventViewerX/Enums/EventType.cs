@@ -157,7 +157,7 @@ namespace EventViewerX {
         /// Kerberos policy changed
         /// </summary>
         KerberosPolicyChange,
-      
+
         /// <summary>
         /// Organizational unit created, deleted or moved
         /// </summary>
@@ -458,5 +458,7 @@ namespace EventViewerX {
         AuthenticationHealth,
         /// <summary>Group Policy object, link, inheritance, and WMI-filter directory audit events.</summary>
         GroupPolicyDirectoryAudit,
+        /// <summary>KDCsvc RC4 audit, explicit-configuration, and enforcement events.</summary>
+        KerberosKdcRc4Audit,
     }
 }

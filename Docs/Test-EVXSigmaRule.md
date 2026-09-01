@@ -45,7 +45,7 @@ Required: True
 Position: 0
 Default value: None
 Accept pipeline input: True (ByValue, ByPropertyName)
-Accept wildcard characters: False
+Accept wildcard characters: True
 ```
 
 ### CommonParameters

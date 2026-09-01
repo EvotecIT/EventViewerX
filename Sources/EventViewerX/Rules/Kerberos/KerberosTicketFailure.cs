@@ -50,10 +50,7 @@ public class KerberosTicketFailure : EventRuleBase
         EncryptionType = EventsHelper.GetTicketEncryptionType(SourceEvent.GetDataValueOrEmpty(KnownEventField.TicketEncryptionType));
         When = SourceEvent.TimeCreated;
 
-        WeakEncryptionAlgorithm = EncryptionType is TicketEncryptionType.DES_CBC_CRC
-            or TicketEncryptionType.DES_CBC_MD5
-            or TicketEncryptionType.RC4_HMAC
-            or TicketEncryptionType.RC4_HMAC_EXP;
+        WeakEncryptionAlgorithm = EventsHelper.IsWeakKerberosEncryption(EncryptionType);
     }
 }
 

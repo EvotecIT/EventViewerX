@@ -15,7 +15,7 @@ Storage is optional. Pipe events directly from Get-EVXEvent, supply detached Eve
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Invoke-EVXDetection [-InputObject <EventObject>] [-FromStore <string>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-Rule <IEventDetectionRule[]>] [-Pack <EventDetectionPack[]>] [-IncludeBuiltIn] [-Tuning <EventDetectionTuning>] [-Coverage <EventDetectionCoverage>] [-Explain] [-Trace] [-ReportKind <EventDecisionReportKind>] [-MaximumObservations <long>] [-MaximumCandidates <long>] [-MaximumGroups <int>] [-MaximumStateObservations <int>] [-MaximumStateBytes <long>] [<CommonParameters>]
+Invoke-EVXDetection [-InputObject <Object>] [-FromStore <string>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-Rule <IEventDetectionRule[]>] [-Pack <EventDetectionPack[]>] [-IncludeBuiltIn] [-Tuning <EventDetectionTuning>] [-Coverage <EventDetectionCoverage>] [-Explain] [-Trace] [-ReportKind <EventDecisionReportKind>] [-MaximumObservations <long>] [-MaximumCandidates <long>] [-MaximumGroups <int>] [-MaximumStateObservations <int>] [-MaximumStateBytes <long>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -138,10 +138,10 @@ Accept wildcard characters: False
 ```
 
 ### -InputObject
-Detached EventViewerX event to evaluate.
+Detached, typed, or custom EventViewerX event to evaluate.
 
 ```yaml
-Type: EventObject
+Type: Object
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -334,7 +334,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## INPUTS
 
-- `EventViewerX.EventObject`
+- `System.Object`
 
 ## OUTPUTS
 

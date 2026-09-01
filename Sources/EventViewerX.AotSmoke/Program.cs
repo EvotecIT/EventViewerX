@@ -5,7 +5,7 @@ EventTypeCatalog.Configure(EventRuleDiscoveryMode.ExplicitOnly);
 
 EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
 EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
-if (leaves.Length != 89 || leaves.Any(static definition =>
+if (leaves.Length != 90 || leaves.Any(static definition =>
         definition.RecordType == null || definition.Sources.Count == 0 || definition.Fields.Count == 0)) {
     throw new InvalidOperationException(
         $"Explicit event projector catalog is incomplete: {leaves.Length} leaf definitions were available.");

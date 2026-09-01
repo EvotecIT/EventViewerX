@@ -41,12 +41,31 @@ public class TestKerberosTgtRequest
         Assert.Equal("MSOL_6f0d1d4965ec", rule.AccountName.Split('\\')[1]);
         Assert.Equal("192.168.241.15", rule.IpAddress);
         Assert.Contains("AES256", rule.EncryptionTypeText);
+        Assert.Equal(TicketEncryptionType.AES256_CTS_HMAC_SHA1_96, rule.EncryptionType);
+        Assert.Equal(PreAuthType.EncTimestamp, rule.PreAuthType);
         Assert.Contains("0x00000000", rule.StatusText);
         Assert.Equal("AES-SHA1, RC4", rule.AccountAvailableKeys);
         Assert.Equal("AES256 AES128 RC4", rule.ClientAdvertizedEncryptionTypes);
+        Assert.Equal(
+            KerberosSupportedEncryptionTypes.DesCbcCrc |
+            KerberosSupportedEncryptionTypes.DesCbcMd5 |
+            KerberosSupportedEncryptionTypes.Rc4Hmac |
+            KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1SessionKey,
+            rule.AccountSupportedEncryptionTypesFlags);
+        Assert.Equal(
+            KerberosSupportedEncryptionTypes.DesCbcCrc |
+            KerberosSupportedEncryptionTypes.DesCbcMd5 |
+            KerberosSupportedEncryptionTypes.Rc4Hmac |
+            KerberosSupportedEncryptionTypes.Aes128CtsHmacSha1 |
+            KerberosSupportedEncryptionTypes.Aes256CtsHmacSha1,
+            rule.ServiceSupportedEncryptionTypesFlags);
         Assert.Equal("ABC==", rule.ResponseTicket);
         Assert.Contains("AES256", rule.SessionKeyEncryptionTypeText);
+        Assert.Equal(TicketEncryptionType.AES256_CTS_HMAC_SHA1_96, rule.SessionKeyEncryptionType);
         Assert.Contains("AES256", rule.PreAuthEncryptionTypeText);
+        Assert.Equal(TicketEncryptionType.AES256_CTS_HMAC_SHA1_96, rule.PreAuthEncryptionType);
+        Assert.False(rule.WeakEncryptionAlgorithm);
+        Assert.False(rule.WeakSessionKeyEncryptionAlgorithm);
         Assert.Contains("Forwardable", rule.TicketOptionsText);
         Assert.Contains("Renewable", rule.TicketOptionsText);
         Assert.Contains("0x40810010", rule.TicketOptionsText);

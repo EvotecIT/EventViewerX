@@ -120,6 +120,12 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 StringComparison.OrdinalIgnoreCase)) {
             return ReadLocalCertificateAuthorityAuditFilter();
         }
+        if (string.Equals(
+                requirementKey,
+                "configuration:kdcsvc-rc4-event-schema",
+                StringComparison.OrdinalIgnoreCase)) {
+            return ReadLocalKdcRc4EventSchema(cancellationToken);
+        }
         if (!string.Equals(
                 requirementKey,
                 "configuration:ntds-ldap-interface-events-2",
@@ -166,6 +172,95 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 "Verify that the target is a domain controller and inspect the setting manually.",
                 EventReadinessDiagnosticKind.Error);
         }
+    }
+
+    private static EventReadinessConfigurationEvidence ReadLocalKdcRc4EventSchema(
+        CancellationToken cancellationToken) {
+
+        try {
+            EventProviderCatalogResult? result = EventLogCatalog.GetProviders(
+                    new EventLogCatalogQuery {
+                        IncludeEvents = true,
+                        ConnectionTimeoutMilliseconds = 5000
+                    },
+                    new[] { "Kdcsvc" },
+                    cancellationToken)
+                .FirstOrDefault(static candidate => string.Equals(
+                    candidate.ProviderName,
+                    "Kdcsvc",
+                    StringComparison.OrdinalIgnoreCase));
+            if (result == null) {
+                return new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Fail,
+                    "The local event-provider catalog does not contain Kdcsvc.",
+                    "Install current Windows updates on the domain controller, then verify that Kdcsvc System events 201 through 209 are registered.",
+                    EventReadinessDiagnosticKind.Missing);
+            }
+            if (!result.Success) {
+                return new EventReadinessConfigurationEvidence(
+                    EventReadinessStatus.Unknown,
+                    "Kdcsvc provider metadata could not be read: " + result.Exception?.Message,
+                    "Inspect the Kdcsvc provider manifest with an identity allowed to read local event metadata.",
+                    result.Exception is UnauthorizedAccessException
+                        ? EventReadinessDiagnosticKind.AccessDenied
+                        : EventReadinessDiagnosticKind.Error);
+            }
+
+            return EvaluateKdcRc4EventSchema(result.Provider!);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (UnauthorizedAccessException exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "The current identity cannot inspect Kdcsvc provider metadata: " + exception.Message,
+                "Run the readiness check with an identity allowed to read local event-provider metadata.",
+                EventReadinessDiagnosticKind.AccessDenied);
+        } catch (Exception exception) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "Kdcsvc provider metadata could not be inspected: " + exception.Message,
+                "Verify the domain controller update level and inspect the Kdcsvc 201-209 provider schema manually.",
+                EventReadinessDiagnosticKind.Error);
+        }
+    }
+
+    internal static EventReadinessConfigurationEvidence EvaluateKdcRc4EventSchema(
+        EventProviderMetadataSnapshot provider) {
+
+        string? eventDiagnostic = provider.Diagnostics.FirstOrDefault(static diagnostic =>
+            diagnostic.StartsWith("Events:", StringComparison.OrdinalIgnoreCase));
+        if (eventDiagnostic != null) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Unknown,
+                "Kdcsvc event metadata could not be enumerated: " + eventDiagnostic,
+                "Inspect the Kdcsvc provider manifest with an identity allowed to read local event metadata.",
+                EventReadinessDiagnosticKind.Error);
+        }
+
+        int[] requiredIds = Enumerable.Range(201, 9).ToArray();
+        int[] availableIds = provider.Events
+            .Where(static metadata => string.Equals(
+                metadata.LogName,
+                "System",
+                StringComparison.OrdinalIgnoreCase))
+            .Select(static metadata => checked((int)metadata.Id))
+            .Where(static id => id is >= 201 and <= 209)
+            .Distinct()
+            .OrderBy(static id => id)
+            .ToArray();
+        int[] missingIds = requiredIds.Except(availableIds).ToArray();
+        if (missingIds.Length == 0) {
+            return new EventReadinessConfigurationEvidence(
+                EventReadinessStatus.Pass,
+                "The local Kdcsvc provider manifest registers System events 201 through 209.",
+                string.Empty);
+        }
+
+        return new EventReadinessConfigurationEvidence(
+            EventReadinessStatus.Fail,
+            "The local Kdcsvc provider manifest is missing System event IDs: " + string.Join(", ", missingIds) + ".",
+            "Install current Windows updates on the domain controller and verify the Kdcsvc 201-209 provider schema before relying on this event family.",
+            EventReadinessDiagnosticKind.Missing);
     }
 
     private static async Task<EventLogProbeResult> ProbeTypedCollectorSourceAsync(

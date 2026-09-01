@@ -142,12 +142,16 @@ public static partial class EventDetectionCatalog {
                 Tags = new[] { "authentication", "account-compromise", "attack.t1078" },
                 FalsePositives = new[] { "A user corrected an accidentally mistyped password." }
             },
-            Definition("EVX-AUTH-0004", "Weak Kerberos TGT encryption observed", EventDetectionSeverity.Medium,
+            Definition("EVX-AUTH-0004", "Weak Kerberos TGT or session-key encryption observed", EventDetectionSeverity.Medium,
                 EventType.KerberosTGTRequest, 90, "authentication", "kerberos-weak-encryption", "attack.t1558",
-                EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true)),
-            Definition("EVX-AUTH-0005", "Weak Kerberos service-ticket encryption observed", EventDetectionSeverity.Medium,
+                EventPredicate.AnyOf(
+                    EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true),
+                    EventPredicate.Compare("WeakSessionKeyEncryptionAlgorithm", EventPredicateOperator.Equal, true))),
+            Definition("EVX-AUTH-0005", "Weak Kerberos service-ticket or session-key encryption observed", EventDetectionSeverity.Medium,
                 EventType.KerberosServiceTicket, 90, "authentication", "kerberos-weak-encryption", "attack.t1558",
-                EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true)),
+                EventPredicate.AnyOf(
+                    EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true),
+                    EventPredicate.Compare("WeakSessionKeyEncryptionAlgorithm", EventPredicateOperator.Equal, true))),
             ThresholdDefinition(
                 "EVX-AUTH-0006",
                 "Repeated Kerberos ticket failures",
@@ -162,7 +166,9 @@ public static partial class EventDetectionCatalog {
             Definition("EVX-AUTH-0008", "SMB1 access observed", EventDetectionSeverity.High,
                 EventType.ADSMBServerAuditV1, 95, "authentication", "smb1", "attack.t1021.002"),
             Definition("EVX-AUTH-0009", "Kerberos policy changed", EventDetectionSeverity.High,
-                EventType.KerberosPolicyChange, 90, "authentication", "kerberos-policy")
+                EventType.KerberosPolicyChange, 90, "authentication", "kerberos-policy"),
+            Definition("EVX-AUTH-0010", "KDC reported an RC4 enforcement risk", EventDetectionSeverity.High,
+                EventType.KerberosKdcRc4Audit, 100, "authentication", "kerberos-rc4-enforcement")
         });
 
     private static EventDetectionPack CreateGovernancePack() => Pack(
