@@ -58,11 +58,12 @@ internal static class WindowsEventArchive {
                         try {
                             using WindowsEventFileQueryLease fileQuery =
                                 WindowsEventFileQueryLease.AcquireForWrite(
-                                    CreateFileQuery(temporaryPath));
+                                    CreateFileQuery(temporaryPath),
+                                    cancellationToken);
                             archive(
                                 fileQuery.Query.Path!,
                                 locale);
-                            fileQuery.CommitWrite();
+                            fileQuery.CommitWrite(cancellationToken);
                             return true;
                         } catch {
                             DeleteTemporaryArchive(
@@ -167,7 +168,8 @@ internal static class WindowsEventArchive {
             query.Path.Trim().Trim('"', '\''));
         using (WindowsEventFileQueryLease fileQuery =
                WindowsEventFileQueryLease.Acquire(
-                   CreateFileQuery(sourcePath, query.XPath))) {
+                   CreateFileQuery(sourcePath, query.XPath),
+                   cancellationToken)) {
             Export(
                 IntPtr.Zero,
                 fileQuery.Query.Path!,
@@ -290,7 +292,9 @@ internal static class WindowsEventArchive {
                     source!,
                     publisherMetadataPath: source);
                 using WindowsEventFileQueryLease fileQuery =
-                    WindowsEventFileQueryLease.Acquire(nativeQuery);
+                    WindowsEventFileQueryLease.Acquire(
+                        nativeQuery,
+                        cancellationToken);
                 Export(
                     sessionHandle,
                     fileQuery.Query.PublisherMetadataPath,

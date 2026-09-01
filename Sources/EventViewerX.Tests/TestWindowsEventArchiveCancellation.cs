@@ -6,6 +6,50 @@ namespace EventViewerX.Tests;
 [Collection("NativeOperationLifetime")]
 public sealed class TestWindowsEventArchiveCancellation {
     [Fact]
+    public void ExtendedArchiveCommitsGeneratedLocaleMetadata() {
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX.Tests",
+            Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        Directory.CreateDirectory(extendedRoot);
+        string path = Path.Combine(extendedRoot, "source.evtx");
+        File.WriteAllBytes(path, new byte[] { 1, 2, 3, 4 });
+        try {
+            WindowsEventArchive.ArchiveFileResources(
+                path,
+                0,
+                CancellationToken.None,
+                (nativePath, _) => {
+                    string resources = Path.Combine(
+                        Path.GetDirectoryName(nativePath)!,
+                        "LocaleMetaData",
+                        "en-US");
+                    Directory.CreateDirectory(resources);
+                    File.WriteAllText(
+                        Path.Combine(resources, "provider.dll"),
+                        "archived resources");
+                });
+
+            Assert.Equal(
+                "archived resources",
+                File.ReadAllText(Path.Combine(
+                    extendedRoot,
+                    "LocaleMetaData",
+                    "en-US",
+                    "provider.dll")));
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void ArchiveResourcesPreservesSourceOpenAccessFailure() {
         string root = Path.Combine(
             Path.GetTempPath(),

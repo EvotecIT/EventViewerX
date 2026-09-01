@@ -11,53 +11,69 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
     private readonly string? _temporaryDirectory;
     private readonly string? _writeSourcePath;
     private readonly string? _writeNativePath;
+    private readonly bool _writeFileRequiresCopyBack;
+    private readonly IReadOnlyList<(string DestinationPath, string SourcePath)>
+        _linkedFiles;
 
     private WindowsEventFileQueryLease(
         NativeEventQuery query,
         string? temporaryDirectory = null,
         string? writeSourcePath = null,
-        string? writeNativePath = null) {
+        string? writeNativePath = null,
+        bool writeFileRequiresCopyBack = false,
+        IReadOnlyList<(string DestinationPath, string SourcePath)>? linkedFiles = null) {
 
         Query = query;
         _temporaryDirectory = temporaryDirectory;
         _writeSourcePath = writeSourcePath;
         _writeNativePath = writeNativePath;
+        _writeFileRequiresCopyBack = writeFileRequiresCopyBack;
+        _linkedFiles = linkedFiles ??
+            Array.Empty<(string DestinationPath, string SourcePath)>();
     }
 
     internal NativeEventQuery Query { get; }
 
     internal static WindowsEventFileQueryLease Acquire(
-        NativeEventQuery query) {
+        NativeEventQuery query,
+        CancellationToken cancellationToken = default) {
 
         return Acquire(
             query,
             includeLocaleMetadata: false,
-            writable: false);
+            writable: false,
+            cancellationToken);
     }
 
     internal static WindowsEventFileQueryLease AcquireWithMessageResources(
-        NativeEventQuery query) {
+        NativeEventQuery query,
+        CancellationToken cancellationToken = default) {
 
         return Acquire(
             query,
             includeLocaleMetadata: true,
-            writable: false);
+            writable: false,
+            cancellationToken);
     }
 
     internal static WindowsEventFileQueryLease AcquireForWrite(
-        NativeEventQuery query) {
+        NativeEventQuery query,
+        CancellationToken cancellationToken = default) {
 
         return Acquire(
             query,
             includeLocaleMetadata: false,
-            writable: true);
+            writable: true,
+            cancellationToken);
     }
 
     private static WindowsEventFileQueryLease Acquire(
         NativeEventQuery query,
         bool includeLocaleMetadata,
-        bool writable) {
+        bool writable,
+        CancellationToken cancellationToken) {
 
+        cancellationToken.ThrowIfCancellationRequested();
         if ((query.Flags & WindowsEventNativeMethods.QueryFlags.FilePath) == 0) {
             return new WindowsEventFileQueryLease(query);
         }
@@ -72,11 +88,23 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
             Path.GetTempPath(),
             "EventViewerX-NativeQuery-" + Guid.NewGuid().ToString("N"));
         string nativePath = Path.Combine(temporaryDirectory, "source.evtx");
+        var linkedFiles =
+            new List<(string DestinationPath, string SourcePath)>();
         try {
             Directory.CreateDirectory(temporaryDirectory);
-            bool linked = CreateLinkOrCopy(sourcePath, nativePath);
+            bool linked = CreateLinkOrCopy(
+                sourcePath,
+                nativePath,
+                cancellationToken);
+            if (linked) {
+                linkedFiles.Add((nativePath, sourcePath));
+            }
             if (includeLocaleMetadata) {
-                StageLocaleMetadata(sourcePath, temporaryDirectory);
+                StageLocaleMetadata(
+                    sourcePath,
+                    temporaryDirectory,
+                    linkedFiles,
+                    cancellationToken);
             }
             string? structuredQuery = query.Path == null
                 ? EventLogStructuredQueryParser.ReplaceFileSources(
@@ -86,42 +114,69 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
             return new WindowsEventFileQueryLease(
                 query.WithFileSource(nativePath, structuredQuery),
                 temporaryDirectory,
-                writable && !linked ? sourcePath : null,
-                writable && !linked ? nativePath : null);
+                writable ? sourcePath : null,
+                writable ? nativePath : null,
+                writable && !linked,
+                linkedFiles);
         } catch {
-            TryDeleteDirectory(temporaryDirectory);
+            TryDeleteDirectory(temporaryDirectory, linkedFiles);
             throw;
         }
     }
 
     public void Dispose() {
         if (_temporaryDirectory != null) {
-            TryDeleteDirectory(_temporaryDirectory);
+            TryDeleteDirectory(_temporaryDirectory, _linkedFiles);
         }
     }
 
-    internal void CommitWrite() {
+    internal void CommitWrite(
+        CancellationToken cancellationToken = default) {
+
         if (_writeSourcePath == null || _writeNativePath == null) {
             return;
         }
-        using var source = new FileStream(
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_writeFileRequiresCopyBack) {
+            CopyFileContents(
+                _writeNativePath,
+                _writeSourcePath,
+                overwrite: true,
+                cancellationToken);
+        }
+        CommitLocaleMetadata(
             _writeNativePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read);
-        using var destination = new FileStream(
             _writeSourcePath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None);
-        source.CopyTo(destination);
+            cancellationToken);
     }
 
-    private static void TryDeleteDirectory(string path) {
+    private static void TryDeleteDirectory(
+        string path,
+        IReadOnlyList<(string DestinationPath, string SourcePath)> linkedFiles) {
+
         try {
-            if (Directory.Exists(path)) {
-                Directory.Delete(path, recursive: true);
+            foreach ((string destinationPath, string sourcePath) in
+                     linkedFiles) {
+                DeleteLinkedFilePreservingAttributes(
+                    destinationPath,
+                    sourcePath);
             }
+            if (!Directory.Exists(path)) {
+                return;
+            }
+            foreach (string file in Directory.EnumerateFiles(
+                         path,
+                         "*",
+                         SearchOption.AllDirectories)) {
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
+            foreach (string directory in Directory.EnumerateDirectories(
+                         path,
+                         "*",
+                         SearchOption.AllDirectories)) {
+                File.SetAttributes(directory, FileAttributes.Normal);
+            }
+            Directory.Delete(path, recursive: true);
         } catch (IOException) {
         } catch (UnauthorizedAccessException) {
         }
@@ -129,7 +184,9 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
 
     private static void StageLocaleMetadata(
         string sourcePath,
-        string temporaryDirectory) {
+        string temporaryDirectory,
+        ICollection<(string DestinationPath, string SourcePath)> linkedFiles,
+        CancellationToken cancellationToken) {
 
         string? sourceDirectory = Path.GetDirectoryName(sourcePath);
         if (string.IsNullOrEmpty(sourceDirectory)) {
@@ -155,6 +212,7 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
                      sourceMetadata,
                      "*",
                      SearchOption.AllDirectories)) {
+            cancellationToken.ThrowIfCancellationRequested();
             string relativePath = sourceFile.Substring(sourcePrefixLength);
             string destinationFile = Path.Combine(
                 destinationMetadata,
@@ -164,17 +222,38 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
             if (!string.IsNullOrEmpty(destinationDirectory)) {
                 Directory.CreateDirectory(destinationDirectory);
             }
-            _ = CreateLinkOrCopy(sourceFile, destinationFile);
+            if (CreateLinkOrCopy(
+                    sourceFile,
+                    destinationFile,
+                    cancellationToken)) {
+                linkedFiles.Add((destinationFile, sourceFile));
+            }
         }
     }
 
     private static bool CreateLinkOrCopy(
         string sourcePath,
-        string destinationPath) {
+        string destinationPath,
+        CancellationToken cancellationToken) {
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (CreateHardLink(destinationPath, sourcePath, IntPtr.Zero)) {
             return true;
         }
+        CopyFileContents(
+            sourcePath,
+            destinationPath,
+            overwrite: false,
+            cancellationToken);
+        return false;
+    }
+
+    private static void CopyFileContents(
+        string sourcePath,
+        string destinationPath,
+        bool overwrite,
+        CancellationToken cancellationToken) {
+
         using var source = new FileStream(
             sourcePath,
             FileMode.Open,
@@ -182,11 +261,85 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
             FileShare.ReadWrite | FileShare.Delete);
         using var destination = new FileStream(
             destinationPath,
-            FileMode.CreateNew,
+            overwrite ? FileMode.Create : FileMode.CreateNew,
             FileAccess.Write,
             FileShare.Read);
-        source.CopyTo(destination);
-        return false;
+        var buffer = new byte[81920];
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            int read = source.Read(buffer, 0, buffer.Length);
+            if (read == 0) {
+                break;
+            }
+            destination.Write(buffer, 0, read);
+        }
+    }
+
+    private static void CommitLocaleMetadata(
+        string nativePath,
+        string sourcePath,
+        CancellationToken cancellationToken) {
+
+        string? nativeDirectory = Path.GetDirectoryName(nativePath);
+        string? sourceDirectory = Path.GetDirectoryName(sourcePath);
+        if (nativeDirectory == null || sourceDirectory == null) {
+            return;
+        }
+        string nativeMetadata = Path.Combine(
+            nativeDirectory,
+            "LocaleMetaData");
+        if (!Directory.Exists(nativeMetadata)) {
+            return;
+        }
+        string sourceMetadata = Path.Combine(
+            sourceDirectory,
+            "LocaleMetaData");
+        int prefixLength = nativeMetadata
+            .TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar)
+            .Length + 1;
+        foreach (string nativeFile in Directory.EnumerateFiles(
+                     nativeMetadata,
+                     "*",
+                     SearchOption.AllDirectories)) {
+            cancellationToken.ThrowIfCancellationRequested();
+            string relativePath = nativeFile.Substring(prefixLength);
+            string sourceFile = Path.Combine(sourceMetadata, relativePath);
+            string? destinationDirectory = Path.GetDirectoryName(sourceFile);
+            if (!string.IsNullOrEmpty(destinationDirectory)) {
+                Directory.CreateDirectory(destinationDirectory);
+            }
+            CopyFileContents(
+                nativeFile,
+                sourceFile,
+                overwrite: true,
+                cancellationToken);
+        }
+    }
+
+    private static void DeleteLinkedFilePreservingAttributes(
+        string destinationPath,
+        string sourcePath) {
+
+        if (!File.Exists(destinationPath)) {
+            return;
+        }
+        FileAttributes attributes = File.GetAttributes(destinationPath);
+        if ((attributes & FileAttributes.ReadOnly) == 0) {
+            File.Delete(destinationPath);
+            return;
+        }
+        File.SetAttributes(
+            destinationPath,
+            attributes & ~FileAttributes.ReadOnly);
+        try {
+            File.Delete(destinationPath);
+        } finally {
+            if (File.Exists(sourcePath)) {
+                File.SetAttributes(sourcePath, attributes);
+            }
+        }
     }
 
     [DllImport(

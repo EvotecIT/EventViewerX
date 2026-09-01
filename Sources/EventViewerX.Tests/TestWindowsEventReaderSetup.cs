@@ -166,4 +166,81 @@ public sealed class TestWindowsEventReaderSetup {
             }
         }
     }
+
+    [Fact]
+    public void CancelledExtendedFileLeaseStopsBeforeStaging() {
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-CancelledLease-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string sourcePath = Path.Combine(extendedRoot, "archive.evtx");
+        try {
+            Directory.CreateDirectory(extendedRoot);
+            File.WriteAllText(sourcePath, "event data");
+            var query = new NativeEventQuery(
+                IntPtr.Zero,
+                sourcePath,
+                "*",
+                WindowsEventNativeMethods.QueryFlags.FilePath,
+                sourcePath,
+                sourcePath);
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            Assert.Throws<OperationCanceledException>(() =>
+                WindowsEventFileQueryLease.Acquire(
+                    query,
+                    cancellation.Token));
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExtendedFileLeaseCleansReadOnlyLinksWithoutChangingSourceAttributes() {
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-ReadOnlyLease-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string sourcePath = Path.Combine(extendedRoot, "archive.evtx");
+        string nativeDirectory = string.Empty;
+        try {
+            Directory.CreateDirectory(extendedRoot);
+            File.WriteAllText(sourcePath, "event data");
+            File.SetAttributes(sourcePath, FileAttributes.ReadOnly);
+            var query = new NativeEventQuery(
+                IntPtr.Zero,
+                sourcePath,
+                "*",
+                WindowsEventNativeMethods.QueryFlags.FilePath,
+                sourcePath,
+                sourcePath);
+
+            using (WindowsEventFileQueryLease lease =
+                   WindowsEventFileQueryLease.Acquire(query)) {
+                nativeDirectory = Path.GetDirectoryName(lease.Query.Path!)!;
+            }
+
+            Assert.False(Directory.Exists(nativeDirectory));
+            Assert.True(
+                (File.GetAttributes(sourcePath) & FileAttributes.ReadOnly) != 0);
+        } finally {
+            if (File.Exists(sourcePath)) {
+                File.SetAttributes(sourcePath, FileAttributes.Normal);
+            }
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
 }
