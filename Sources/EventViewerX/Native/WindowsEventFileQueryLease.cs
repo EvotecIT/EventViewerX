@@ -9,19 +9,38 @@ namespace EventViewerX.Native;
 /// </summary>
 internal sealed class WindowsEventFileQueryLease : IDisposable {
     private readonly string? _temporaryDirectory;
+    private readonly string? _writeSourcePath;
+    private readonly string? _writeNativePath;
 
     private WindowsEventFileQueryLease(
         NativeEventQuery query,
-        string? temporaryDirectory = null) {
+        string? temporaryDirectory = null,
+        string? writeSourcePath = null,
+        string? writeNativePath = null) {
 
         Query = query;
         _temporaryDirectory = temporaryDirectory;
+        _writeSourcePath = writeSourcePath;
+        _writeNativePath = writeNativePath;
     }
 
     internal NativeEventQuery Query { get; }
 
     internal static WindowsEventFileQueryLease Acquire(
         NativeEventQuery query) {
+
+        return Acquire(query, writable: false);
+    }
+
+    internal static WindowsEventFileQueryLease AcquireForWrite(
+        NativeEventQuery query) {
+
+        return Acquire(query, writable: true);
+    }
+
+    private static WindowsEventFileQueryLease Acquire(
+        NativeEventQuery query,
+        bool writable) {
 
         if ((query.Flags & WindowsEventNativeMethods.QueryFlags.FilePath) == 0) {
             return new WindowsEventFileQueryLease(query);
@@ -39,19 +58,8 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
         string nativePath = Path.Combine(temporaryDirectory, "source.evtx");
         try {
             Directory.CreateDirectory(temporaryDirectory);
-            if (!CreateHardLink(nativePath, sourcePath, IntPtr.Zero)) {
-                using var source = new FileStream(
-                    sourcePath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete);
-                using var destination = new FileStream(
-                    nativePath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.Read);
-                source.CopyTo(destination);
-            }
+            bool linked = CreateLinkOrCopy(sourcePath, nativePath);
+            StageLocaleMetadata(sourcePath, temporaryDirectory);
             string? structuredQuery = query.Path == null
                 ? EventLogStructuredQueryParser.ReplaceFileSources(
                     query.XPath,
@@ -59,7 +67,9 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
                 : null;
             return new WindowsEventFileQueryLease(
                 query.WithFileSource(nativePath, structuredQuery),
-                temporaryDirectory);
+                temporaryDirectory,
+                writable && !linked ? sourcePath : null,
+                writable && !linked ? nativePath : null);
         } catch {
             TryDeleteDirectory(temporaryDirectory);
             throw;
@@ -72,6 +82,23 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
         }
     }
 
+    internal void CommitWrite() {
+        if (_writeSourcePath == null || _writeNativePath == null) {
+            return;
+        }
+        using var source = new FileStream(
+            _writeNativePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+        using var destination = new FileStream(
+            _writeSourcePath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None);
+        source.CopyTo(destination);
+    }
+
     private static void TryDeleteDirectory(string path) {
         try {
             if (Directory.Exists(path)) {
@@ -80,6 +107,68 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
         } catch (IOException) {
         } catch (UnauthorizedAccessException) {
         }
+    }
+
+    private static void StageLocaleMetadata(
+        string sourcePath,
+        string temporaryDirectory) {
+
+        string? sourceDirectory = Path.GetDirectoryName(sourcePath);
+        if (string.IsNullOrEmpty(sourceDirectory)) {
+            return;
+        }
+        string sourceMetadata = Path.Combine(
+            sourceDirectory,
+            "LocaleMetaData");
+        if (!Directory.Exists(sourceMetadata)) {
+            return;
+        }
+
+        string destinationMetadata = Path.Combine(
+            temporaryDirectory,
+            "LocaleMetaData");
+        Directory.CreateDirectory(destinationMetadata);
+        int sourcePrefixLength = sourceMetadata
+            .TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar)
+            .Length + 1;
+        foreach (string sourceFile in Directory.EnumerateFiles(
+                     sourceMetadata,
+                     "*",
+                     SearchOption.AllDirectories)) {
+            string relativePath = sourceFile.Substring(sourcePrefixLength);
+            string destinationFile = Path.Combine(
+                destinationMetadata,
+                relativePath);
+            string? destinationDirectory =
+                Path.GetDirectoryName(destinationFile);
+            if (!string.IsNullOrEmpty(destinationDirectory)) {
+                Directory.CreateDirectory(destinationDirectory);
+            }
+            _ = CreateLinkOrCopy(sourceFile, destinationFile);
+        }
+    }
+
+    private static bool CreateLinkOrCopy(
+        string sourcePath,
+        string destinationPath) {
+
+        if (CreateHardLink(destinationPath, sourcePath, IntPtr.Zero)) {
+            return true;
+        }
+        using var source = new FileStream(
+            sourcePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var destination = new FileStream(
+            destinationPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.Read);
+        source.CopyTo(destination);
+        return false;
     }
 
     [DllImport(

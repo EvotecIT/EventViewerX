@@ -283,6 +283,10 @@ public class TestKerberosEncryptionContracts
             CreateKdcProvider(Enumerable.Range(201, 8).Select(static id => (long)id).ToArray()));
         EventReadinessConfigurationEvidence unavailable = EventReadinessEvidenceProvider.EvaluateKdcRc4EventSchema(
             CreateKdcProvider(Array.Empty<long>(), "Events: EventLogException: metadata unavailable"));
+        EventReadinessConfigurationEvidence unsupported = EventReadinessEvidenceProvider.EvaluateKdcRc4EventSchema(
+            CreateKdcProvider(
+                Enumerable.Range(201, 9).Select(static id => (long)id).ToArray(),
+                version: 1));
 
         Assert.Equal(EventReadinessStatus.Pass, complete.Status);
         Assert.Equal(EventReadinessStatus.Fail, incomplete.Status);
@@ -291,6 +295,8 @@ public class TestKerberosEncryptionContracts
         Assert.Equal(EventReadinessStatus.Unknown, unavailable.Status);
         Assert.Equal(EventReadinessDiagnosticKind.Error, unavailable.DiagnosticKind);
         Assert.Contains("metadata unavailable", unavailable.Evidence, StringComparison.Ordinal);
+        Assert.Equal(EventReadinessStatus.Fail, unsupported.Status);
+        Assert.Contains("version 0", unsupported.Evidence, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -378,10 +384,18 @@ public class TestKerberosEncryptionContracts
         IReadOnlyList<long> eventIds,
         params string[] diagnostics)
     {
-        EventProviderEventMetadataSnapshot[] events = eventIds.Select(static id =>
+        return CreateKdcProvider(eventIds, version: 0, diagnostics);
+    }
+
+    private static EventProviderMetadataSnapshot CreateKdcProvider(
+        IReadOnlyList<long> eventIds,
+        byte version,
+        params string[] diagnostics)
+    {
+        EventProviderEventMetadataSnapshot[] events = eventIds.Select(id =>
             new EventProviderEventMetadataSnapshot(
                 id,
-                version: 0,
+                version,
                 logName: "System",
                 channelId: null,
                 level: null,

@@ -242,7 +242,8 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             .Where(static metadata => string.Equals(
                 metadata.LogName,
                 "System",
-                StringComparison.OrdinalIgnoreCase))
+                StringComparison.OrdinalIgnoreCase) &&
+                metadata.Version == 0)
             .Select(static metadata => checked((int)metadata.Id))
             .Where(static id => id is >= 201 and <= 209)
             .Distinct()
@@ -256,9 +257,37 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
                 string.Empty);
         }
 
+        string[] unsupported = provider.Events
+            .Where(static metadata => string.Equals(
+                metadata.LogName,
+                "System",
+                StringComparison.OrdinalIgnoreCase) &&
+                metadata.Id is >= 201 and <= 209 &&
+                metadata.Version != 0)
+            .GroupBy(static metadata => metadata.Id)
+            .Where(group => missingIds.Contains(checked((int)group.Key)))
+            .OrderBy(static group => group.Key)
+            .Select(group =>
+                group.Key.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " (versions " +
+                string.Join(
+                    ", ",
+                    group.Select(static metadata => metadata.Version)
+                        .Distinct()
+                        .OrderBy(static version => version)) +
+                ")")
+            .ToArray();
+        string unsupportedEvidence = unsupported.Length == 0
+            ? string.Empty
+            : " Registered only with unsupported versions: " +
+              string.Join(", ", unsupported) +
+              "; the typed positional parser supports version 0.";
+
         return new EventReadinessConfigurationEvidence(
             EventReadinessStatus.Fail,
-            "The local Kdcsvc provider manifest is missing System event IDs: " + string.Join(", ", missingIds) + ".",
+            "The local Kdcsvc provider manifest is missing supported System event IDs: " +
+            string.Join(", ", missingIds) + "." +
+            unsupportedEvidence,
             "Install current Windows updates on the domain controller and verify the Kdcsvc 201-209 provider schema before relying on this event family.",
             EventReadinessDiagnosticKind.Missing);
     }

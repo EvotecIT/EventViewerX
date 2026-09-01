@@ -636,6 +636,32 @@ Describe 'Get-EVXEvent - wildcard source parity' {
         $events | Should -HaveCount 2
     }
 
+    It 'expands PowerShell character classes after an extended-length path prefix' {
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-1.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-2.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-a.evtx')
+        $pattern = '\\?\' + [System.IO.Path]::Combine(
+            [System.IO.Path]::GetFullPath($TestDrive),
+            'extended-[12].evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $pattern `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
     It 'matches offline provider wildcards from event metadata' {
         $filePath = [System.IO.Path]::Combine(
             $PSScriptRoot,

@@ -170,8 +170,8 @@ public sealed partial class CmdletGetEVXEvent {
                 continue;
             }
             if (FileSystemPathIdentity.IsWindowsExtendedLengthPath(pathValue)) {
-                foreach (string resolved in EventQueryPlanner.ExpandFilePaths(
-                             new[] { pathValue })) {
+                foreach (string resolved in PowerShellExtendedPathExpander.Expand(
+                             pathValue)) {
                     paths.Add(resolved);
                 }
                 continue;

@@ -38,7 +38,8 @@ public static class EventLogExporter {
         }
 
         string destination = ResolveDestination(outputPath);
-        string source = Path.GetFullPath(query.Path.Trim().Trim('"', '\''));
+        string source = FileSystemPathIdentity.GetFullPath(
+            query.Path.Trim().Trim('"', '\''));
         if (FileSystemPathIdentity.Equals(source, destination)) {
             throw new IOException("The export destination cannot overwrite the source event log.");
         }
@@ -636,7 +637,8 @@ public static class EventLogExporter {
         if (string.IsNullOrWhiteSpace(outputPath)) {
             throw new ArgumentException("Output path cannot be null or empty.", nameof(outputPath));
         }
-        return Path.GetFullPath(outputPath.Trim().Trim('"', '\''));
+        return FileSystemPathIdentity.GetFullPath(
+            outputPath.Trim().Trim('"', '\''));
     }
 
     private static void ValidateLocalNativeExportTarget(
@@ -658,7 +660,8 @@ public static class EventLogExporter {
             if (source.Kind != EventLogQuerySourceKind.File) {
                 continue;
             }
-            string sourcePath = Path.GetFullPath(source.Source);
+            string sourcePath = FileSystemPathIdentity.GetFullPath(
+                source.Source);
             if (FileSystemPathIdentity.Equals(sourcePath, destination)) {
                 throw new IOException(
                     "The export destination cannot overwrite a source event log.");
