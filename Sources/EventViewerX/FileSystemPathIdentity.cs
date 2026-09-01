@@ -10,6 +10,18 @@ internal static class FileSystemPathIdentity {
 
     internal static StringComparer Comparer { get; } = new PathIdentityComparer();
 
+    /// <summary>
+    /// Trims and deduplicates unresolved path inputs without canonicalizing
+    /// wildcard characters or collapsing case-distinct names.
+    /// </summary>
+    internal static string[] NormalizeUnresolvedPaths(IEnumerable<string?> paths) {
+        return paths
+            .Select(static path => path?.Trim() ?? string.Empty)
+            .Where(static path => path.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
     internal static string GetFullPath(string path) {
         if (Uri.TryCreate(path, UriKind.Absolute, out Uri? uri) && uri.IsFile) {
             return Path.GetFullPath(uri.LocalPath);

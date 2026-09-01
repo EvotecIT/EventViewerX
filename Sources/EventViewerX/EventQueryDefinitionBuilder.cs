@@ -83,7 +83,7 @@ public sealed class EventQueryDefinitionBuilder {
         string? queryXml) {
 
         _logNames = Normalize(logNames, StringComparer.OrdinalIgnoreCase);
-        _paths = Normalize(paths, FileSystemPathIdentity.Comparer);
+        _paths = NormalizePaths(paths);
         _providerNames = Normalize(providers, StringComparer.OrdinalIgnoreCase);
         _queryXml = string.IsNullOrWhiteSpace(queryXml) ? null : queryXml!.Trim();
     }
@@ -99,6 +99,14 @@ public sealed class EventQueryDefinitionBuilder {
             .Select(static value => value.Trim())
             .Distinct(comparer)
             .ToArray();
+        return result.Length == 0 ? null : result;
+    }
+
+    private static string[]? NormalizePaths(IEnumerable<string>? paths) {
+        if (paths == null) {
+            return null;
+        }
+        string[] result = FileSystemPathIdentity.NormalizeUnresolvedPaths(paths);
         return result.Length == 0 ? null : result;
     }
 }

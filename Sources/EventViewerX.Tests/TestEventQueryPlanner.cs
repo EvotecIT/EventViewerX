@@ -92,6 +92,67 @@ public class TestEventQueryPlanner {
     }
 
     [Fact]
+    public void ExpandsFileNameWildcardAfterCanonicalizingItsDirectory() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-QueryPlanner-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            File.WriteAllText(Path.Combine(directory, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "ignore.txt"), string.Empty);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { Path.Combine(directory, "*.evtx") }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ExpandsWildcardDirectorySegmentsBeforeCanonicalizingMatches() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-QueryPlanner-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            string first = Directory.CreateDirectory(
+                Path.Combine(directory, "Archive-One")).FullName;
+            string second = Directory.CreateDirectory(
+                Path.Combine(directory, "Archive-Two")).FullName;
+            string ignored = Directory.CreateDirectory(
+                Path.Combine(directory, "Current")).FullName;
+            File.WriteAllText(Path.Combine(first, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(second, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(ignored, "ignored.evtx"), string.Empty);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { Path.Combine(directory, "Archive-*", "*.evtx") }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RejectsWildcardUncShareBeforeCanonicalizingItsRoot() {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { @"\\server\Archive-*\*.evtx" }
+                }));
+
+        Assert.Contains("UNC share name", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RejectsBookmarkFanOut() {
         string directory = Path.Combine(
             Path.GetTempPath(),

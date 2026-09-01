@@ -155,9 +155,12 @@ public sealed partial class CmdletGetEVXEvent {
         string parameterName) {
 
         var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
-        foreach (string value in NormalizeRequiredValues(
-                     values,
-                     parameterName)) {
+        string[] requestedPaths = FileSystemPathIdentity.NormalizeUnresolvedPaths(values);
+        if (requestedPaths.Length == 0) {
+            throw new PSArgumentException(
+                $"Parameter '{parameterName}' requires at least one non-empty value.");
+        }
+        foreach (string value in requestedPaths) {
             if (!WildcardPattern.ContainsWildcardCharacters(value)) {
                 paths.Add(System.IO.Path.GetFullPath(
                     value.Trim().Trim('"', '\'')));

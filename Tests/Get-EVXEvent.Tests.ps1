@@ -587,6 +587,32 @@ Describe 'Get-EVXEvent - wildcard source parity' {
         $events | Should -HaveCount 2
     }
 
+    It 'expands wildcard directory segments before net472 path canonicalization' {
+        $firstDirectory = New-Item `
+            -ItemType Directory `
+            -Path (Join-Path $TestDrive 'Archive-One')
+        $secondDirectory = New-Item `
+            -ItemType Directory `
+            -Path (Join-Path $TestDrive 'Archive-Two')
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $firstDirectory.FullName 'first.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $secondDirectory.FullName 'second.evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path (Join-Path $TestDrive 'Archive-*\*.evtx') `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
     It 'matches offline provider wildcards from event metadata' {
         $filePath = [System.IO.Path]::Combine(
             $PSScriptRoot,
