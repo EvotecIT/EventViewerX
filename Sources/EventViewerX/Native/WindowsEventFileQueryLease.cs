@@ -29,17 +29,33 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
     internal static WindowsEventFileQueryLease Acquire(
         NativeEventQuery query) {
 
-        return Acquire(query, writable: false);
+        return Acquire(
+            query,
+            includeLocaleMetadata: false,
+            writable: false);
+    }
+
+    internal static WindowsEventFileQueryLease AcquireWithMessageResources(
+        NativeEventQuery query) {
+
+        return Acquire(
+            query,
+            includeLocaleMetadata: true,
+            writable: false);
     }
 
     internal static WindowsEventFileQueryLease AcquireForWrite(
         NativeEventQuery query) {
 
-        return Acquire(query, writable: true);
+        return Acquire(
+            query,
+            includeLocaleMetadata: false,
+            writable: true);
     }
 
     private static WindowsEventFileQueryLease Acquire(
         NativeEventQuery query,
+        bool includeLocaleMetadata,
         bool writable) {
 
         if ((query.Flags & WindowsEventNativeMethods.QueryFlags.FilePath) == 0) {
@@ -59,7 +75,9 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
         try {
             Directory.CreateDirectory(temporaryDirectory);
             bool linked = CreateLinkOrCopy(sourcePath, nativePath);
-            StageLocaleMetadata(sourcePath, temporaryDirectory);
+            if (includeLocaleMetadata) {
+                StageLocaleMetadata(sourcePath, temporaryDirectory);
+            }
             string? structuredQuery = query.Path == null
                 ? EventLogStructuredQueryParser.ReplaceFileSources(
                     query.XPath,

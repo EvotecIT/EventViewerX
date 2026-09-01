@@ -103,7 +103,8 @@ public sealed class TestWindowsEventReaderSetup {
                 sourcePath);
 
             using (WindowsEventFileQueryLease lease =
-                   WindowsEventFileQueryLease.Acquire(query)) {
+                   WindowsEventFileQueryLease
+                       .AcquireWithMessageResources(query)) {
                 string nativePath = Assert.IsType<string>(lease.Query.Path);
                 nativeDirectory = Path.GetDirectoryName(nativePath)!;
                 Assert.NotEqual(sourcePath, nativePath);
@@ -117,6 +118,48 @@ public sealed class TestWindowsEventReaderSetup {
             }
 
             Assert.False(Directory.Exists(nativeDirectory));
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void MetadataFileLeaseDoesNotStageArchivedLocaleMetadata() {
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-MetadataLease-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string sourcePath = Path.Combine(extendedRoot, "archive.evtx");
+        string sourceResources = Path.Combine(
+            extendedRoot,
+            "LocaleMetaData",
+            "en-US");
+        try {
+            Directory.CreateDirectory(sourceResources);
+            File.WriteAllText(sourcePath, "event data");
+            File.WriteAllText(
+                Path.Combine(sourceResources, "provider.dll"),
+                "message resources");
+            var query = new NativeEventQuery(
+                IntPtr.Zero,
+                sourcePath,
+                "*",
+                WindowsEventNativeMethods.QueryFlags.FilePath,
+                sourcePath,
+                sourcePath);
+
+            using WindowsEventFileQueryLease lease =
+                WindowsEventFileQueryLease.Acquire(query);
+            string nativePath = Assert.IsType<string>(lease.Query.Path);
+            Assert.False(Directory.Exists(Path.Combine(
+                Path.GetDirectoryName(nativePath)!,
+                "LocaleMetaData")));
         } finally {
             if (Directory.Exists(extendedRoot)) {
                 Directory.Delete(extendedRoot, recursive: true);

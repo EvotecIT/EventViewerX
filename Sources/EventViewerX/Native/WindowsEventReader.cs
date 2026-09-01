@@ -14,8 +14,15 @@ internal static class WindowsEventReader {
         CancellationToken cancellationToken,
         Action? queryOpened = null) {
 
+        bool includeMessageResources = readMode is
+            EventReadMode.Message or
+            EventReadMode.Full or
+            EventReadMode.StructuredDataAndMessage;
         using WindowsEventFileQueryLease fileQuery =
-            WindowsEventFileQueryLease.Acquire(query);
+            includeMessageResources
+                ? WindowsEventFileQueryLease
+                    .AcquireWithMessageResources(query)
+                : WindowsEventFileQueryLease.Acquire(query);
         query = fileQuery.Query;
         switch (readMode) {
             case EventReadMode.Metadata:
