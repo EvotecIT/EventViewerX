@@ -703,7 +703,47 @@ Describe 'Get-EVXEvent - pipeline parity' {
         )
 
         $events | Should -HaveCount 1
-        $events[0].GatheredFrom | Should -Be ([System.IO.Path]::GetFullPath($FilePath))
+        $events[0].GatheredFrom | Should -Be $ExtendedPath
+    }
+
+    It 'reads an EVTX file beyond MAX_PATH through its extended-length path' {
+        $Fixture = [System.IO.Path]::Combine(
+            $PSScriptRoot,
+            'Logs',
+            'NamedFilterExamples.evtx')
+        $OrdinaryRoot = [System.IO.Path]::Combine(
+            $TestDrive,
+            'long-path-root')
+        $ExtendedRoot = '\\?\' + [System.IO.Path]::GetFullPath($OrdinaryRoot)
+        $ExtendedDirectory = $ExtendedRoot
+        while ($ExtendedDirectory.Length -lt 280) {
+            $ExtendedDirectory = [System.IO.Path]::Combine(
+                $ExtendedDirectory,
+                'segment-0123456789abcdef')
+        }
+        $ExtendedPath = [System.IO.Path]::Combine(
+            $ExtendedDirectory,
+            'archive.evtx')
+
+        try {
+            [void] [System.IO.Directory]::CreateDirectory($ExtendedDirectory)
+            [System.IO.File]::Copy($Fixture, $ExtendedPath)
+            $ExtendedPath.Length | Should -BeGreaterThan 260
+
+            $Events = @(
+                Get-EVXEvent `
+                    -Path $ExtendedPath `
+                    -MaxEvents 1 `
+                    -ReadMode Metadata
+            )
+
+            $Events | Should -HaveCount 1
+            $Events[0].GatheredFrom | Should -Be $ExtendedPath
+        } finally {
+            if ([System.IO.Directory]::Exists($ExtendedRoot)) {
+                [System.IO.Directory]::Delete($ExtendedRoot, $true)
+            }
+        }
     }
 
     It 'accepts hashtable queries from the pipeline' {

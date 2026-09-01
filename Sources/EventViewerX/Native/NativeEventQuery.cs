@@ -52,4 +52,26 @@ internal readonly struct NativeEventQuery {
     internal bool StrictBookmark { get; }
     internal string? MachineName { get; }
     internal Action<EventLogQueryFailure>? FailureHandler { get; }
+
+    internal NativeEventQuery WithFileSource(
+        string nativePath,
+        string? structuredQuery = null) {
+
+        return new NativeEventQuery(
+            Session,
+            Path == null ? null : nativePath,
+            structuredQuery ?? XPath,
+            Flags,
+            DisplayName,
+            nativePath,
+            MessageLocale,
+            FallbackMessageLocale,
+            NextTimeoutMilliseconds,
+            IncludeBookmark,
+            BookmarkXml,
+            BookmarkOffset,
+            StrictBookmark,
+            MachineName,
+            FailureHandler);
+    }
 }

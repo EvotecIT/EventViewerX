@@ -167,7 +167,7 @@ public class TestEventQueryPlanner {
             Assert.Equal(EventLogQuerySourceKind.File, query.SourceKind);
             Assert.False(FileSystemPathIdentity.ContainsWildcard(extendedPath));
             EventLogStructuredQuerySource source = Assert.Single(query.ResolveSources());
-            Assert.Equal(Path.GetFullPath(path), source.Source);
+            Assert.Equal(extendedPath, source.Source);
         } finally {
             File.Delete(path);
         }
@@ -242,12 +242,57 @@ public class TestEventQueryPlanner {
             });
         EventObject item = Assert.Single(EventLogBatchEngine.Read(batch));
 
-        Assert.Equal(
-            fixture,
-            item.GatheredFrom,
-            ignoreCase: true,
-            ignoreLineEndingDifferences: false,
-            ignoreWhiteSpaceDifferences: false);
+        Assert.Equal(extendedPath, item.GatheredFrom);
+    }
+
+    [Fact]
+    public void ReadsAnEventFileBeyondMaxPathThroughItsExtendedLengthPath() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-LongPath-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string extendedDirectory = extendedRoot;
+        while (extendedDirectory.Length < 280) {
+            extendedDirectory = Path.Combine(
+                extendedDirectory,
+                "segment-0123456789abcdef");
+        }
+        string extendedPath = Path.Combine(
+            extendedDirectory,
+            "archive.evtx");
+
+        try {
+            Directory.CreateDirectory(extendedDirectory);
+            File.Copy(fixture, extendedPath);
+            Assert.True(extendedPath.Length > 260);
+
+            EventObject direct = Assert.Single(EventLogEngine.ReadFile(
+                new EventLogFileQuery(extendedPath) {
+                    MaxEvents = 1,
+                    ReadMode = EventReadMode.Metadata
+                }));
+            Assert.Equal(extendedPath, direct.GatheredFrom);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPath },
+                    Options = new EventLogQueryOptions {
+                        MaxEvents = 1,
+                        ReadMode = EventReadMode.Metadata
+                    }
+                });
+            EventObject planned = Assert.Single(
+                EventLogBatchEngine.Read(batch));
+            Assert.Equal(extendedPath, planned.GatheredFrom);
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
     }
 
     [Fact]

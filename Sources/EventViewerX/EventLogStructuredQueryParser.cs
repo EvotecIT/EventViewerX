@@ -146,10 +146,9 @@ internal static class EventLogStructuredQueryParser {
         foreach (XElement query in queries) {
             EventLogQuerySourceKind sourceKind =
                 ResolveSourceKind(query, declaredKind);
-            foreach (string path in GetPaths(query)
-                         .Distinct(sourceKind == EventLogQuerySourceKind.File
-                             ? FileSystemPathIdentity.Comparer
-                             : StringComparer.OrdinalIgnoreCase)) {
+            foreach (string path in DistinctPaths(
+                         GetPaths(query),
+                         sourceKind)) {
                 bool isFile = IsFileSource(path);
                 if (isFile !=
                     (sourceKind == EventLogQuerySourceKind.File)) {
@@ -198,7 +197,11 @@ internal static class EventLogStructuredQueryParser {
 
         string[] sources = GetPaths(query)
             .Where(IsFileSource)
-            .Distinct(FileSystemPathIdentity.Comparer)
+            .GroupBy(
+                static source => FileSystemPathIdentity.GetIdentity(
+                    GetFilePath(source)),
+                StringComparer.Ordinal)
+            .Select(static group => group.First())
             .ToArray();
         if (sources.Length != 1) {
             throw new ArgumentException(
@@ -214,6 +217,14 @@ internal static class EventLogStructuredQueryParser {
             throw new ArgumentException(
                 "The structured query source is not a file URI.",
                 nameof(fileSourceIdentity));
+        }
+        const string ExtendedPathUriPrefix = "file:///%5C%5C%3F%5C";
+        if (fileSourceIdentity.StartsWith(
+                ExtendedPathUriPrefix,
+                StringComparison.OrdinalIgnoreCase)) {
+            return FileSystemPathIdentity.GetFullPath(
+                Uri.UnescapeDataString(
+                    fileSourceIdentity.Substring("file:///".Length)));
         }
         if (Uri.TryCreate(
                 fileSourceIdentity,
@@ -245,6 +256,9 @@ internal static class EventLogStructuredQueryParser {
         string path) {
 
         string fullPath = FileSystemPathIdentity.GetFullPath(path);
+        if (FileSystemPathIdentity.IsWindowsExtendedLengthPath(fullPath)) {
+            return "file:///" + Uri.EscapeDataString(fullPath);
+        }
         string escapedPath = fullPath
             .Replace("%", "%25")
             .Replace("#", "%23")
@@ -259,6 +273,40 @@ internal static class EventLogStructuredQueryParser {
                    escapedPath.Substring(2);
         }
         return "file://" + escapedPath;
+    }
+
+    internal static string ReplaceFileSources(
+        string queryXml,
+        string replacementPath) {
+
+        string replacement = CreateFileSourceIdentity(replacementPath);
+        XDocument document = XDocument.Parse(
+            queryXml,
+            LoadOptions.PreserveWhitespace);
+        foreach (XAttribute pathAttribute in document
+                     .Descendants()
+                     .Attributes("Path")
+                     .Where(static attribute =>
+                         IsFileSource(attribute.Value))) {
+            pathAttribute.Value = replacement;
+        }
+        return document.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private static IEnumerable<string> DistinctPaths(
+        IEnumerable<string> paths,
+        EventLogQuerySourceKind sourceKind) {
+
+        if (sourceKind == EventLogQuerySourceKind.File) {
+            return paths
+                .Where(IsFileSource)
+                .GroupBy(
+                    static path => FileSystemPathIdentity.GetIdentity(
+                        GetFilePath(path)),
+                    StringComparer.Ordinal)
+                .Select(static group => group.First());
+        }
+        return paths.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string[] GetPaths(XElement query) {

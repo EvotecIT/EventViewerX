@@ -180,10 +180,9 @@ public static partial class EventLogEngine {
             .Where(static source =>
                 source.Kind == EventLogQuerySourceKind.File)
             .Select(static source =>
-                FileSystemPathIdentity.GetIdentity(
-                    EventLogStructuredQueryParser.GetFilePath(
-                        EventLogStructuredQueryParser.GetFileSourceIdentity(source.Query))))
-            .Distinct(StringComparer.Ordinal)
+                EventLogStructuredQueryParser.GetFilePath(
+                    EventLogStructuredQueryParser.GetFileSourceIdentity(source.Query)))
+            .Distinct(FileSystemPathIdentity.Comparer)
             .ToArray();
         if (!string.IsNullOrWhiteSpace(
                 query.BookmarkXml) &&
@@ -302,7 +301,8 @@ public static partial class EventLogEngine {
                 "The configured saved-event reader does not provide Windows bookmark semantics. " +
                 "Use record identifiers for portable checkpoints or omit SavedEventReader to use the Windows Eventing API.");
         }
-        string path = Path.GetFullPath(query.Path.Trim().Trim('"', '\''));
+        string path = FileSystemPathIdentity.GetFullPath(
+            query.Path.Trim().Trim('"', '\''));
         EnsureFileReadable(path);
         long returned = 0;
         foreach (SavedEventRecord record in query.SavedEventReader!.Read(
@@ -408,7 +408,8 @@ public static partial class EventLogEngine {
                 "Maximum events must be greater than or equal to zero.");
         }
 
-        path = Path.GetFullPath(query.Path.Trim().Trim('"', '\''));
+        path = FileSystemPathIdentity.GetFullPath(
+            query.Path.Trim().Trim('"', '\''));
         EnsureFileReadable(path);
         string xpath = string.IsNullOrWhiteSpace(query.XPath) ? "*" : query.XPath;
         WindowsEventNativeMethods.QueryFlags flags =

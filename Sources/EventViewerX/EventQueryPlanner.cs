@@ -112,7 +112,7 @@ public static class EventQueryPlanner {
         EventQueryDefinition definition,
         EventLogQueryOptions options) {
 
-        string[] paths = ExpandPaths(definition.Paths!);
+        string[] paths = ExpandFilePaths(definition.Paths!);
         if (paths.Length == 0) {
             throw new FileNotFoundException("The supplied event-log paths did not match any files.");
         }
@@ -296,7 +296,7 @@ public static class EventQueryPlanner {
         return value?.IndexOf('*') >= 0 || value?.IndexOf('?') >= 0;
     }
 
-    private static string[] ExpandPaths(IReadOnlyList<string> paths) {
+    internal static string[] ExpandFilePaths(IReadOnlyList<string> paths) {
         var output = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string value in FileSystemPathIdentity.NormalizeUnresolvedPaths(paths)) {
             bool containsWildcard = FileSystemPathIdentity.ContainsWildcard(value);

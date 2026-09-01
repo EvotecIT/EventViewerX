@@ -41,15 +41,17 @@ internal static class FileSystemPathIdentity {
     }
 
     internal static string GetFullPath(string path) {
-        string normalizedPath = NormalizeWindowsExtendedLengthPath(path);
+        if (IsWindowsExtendedLengthPath(path)) {
+            return path;
+        }
         if (Uri.TryCreate(
-                normalizedPath,
+                path,
                 UriKind.Absolute,
                 out Uri? uri) &&
             uri.IsFile) {
             return Path.GetFullPath(uri.LocalPath);
         }
-        return Path.GetFullPath(normalizedPath);
+        return Path.GetFullPath(path);
     }
 
     internal static string NormalizeWindowsExtendedLengthPath(string path) {
@@ -63,13 +65,16 @@ internal static class FileSystemPathIdentity {
             : remainder;
     }
 
-    private static bool IsWindowsExtendedLengthPath(string path) =>
+    internal static bool IsWindowsExtendedLengthPath(string path) =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
         path.StartsWith(WindowsExtendedLengthPrefix, StringComparison.Ordinal);
 
     internal static string GetIdentity(string path) {
         string fullPath = GetFullPath(path);
-        return IsCaseSensitive(fullPath) ? fullPath : fullPath.ToUpperInvariant();
+        string identityPath = NormalizeWindowsExtendedLengthPath(fullPath);
+        return IsCaseSensitive(fullPath)
+            ? identityPath
+            : identityPath.ToUpperInvariant();
     }
 
     internal static bool Equals(string left, string right) =>

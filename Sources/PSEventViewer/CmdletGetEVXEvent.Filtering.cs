@@ -161,14 +161,19 @@ public sealed partial class CmdletGetEVXEvent {
                 $"Parameter '{parameterName}' requires at least one non-empty value.");
         }
         foreach (string value in requestedPaths) {
-            string pathValue = FileSystemPathIdentity
-                .NormalizeWindowsExtendedLengthPath(
-                    value.Trim().Trim('"', '\''));
+            string pathValue = value.Trim().Trim('"', '\'');
             string wildcardCandidate =
                 FileSystemPathIdentity.GetWildcardCandidate(pathValue);
             if (!WildcardPattern.ContainsWildcardCharacters(wildcardCandidate)) {
                 paths.Add(FileSystemPathIdentity.GetFullPath(
                     pathValue));
+                continue;
+            }
+            if (FileSystemPathIdentity.IsWindowsExtendedLengthPath(pathValue)) {
+                foreach (string resolved in EventQueryPlanner.ExpandFilePaths(
+                             new[] { pathValue })) {
+                    paths.Add(resolved);
+                }
                 continue;
             }
             ProviderInfo provider;
