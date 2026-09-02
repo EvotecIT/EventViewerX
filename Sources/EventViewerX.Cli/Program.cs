@@ -43,6 +43,7 @@ internal static partial class Program {
                     contract.SchemaVersion,
                     Schema = ParseJsonElement(contract.JsonSchema)
                 })),
+                "version" or "--version" or "-v" => Version(),
                 "help" or "--help" or "-h" => Help(),
                 _ => throw new ArgumentException($"Unknown command '{options.Command}'.")
             };
@@ -757,6 +758,9 @@ internal static partial class Program {
             case "schemas":
                 options.ValidateAllowed();
                 break;
+            case "version":
+            case "--version":
+            case "-v":
             case "help":
             case "--help":
             case "-h":
@@ -766,7 +770,8 @@ internal static partial class Program {
     }
 
     private static int Help() {
-        Console.WriteLine("EventViewerX 4.0\n\n" +
+        Console.WriteLine($"EventViewerX {GetVersion()}\n\n" +
+            "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +

@@ -24,44 +24,16 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artefactRoot = Join-Path $repositoryRoot 'Artefacts\Cli'
 $releaseRoot = Join-Path $repositoryRoot 'Artefacts\UploadReady\Cli'
 
-$target = New-ConfigurationProjectTarget `
-    -Name 'EventViewerX.Cli' `
-    -ProjectPath 'Sources\EventViewerX.Cli\EventViewerX.Cli.csproj' `
-    -Kind Cli `
-    -Framework 'net10.0' `
-    -Runtimes $Runtime `
-    -Styles $Style `
-    -OutputType Tool `
-    -Zip
-
-$release = New-ConfigurationProjectRelease `
-    -Configuration 'Release' `
-    -ToolOutput Tool `
-    -BuildDuringPublish
-$output = New-ConfigurationProjectOutput `
-    -OutputRoot $artefactRoot `
-    -StageRoot $releaseRoot `
-    -ChecksumsPath (Join-Path $releaseRoot 'EventViewerX.Cli-SHA256SUMS.txt')
-
-$project = New-ConfigurationProject `
-    -Name 'EventViewerX.Cli' `
-    -ProjectRoot $repositoryRoot `
-    -Release $release `
-    -Output $output `
-    -Target $target
-
 $invokeSplat = @{
-    Project = $project
+    ConfigPath = (Join-Path $PSScriptRoot 'release.json')
+    ToolsOnly  = $true
+    Runtimes   = $Runtime
+    Styles     = $Style
+    OutputRoot = $artefactRoot
+    StageRoot  = $releaseRoot
 }
 if ($RunMode -eq 'Plan') {
     $invokeSplat.Plan = $true
 }
 
-$powerForgeWorkingPath = Join-Path $repositoryRoot 'Artefacts'
-New-Item -ItemType Directory -Path $powerForgeWorkingPath -Force | Out-Null
-Push-Location -LiteralPath $powerForgeWorkingPath
-try {
-    Invoke-ProjectRelease @invokeSplat
-} finally {
-    Pop-Location
-}
+Invoke-PowerForgeRelease @invokeSplat

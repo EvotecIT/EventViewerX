@@ -1,0 +1,109 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/Schemas/powerforge.release.schema.json",
+  "SchemaVersion": 1,
+  "Module": {
+    "RepositoryRoot": "..",
+    "ModuleName": "PSEventViewer",
+    "ScriptPath": "Build/Build-Module.ps1",
+    "IncludesPackages": true,
+    "ModuleVersion": "4.0.X",
+    "SignModule": true,
+    "TimeoutSeconds": 7200,
+    "ArtifactPaths": [
+      "Artefacts/Packed/PSEventViewer.v{ModuleVersionWithPreRelease}.zip",
+      "Artefacts/ProjectBuild/packages/EventViewerX.{ModuleVersionWithPreRelease}.nupkg",
+      "Artefacts/ProjectBuild/packages/EventViewerX.Cli.{ModuleVersionWithPreRelease}.nupkg",
+      "Artefacts/ProjectBuild/packages/EventViewerX.Detection.{ModuleVersionWithPreRelease}.nupkg",
+      "Artefacts/ProjectBuild/packages/EventViewerX.Evtx.{ModuleVersionWithPreRelease}.nupkg",
+      "Artefacts/ProjectBuild/packages/EventViewerX.Reporting.{ModuleVersionWithPreRelease}.nupkg",
+      "Artefacts/ProjectBuild/packages/EventViewerX.Storage.{ModuleVersionWithPreRelease}.nupkg"
+    ]
+  },
+  "Tools": {
+    "ProjectRoot": "..",
+    "Configuration": "Release",
+    "DotNetPublish": {
+      "SchemaVersion": 1,
+      "DotNet": {
+        "ProjectRoot": "..",
+        "AllowOutputOutsideProjectRoot": false,
+        "AllowManifestOutsideProjectRoot": false,
+        "LockedOutputGuard": true,
+        "OnLockedOutput": "Fail",
+        "LockedOutputSampleLimit": 5,
+        "Configuration": "Release",
+        "Restore": true,
+        "Clean": false,
+        "Build": true,
+        "NoRestoreInPublish": true,
+        "NoBuildInPublish": true
+      },
+      "Targets": [
+        {
+          "Name": "EventViewerX.Cli",
+          "ProjectPath": "Sources/EventViewerX.Cli/EventViewerX.Cli.csproj",
+          "Kind": "Cli",
+          "Publish": {
+            "Styles": [
+              "FrameworkDependent",
+              "PortableCompat"
+            ],
+            "Framework": "net10.0",
+            "Runtimes": [
+              "win-x64",
+              "win-arm64",
+              "linux-x64",
+              "linux-arm64",
+              "osx-x64",
+              "osx-arm64"
+            ],
+            "OutputPath": "Artefacts/Cli/Artifacts/DotNetPublish/EventViewerX.Cli",
+            "UseStaging": true,
+            "ClearOutput": true,
+            "Slim": true,
+            "KeepSymbols": false,
+            "KeepDocs": false,
+            "PruneReferences": true,
+            "Zip": true
+          }
+        }
+      ],
+      "Outputs": {
+        "ManifestJsonPath": "Artefacts/Cli/Artifacts/DotNetPublish/manifest.json",
+        "ManifestTextPath": "Artefacts/Cli/Artifacts/DotNetPublish/manifest.txt",
+        "ChecksumsPath": "Artefacts/Cli/Artifacts/DotNetPublish/SHA256SUMS.txt",
+        "RunReportPath": "Artefacts/Cli/Artifacts/DotNetPublish/run-report.json",
+        "RunReportMarkdownPath": "Artefacts/Cli/Artifacts/DotNetPublish/run-report.md"
+      }
+    },
+    "GitHub": {
+      "Publish": false
+    }
+  },
+  "Outputs": {
+    "Staging": {
+      "RootPath": "../Artefacts/UploadReady/Release",
+      "ModulesPath": "module",
+      "PackagesPath": "nuget",
+      "PortablePath": "portable",
+      "InstallerPath": "installer",
+      "StorePath": "store",
+      "ToolsPath": "cli",
+      "MetadataPath": "metadata",
+      "OtherPath": "assets"
+    }
+  },
+  "GitHub": {
+    "Publish": true,
+    "VersionSource": "Module",
+    "Owner": "EvotecIT",
+    "Repository": "EventViewerX",
+    "TokenFilePath": "C:\\Support\\Important\\GitHubAPI.txt",
+    "GenerateReleaseNotes": true,
+    "IsPreRelease": false,
+    "ReuseExistingRelease": false,
+    "ReplaceExistingAssets": false,
+    "TagTemplate": "v{Version}",
+    "ReleaseNameTemplate": "EventViewerX {Version}"
+  }
+}

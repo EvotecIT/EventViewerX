@@ -4,6 +4,7 @@
   "ExpectedVersion": null,
   "ExpectedVersionMap": {
     "EventViewerX": "4.0.X",
+    "EventViewerX.Cli": "4.0.X",
     "EventViewerX.Detection": "4.0.X",
     "EventViewerX.Evtx": "4.0.X",
     "EventViewerX.Reporting": "4.0.X",

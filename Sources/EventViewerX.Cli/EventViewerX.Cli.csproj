@@ -3,7 +3,22 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>evx</AssemblyName>
+    <AssemblyTitle>EventViewerX CLI</AssemblyTitle>
     <VersionPrefix>4.0.0</VersionPrefix>
+    <PackageId>EventViewerX.Cli</PackageId>
+    <Description>Command-line host for EventViewerX queries, reports, detections, watchers, storage, collectors, and custom providers.</Description>
+    <Company>Evotec</Company>
+    <Authors>Przemyslaw Klys</Authors>
+    <Copyright>Copyright (c) 2011-2026 Przemyslaw Klys @ Evotec. All rights reserved.</Copyright>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>evx</ToolCommandName>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/EvotecIT/EventViewerX</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EvotecIT/EventViewerX</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>Windows;Events;EventLog;EVTX;WEC;Reporting;Detection;CLI;Tool</PackageTags>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -12,6 +27,9 @@
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
     <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
