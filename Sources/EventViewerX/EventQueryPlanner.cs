@@ -112,7 +112,7 @@ public static class EventQueryPlanner {
         EventQueryDefinition definition,
         EventLogQueryOptions options) {
 
-        string[] paths = ExpandPaths(definition.Paths!);
+        string[] paths = ExpandFilePaths(definition.Paths!);
         if (paths.Length == 0) {
             throw new FileNotFoundException("The supplied event-log paths did not match any files.");
         }
@@ -296,37 +296,89 @@ public static class EventQueryPlanner {
         return value?.IndexOf('*') >= 0 || value?.IndexOf('?') >= 0;
     }
 
-    private static string[] ExpandPaths(IReadOnlyList<string> paths) {
+    internal static string[] ExpandFilePaths(IReadOnlyList<string> paths) {
         var output = new HashSet<string>(FileSystemPathIdentity.Comparer);
-        foreach (string? raw in paths) {
-            string value = raw?.Trim() ?? string.Empty;
-            if (value.Length == 0) {
-                continue;
-            }
-            string fullPath = Path.GetFullPath(value);
-            if (Directory.Exists(fullPath)) {
-                foreach (string file in Directory.EnumerateFiles(fullPath, "*.evtx", SearchOption.TopDirectoryOnly)) {
-                    output.Add(Path.GetFullPath(file));
+        foreach (string value in FileSystemPathIdentity.NormalizeUnresolvedPaths(paths)) {
+            bool containsWildcard = FileSystemPathIdentity.ContainsWildcard(value);
+            if (!containsWildcard) {
+                string fullPath = FileSystemPathIdentity.GetFullPath(value);
+                if (Directory.Exists(fullPath)) {
+                    foreach (string file in Directory.EnumerateFiles(fullPath, "*.evtx", SearchOption.TopDirectoryOnly)) {
+                        output.Add(FileSystemPathIdentity.GetFullPath(file));
+                    }
+                    continue;
                 }
-                continue;
-            }
-            if (value.IndexOf('*') < 0 && value.IndexOf('?') < 0) {
                 if (!File.Exists(fullPath)) {
                     throw new FileNotFoundException($"Event log file '{fullPath}' was not found.", fullPath);
                 }
                 output.Add(fullPath);
                 continue;
             }
-            string directory = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
-            string pattern = Path.GetFileName(fullPath);
-            if (!Directory.Exists(directory)) {
-                continue;
-            }
-            foreach (string file in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)) {
-                output.Add(Path.GetFullPath(file));
+            foreach (string file in ExpandFilePattern(value)) {
+                output.Add(file);
             }
         }
         return output.OrderBy(static path => path, FileSystemPathIdentity.Comparer).ToArray();
+    }
+
+    private static IEnumerable<string> ExpandFilePattern(string pattern) {
+        string root = Path.GetPathRoot(pattern) ?? string.Empty;
+        if (FileSystemPathIdentity.ContainsWildcard(root)) {
+            throw new ArgumentException(
+                "Wildcards are not supported in a path root, UNC server name, or UNC share name.",
+                nameof(pattern));
+        }
+        string remainder = pattern.Substring(root.Length);
+        string[] segments = remainder.Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+            StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0) {
+            yield break;
+        }
+
+        var directories = new HashSet<string>(FileSystemPathIdentity.Comparer) {
+            string.IsNullOrEmpty(root)
+                ? Directory.GetCurrentDirectory()
+                : FileSystemPathIdentity.GetFullPath(root)
+        };
+        for (int index = 0; index < segments.Length - 1; index++) {
+            string segment = segments[index];
+            var next = new HashSet<string>(FileSystemPathIdentity.Comparer);
+            foreach (string directory in directories) {
+                if (FileSystemPathIdentity.ContainsWildcard(segment)) {
+                    if (!Directory.Exists(directory)) {
+                        continue;
+                    }
+                    foreach (string match in Directory.EnumerateDirectories(
+                                 directory,
+                                 segment,
+                                 SearchOption.TopDirectoryOnly)) {
+                        next.Add(FileSystemPathIdentity.GetFullPath(match));
+                    }
+                    continue;
+                }
+
+                string candidate = FileSystemPathIdentity.GetFullPath(
+                    Path.Combine(directory, segment));
+                if (Directory.Exists(candidate)) {
+                    next.Add(candidate);
+                }
+            }
+            directories = next;
+            if (directories.Count == 0) {
+                yield break;
+            }
+        }
+
+        string filePattern = segments[segments.Length - 1];
+        foreach (string directory in directories) {
+            foreach (string file in Directory.EnumerateFiles(
+                         directory,
+                         filePattern,
+                         SearchOption.TopDirectoryOnly)) {
+                yield return FileSystemPathIdentity.GetFullPath(file);
+            }
+        }
     }
 
     private static string?[] NormalizeMachines(IReadOnlyList<string?>? machines) {

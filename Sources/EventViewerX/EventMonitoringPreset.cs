@@ -2,7 +2,7 @@ namespace EventViewerX;
 
 /// <summary>Built-in monitoring selections that combine event types with exact semantic filters.</summary>
 public enum EventMonitoringPreset {
-    /// <summary>NTLMv1 logons, RC4/DES Kerberos tickets, and unsigned or cleartext LDAP binds.</summary>
+    /// <summary>NTLMv1 logons, RC4/DES Kerberos tickets or session keys, and unsigned or cleartext LDAP binds.</summary>
     AuthenticationHealth,
     /// <summary>Scheduled-task lifecycle events 4698 through 4702.</summary>
     ScheduledTaskActivity,
@@ -45,7 +45,10 @@ public static class EventMonitoringPresetCatalog {
                         EventPredicateOperator.In,
                         nameof(EventType.KerberosTGTRequest),
                         nameof(EventType.KerberosServiceTicket)),
-                    EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true)),
+                    EventPredicate.AnyOf(
+                        EventPredicate.Compare("WeakEncryptionAlgorithm", EventPredicateOperator.Equal, true),
+                        EventPredicate.Compare("WeakSessionKeyEncryptionAlgorithm", EventPredicateOperator.Equal, true))),
+                TypeIs(nameof(EventType.KerberosKdcRc4Audit)),
                 TypeIs(nameof(EventType.ADLdapBindingDetails)),
                 EventPredicate.AllOf(
                     TypeIs(nameof(EventType.ADLdapBindingSummary)),

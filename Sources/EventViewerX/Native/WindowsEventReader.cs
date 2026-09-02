@@ -14,6 +14,16 @@ internal static class WindowsEventReader {
         CancellationToken cancellationToken,
         Action? queryOpened = null) {
 
+        bool includeMessageResources = readMode is
+            EventReadMode.Message or
+            EventReadMode.Full or
+            EventReadMode.StructuredDataAndMessage;
+        using WindowsEventFileQueryLease fileQuery =
+            includeMessageResources
+                ? WindowsEventFileQueryLease
+                    .AcquireWithMessageResources(query, cancellationToken)
+                : WindowsEventFileQueryLease.Acquire(query, cancellationToken);
+        query = fileQuery.Query;
         switch (readMode) {
             case EventReadMode.Metadata:
                 foreach (EventObject eventObject in ReadMetadataEvents(
@@ -173,6 +183,9 @@ internal static class WindowsEventReader {
             throw new ArgumentNullException(nameof(destination));
         }
 
+        using WindowsEventFileQueryLease fileQuery =
+            WindowsEventFileQueryLease.Acquire(query, cancellationToken);
+        query = fileQuery.Query;
         long count = 0;
         using var renderer = new WindowsEventXmlRenderer();
         using var events = new WindowsEventHandleEnumerator(query, cancellationToken);
@@ -187,6 +200,9 @@ internal static class WindowsEventReader {
         NativeEventQuery query,
         CancellationToken cancellationToken) {
 
+        using WindowsEventFileQueryLease fileQuery =
+            WindowsEventFileQueryLease.Acquire(query, cancellationToken);
+        query = fileQuery.Query;
         using var renderer = new WindowsEventXmlRenderer();
         foreach (string xml in ReadEvents(
                      query,

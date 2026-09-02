@@ -5,21 +5,76 @@ namespace EventViewerX;
 
 /// <summary>Applies the containing filesystem's path identity rules to canonical full paths.</summary>
 internal static class FileSystemPathIdentity {
+    internal const string WindowsExtendedLengthPrefix = @"\\?\";
+
     private static readonly ConcurrentDictionary<string, bool> CaseSensitivityByDirectory =
         new(StringComparer.Ordinal);
 
     internal static StringComparer Comparer { get; } = new PathIdentityComparer();
 
+    /// <summary>
+    /// Trims and deduplicates unresolved path inputs without canonicalizing
+    /// wildcard characters or collapsing case-distinct names.
+    /// </summary>
+    internal static string[] NormalizeUnresolvedPaths(IEnumerable<string?> paths) {
+        return paths
+            .Select(static path => path?.Trim() ?? string.Empty)
+            .Where(static path => path.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns the portion of a path that may contain wildcard syntax. The
+    /// question mark in a Windows extended-length prefix is a device-path
+    /// marker, not a wildcard.
+    /// </summary>
+    internal static string GetWildcardCandidate(string path) {
+        return IsWindowsExtendedLengthPath(path)
+            ? path.Substring(WindowsExtendedLengthPrefix.Length)
+            : path;
+    }
+
+    internal static bool ContainsWildcard(string path) {
+        string candidate = GetWildcardCandidate(path);
+        return candidate.IndexOf('*') >= 0 || candidate.IndexOf('?') >= 0;
+    }
+
     internal static string GetFullPath(string path) {
-        if (Uri.TryCreate(path, UriKind.Absolute, out Uri? uri) && uri.IsFile) {
+        if (IsWindowsExtendedLengthPath(path)) {
+            return path;
+        }
+        if (Uri.TryCreate(
+                path,
+                UriKind.Absolute,
+                out Uri? uri) &&
+            uri.IsFile) {
             return Path.GetFullPath(uri.LocalPath);
         }
         return Path.GetFullPath(path);
     }
 
+    internal static string NormalizeWindowsExtendedLengthPath(string path) {
+        if (!IsWindowsExtendedLengthPath(path)) {
+            return path;
+        }
+        string remainder = path.Substring(WindowsExtendedLengthPrefix.Length);
+        const string UncPrefix = @"UNC\";
+        return remainder.StartsWith(UncPrefix, StringComparison.OrdinalIgnoreCase)
+            ? @"\\" + remainder.Substring(UncPrefix.Length)
+            : remainder;
+    }
+
+    internal static bool IsWindowsExtendedLengthPath(string path) =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+        path.StartsWith(WindowsExtendedLengthPrefix, StringComparison.Ordinal);
+
     internal static string GetIdentity(string path) {
         string fullPath = GetFullPath(path);
-        return IsCaseSensitive(fullPath) ? fullPath : fullPath.ToUpperInvariant();
+        string identityPath = NormalizeWindowsExtendedLengthPath(fullPath);
+        return IsCaseSensitive(fullPath)
+            ? identityPath
+            : identityPath.ToUpperInvariant();
     }
 
     internal static bool Equals(string left, string right) =>

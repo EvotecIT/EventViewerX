@@ -132,7 +132,7 @@ from packed artifacts.
   artifacts on PowerShell 5.1 and PowerShell 7.
 - [x] Verify that EventViewerX, Reporting, Storage, the CLI, and PSEventViewer
   expose compatible versions and dependency graphs.
-- [ ] Complete a delayed independent review and settle all validated in-scope
+- [x] Complete a delayed independent review and settle all validated in-scope
   release findings.
 
 ## Delivered foundation to preserve

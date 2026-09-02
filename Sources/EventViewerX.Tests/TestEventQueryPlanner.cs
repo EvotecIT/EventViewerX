@@ -92,6 +92,210 @@ public class TestEventQueryPlanner {
     }
 
     [Fact]
+    public void ExpandsFileNameWildcardAfterCanonicalizingItsDirectory() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-QueryPlanner-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            File.WriteAllText(Path.Combine(directory, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "ignore.txt"), string.Empty);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { Path.Combine(directory, "*.evtx") }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ExpandsWildcardDirectorySegmentsBeforeCanonicalizingMatches() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-QueryPlanner-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            string first = Directory.CreateDirectory(
+                Path.Combine(directory, "Archive-One")).FullName;
+            string second = Directory.CreateDirectory(
+                Path.Combine(directory, "Archive-Two")).FullName;
+            string ignored = Directory.CreateDirectory(
+                Path.Combine(directory, "Current")).FullName;
+            File.WriteAllText(Path.Combine(first, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(second, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(ignored, "ignored.evtx"), string.Empty);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { Path.Combine(directory, "Archive-*", "*.evtx") }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RejectsWildcardUncShareBeforeCanonicalizingItsRoot() {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { @"\\server\Archive-*\*.evtx" }
+                }));
+
+        Assert.Contains("UNC share name", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AcceptsWindowsExtendedLengthFilePathWithoutTreatingPrefixAsWildcard() {
+        string path = Path.GetTempFileName();
+        try {
+            string extendedPath = @"\\?\" + Path.GetFullPath(path);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPath }
+                });
+
+            EventLogStructuredQuery query = Assert.Single(batch.StructuredQueries);
+            Assert.Equal(EventLogQuerySourceKind.File, query.SourceKind);
+            Assert.False(FileSystemPathIdentity.ContainsWildcard(extendedPath));
+            EventLogStructuredQuerySource source = Assert.Single(query.ResolveSources());
+            Assert.Equal(extendedPath, source.Source);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ExpandsWildcardAfterWindowsExtendedLengthPrefix() {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-ExtendedPaths-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            File.WriteAllText(Path.Combine(directory, "one.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "two.evtx"), string.Empty);
+            File.WriteAllText(Path.Combine(directory, "ignore.txt"), string.Empty);
+            string extendedPattern = Path.Combine(
+                @"\\?\" + Path.GetFullPath(directory),
+                "*.evtx");
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPattern }
+                });
+
+            Assert.Equal(2, batch.StructuredQueries.Count);
+        } finally {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\logs\*.evtx")]
+    [InlineData(@"\\?\UNC\server\share\log?.evtx")]
+    public void DetectsWildcardsAfterWindowsExtendedLengthPrefix(string path) {
+        Assert.True(FileSystemPathIdentity.ContainsWildcard(path));
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\logs\archive.evtx")]
+    [InlineData(@"\\?\UNC\server\share\archive.evtx")]
+    public void DoesNotTreatWindowsExtendedLengthPrefixAsWildcard(string path) {
+        Assert.False(FileSystemPathIdentity.ContainsWildcard(path));
+    }
+
+    [Fact]
+    public void NormalizesWindowsExtendedLengthDriveAndUncPaths() {
+        Assert.Equal(
+            @"C:\logs\archive.evtx",
+            FileSystemPathIdentity.NormalizeWindowsExtendedLengthPath(
+                @"\\?\C:\logs\archive.evtx"));
+        Assert.Equal(
+            @"\\server\share\archive.evtx",
+            FileSystemPathIdentity.NormalizeWindowsExtendedLengthPath(
+                @"\\?\UNC\server\share\archive.evtx"));
+    }
+
+    [Fact]
+    public void ReadsAnEventFileSuppliedWithAnExtendedLengthPath() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string extendedPath = @"\\?\" + fixture;
+
+        EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+            new EventQueryDefinition {
+                Paths = new[] { extendedPath },
+                Options = new EventLogQueryOptions {
+                    MaxEvents = 1,
+                    ReadMode = EventReadMode.Metadata
+                }
+            });
+        EventObject item = Assert.Single(EventLogBatchEngine.Read(batch));
+
+        Assert.Equal(extendedPath, item.GatheredFrom);
+    }
+
+    [Fact]
+    public void ReadsAnEventFileBeyondMaxPathThroughItsExtendedLengthPath() {
+        string fixture = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "Tests", "Logs", "NamedFilterExamples.evtx"));
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-LongPath-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string extendedDirectory = extendedRoot;
+        while (extendedDirectory.Length < 280) {
+            extendedDirectory = Path.Combine(
+                extendedDirectory,
+                "segment-0123456789abcdef");
+        }
+        string extendedPath = Path.Combine(
+            extendedDirectory,
+            "archive.evtx");
+
+        try {
+            Directory.CreateDirectory(extendedDirectory);
+            File.Copy(fixture, extendedPath);
+            Assert.True(extendedPath.Length > 260);
+
+            EventObject direct = Assert.Single(EventLogEngine.ReadFile(
+                new EventLogFileQuery(extendedPath) {
+                    MaxEvents = 1,
+                    ReadMode = EventReadMode.Metadata
+                }));
+            Assert.Equal(extendedPath, direct.GatheredFrom);
+
+            EventLogBatchQuery batch = EventQueryPlanner.CreateBatch(
+                new EventQueryDefinition {
+                    Paths = new[] { extendedPath },
+                    Options = new EventLogQueryOptions {
+                        MaxEvents = 1,
+                        ReadMode = EventReadMode.Metadata
+                    }
+                });
+            EventObject planned = Assert.Single(
+                EventLogBatchEngine.Read(batch));
+            Assert.Equal(extendedPath, planned.GatheredFrom);
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void RejectsBookmarkFanOut() {
         string directory = Path.Combine(
             Path.GetTempPath(),

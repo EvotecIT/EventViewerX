@@ -46,6 +46,42 @@ Get-EVXEvent -Preset FirewallRuleActivity -TimePeriod Last7Days
 Get-EVXEvent -Preset DefenderSecurity -TimePeriod Last7Days
 ```
 
+## Observe Kerberos RC4 enforcement without duplicating domain assessment
+
+EventViewerX 4.0 projects the current encryption evidence in Security events
+4768 and 4769, including the ticket and session-key encryption types, processed
+account/service/domain-controller supported-encryption masks, available keys,
+and client-advertised encryption types. Missing values such as `N/A` remain
+unknown; they are not converted into an RC4 or AES conclusion.
+
+KDCsvc System events 201 through 209 are available as one bounded event family:
+
+```powershell
+Get-EVXEvent -Type KerberosKdcRc4Audit `
+    -ActiveDirectory CurrentDomain `
+    -TimePeriod Last7Days
+```
+
+Before collecting, `Test-EVXReadiness -Type KerberosKdcRc4Audit` verifies the
+local KDCsvc provider schema when Windows exposes it. A remote target or a
+provider whose event metadata cannot be read remains `Unknown`; an installed
+schema is not proof that the rollout phase or traffic conditions will emit an
+event.
+
+Each result identifies the event-local issue and whether it is an audit
+warning, an enforcement block, or an explicit insecure domain-default warning.
+`KerberosActivity` and `AuthenticationHealth` include this family, so the same
+contract works through C#, PowerShell, the CLI, WEC, and saved EVTX queries.
+
+EventViewerX deliberately does not enumerate directory accounts, read registry
+settings across domain controllers, merge per-controller policy values, or
+decide whether an exception is acceptable. Those are assessment-policy jobs
+for a consuming product. Keep every domain controller's observation separate
+when correlating EventViewerX results with directory or host configuration.
+
+Microsoft documents the [KDCsvc 201-209 rollout and event meanings](https://support.microsoft.com/en-us/topic/how-to-manage-kerberos-kdc-usage-of-rc4-for-service-account-ticket-issuance-changes-related-to-cve-2026-20833-1ebcda33-720a-4da8-93c1-b0496e1910dc)
+and the [4768/4769 fields used to detect RC4 dependencies](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-remediate-rc4-kerberos).
+
 Portable custom event definitions remain declarative JSON. They cannot execute arbitrary PowerShell or C# code.
 
 ## Generate one report snapshot and reuse it

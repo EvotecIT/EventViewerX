@@ -209,15 +209,18 @@ public sealed class EventLogStructuredQuery {
                 "XPath cannot be null or empty.",
                 nameof(xpath));
         }
-        string[] normalized = sources
+        IEnumerable<string> supplied = sources
             .Select(source => source?.Trim() ?? string.Empty)
-            .Where(static source => source.Length > 0)
-            .Select(source => filePaths
-                ? EventLogStructuredQueryParser
-                    .CreateFileSourceIdentity(source)
-                : source)
-            .Distinct(filePaths ? FileSystemPathIdentity.Comparer : StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .Where(static source => source.Length > 0);
+        string[] normalized = filePaths
+            ? supplied
+                .Select(FileSystemPathIdentity.GetFullPath)
+                .Distinct(FileSystemPathIdentity.Comparer)
+                .Select(EventLogStructuredQueryParser.CreateFileSourceIdentity)
+                .ToArray()
+            : supplied
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         if (normalized.Length == 0) {
             throw new ArgumentException(
                 "At least one source is required.",

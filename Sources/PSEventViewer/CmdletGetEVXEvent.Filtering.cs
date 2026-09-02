@@ -155,19 +155,31 @@ public sealed partial class CmdletGetEVXEvent {
         string parameterName) {
 
         var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
-        foreach (string value in NormalizeRequiredValues(
-                     values,
-                     parameterName,
-                     FileSystemPathIdentity.Comparer)) {
-            if (!WildcardPattern.ContainsWildcardCharacters(value)) {
-                paths.Add(System.IO.Path.GetFullPath(
-                    value.Trim().Trim('"', '\'')));
+        string[] requestedPaths = FileSystemPathIdentity.NormalizeUnresolvedPaths(values);
+        if (requestedPaths.Length == 0) {
+            throw new PSArgumentException(
+                $"Parameter '{parameterName}' requires at least one non-empty value.");
+        }
+        foreach (string value in requestedPaths) {
+            string pathValue = value.Trim().Trim('"', '\'');
+            string wildcardCandidate =
+                FileSystemPathIdentity.GetWildcardCandidate(pathValue);
+            if (!WildcardPattern.ContainsWildcardCharacters(wildcardCandidate)) {
+                paths.Add(FileSystemPathIdentity.GetFullPath(
+                    pathValue));
+                continue;
+            }
+            if (FileSystemPathIdentity.IsWindowsExtendedLengthPath(pathValue)) {
+                foreach (string resolved in PowerShellExtendedPathExpander.Expand(
+                             pathValue)) {
+                    paths.Add(resolved);
+                }
                 continue;
             }
             ProviderInfo provider;
             foreach (string resolved in
                      SessionState.Path.GetResolvedProviderPathFromPSPath(
-                         value,
+                         pathValue,
                          out provider)) {
                 if (!string.Equals(
                         provider.Name,
@@ -176,7 +188,7 @@ public sealed partial class CmdletGetEVXEvent {
                     throw new PSArgumentException(
                         $"Path pattern '{value}' resolved through provider '{provider.Name}', but event log paths must use FileSystem.");
                 }
-                paths.Add(System.IO.Path.GetFullPath(resolved));
+                paths.Add(FileSystemPathIdentity.GetFullPath(resolved));
             }
         }
         if (paths.Count == 0) {

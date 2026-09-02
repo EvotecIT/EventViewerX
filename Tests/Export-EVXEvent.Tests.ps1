@@ -58,6 +58,34 @@ Describe 'Export-EVXEvent direct streaming contract' {
         $Rows[0].Xml | Should -BeNullOrEmpty
     }
 
+    It 'exports extended-length PowerShell character-class paths' {
+        $FirstSource = [System.IO.Path]::Combine(
+            $OutputDirectory,
+            'extended-1.evtx')
+        $SecondSource = [System.IO.Path]::Combine(
+            $OutputDirectory,
+            'extended-2.evtx')
+        [System.IO.File]::Copy($SourcePath, $FirstSource)
+        [System.IO.File]::Copy($SourcePath, $SecondSource)
+        $Pattern = '\\?\' + [System.IO.Path]::Combine(
+            $OutputDirectory,
+            'extended-[12].evtx')
+        $OutputPath = [System.IO.Path]::Combine(
+            $OutputDirectory,
+            'extended.jsonl')
+
+        $Result = Export-EVXEvent `
+            -Path $Pattern `
+            -OutputPath $OutputPath `
+            -Format JsonLines `
+            -ReadMode Metadata `
+            -Oldest `
+            -MaxEvents 2
+
+        $Result.EventCount | Should -Be 2
+        [System.IO.File]::ReadAllLines($OutputPath).Count | Should -Be 2
+    }
+
     It 'does not create output under WhatIf' {
         $OutputPath = [System.IO.Path]::Combine($OutputDirectory, 'whatif.jsonl')
 

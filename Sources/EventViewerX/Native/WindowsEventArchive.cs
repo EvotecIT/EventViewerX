@@ -39,7 +39,7 @@ internal static class WindowsEventArchive {
             throw new ArgumentNullException(nameof(archive));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        string absolutePath = Path.GetFullPath(
+        string absolutePath = FileSystemPathIdentity.GetFullPath(
             path.Trim().Trim('"', '\''));
         string directory =
             Path.GetDirectoryName(absolutePath)!;
@@ -56,9 +56,14 @@ internal static class WindowsEventArchive {
                 _ = BoundedNativeOperation.Execute(
                     () => {
                         try {
+                            using WindowsEventFileQueryLease fileQuery =
+                                WindowsEventFileQueryLease.AcquireForWrite(
+                                    CreateFileQuery(temporaryPath),
+                                    cancellationToken);
                             archive(
-                                temporaryPath,
+                                fileQuery.Query.Path!,
                                 locale);
+                            fileQuery.CommitWrite(cancellationToken);
                             return true;
                         } catch {
                             DeleteTemporaryArchive(
@@ -159,16 +164,21 @@ internal static class WindowsEventArchive {
             query.MaxEvents,
             query.BookmarkXml,
             query.BookmarkOffset);
-        string sourcePath = Path.GetFullPath(
+        string sourcePath = FileSystemPathIdentity.GetFullPath(
             query.Path.Trim().Trim('"', '\''));
-        Export(
-            IntPtr.Zero,
-            sourcePath,
-            query.XPath,
-            targetPath,
-            WindowsEventNativeMethods.ExportLogFlags.FilePath,
-            archiveResources,
-            query.MessageCulture?.LCID ?? 0);
+        using (WindowsEventFileQueryLease fileQuery =
+               WindowsEventFileQueryLease.Acquire(
+                   CreateFileQuery(sourcePath, query.XPath),
+                   cancellationToken)) {
+            Export(
+                IntPtr.Zero,
+                fileQuery.Query.Path!,
+                fileQuery.Query.XPath,
+                targetPath,
+                WindowsEventNativeMethods.ExportLogFlags.FilePath,
+                archiveResources,
+                query.MessageCulture?.LCID ?? 0);
+        }
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -273,14 +283,36 @@ internal static class WindowsEventArchive {
                 ? ResolveSingleStructuredFileSource(
                     query.QueryXml)
                 : null;
-            Export(
-                sessionHandle,
-                source,
-                query.QueryXml,
-                targetPath,
-                flags,
-                archiveResources,
-                query.MessageCulture?.LCID ?? 0);
+            if (sourceKind == EventLogQuerySourceKind.File) {
+                var nativeQuery = new NativeEventQuery(
+                    IntPtr.Zero,
+                    path: null,
+                    query.QueryXml,
+                    WindowsEventNativeMethods.QueryFlags.FilePath,
+                    source!,
+                    publisherMetadataPath: source);
+                using WindowsEventFileQueryLease fileQuery =
+                    WindowsEventFileQueryLease.Acquire(
+                        nativeQuery,
+                        cancellationToken);
+                Export(
+                    sessionHandle,
+                    fileQuery.Query.PublisherMetadataPath,
+                    fileQuery.Query.XPath,
+                    targetPath,
+                    flags,
+                    archiveResources,
+                    query.MessageCulture?.LCID ?? 0);
+            } else {
+                Export(
+                    sessionHandle,
+                    source,
+                    query.QueryXml,
+                    targetPath,
+                    flags,
+                    archiveResources,
+                    query.MessageCulture?.LCID ?? 0);
+            }
         } finally {
             session?.Dispose();
         }
@@ -371,13 +403,16 @@ internal static class WindowsEventArchive {
             throw new ArgumentNullException(
                 nameof(validateReadable));
         }
-        string absolutePath = Path.GetFullPath(
+        string absolutePath = FileSystemPathIdentity.GetFullPath(
             path.Trim().Trim('"', '\''));
         validateReadable(absolutePath);
+        using WindowsEventFileQueryLease fileQuery =
+            WindowsEventFileQueryLease.Acquire(
+                CreateFileQuery(absolutePath));
         using WindowsEventNativeMethods.EventHandle log =
             WindowsEventNativeMethods.EvtOpenLog(
                 IntPtr.Zero,
-                absolutePath,
+                fileQuery.Query.Path!,
                 WindowsEventNativeMethods.OpenLogFlags.FilePath);
         if (log.IsInvalid) {
             throw CreateWin32Exception(
@@ -426,6 +461,19 @@ internal static class WindowsEventArchive {
             recordCount,
             oldestRecordNumber,
             isFull);
+    }
+
+    private static NativeEventQuery CreateFileQuery(
+        string path,
+        string xpath = "*") {
+
+        return new NativeEventQuery(
+            IntPtr.Zero,
+            path,
+            string.IsNullOrWhiteSpace(xpath) ? "*" : xpath,
+            WindowsEventNativeMethods.QueryFlags.FilePath,
+            path,
+            path);
     }
 
     private static WindowsEventNativeMethods.EventVariant ReadProperty(

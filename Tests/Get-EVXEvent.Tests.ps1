@@ -574,7 +574,82 @@ Describe 'Get-EVXEvent - wildcard source parity' {
         $pattern = [System.IO.Path]::Combine(
             $PSScriptRoot,
             'Logs',
-            'NamedFilter*.evtx')
+            'NamedFilterEx?mples.evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $pattern `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
+    It 'expands wildcard directory segments before net472 path canonicalization' {
+        $firstDirectory = New-Item `
+            -ItemType Directory `
+            -Path (Join-Path $TestDrive 'Archive-One')
+        $secondDirectory = New-Item `
+            -ItemType Directory `
+            -Path (Join-Path $TestDrive 'Archive-Two')
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $firstDirectory.FullName 'first.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $secondDirectory.FullName 'second.evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path (Join-Path $TestDrive 'Archive-*\*.evtx') `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
+    It 'expands a wildcard after an extended-length path prefix' {
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-one.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-two.evtx')
+        $pattern = '\\?\' + [System.IO.Path]::Combine(
+            [System.IO.Path]::GetFullPath($TestDrive),
+            'extended-*.evtx')
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $pattern `
+                -Oldest `
+                -MaxEvents 2 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 2
+    }
+
+    It 'expands PowerShell character classes after an extended-length path prefix' {
+        $fixture = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-1.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-2.evtx')
+        Copy-Item `
+            -LiteralPath $fixture `
+            -Destination (Join-Path $TestDrive 'extended-a.evtx')
+        $pattern = '\\?\' + [System.IO.Path]::Combine(
+            [System.IO.Path]::GetFullPath($TestDrive),
+            'extended-[12].evtx')
 
         $events = @(
             Get-EVXEvent `
@@ -637,6 +712,64 @@ Describe 'Get-EVXEvent - pipeline parity' {
 
         $events | Should -HaveCount 1
         $events[0].GatheredFrom | Should -Be $FilePath
+    }
+
+    It 'accepts an extended-length file path without treating its prefix as a wildcard' {
+        $FilePath = [System.IO.Path]::Combine(
+            $PSScriptRoot,
+            'Logs',
+            'NamedFilterExamples.evtx')
+        $ExtendedPath = '\\?\' + [System.IO.Path]::GetFullPath($FilePath)
+
+        $events = @(
+            Get-EVXEvent `
+                -Path $ExtendedPath `
+                -MaxEvents 1 `
+                -ReadMode Metadata
+        )
+
+        $events | Should -HaveCount 1
+        $events[0].GatheredFrom | Should -Be $ExtendedPath
+    }
+
+    It 'reads an EVTX file beyond MAX_PATH through its extended-length path' {
+        $Fixture = [System.IO.Path]::Combine(
+            $PSScriptRoot,
+            'Logs',
+            'NamedFilterExamples.evtx')
+        $OrdinaryRoot = [System.IO.Path]::Combine(
+            $TestDrive,
+            'long-path-root')
+        $ExtendedRoot = '\\?\' + [System.IO.Path]::GetFullPath($OrdinaryRoot)
+        $ExtendedDirectory = $ExtendedRoot
+        while ($ExtendedDirectory.Length -lt 280) {
+            $ExtendedDirectory = [System.IO.Path]::Combine(
+                $ExtendedDirectory,
+                'segment-0123456789abcdef')
+        }
+        $ExtendedPath = [System.IO.Path]::Combine(
+            $ExtendedDirectory,
+            'archive.evtx')
+
+        try {
+            [void] [System.IO.Directory]::CreateDirectory($ExtendedDirectory)
+            [System.IO.File]::Copy($Fixture, $ExtendedPath)
+            $ExtendedPath.Length | Should -BeGreaterThan 260
+
+            $Events = @(
+                Get-EVXEvent `
+                    -Path $ExtendedPath `
+                    -MaxEvents 1 `
+                    -ReadMode Metadata
+            )
+
+            $Events | Should -HaveCount 1
+            $Events[0].GatheredFrom | Should -Be $ExtendedPath
+        } finally {
+            if ([System.IO.Directory]::Exists($ExtendedRoot)) {
+                [System.IO.Directory]::Delete($ExtendedRoot, $true)
+            }
+        }
     }
 
     It 'accepts hashtable queries from the pipeline' {

@@ -339,6 +339,53 @@ public sealed class TestEventLogExporter {
     }
 
     [Fact]
+    public void NativeMetadataAndExportAcceptExtendedSourcesBeyondMaxPath() {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new ExportFixture();
+        string ordinaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "EventViewerX-NativeExport-" + Guid.NewGuid().ToString("N"));
+        string extendedRoot = @"\\?\" + ordinaryRoot;
+        string extendedDirectory = extendedRoot;
+        while (extendedDirectory.Length < 280) {
+            extendedDirectory = Path.Combine(
+                extendedDirectory,
+                "segment-0123456789abcdef");
+        }
+        string sourcePath = Path.Combine(
+            extendedDirectory,
+            "source.evtx");
+        try {
+            Directory.CreateDirectory(extendedDirectory);
+            File.Copy(fixture.SourcePath, sourcePath);
+            EventLogFileInformation information =
+                WindowsEventArchive.GetFileInformation(sourcePath);
+            string outputPath = fixture.GetPath("long-source.evtx");
+
+            EventExportResult result = EventLogExporter.ExportFile(
+                new EventLogFileQuery(sourcePath) {
+                    Oldest = true,
+                    ReadMode = EventReadMode.Metadata
+                },
+                outputPath,
+                EventExportFormat.Evtx);
+            EventObject[] reopened = EventLogEngine.ReadFile(
+                    new EventLogFileQuery(outputPath) {
+                        ReadMode = EventReadMode.Metadata
+                    })
+                .ToArray();
+
+            Assert.True(information.RecordCount > 0);
+            Assert.Equal(information.RecordCount, result.EventCount);
+            Assert.Equal(result.EventCount, reopened.LongLength);
+        } finally {
+            if (Directory.Exists(extendedRoot)) {
+                Directory.Delete(extendedRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void StructuredQueryExportsProjectedAndNativeFormats() {
         if (!OperatingSystem.IsWindows()) return;
         using var fixture = new ExportFixture();

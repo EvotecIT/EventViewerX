@@ -4399,6 +4399,7 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -7318,6 +7319,7 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -8936,6 +8938,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -9056,6 +9059,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -9550,7 +9554,7 @@ This cannot be combined with EventLogPath.</maml:para>
     <command:syntax>
       <command:syntaxItem parameterSetName="Rule">
         <maml:name>Import-EVXSigmaRule</maml:name>
-        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+        <command:parameter required="true" variableLength="true" globbing="true" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
           <maml:name>Path</maml:name>
           <maml:description>
             <maml:para>One or more Sigma YAML files to import.</maml:para>
@@ -9589,7 +9593,7 @@ This cannot be combined with EventLogPath.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+        <command:parameter required="true" variableLength="true" globbing="true" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
           <maml:name>Path</maml:name>
           <maml:description>
             <maml:para>One or more Sigma YAML files to import.</maml:para>
@@ -9640,7 +9644,7 @@ This cannot be combined with EventLogPath.</maml:para>
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+      <command:parameter required="true" variableLength="true" globbing="true" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>One or more Sigma YAML files to import.</maml:para>
@@ -9972,11 +9976,11 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
           <maml:name>InputObject</maml:name>
           <maml:description>
-            <maml:para>Detached EventViewerX event to evaluate.</maml:para>
+            <maml:para>Detached, typed, or custom EventViewerX event to evaluate.</maml:para>
           </maml:description>
-          <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
           <dev:type>
-            <maml:name>EventObject</maml:name>
+            <maml:name>Object</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -10192,11 +10196,11 @@ This cannot be combined with EventLogPath.</maml:para>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
         <maml:name>InputObject</maml:name>
         <maml:description>
-          <maml:para>Detached EventViewerX event to evaluate.</maml:para>
+          <maml:para>Detached, typed, or custom EventViewerX event to evaluate.</maml:para>
         </maml:description>
-        <command:parameterValue required="false" variableLength="false">EventObject</command:parameterValue>
+        <command:parameterValue required="false" variableLength="false">Object</command:parameterValue>
         <dev:type>
-          <maml:name>EventObject</maml:name>
+          <maml:name>Object</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -10350,7 +10354,7 @@ This cannot be combined with EventLogPath.</maml:para>
     <command:inputTypes>
       <command:inputType>
         <dev:type>
-          <maml:name>EventViewerX.EventObject</maml:name>
+          <maml:name>System.Object</maml:name>
         </dev:type>
       </command:inputType>
     </command:inputTypes>
@@ -11008,6 +11012,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -11385,6 +11390,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -12623,6 +12629,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -13809,6 +13816,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -14204,6 +14212,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -15252,6 +15261,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -17888,6 +17898,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -18392,6 +18403,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -20070,6 +20082,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -21594,6 +21607,7 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -22310,6 +22324,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -23283,6 +23298,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -23808,6 +23824,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -23949,7 +23966,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
     <command:syntax>
       <command:syntaxItem parameterSetName="__AllParameterSets">
         <maml:name>Test-EVXSigmaRule</maml:name>
-        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+        <command:parameter required="true" variableLength="true" globbing="true" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
           <maml:name>Path</maml:name>
           <maml:description>
             <maml:para>One or more Sigma YAML files to validate.</maml:para>
@@ -23964,7 +23981,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
       </command:syntaxItem>
     </command:syntax>
     <command:parameters>
-      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
+      <command:parameter required="true" variableLength="true" globbing="true" pipelineInput="True (ByValue, ByPropertyName)" position="0" aliases="FullName">
         <maml:name>Path</maml:name>
         <maml:description>
           <maml:para>One or more Sigma YAML files to validate.</maml:para>

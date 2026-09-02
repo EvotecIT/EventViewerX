@@ -618,7 +618,7 @@ public sealed partial class TestEventDetection {
         Assert.False(result.IsComplete);
         Assert.Single(result.Findings, static finding => finding.RuleId == "EVX-AUTH-0001");
         Assert.Contains(EventType.ADUserLogonNTLMv1, explanation.RequiredEventTypes);
-        Assert.Equal(44, explanation.RuleCount);
+        Assert.Equal(45, explanation.RuleCount);
         Assert.Equal(4, explanation.StatefulRuleCount);
     }
 

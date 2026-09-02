@@ -1269,6 +1269,7 @@ public sealed class TestEventAnalysis {
         Assert.Contains(EventType.ADUserLogonNTLMv1, leaves);
         Assert.Contains(EventType.KerberosTGTRequest, leaves);
         Assert.Contains(EventType.KerberosServiceTicket, leaves);
+        Assert.Contains(EventType.KerberosKdcRc4Audit, leaves);
         Assert.Contains(EventType.ADLdapBindingSummary, leaves);
         Assert.Contains(EventType.ADLdapBindingDetails, leaves);
         Assert.NotNull(preset.Predicate);
@@ -1282,6 +1283,14 @@ public sealed class TestEventAnalysis {
             ["TypeName"] = nameof(EventType.ADLdapBindingSummary),
             ["SimpleBindsWithoutTls"] = 1,
             ["NegotiateBindsWithoutSigning"] = 0
+        }));
+        Assert.True(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosKdcRc4Audit)
+        }));
+        Assert.True(EventPredicateEvaluator.Matches(predicate, new Dictionary<string, object?> {
+            ["TypeName"] = nameof(EventType.KerberosServiceTicket),
+            ["WeakEncryptionAlgorithm"] = false,
+            ["WeakSessionKeyEncryptionAlgorithm"] = true
         }));
     }
 

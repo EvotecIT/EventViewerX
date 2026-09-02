@@ -362,9 +362,24 @@ public sealed class CmdletExportEVXEvent : PSCmdlet {
         var paths = new HashSet<string>(FileSystemPathIdentity.Comparer);
         foreach (string pattern in Path) {
             try {
+                string pathValue = pattern.Trim().Trim('"', '\'');
+                string wildcardCandidate =
+                    FileSystemPathIdentity.GetWildcardCandidate(pathValue);
+                if (FileSystemPathIdentity.IsWindowsExtendedLengthPath(pathValue)) {
+                    if (WildcardPattern.ContainsWildcardCharacters(
+                            wildcardCandidate)) {
+                        foreach (string resolved in
+                                 PowerShellExtendedPathExpander.Expand(pathValue)) {
+                            paths.Add(resolved);
+                        }
+                    } else {
+                        paths.Add(FileSystemPathIdentity.GetFullPath(pathValue));
+                    }
+                    continue;
+                }
                 foreach (string path in SessionState.Path
                              .GetResolvedProviderPathFromPSPath(
-                                 pattern,
+                                 pathValue,
                                  out ProviderInfo provider)) {
                     if (!string.Equals(
                             provider.Name,
