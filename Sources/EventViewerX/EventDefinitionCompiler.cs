@@ -30,7 +30,7 @@ public static class EventDefinitionCompiler {
             throw new ArgumentNullException(nameof(types));
         }
         return Build(EventTypeCatalog.GetSources(types).Select(static source =>
-            (source.LogName, (IReadOnlyList<int>)source.EventIds, (IReadOnlyList<string>)Array.Empty<string>())));
+            (source.LogName, source.EventIds, source.ProviderNames)));
     }
 
     /// <summary>Compiles a custom definition.</summary>

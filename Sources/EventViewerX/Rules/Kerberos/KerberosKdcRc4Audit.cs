@@ -10,6 +10,9 @@ public sealed class KerberosKdcRc4Audit : EventRuleBase
     public override List<int> EventIds => new() { 201, 202, 203, 204, 205, 206, 207, 208, 209 };
     /// <inheritdoc />
     public override string LogName => "System";
+
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Kdcsvc" };
     /// <inheritdoc />
     public override EventType Type => EventType.KerberosKdcRc4Audit;
 

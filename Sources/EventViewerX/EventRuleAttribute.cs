@@ -15,6 +15,9 @@ public class EventRuleAttribute : Attribute {
     /// <summary>Associated event type.</summary>
     public EventType Type { get; }
 
+    /// <summary>Event providers that emit this rule's events. An empty array means the rule is not provider-scoped.</summary>
+    public string[] ProviderNames { get; set; } = Array.Empty<string>();
+
     /// <summary>
     /// Initializes a new instance of the attribute.
     /// </summary>

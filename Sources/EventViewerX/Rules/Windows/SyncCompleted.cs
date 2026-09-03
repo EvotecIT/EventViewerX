@@ -10,6 +10,8 @@ public class SyncCompleted : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Application";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
+    /// <inheritdoc />
     public override EventType Type => EventType.SyncCompleted;
 
     /// <summary>Accepts sync completion events.</summary>

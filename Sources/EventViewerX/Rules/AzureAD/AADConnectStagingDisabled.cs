@@ -12,6 +12,9 @@ public class AADConnectStagingDisabled : EventRuleBase {
     public override string LogName => "Application";
 
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
+
+    /// <inheritdoc />
     public override EventType Type => EventType.AADConnectStagingDisabled;
 
     /// <summary>Accepts matching staging mode disablement events.</summary>

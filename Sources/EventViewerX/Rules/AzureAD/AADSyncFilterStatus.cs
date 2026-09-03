@@ -12,6 +12,9 @@ public class AADSyncFilterStatus : EventRuleBase
     public override List<int> EventIds => new() { 6952 };
     /// <inheritdoc />
     public override string LogName => "Application";
+
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "ADSync" };
     /// <inheritdoc />
     public override EventType Type => EventType.AADSyncFilterStatus;
 
