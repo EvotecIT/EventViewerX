@@ -341,7 +341,7 @@ evx --version
 A global tool is installed for the current user and may not be visible to a
 scheduled task identity. For Task Scheduler, services, or hosts without .NET
 10, deploy a release ZIP to an explicit machine path instead. Download the CLI
-ZIP and `EventViewerX.Cli-SHA256SUMS.txt` from the matching
+ZIP and `SHA256SUMS.txt` from the matching
 [EventViewerX release](https://github.com/EvotecIT/EventViewerX/releases) before
 registering a task. Choose `win-x64` for Intel/AMD Windows or `win-arm64` for
 Windows on Arm. Choose `FrameworkDependent` when the .NET 10 runtime is
@@ -359,7 +359,7 @@ if ($archives.Count -ne 1) {
 }
 
 $archive = $archives[0]
-$checksums = Join-Path $download 'EventViewerX.Cli-SHA256SUMS.txt'
+$checksums = Join-Path $download 'SHA256SUMS.txt'
 $checksumLine = @(Select-String `
     -LiteralPath $checksums `
     -Pattern ([regex]::Escape($archive.Name) + '$'))
