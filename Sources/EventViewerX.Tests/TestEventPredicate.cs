@@ -136,6 +136,20 @@ public sealed class TestEventPredicate {
     }
 
     [Fact]
+    public void NativeProviderIntersectionsPreserveExactCase() {
+        Assert.False(EventFilterIntersection.TryCreate(
+            new EventFilter { ProviderNames = new[] { "ADSync" } },
+            new EventFilter { ProviderNames = new[] { "adsync" } },
+            out _));
+        Assert.True(EventFilterIntersection.TryCreate(
+            new EventFilter { ProviderNames = new[] { "ADSync" } },
+            new EventFilter { ProviderNames = new[] { "ADSync" } },
+            out EventFilter exact));
+
+        Assert.Equal(new[] { "ADSync" }, exact.ProviderNames);
+    }
+
+    [Fact]
     public void PredicatePlannerNormalizesMixedDateTimeKindsBeforeIntersectingNativeBounds() {
         DateTime local = DateTime.SpecifyKind(
             new DateTime(2026, 1, 15, 10, 0, 0),

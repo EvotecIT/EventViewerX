@@ -97,13 +97,17 @@ internal static class CollectorSubscriptionCoverageEvaluator {
             ? new string?[] { null }
             : source.ProviderNames.Select(static provider => (string?)provider).ToArray();
         foreach (int eventId in source.EventIds) {
-            string[] expectedProvidersForEvent = allSources
+            EventSourceDefinition[] matchingSources = allSources
                 .Where(candidate =>
                     string.Equals(
                         candidate.LogName,
                         source.LogName,
                         StringComparison.OrdinalIgnoreCase) &&
                     candidate.EventIds.Contains(eventId))
+                .ToArray();
+            bool unrestrictedProviderScope = matchingSources.Any(static candidate =>
+                candidate.ProviderNames.Count == 0);
+            string[] expectedProvidersForEvent = matchingSources
                 .SelectMany(static candidate => candidate.ProviderNames)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -116,7 +120,8 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                         source,
                         eventId,
                         providerName,
-                        expectedProvidersForEvent);
+                        expectedProvidersForEvent,
+                        unrestrictedProviderScope);
                     if (queryCoverage == SourceCoverage.Overbroad) {
                         return SourceCoverage.Missing;
                     }
@@ -137,7 +142,8 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         EventSourceDefinition source,
         int eventId,
         string? providerName,
-        IReadOnlyList<string> expectedProvidersForEvent) {
+        IReadOnlyList<string> expectedProvidersForEvent,
+        bool unrestrictedProviderScope) {
 
         string[] selections = query
             .Descendants()
@@ -191,6 +197,7 @@ internal static class CollectorSubscriptionCoverageEvaluator {
             providerName);
         bool uncertain = expectedCoverage == ClauseCoverage.Unknown;
         foreach (string nonExpectedProvider in providerClasses.Where(candidate =>
+                     !unrestrictedProviderScope &&
                      !expectedProvidersForEvent.Contains(candidate, StringComparer.OrdinalIgnoreCase))) {
             ClauseCoverage coverage = EvaluateNetQuery(
                 selections,

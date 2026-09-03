@@ -920,6 +920,22 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void UnscopedSiblingMakesProviderNeutralCoverageExactForTheRequestedUnion() {
+        IReadOnlyList<EventSourceDefinition> sources = new[] {
+            new EventSourceDefinition("Application", new[] { 6952 }),
+            new EventSourceDefinition("Application", new[] { 6952 }, new[] { "ADSync" })
+        };
+        var subscription = new CollectorSubscriptionSnapshot {
+            RawXml = "<QueryList><Query Id=\"0\" Path=\"Application\"><Select Path=\"Application\">*[System[EventID=6952]]</Select></Query></QueryList>"
+        };
+
+        CollectorSubscriptionCoverageResult coverage =
+            CollectorSubscriptionCoverageEvaluator.Evaluate(subscription, sources);
+
+        Assert.Equal(EventReadinessStatus.Pass, coverage.Status);
+    }
+
+    [Fact]
     public void WrongProviderQueryFailsProviderScopedCoverage() {
         IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(
             new[] { EventType.AADSyncFilterStatus });
