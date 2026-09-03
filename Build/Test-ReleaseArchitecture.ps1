@@ -1,16 +1,26 @@
 param(
     [string] $RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
 
+    [string] $PackageRoot,
+
+    [string] $ModuleRoot,
+
     [string] $CliManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = [System.IO.Path]::GetFullPath($RepositoryRoot)
-$packageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
-$moduleRoot = Join-Path $RepositoryRoot 'Artefacts\Unpacked\Modules\PSEventViewer'
+if ([string]::IsNullOrWhiteSpace($PackageRoot)) {
+    $PackageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
+}
+$PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
+if ([string]::IsNullOrWhiteSpace($ModuleRoot)) {
+    $ModuleRoot = Join-Path $RepositoryRoot 'Artefacts\Unpacked\Modules\PSEventViewer'
+}
+$ModuleRoot = [System.IO.Path]::GetFullPath($ModuleRoot)
 if ([string]::IsNullOrWhiteSpace($CliManifestPath)) {
     $CliManifestPath = Join-Path $RepositoryRoot `
-        'Artefacts\UploadReady\Cli\release-manifest.json'
+        'Artefacts\Cli\Artifacts\DotNetPublish\manifest.json'
 }
 $CliManifestPath = [System.IO.Path]::GetFullPath($CliManifestPath)
 
@@ -134,12 +144,26 @@ foreach ($assembly in $moduleAssemblies) {
 }
 
 $cliManifest = Get-Content -LiteralPath $CliManifestPath -Raw | ConvertFrom-Json
-[array] $cliEntries = $cliManifest.assetEntries | Where-Object { $_.category -eq 'Tool' }
+$isUnifiedReleaseManifest = $null -ne $cliManifest.PSObject.Properties['assetEntries']
+if ($isUnifiedReleaseManifest) {
+    [array] $cliEntries = $cliManifest.assetEntries | Where-Object { $_.category -eq 'Tool' }
+} else {
+    [array] $cliEntries = $cliManifest | Where-Object {
+        $_.category -eq 'Publish' -and
+        $_.target -eq 'EventViewerX.Cli' -and
+        -not [string]::IsNullOrWhiteSpace([string] $_.zipPath)
+    }
+}
 if ($cliEntries.Count -ne 12) {
     throw "Expected 12 CLI runtime/style assets, found $($cliEntries.Count)."
 }
-if (@($cliEntries | Where-Object { $_.Version -ne $version }).Count -ne 0) {
+if ($isUnifiedReleaseManifest -and
+    @($cliEntries | Where-Object { $_.Version -ne $version }).Count -ne 0) {
     throw "One or more CLI assets do not match release version $version."
+}
+if (-not $isUnifiedReleaseManifest -and
+    @($cliEntries | Where-Object { $_.sourceDirty -ne $false }).Count -ne 0) {
+    throw 'One or more CLI assets do not have clean source provenance.'
 }
 
 [pscustomobject] @{

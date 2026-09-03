@@ -2,14 +2,19 @@
 param(
     [string] $RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
 
+    [string] $PackageRoot,
+
     [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')]
     [string] $Version = '4.0.0'
 )
 
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = [System.IO.Path]::GetFullPath($RepositoryRoot)
-$packageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
-$packagePath = Join-Path $packageRoot "EventViewerX.Cli.$Version.nupkg"
+if ([string]::IsNullOrWhiteSpace($PackageRoot)) {
+    $PackageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
+}
+$PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
+$packagePath = Join-Path $PackageRoot "EventViewerX.Cli.$Version.nupkg"
 if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
     throw "The EventViewerX.Cli $Version package was not found at '$packagePath'."
 }
@@ -20,7 +25,7 @@ $nugetConfigPath = Join-Path $toolRoot 'NuGet.config'
 New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
 
 try {
-    $escapedPackageRoot = [System.Security.SecurityElement]::Escape($packageRoot)
+    $escapedPackageRoot = [System.Security.SecurityElement]::Escape($PackageRoot)
     @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>

@@ -81,12 +81,4 @@ if ($null -eq $result -or -not $result.Success) {
     throw "The unified PowerForge release failed. $message"
 }
 
-if ($RunMode -ne 'Plan') {
-    & (Join-Path $PSScriptRoot 'Test-ModuleRuntime.ps1')
-    & (Join-Path $PSScriptRoot 'Test-CliPackage.ps1') -Version $Version
-    & (Join-Path $PSScriptRoot 'Test-ReleaseArchitecture.ps1') `
-        -CliManifestPath (Join-Path $repositoryRoot `
-            'Artefacts\UploadReady\Release\release-manifest.json')
-}
-
 $result

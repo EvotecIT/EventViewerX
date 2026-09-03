@@ -5,6 +5,9 @@ param(
 
     [bool] $SignModule = $true,
 
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string] $Version = '4.0.0',
+
     [ValidateSet('auto', 'net472', 'net8.0', 'net10.0')]
     [string] $ModuleFramework,
 
@@ -18,29 +21,28 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if ($RunMode -eq 'Publish') {
+if ($RunMode -eq 'Publish' -or ($RunMode -eq 'Build' -and -not $SkipCli)) {
     $releaseSplat = @{
-        RunMode        = 'Publish'
+        RunMode        = $RunMode
+        Version        = $Version
         SignModule     = $SignModule
-        ExpectedCommit = $ExpectedCommit
-        Confirmation   = $PublishConfirmation
+    }
+    if ($RunMode -eq 'Publish') {
+        $releaseSplat.ExpectedCommit = $ExpectedCommit
+        $releaseSplat.Confirmation = $PublishConfirmation
     }
     if ($PSBoundParameters.ContainsKey('ModuleFramework')) {
         $releaseSplat.ModuleFramework = $ModuleFramework
     }
     & (Join-Path $PSScriptRoot 'Build-Release.ps1') @releaseSplat
-    exit 0
-}
-
-$moduleBuildSplat = @{
-    RunMode    = $RunMode
-    SignModule = $SignModule
-}
-& (Join-Path $PSScriptRoot 'Build-Module.ps1') @moduleBuildSplat
-
-if (-not $SkipCli -and $RunMode -ne 'Manifest') {
-    & (Join-Path $PSScriptRoot 'Test-ModuleRuntime.ps1')
-    & (Join-Path $PSScriptRoot 'Test-CliPackage.ps1')
-    & (Join-Path $PSScriptRoot 'Build-Cli.ps1')
-    & (Join-Path $PSScriptRoot 'Test-ReleaseArchitecture.ps1')
+} else {
+    $moduleBuildSplat = @{
+        RunMode      = $RunMode
+        SignModule   = $SignModule
+        ModuleVersion = $Version
+    }
+    if ($PSBoundParameters.ContainsKey('ModuleFramework')) {
+        $moduleBuildSplat.Framework = $ModuleFramework
+    }
+    & (Join-Path $PSScriptRoot 'Build-Module.ps1') @moduleBuildSplat
 }

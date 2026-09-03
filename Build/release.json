@@ -4,7 +4,7 @@
   "Module": {
     "RepositoryRoot": "..",
     "ModuleName": "PSEventViewer",
-    "ScriptPath": "Build/Build-Module.ps1",
+    "ConfigPath": "Build/module.json",
     "IncludesPackages": true,
     "ModuleVersion": "4.0.X",
     "SignModule": true,
@@ -92,6 +92,16 @@
       "MetadataPath": "metadata",
       "OtherPath": "assets"
     }
+  },
+  "Validation": {
+    "AfterStaging": [
+      {
+        "Name": "Validate EventViewerX release artifacts",
+        "FilePath": "Test-ReleaseReady.ps1",
+        "WorkingDirectory": "..",
+        "TimeoutSeconds": 1800
+      }
+    ]
   },
   "GitHub": {
     "Publish": true,
