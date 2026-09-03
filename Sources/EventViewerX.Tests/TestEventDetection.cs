@@ -733,6 +733,23 @@ public sealed partial class TestEventDetection {
     }
 
     [Fact]
+    public void PackCoverageIncludesProvidersRequiredByTypedSources() {
+        var typedRule = new EventDetectionRuleDefinition {
+            RuleId = "EVX-TEST-TYPED-PROVIDER",
+            Title = "Typed provider coverage",
+            EventTypes = new[] { EventType.AADSyncFilterStatus }
+        };
+        EventDetectionPack pack = EventDetectionPack.Create(
+            "eventviewerx.test.typed-provider",
+            "1.0.0",
+            new[] { typedRule });
+
+        EventDetectionPackCoverage coverage = pack.GetCoverage();
+
+        Assert.Contains("ADSync", coverage.Providers, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void PackComparisonUsesCanonicalBehaviorWhenAClonedRuleRetainsItsSourceHash() {
         EventDetectionRuleDefinition original = Rule("EVX-TEST-CANONICAL-DIFF").Definition;
         original.SourceHash = new string('A', 64);

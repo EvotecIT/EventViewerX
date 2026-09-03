@@ -13,6 +13,9 @@ public class AADSyncProvisionCredentialsPing : EventRuleBase
     public override List<int> EventIds => new() { 653, 654 };
     /// <inheritdoc />
     public override string LogName => "Application";
+
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
     /// <inheritdoc />
     public override EventType Type => EventType.AADSyncProvisionCredentialsPing;
 

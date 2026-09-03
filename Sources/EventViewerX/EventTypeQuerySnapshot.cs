@@ -25,6 +25,8 @@ internal static class EventTypeQuerySnapshot {
             SourceLogName = source.SourceLogName,
             SourceEventIds =
                 source.SourceEventIds?.ToArray(),
+            SourceProviderNames =
+                source.SourceProviderNames?.ToArray(),
             SourceRecordIds =
                 source.SourceRecordIds?.ToArray(),
             StartTime = source.StartTime,

@@ -17,7 +17,7 @@ internal static class EventFilterIntersection {
         if (!TryIntersect(primary.EventIds, additional.EventIds, out IReadOnlyList<int>? eventIds) ||
             !TryIntersect(primary.RecordIds, additional.RecordIds, out IReadOnlyList<long>? recordIds) ||
             !TryIntersect(primary.ProviderNames, additional.ProviderNames, out IReadOnlyList<string>? providers,
-                StringComparer.OrdinalIgnoreCase) ||
+                StringComparer.Ordinal) ||
             !TryIntersect(primary.Levels, additional.Levels, out IReadOnlyList<byte>? levels) ||
             !TryIntersect(primary.Keywords, additional.Keywords, out IReadOnlyList<long>? keywords)) {
             return false;

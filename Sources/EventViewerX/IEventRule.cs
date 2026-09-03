@@ -40,6 +40,11 @@ public abstract class EventRuleBase : EventTypeRecord, IEventRule {
     /// </summary>
     public virtual int MatchPriority => 0;
 
+    /// <summary>
+    /// Gets the event providers that emit this rule's events. An empty list means the rule is not provider-scoped.
+    /// </summary>
+    public virtual IReadOnlyList<string> ProviderNames => Array.Empty<string>();
+
     /// <summary>Event identifiers this rule is responsible for.</summary>
     public abstract List<int> EventIds { get; }
     /// <summary>Windows log name (channel) where the events are emitted.</summary>

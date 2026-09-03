@@ -47,6 +47,148 @@ public sealed partial class EventStore {
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Atomically migrates legacy checkpoint containers into their current identities and retires
+    /// each legacy identity after every replacement that references it is durable.
+    /// </summary>
+    /// <param name="consumer">Stable checkpoint consumer.</param>
+    /// <param name="computer">Source or collector computer.</param>
+    /// <param name="legacyContainersByCurrent">
+    /// Current checkpoint container identities mapped to older identities in migration priority order.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task MigrateCheckpointContainersAsync(
+        string consumer,
+        string computer,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>> legacyContainersByCurrent,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(consumer) ||
+            string.IsNullOrWhiteSpace(computer)) {
+            throw new ArgumentException(
+                "Consumer and computer are required.");
+        }
+        if (legacyContainersByCurrent == null) {
+            throw new ArgumentNullException(nameof(legacyContainersByCurrent));
+        }
+
+        string normalizedConsumer = consumer.Trim();
+        string normalizedComputer = computer.Trim();
+        var migrations = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, IReadOnlyCollection<string>> pair in legacyContainersByCurrent) {
+            string current = pair.Key?.Trim() ?? string.Empty;
+            if (current.Length == 0) {
+                throw new ArgumentException(
+                    "Current checkpoint containers cannot contain empty values.",
+                    nameof(legacyContainersByCurrent));
+            }
+            if (pair.Value == null) {
+                throw new ArgumentException(
+                    "Legacy checkpoint container collections cannot be null.",
+                    nameof(legacyContainersByCurrent));
+            }
+            string[] legacyContainers = pair.Value
+                .Select(static legacy => legacy?.Trim() ?? string.Empty)
+                .ToArray();
+            if (legacyContainers.Any(static legacy => legacy.Length == 0)) {
+                throw new ArgumentException(
+                    "Legacy checkpoint containers cannot contain empty values.",
+                    nameof(legacyContainersByCurrent));
+            }
+            legacyContainers = legacyContainers
+                .Where(legacy => !string.Equals(legacy, current, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (migrations.ContainsKey(current)) {
+                throw new ArgumentException(
+                    $"Current checkpoint container '{current}' is specified more than once.",
+                    nameof(legacyContainersByCurrent));
+            }
+            migrations.Add(current, legacyContainers);
+        }
+        if (migrations.Count == 0) {
+            return;
+        }
+
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        await session.RunInTransactionAsync(async (transaction, token) => {
+            await transaction.ExecuteNonQueryAsync(
+                ReserveWriterSql,
+                cancellationToken: token).ConfigureAwait(false);
+            IReadOnlyList<StoredCheckpointRow> rows = await transaction.QueryAsListAsync(
+                SelectStoredCheckpointsSql,
+                MapStoredCheckpoint,
+                cancellationToken: token).ConfigureAwait(false);
+            var readyContainers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, string[]> migration in migrations) {
+                bool currentExists = rows.Any(row => MatchesCheckpointIdentity(
+                    row,
+                    normalizedConsumer,
+                    normalizedComputer,
+                    migration.Key));
+                if (currentExists) {
+                    readyContainers.Add(migration.Key);
+                    continue;
+                }
+
+                StoredCheckpointRow? legacyValue = null;
+                foreach (string legacyContainer in migration.Value) {
+                    legacyValue = rows
+                        .Where(row => MatchesCheckpointIdentity(
+                            row,
+                            normalizedConsumer,
+                            normalizedComputer,
+                            legacyContainer))
+                        .OrderByDescending(static row => row.UpdatedUtc, StringComparer.Ordinal)
+                        .ThenByDescending(static row => row.RecordId ?? long.MinValue)
+                        .FirstOrDefault();
+                    if (legacyValue != null) {
+                        break;
+                    }
+                }
+                if (legacyValue == null) {
+                    continue;
+                }
+                var migratedIdentity = new StoredCheckpointRow(
+                    0,
+                    normalizedConsumer,
+                    normalizedComputer,
+                    migration.Key,
+                    legacyValue.RecordId,
+                    legacyValue.BookmarkXml,
+                    legacyValue.UpdatedUtc);
+                await transaction.ExecuteNonQueryAsync(
+                    InsertCheckpointSql,
+                    CreateCheckpointParameters(migratedIdentity, legacyValue),
+                    token).ConfigureAwait(false);
+                readyContainers.Add(migration.Key);
+            }
+
+            string[] currentContainers = migrations.Keys.ToArray();
+            string[] retiredLegacyContainers = migrations
+                .SelectMany(static migration => migration.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(legacy => !currentContainers.Contains(legacy, StringComparer.OrdinalIgnoreCase))
+                .Where(legacy => migrations
+                    .Where(migration => migration.Value.Contains(legacy, StringComparer.OrdinalIgnoreCase))
+                    .All(migration => readyContainers.Contains(migration.Key)))
+                .ToArray();
+            foreach (StoredCheckpointRow legacy in rows.Where(row =>
+                         string.Equals(row.Consumer, normalizedConsumer, StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(row.Computer, normalizedComputer, StringComparison.OrdinalIgnoreCase) &&
+                         retiredLegacyContainers.Contains(row.Container, StringComparer.OrdinalIgnoreCase))) {
+                await transaction.ExecuteNonQueryAsync(
+                    "DELETE FROM evx_checkpoints WHERE rowid = $rowId;",
+                    new Dictionary<string, object?> { ["$rowId"] = legacy.RowId },
+                    token).ConfigureAwait(false);
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Deletes one durable consumer checkpoint without removing stored events.</summary>
     public async Task<bool> DeleteCheckpointAsync(
         string consumer,

@@ -63,6 +63,62 @@ public sealed class TestEventTypeDefinitions {
     }
 
     [Fact]
+    public void ProviderScopedCompositeKeepsDistinctNativeSources() {
+        IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(
+            new[] { EventType.EntraConnectHealth });
+
+        EventSourceDefinition directorySynchronization = Assert.Single(
+            sources,
+            static source => source.ProviderNames.SequenceEqual(new[] { "Directory Synchronization" }));
+        EventSourceDefinition adSync = Assert.Single(
+            sources,
+            static source => source.ProviderNames.SequenceEqual(new[] { "ADSync" }));
+
+        Assert.Equal("Application", directorySynchronization.LogName);
+        Assert.Contains(611, directorySynchronization.EventIds);
+        Assert.Contains(906, directorySynchronization.EventIds);
+        Assert.Contains(907, directorySynchronization.EventIds);
+        Assert.DoesNotContain(6952, directorySynchronization.EventIds);
+        Assert.Equal(new[] { 6952 }, adSync.EventIds);
+    }
+
+    [Fact]
+    public void ProviderScopedCompositeRetainsItsProviderNeutralLegacyLogUnion() {
+        IReadOnlyList<EventSourceDefinition> currentSources = EventTypeCatalog.GetSources(
+            new[] { EventType.EntraConnectHealth });
+        Dictionary<string, HashSet<int>> legacySources = EventTypeCatalog.GetSourceMap(
+            new[] { EventType.EntraConnectHealth });
+
+        HashSet<int> legacyApplication = Assert.Single(legacySources).Value;
+        int[] currentApplication = currentSources
+            .Where(static source => source.LogName == "Application")
+            .SelectMany(static source => source.EventIds)
+            .Distinct()
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+
+        Assert.Equal(currentApplication, legacyApplication.OrderBy(static eventId => eventId));
+        Assert.Contains(611, legacyApplication);
+        Assert.Contains(906, legacyApplication);
+        Assert.Contains(907, legacyApplication);
+        Assert.Contains(6952, legacyApplication);
+    }
+
+    [Fact]
+    public void TypedQueryCompilerIncludesCatalogProviderPredicates() {
+        string queryXml = EventDefinitionCompiler.BuildQueryXml(
+            new[] { EventType.EntraConnectHealth, EventType.KerberosKdcRc4Audit });
+
+        Assert.Contains("Provider[@Name='Directory Synchronization']", queryXml, StringComparison.Ordinal);
+        Assert.Contains("Provider[@Name='ADSync']", queryXml, StringComparison.Ordinal);
+        Assert.Contains("Provider[@Name='Kdcsvc']", queryXml, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "<Select Path=\"Application\">*[System[(EventID=6952)]]</Select>",
+            queryXml,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ForwardedEventUsesOriginalChannelForTypedRoutingAndPreservesContainerIdentity() {
         var source = new ForwardedSecurityEventRecord();
         var snapshot = new EventObject(source, "WEC01", EventReadMode.Metadata) {

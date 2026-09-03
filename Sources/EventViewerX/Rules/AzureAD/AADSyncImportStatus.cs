@@ -13,6 +13,9 @@ public class AADSyncImportStatus : EventRuleBase
     public override List<int> EventIds => new() { 105, 132, 133, 134 };
     /// <inheritdoc />
     public override string LogName => "Application";
+
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
     /// <inheritdoc />
     public override EventType Type => EventType.AADSyncImportStatus;
 

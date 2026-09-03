@@ -173,10 +173,36 @@ public static partial class EventTypeCatalog {
     /// <summary>Returns the distinct native sources selected by one or more leaf or composite definitions.</summary>
     public static IReadOnlyList<EventSourceDefinition> GetSources(IEnumerable<EventType> eventTypes) {
         IReadOnlyList<EventType> expanded = Expand(eventTypes);
-        return GetSourceMap(expanded)
-            .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static pair => new EventSourceDefinition(pair.Key, pair.Value))
+        var mode = _discoveryMode;
+        EnsureInitialized();
+        var sources = new List<EventSourceDefinition>();
+        foreach (EventType type in expanded) {
+            if (TryGetRuleSource(
+                type,
+                mode,
+                out string logName,
+                out IReadOnlyList<int> eventIds,
+                out IReadOnlyList<string> providerNames)) {
+                sources.Add(new EventSourceDefinition(logName, eventIds, providerNames));
+            }
+        }
+
+        return sources
+            .GroupBy(static source => CreateSourceGroupKey(source.LogName, source.ProviderNames))
+            .Select(static group => new EventSourceDefinition(
+                group.First().LogName,
+                group.SelectMany(static source => source.EventIds),
+                group.First().ProviderNames))
+            .OrderBy(static source => source.LogName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static source => string.Join("\n", source.ProviderNames), StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string CreateSourceGroupKey(string logName, IReadOnlyList<string> providerNames) {
+        return string.Concat(
+            logName.Trim().ToUpperInvariant(),
+            "\u001F",
+            string.Join("\u001F", providerNames.Select(static provider => provider.Trim().ToUpperInvariant())));
     }
 
     private static void ExpandOne(

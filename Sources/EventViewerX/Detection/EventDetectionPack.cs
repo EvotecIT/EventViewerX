@@ -283,6 +283,7 @@ public sealed class EventDetectionPack {
                 .ToArray(),
             _rules.SelectMany(static rule => rule.Providers)
                 .Concat(steps.SelectMany(static step => step.Providers))
+                .Concat(typedSources.SelectMany(static source => source.ProviderNames))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
                 .ToArray(),

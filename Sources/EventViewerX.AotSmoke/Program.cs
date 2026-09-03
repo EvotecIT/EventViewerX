@@ -17,4 +17,11 @@ if (plan.ExpandedTypes.Count == 0) {
     throw new InvalidOperationException("Explicit event projection plan is empty.");
 }
 
+string entraConnectQuery = EventDefinitionCompiler.BuildQueryXml(
+    new[] { EventType.EntraConnectHealth });
+if (!entraConnectQuery.Contains("Provider[@Name='Directory Synchronization']", StringComparison.Ordinal) ||
+    !entraConnectQuery.Contains("Provider[@Name='ADSync']", StringComparison.Ordinal)) {
+    throw new InvalidOperationException("Explicit provider metadata was not retained in the typed query.");
+}
+
 Console.WriteLine($"EventViewerX NativeAOT explicit catalog: {leaves.Length} leaf definitions.");

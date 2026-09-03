@@ -67,6 +67,7 @@ public sealed class TestEventTypeQuerySnapshot {
         var query = new EventTypeQuery(
             new[] { namedEvent }) {
             Credential = credential,
+            SourceProviderNames = new[] { "Provider-A" },
             SourceRecordIds = new long[] { 10, 20 },
             Enrichment =
                 new EventEnrichmentOptions {
@@ -79,6 +80,7 @@ public sealed class TestEventTypeQuerySnapshot {
             EventTypeQuerySnapshot.Copy(query);
         credential.UserName = "mutated";
         query.Enrichment.DnsMaxConcurrency = 1;
+        query.SourceProviderNames = new[] { "Provider-B" };
         query.SourceRecordIds = new long[] { 30 };
 
         Assert.Equal(
@@ -87,6 +89,7 @@ public sealed class TestEventTypeQuerySnapshot {
         Assert.Equal(
             2,
             snapshot.Enrichment!.DnsMaxConcurrency);
+        Assert.Equal(new[] { "Provider-A" }, snapshot.SourceProviderNames);
         Assert.Equal(new long[] { 10, 20 }, snapshot.SourceRecordIds);
     }
 

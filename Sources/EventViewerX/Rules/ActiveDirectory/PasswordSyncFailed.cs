@@ -15,6 +15,9 @@ public class PasswordSyncFailed : EventRuleBase {
     public override string LogName => "Application";
 
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
+
+    /// <inheritdoc />
     public override EventType Type => EventType.AADConnectPasswordSyncFailed;
 
     /// <summary>Accepts all password sync failure events.</summary>

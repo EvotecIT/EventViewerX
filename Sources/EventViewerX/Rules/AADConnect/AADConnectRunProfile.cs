@@ -12,6 +12,9 @@ public class AADConnectRunProfile : EventRuleBase {
     public override string LogName => "Application";
 
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Directory Synchronization" };
+
+    /// <inheritdoc />
     public override EventType Type => EventType.AADConnectRunProfile;
 
     /// <summary>Accepts matching Azure AD Connect run profile completion events.</summary>
