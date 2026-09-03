@@ -8,6 +8,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+& (Join-Path $PSScriptRoot 'Test-ReleaseConfiguration.ps1') `
+    -RepositoryRoot $repositoryRoot | Out-Null
 $context = $null
 if (-not [string]::IsNullOrWhiteSpace($env:POWERFORGE_CONTEXT) -and
     (Test-Path -LiteralPath $env:POWERFORGE_CONTEXT -PathType Leaf)) {

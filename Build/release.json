@@ -108,7 +108,7 @@
     "VersionSource": "Module",
     "Owner": "EvotecIT",
     "Repository": "EventViewerX",
-    "TokenFilePath": "C:\\Support\\Important\\GitHubAPI.txt",
+    "TokenEnvName": "GITHUB_TOKEN",
     "GenerateReleaseNotes": true,
     "IsPreRelease": false,
     "ReuseExistingRelease": false,

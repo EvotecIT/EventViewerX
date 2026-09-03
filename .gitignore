@@ -778,3 +778,4 @@ FodyWeavers.xsd
 /.idea/
 dotnet-install.sh
 packages-microsoft-prod.deb
+.secrets/
