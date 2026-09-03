@@ -476,11 +476,29 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<EventType> ordered = GetOrderedExpandedCandidates(expanded, mode);
         var candidateLists = new Dictionary<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>>();
         foreach (EventType type in ordered) {
-            if (!TryGetRuleSource(type, mode, out string logName, out IReadOnlyList<int> eventIds)) {
+            if (!TryGetRuleSource(
+                    type,
+                    mode,
+                    out string logName,
+                    out IReadOnlyList<int> eventIds,
+                    out IReadOnlyList<string> providerNames)) {
                 continue;
             }
             if (!TryCreateProjector(type, mode, out EventProjectorDefinition? projector)) {
                 continue;
+            }
+            if (providerNames.Count > 0) {
+                EventProjectorDefinition unscopedProjector = projector!;
+                projector = new EventProjectorDefinition(
+                    unscopedProjector.Type,
+                    unscopedProjector.Name,
+                    unscopedProjector.Factory,
+                    eventObject =>
+                        providerNames.Contains(
+                            eventObject.ProviderName,
+                            StringComparer.OrdinalIgnoreCase) &&
+                        (unscopedProjector.Precondition == null ||
+                         unscopedProjector.Precondition(eventObject)));
             }
             foreach (int eventId in eventIds) {
                 var key = new EventTypeProjectionPlan.SourceKey(eventId, logName);

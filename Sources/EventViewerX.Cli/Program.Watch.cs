@@ -554,7 +554,7 @@ internal static partial class Program {
         IReadOnlyList<(string LogName, IReadOnlyList<int> EventIds, IReadOnlyList<string> Providers)> sources = definition != null
             ? definition.Sources.Select(static source => (source.LogName, source.EventIds, source.ProviderNames)).ToArray()
             : EventTypeCatalog.GetSources(types).Select(static source =>
-                (source.LogName, source.EventIds, (IReadOnlyList<string>)Array.Empty<string>())).ToArray();
+                (source.LogName, source.EventIds, source.ProviderNames)).ToArray();
         var watchers = new List<WatcherInfo>();
         DateTime startedUtc = DateTime.UtcNow;
         using var backgroundCancellation = new CancellationTokenSource();

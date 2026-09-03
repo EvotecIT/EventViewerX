@@ -585,12 +585,10 @@ namespace EventViewerX.Tests {
 
                 Assert.True(
                     SpinWait.SpinUntil(
-                        () => info.IsStopped,
-                        TimeSpan.FromSeconds(5)));
-                Assert.DoesNotContain(
-                    info,
-                    WatcherManager.GetWatchers(
-                        watcherName));
+                        () => info.IsStopped &&
+                              !WatcherManager.GetWatchers(watcherName).Contains(info),
+                        TimeSpan.FromSeconds(5)),
+                    "The terminal subscription did not retire its logical watcher within the timeout.");
             } finally {
                 if (info != null &&
                     !info.IsStopped) {

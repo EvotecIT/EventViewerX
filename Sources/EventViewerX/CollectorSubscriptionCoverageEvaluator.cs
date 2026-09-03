@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
+using System.Xml.XPath;
 
 namespace EventViewerX;
 
@@ -25,12 +26,15 @@ internal sealed class CollectorSubscriptionCoverageResult {
 }
 
 internal static class CollectorSubscriptionCoverageEvaluator {
-    private static readonly Regex EventIdOnlyExpression = new(
-        @"^\*\[System\[EventID=\d+(?:orEventID=\d+)*\]\]$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex EventIdValue = new(
         @"EventID\s*=\s*(\d+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ProviderNameValue = new(
+        "@Name\\s*=\\s*(?:'(?<single>[^']*)'|\"(?<double>[^\"]*)\")",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex QuotedLiteral = new(
+        "'[^']*'|\"[^\"]*\"",
+        RegexOptions.CultureInvariant);
 
     internal static CollectorSubscriptionCoverageResult Evaluate(
         CollectorSubscriptionSnapshot subscription,
@@ -50,7 +54,7 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         var missing = new List<string>();
         var uncertain = new List<string>();
         foreach (EventSourceDefinition source in sources) {
-            SourceCoverage coverage = EvaluateSource(queryList!, source);
+            SourceCoverage coverage = EvaluateSource(queryList!, source, sources);
             if (coverage == SourceCoverage.Missing) {
                 missing.Add(DescribeSource(source));
             } else if (coverage == SourceCoverage.Unknown) {
@@ -76,7 +80,10 @@ internal static class CollectorSubscriptionCoverageEvaluator {
             EventReadinessDiagnosticKind.None);
     }
 
-    private static SourceCoverage EvaluateSource(XDocument queryList, EventSourceDefinition source) {
+    private static SourceCoverage EvaluateSource(
+        XDocument queryList,
+        EventSourceDefinition source,
+        IReadOnlyList<EventSourceDefinition> allSources) {
         XElement[] queries = queryList
             .Descendants()
             .Where(static element => string.Equals(element.Name.LocalName, "Query", StringComparison.OrdinalIgnoreCase))
@@ -86,42 +93,73 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         }
 
         bool uncertain = false;
+        IReadOnlyList<string?> expectedProviders = source.ProviderNames.Count == 0
+            ? new string?[] { null }
+            : source.ProviderNames.Select(static provider => (string?)provider).ToArray();
         foreach (int eventId in source.EventIds) {
-            SourceCoverage eventCoverage = SourceCoverage.Missing;
-            foreach (XElement query in queries) {
-                SourceCoverage queryCoverage = EvaluateQuery(query, source.LogName, eventId);
-                if (queryCoverage == SourceCoverage.Covered) {
-                    eventCoverage = SourceCoverage.Covered;
-                    break;
+            string[] expectedProvidersForEvent = allSources
+                .Where(candidate =>
+                    string.Equals(
+                        candidate.LogName,
+                        source.LogName,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    candidate.EventIds.Contains(eventId))
+                .SelectMany(static candidate => candidate.ProviderNames)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (string? providerName in expectedProviders) {
+                SourceCoverage eventCoverage = SourceCoverage.Missing;
+                foreach (XElement query in queries) {
+                    SourceCoverage queryCoverage = EvaluateQuery(
+                        query,
+                        source,
+                        eventId,
+                        providerName,
+                        expectedProvidersForEvent);
+                    if (queryCoverage == SourceCoverage.Covered) {
+                        eventCoverage = SourceCoverage.Covered;
+                        break;
+                    }
+                    if (queryCoverage == SourceCoverage.Unknown) {
+                        eventCoverage = SourceCoverage.Unknown;
+                    }
                 }
-                if (queryCoverage == SourceCoverage.Unknown) {
-                    eventCoverage = SourceCoverage.Unknown;
+                if (eventCoverage == SourceCoverage.Missing) {
+                    return SourceCoverage.Missing;
                 }
+                uncertain |= eventCoverage == SourceCoverage.Unknown;
             }
-            if (eventCoverage == SourceCoverage.Missing) {
-                return SourceCoverage.Missing;
-            }
-            uncertain |= eventCoverage == SourceCoverage.Unknown;
         }
         return uncertain ? SourceCoverage.Unknown : SourceCoverage.Covered;
     }
 
-    private static SourceCoverage EvaluateQuery(XElement query, string logName, int eventId) {
+    private static SourceCoverage EvaluateQuery(
+        XElement query,
+        EventSourceDefinition source,
+        int eventId,
+        string? providerName,
+        IReadOnlyList<string> expectedProvidersForEvent) {
+
         bool selected = false;
         bool uncertainSelection = false;
         foreach (XElement select in query
             .Descendants()
             .Where(static element => string.Equals(element.Name.LocalName, "Select", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), logName, StringComparison.OrdinalIgnoreCase))) {
+            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))) {
 
             string expression = select.Value.Trim();
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
-                selected = true;
+                selected |= source.ProviderNames.Count == 0;
                 continue;
             }
-            var selectedIds = new HashSet<int>();
-            if (TryReadEventIds(expression, selectedIds)) {
-                selected |= selectedIds.Contains(eventId);
+            if (TryEvaluateSimpleSystemExpression(
+                    expression,
+                    eventId,
+                    providerName,
+                    expectedProvidersForEvent,
+                    suppression: false,
+                    out bool matches)) {
+                selected |= matches;
             } else {
                 uncertainSelection = true;
             }
@@ -134,18 +172,23 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         foreach (XElement suppression in query
             .Descendants()
             .Where(static element => string.Equals(element.Name.LocalName, "Suppress", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), logName, StringComparison.OrdinalIgnoreCase))) {
+            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))) {
 
             string expression = suppression.Value.Trim();
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
                 return SourceCoverage.Missing;
             }
-            var suppressedIds = new HashSet<int>();
-            if (!TryReadEventIds(expression, suppressedIds)) {
+            if (!TryEvaluateSimpleSystemExpression(
+                    expression,
+                    eventId,
+                    providerName,
+                    source.ProviderNames,
+                    suppression: true,
+                    out bool suppressed)) {
                 uncertainSuppression = true;
                 continue;
             }
-            if (suppressedIds.Contains(eventId)) {
+            if (suppressed) {
                 return SourceCoverage.Missing;
             }
         }
@@ -198,12 +241,17 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         return XDocument.Load(reader, LoadOptions.None);
     }
 
-    private static bool TryReadEventIds(string expression, HashSet<int> ids) {
+    private static bool TryEvaluateSimpleSystemExpression(
+        string expression,
+        int eventId,
+        string? providerName,
+        IReadOnlyList<string> expectedProviders,
+        bool suppression,
+        out bool matches) {
+
+        matches = false;
         string normalized = Regex.Replace(expression, @"[\s()]", string.Empty);
-        if (!EventIdOnlyExpression.IsMatch(normalized)) {
-            return false;
-        }
-        var parsedIds = new List<int>();
+        var parsedIds = new HashSet<int>();
         foreach (Match match in EventIdValue.Matches(normalized)) {
             if (!int.TryParse(
                     match.Groups[1].Value,
@@ -214,10 +262,129 @@ internal static class CollectorSubscriptionCoverageEvaluator {
             }
             parsedIds.Add(parsed);
         }
-        foreach (int parsed in parsedIds) {
-            ids.Add(parsed);
+        if (parsedIds.Count == 0) {
+            return false;
         }
-        return parsedIds.Count > 0;
+
+        MatchCollection providerMatches = ProviderNameValue.Matches(expression);
+        bool mentionsProvider = Regex.IsMatch(
+            expression,
+            @"\bProvider\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        int nameComparisons = Regex.Matches(
+            expression,
+            @"@Name\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count;
+        if (mentionsProvider != (providerMatches.Count > 0) || nameComparisons != providerMatches.Count) {
+            return false;
+        }
+
+        string[] selectedProviders = providerMatches
+            .Cast<Match>()
+            .Select(static match => match.Groups["single"].Success
+                ? match.Groups["single"].Value
+                : match.Groups["double"].Value)
+            .ToArray();
+        if (!HasOnlySupportedSystemSelectionSyntax(expression)) {
+            return false;
+        }
+
+        string sentinelProvider = CreateSentinelProvider(selectedProviders);
+        if (providerName == null) {
+            string[] providerClasses = selectedProviders
+                .Append(sentinelProvider)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            bool aggregate = !suppression;
+            foreach (string providerClass in providerClasses) {
+                if (!TryEvaluateXPath(expression, eventId, providerClass, out bool providerMatch)) {
+                    return false;
+                }
+                aggregate = suppression
+                    ? aggregate || providerMatch
+                    : aggregate && providerMatch;
+            }
+            matches = aggregate;
+            return true;
+        }
+
+        if (!TryEvaluateXPath(expression, eventId, providerName, out bool expectedMatch)) {
+            return false;
+        }
+        if (suppression || !expectedMatch) {
+            matches = expectedMatch;
+            return true;
+        }
+
+        foreach (string nonExpectedProvider in selectedProviders
+                     .Where(candidate => !expectedProviders.Contains(
+                         candidate,
+                         StringComparer.OrdinalIgnoreCase))
+                     .Append(sentinelProvider)
+                     .Distinct(StringComparer.OrdinalIgnoreCase)) {
+            if (!TryEvaluateXPath(expression, eventId, nonExpectedProvider, out bool nonExpectedMatch)) {
+                return false;
+            }
+            if (nonExpectedMatch) {
+                return true;
+            }
+        }
+        matches = true;
+        return true;
+    }
+
+    private static string CreateSentinelProvider(IReadOnlyList<string> selectedProviders) {
+        string sentinel = "__EventViewerX_Unlisted_Provider__";
+        while (selectedProviders.Contains(sentinel, StringComparer.OrdinalIgnoreCase)) {
+            sentinel += "_";
+        }
+        return sentinel;
+    }
+
+    private static bool TryEvaluateXPath(
+        string expression,
+        int eventId,
+        string providerName,
+        out bool matches) {
+
+        matches = false;
+        try {
+            var document = new XDocument(
+                new XElement(
+                    "Event",
+                    new XElement(
+                        "System",
+                        new XElement("Provider", new XAttribute("Name", providerName)),
+                        new XElement("EventID", eventId))));
+            object result = document.CreateNavigator()!.Evaluate(expression);
+            matches = result switch {
+                bool boolean => boolean,
+                XPathNodeIterator iterator => iterator.MoveNext(),
+                _ => false
+            };
+            return true;
+        } catch (XPathException) {
+            return false;
+        }
+    }
+
+    private static bool HasOnlySupportedSystemSelectionSyntax(string expression) {
+        string scrubbed = QuotedLiteral.Replace(expression, "''");
+        scrubbed = Regex.Replace(scrubbed, @"[()]", string.Empty);
+        scrubbed = EventIdValue.Replace(scrubbed, string.Empty);
+        scrubbed = Regex.Replace(
+            scrubbed,
+            "@Name\\s*=\\s*(?:''|\"\")",
+            string.Empty,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        scrubbed = Regex.Replace(
+            scrubbed,
+            @"\b(?:System|Provider|and|or)\b",
+            string.Empty,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        scrubbed = Regex.Replace(scrubbed, "[\\*\\[\\]@='\"]", string.Empty);
+        scrubbed = Regex.Replace(scrubbed, @"\s", string.Empty);
+        return scrubbed.Length == 0;
     }
 
     private static string ResolvePath(XElement element) =>
@@ -225,8 +392,12 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         element.Parent?.Attribute("Path")?.Value.Trim() ??
         string.Empty;
 
-    private static string DescribeSource(EventSourceDefinition source) =>
-        source.LogName + " [" + string.Join(",", source.EventIds.OrderBy(static id => id)) + "]";
+    private static string DescribeSource(EventSourceDefinition source) {
+        string providers = source.ProviderNames.Count == 0
+            ? string.Empty
+            : " providers=" + string.Join(",", source.ProviderNames);
+        return source.LogName + " [" + string.Join(",", source.EventIds.OrderBy(static id => id)) + "]" + providers;
+    }
 
     private static CollectorSubscriptionCoverageResult Unknown(string evidence, string remediation) => new(
         EventReadinessStatus.Unknown,

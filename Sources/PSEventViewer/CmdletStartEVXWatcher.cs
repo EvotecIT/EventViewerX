@@ -378,7 +378,7 @@ namespace PSEventViewer {
                     .Select(static source => (
                         source.LogName,
                         source.EventIds,
-                        (IReadOnlyList<string>)Array.Empty<string>()))
+                        source.ProviderNames))
                     .ToArray();
             }
             var bridge = new PowerShellWatcherEventBridge();

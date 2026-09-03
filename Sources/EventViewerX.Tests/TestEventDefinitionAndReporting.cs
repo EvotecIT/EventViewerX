@@ -972,13 +972,12 @@ public sealed class TestEventDefinitionAndReporting {
             MaxCandidates = 100,
             BookmarkXmlResolver = (_, _) => bookmark
         };
-        var eventInfo = new Dictionary<string, HashSet<int>>(
-            StringComparer.OrdinalIgnoreCase) {
-            ["Security"] = new HashSet<int> { 4624 }
+        IReadOnlyList<EventSourceDefinition> eventSources = new[] {
+            new EventSourceDefinition("Security", new[] { 4624 })
         };
         EventLogBatchQuery typedBatch = EventTypeEngine.CreateCollectorBatch(
             typedQuery,
-            eventInfo,
+            eventSources,
             new EventTypeQueryExecutionInfo(),
             startTime: null,
             endTime: null);
@@ -1159,6 +1158,36 @@ public sealed class TestEventDefinitionAndReporting {
         Assert.Equal(1, info.EventsScanned);
         Assert.Equal(0, info.EventsEmitted);
         Assert.True(info.ScanLimitReached);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CustomDefinitionDisjointProviderReturnsNoRows(bool useFile) {
+        EventDefinition definition = CreateDefinition();
+        definition.Fields = definition.Fields.Append(new EventDefinitionField {
+            Name = "Provider",
+            Source = EventFieldSource.Metadata,
+            SourceName = "ProviderName"
+        }).ToArray();
+        EventPredicate predicate = EventPredicate.Compare(
+            "Provider",
+            EventPredicateOperator.Equal,
+            "Unrelated Provider");
+        predicate.IgnoreCase = false;
+        var query = new EventDefinitionQuery(definition) {
+            Predicate = predicate
+        };
+        if (useFile) {
+            query.Paths = new[] { "custom-provider-disjoint.evtx" };
+        }
+        var actual = new List<CustomEventRecord>();
+
+        await foreach (CustomEventRecord record in EventDefinitionEngine.ReadAsync(query)) {
+            actual.Add(record);
+        }
+
+        Assert.Empty(actual);
     }
 
     [Fact]

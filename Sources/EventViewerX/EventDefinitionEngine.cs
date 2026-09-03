@@ -59,9 +59,12 @@ public static class EventDefinitionEngine {
             ? null
             : EventPredicateEvaluator.CompileCustom(predicatePlan.ManagedPredicate);
         (DateTime? start, DateTime? end) = EventTimeRange.Resolve(query.StartTime, query.EndTime, query.TimePeriod);
-        EventLogBatchQuery batch = query.Paths != null && query.Paths.Count > 0
+        EventLogBatchQuery? batch = query.Paths != null && query.Paths.Count > 0
             ? CreateFileBatch(query, predicatePlan?.NativeFilter, start, end)
             : CreateChannelBatch(query, info, predicatePlan?.NativeFilter, start, end);
+        if (batch == null) {
+            yield break;
+        }
         batch.MaxEvents = 0;
         batch.MaxConcurrency = query.MaxConcurrency;
         batch.ContinueOnError = query.ContinueOnRemoteFailure;
@@ -90,7 +93,7 @@ public static class EventDefinitionEngine {
         }
     }
 
-    private static EventLogBatchQuery CreateChannelBatch(
+    private static EventLogBatchQuery? CreateChannelBatch(
         EventDefinitionQuery query,
         EventDefinitionQueryExecutionInfo executionInfo,
         EventFilter? predicateFilter,
@@ -139,7 +142,9 @@ public static class EventDefinitionEngine {
                 }
             }
         }
-        return EventLogBatchConsolidator.Consolidate(EventLogBatchQuery.ForChannels(sources));
+        return sources.Count == 0
+            ? null
+            : EventLogBatchConsolidator.Consolidate(EventLogBatchQuery.ForChannels(sources));
     }
 
     internal static EventLogBatchQuery CreateCollectorBatch(
@@ -225,7 +230,7 @@ public static class EventDefinitionEngine {
         return EventLogBatchQuery.ForChannels(sources);
     }
 
-    private static EventLogBatchQuery CreateFileBatch(
+    private static EventLogBatchQuery? CreateFileBatch(
         EventDefinitionQuery query,
         EventFilter? predicateFilter,
         DateTime? start,
@@ -260,7 +265,9 @@ public static class EventDefinitionEngine {
                 }
             }
         }
-        return EventLogBatchConsolidator.Consolidate(EventLogBatchQuery.ForFiles(files));
+        return files.Count == 0
+            ? null
+            : EventLogBatchConsolidator.Consolidate(EventLogBatchQuery.ForFiles(files));
     }
 
     private static IEnumerable<(string XPath, string LogName)> CreateSourceFilters(

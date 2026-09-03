@@ -42,13 +42,13 @@ public static partial class EventTypeEngine {
             : EventPredicateBuilder
                 .ForTypes(resolvedTypes)
                 .Normalize(query.Predicate);
-        Dictionary<string, HashSet<int>> eventInfo =
+        IReadOnlyList<EventSourceDefinition> eventSources =
             RestrictSources(
-                EventTypeCatalog.GetSourceMap(
+                EventTypeCatalog.GetSources(
                     resolvedTypes),
                 query.SourceLogName,
                 query.SourceEventIds);
-        if (eventInfo.Count == 0) {
+        if (eventSources.Count == 0) {
             yield break;
         }
 
@@ -69,12 +69,15 @@ public static partial class EventTypeEngine {
             ? null
             : new EventEnricher(
                 query.Enrichment);
-        EventLogBatchQuery batch =
+        EventLogBatchQuery? batch =
             CreateBatch(
                 query,
-                eventInfo,
+                eventSources,
                 info,
                 predicatePlan?.NativeFilter);
+        if (batch == null) {
+            yield break;
+        }
         var candidateCounter =
             new EventTypeCandidateCounter(
                 query.MaxCandidates,
@@ -140,15 +143,15 @@ public static partial class EventTypeEngine {
         Stop
     }
 
-    internal static Dictionary<string, HashSet<int>>
+    internal static IReadOnlyList<EventSourceDefinition>
         RestrictSources(
-            IReadOnlyDictionary<string, HashSet<int>> eventInfo,
+            IReadOnlyList<EventSourceDefinition> sources,
             string? sourceLogName,
             IReadOnlyCollection<int>? sourceEventIds) {
 
-        if (eventInfo == null) {
+        if (sources == null) {
             throw new ArgumentNullException(
-                nameof(eventInfo));
+                nameof(sources));
         }
         if (sourceEventIds != null &&
             sourceEventIds.Any(static eventId =>
@@ -167,36 +170,35 @@ public static partial class EventTypeEngine {
                 ? null
                 : new HashSet<int>(
                     sourceEventIds);
-        var restricted =
-            new Dictionary<string, HashSet<int>>(
-                StringComparer.OrdinalIgnoreCase);
-        foreach (KeyValuePair<string, HashSet<int>> source in
-                 eventInfo) {
+        var restricted = new List<EventSourceDefinition>();
+        foreach (EventSourceDefinition source in sources) {
             if (normalizedLogName != null &&
                 !string.Equals(
-                    source.Key,
+                    source.LogName,
                     normalizedLogName,
                     StringComparison.OrdinalIgnoreCase)) {
                 continue;
             }
 
             var eventIds = new HashSet<int>(
-                source.Value);
+                source.EventIds);
             if (allowedEventIds != null) {
                 eventIds.IntersectWith(
                     allowedEventIds);
             }
             if (eventIds.Count > 0) {
-                restricted[source.Key] =
-                    eventIds;
+                restricted.Add(new EventSourceDefinition(
+                    source.LogName,
+                    eventIds,
+                    source.ProviderNames));
             }
         }
         return restricted;
     }
 
-    private static EventLogBatchQuery CreateBatch(
+    internal static EventLogBatchQuery? CreateBatch(
         EventTypeQuery query,
-        IReadOnlyDictionary<string, HashSet<int>> eventInfo,
+        IReadOnlyList<EventSourceDefinition> eventSources,
         EventTypeQueryExecutionInfo executionInfo,
         EventFilter? predicateFilter) {
 
@@ -208,7 +210,7 @@ public static partial class EventTypeEngine {
         if (query.Paths != null && query.Paths.Count > 0) {
             return CreateFileBatch(
                 query,
-                eventInfo,
+                eventSources,
                 executionInfo,
                 startTime,
                 endTime,
@@ -217,7 +219,7 @@ public static partial class EventTypeEngine {
         if (!string.IsNullOrWhiteSpace(query.CollectorLogName)) {
             return CreateCollectorBatch(
                 query,
-                eventInfo,
+                eventSources,
                 executionInfo,
                 startTime,
                 endTime);
@@ -227,14 +229,13 @@ public static partial class EventTypeEngine {
         var channelQueries =
             new List<EventLogChannelQuery>();
         foreach (string? target in targets) {
-            foreach (KeyValuePair<string, HashSet<int>> source in
-                     eventInfo) {
+            foreach (EventSourceDefinition source in eventSources) {
                 long? checkpoint =
                     query.MinimumRecordIdExclusiveResolver?
                         .Invoke(
                             target,
                             string.IsNullOrWhiteSpace(query.CollectorLogName)
-                                ? source.Key
+                                ? source.LogName
                                 : query.CollectorLogName!);
                 if (checkpoint < 0) {
                     throw new ArgumentOutOfRangeException(
@@ -242,9 +243,10 @@ public static partial class EventTypeEngine {
                         "Minimum event record IDs must be greater than or equal to zero.");
                 }
                 var baseFilter = new EventFilter {
-                    EventIds = source.Value
+                    EventIds = source.EventIds
                         .OrderBy(static id => id)
                         .ToArray(),
+                    ProviderNames = source.ProviderNames.ToArray(),
                     RecordIds = query.SourceRecordIds?.ToArray(),
                     StartTime = startTime,
                     EndTime = endTime,
@@ -262,12 +264,12 @@ public static partial class EventTypeEngine {
                              filter)) {
                     string xpath = EventFilterCompiler.BuildXPath(
                         partition);
-                    string logName = source.Key;
+                    string logName = source.LogName;
                     if (!string.IsNullOrWhiteSpace(
                             query.CollectorLogName)) {
                         xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                             xpath,
-                            source.Key);
+                            source.LogName);
                         logName = query.CollectorLogName!;
                     }
                     var channelQuery =
@@ -311,6 +313,9 @@ public static partial class EventTypeEngine {
             }
         }
 
+        if (channelQueries.Count == 0) {
+            return null;
+        }
         EventLogBatchQuery batch =
             EventLogBatchQuery.ForChannels(
                 channelQueries);
@@ -328,7 +333,7 @@ public static partial class EventTypeEngine {
 
     internal static EventLogBatchQuery CreateCollectorBatch(
         EventTypeQuery query,
-        IReadOnlyDictionary<string, HashSet<int>> eventInfo,
+        IReadOnlyList<EventSourceDefinition> eventSources,
         EventTypeQueryExecutionInfo executionInfo,
         DateTime? startTime,
         DateTime? endTime) {
@@ -342,6 +347,14 @@ public static partial class EventTypeEngine {
                 "CollectorLogName must identify ForwardedEvents.",
                 nameof(query));
         }
+        var sourcesByLog = eventSources
+            .GroupBy(
+                static source => source.LogName,
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.ToArray(),
+                StringComparer.OrdinalIgnoreCase);
         var channelQueries = new List<EventLogChannelQuery>();
         foreach (string? target in NormalizeTargets(query.MachineNames)) {
             long? checkpoint = query.MinimumRecordIdExclusiveResolver?
@@ -382,10 +395,15 @@ public static partial class EventTypeEngine {
                     executionInfo.ScanLimitReached = true,
                 ManagedPredicate = eventObject =>
                     (basePredicate == null || basePredicate(eventObject)) &&
-                    eventInfo.TryGetValue(
+                    sourcesByLog.TryGetValue(
                         eventObject.OriginalLogName,
-                        out HashSet<int>? eventIds) &&
-                    eventIds.Contains(eventObject.Id)
+                        out EventSourceDefinition[]? matchingSources) &&
+                    matchingSources.Any(source =>
+                        source.EventIds.Contains(eventObject.Id) &&
+                        (source.ProviderNames.Count == 0 ||
+                         source.ProviderNames.Contains(
+                             eventObject.ProviderName,
+                             StringComparer.OrdinalIgnoreCase)))
             };
             ForwardedEventsQuerySafety.Apply(
                 channelQuery,
@@ -403,9 +421,9 @@ public static partial class EventTypeEngine {
         return batch;
     }
 
-    private static EventLogBatchQuery CreateFileBatch(
+    private static EventLogBatchQuery? CreateFileBatch(
         EventTypeQuery query,
-        IReadOnlyDictionary<string, HashSet<int>> eventInfo,
+        IReadOnlyList<EventSourceDefinition> eventSources,
         EventTypeQueryExecutionInfo executionInfo,
         DateTime? startTime,
         DateTime? endTime,
@@ -414,7 +432,7 @@ public static partial class EventTypeEngine {
         var fileQueries = new List<EventLogFileQuery>();
         foreach (string path in query.Paths!) {
             string fullPath = Path.GetFullPath(path);
-            foreach (KeyValuePair<string, HashSet<int>> source in eventInfo) {
+            foreach (EventSourceDefinition source in eventSources) {
                 long? checkpoint =
                     query.MinimumRecordIdExclusiveResolver?
                         .Invoke(fullPath, fullPath);
@@ -424,9 +442,10 @@ public static partial class EventTypeEngine {
                         "Minimum event record IDs must be greater than or equal to zero.");
                 }
                 var baseFilter = new EventFilter {
-                    EventIds = source.Value
+                    EventIds = source.EventIds
                         .OrderBy(static id => id)
                         .ToArray(),
+                    ProviderNames = source.ProviderNames.ToArray(),
                     RecordIds = query.SourceRecordIds?.ToArray(),
                     StartTime = startTime,
                     EndTime = endTime,
@@ -442,7 +461,7 @@ public static partial class EventTypeEngine {
                          EventFilterPartitioner.Partition(filter)) {
                     string xpath = EventFilterCompiler.AddOriginalChannelPredicate(
                         EventFilterCompiler.BuildXPath(partition),
-                        source.Key);
+                        source.LogName);
                     fileQueries.Add(new EventLogFileQuery(fullPath) {
                         XPath = xpath,
                         SavedEventReader = query.SavedEventReader,
@@ -461,6 +480,9 @@ public static partial class EventTypeEngine {
                     });
                 }
             }
+        }
+        if (fileQueries.Count == 0) {
+            return null;
         }
         EventLogBatchQuery batch = EventLogBatchQuery.ForFiles(fileQueries);
         batch.MaxConcurrency = query.MaxConcurrency;

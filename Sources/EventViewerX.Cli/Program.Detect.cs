@@ -418,6 +418,8 @@ internal static partial class Program {
                 .ToArray();
         string[] expectedProviders = plan.Rules.SelectMany(static rule => rule.Providers
                 .Concat(rule.Steps.SelectMany(static step => step.Providers)))
+            .Concat(EventTypeCatalog.GetSources(expectedTypes)
+                .SelectMany(static source => source.ProviderNames))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         string[] requestedProviders = options.GetMany("provider");
