@@ -31,13 +31,12 @@ if ($RunMode -eq 'Publish') {
     if ($LASTEXITCODE -ne 0 -or $actualCommit -ine $ExpectedCommit) {
         throw "Expected release commit '$ExpectedCommit', received '$actualCommit'."
     }
-    [array] $trackedChanges = & git -C $repositoryRoot status `
-        --porcelain --untracked-files=no
+    [array] $checkoutChanges = & git -C $repositoryRoot status --porcelain
     if ($LASTEXITCODE -ne 0) {
         throw 'The release checkout state could not be inspected.'
     }
-    if ($trackedChanges.Count -ne 0) {
-        throw "The release checkout contains tracked changes: $($trackedChanges -join ', ')"
+    if ($checkoutChanges.Count -ne 0) {
+        throw "The release checkout contains changes: $($checkoutChanges -join ', ')"
     }
     [string] $expectedConfirmation =
         "publish:$Version`:$($ExpectedCommit.ToLowerInvariant())"

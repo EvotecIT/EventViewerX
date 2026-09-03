@@ -36,6 +36,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if ($RunMode -eq 'Publish') {
+    throw 'Direct module publication is disabled. Use Build-Release.ps1 -RunMode Publish so commit, checkout, confirmation, and staged-artifact guards are enforced.'
+}
+
 Import-Module PSPublishModule -Force
 
 $moduleBuildSplat = @{
