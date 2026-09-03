@@ -116,11 +116,14 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                         eventId,
                         providerName,
                         expectedProvidersForEvent);
+                    if (queryCoverage == SourceCoverage.Overbroad) {
+                        return SourceCoverage.Missing;
+                    }
                     if (queryCoverage == SourceCoverage.Covered) {
                         eventCoverage = SourceCoverage.Covered;
-                        break;
                     }
-                    if (queryCoverage == SourceCoverage.Unknown) {
+                    if (queryCoverage == SourceCoverage.Unknown &&
+                        eventCoverage != SourceCoverage.Covered) {
                         eventCoverage = SourceCoverage.Unknown;
                     }
                 }
@@ -149,7 +152,10 @@ internal static class CollectorSubscriptionCoverageEvaluator {
 
             string expression = select.Value.Trim();
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
-                selected |= source.ProviderNames.Count == 0;
+                if (source.ProviderNames.Count > 0) {
+                    return SourceCoverage.Overbroad;
+                }
+                selected = true;
                 continue;
             }
             if (TryEvaluateSimpleSystemExpression(
@@ -158,7 +164,11 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                     providerName,
                     expectedProvidersForEvent,
                     suppression: false,
-                    out bool matches)) {
+                    out bool matches,
+                    out bool overbroad)) {
+                if (overbroad) {
+                    return SourceCoverage.Overbroad;
+                }
                 selected |= matches;
             } else {
                 uncertainSelection = true;
@@ -184,7 +194,8 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                     providerName,
                     source.ProviderNames,
                     suppression: true,
-                    out bool suppressed)) {
+                    out bool suppressed,
+                    out _)) {
                 uncertainSuppression = true;
                 continue;
             }
@@ -247,9 +258,11 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         string? providerName,
         IReadOnlyList<string> expectedProviders,
         bool suppression,
-        out bool matches) {
+        out bool matches,
+        out bool overbroad) {
 
         matches = false;
+        overbroad = false;
         string normalized = Regex.Replace(expression, @"[\s()]", string.Empty);
         var parsedIds = new HashSet<int>();
         foreach (Match match in EventIdValue.Matches(normalized)) {
@@ -311,7 +324,7 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         if (!TryEvaluateXPath(expression, eventId, providerName, out bool expectedMatch)) {
             return false;
         }
-        if (suppression || !expectedMatch) {
+        if (suppression) {
             matches = expectedMatch;
             return true;
         }
@@ -326,10 +339,11 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                 return false;
             }
             if (nonExpectedMatch) {
+                overbroad = true;
                 return true;
             }
         }
-        matches = true;
+        matches = expectedMatch;
         return true;
     }
 
@@ -408,6 +422,7 @@ internal static class CollectorSubscriptionCoverageEvaluator {
     private enum SourceCoverage {
         Covered,
         Missing,
-        Unknown
+        Unknown,
+        Overbroad
     }
 }

@@ -562,6 +562,95 @@ public sealed partial class TestEventStore {
         }
     }
 
+    [Fact]
+    public async Task WatcherCheckpointFallbackCanSeedMultipleProviderScopes() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            var legacy = new EventStoreCheckpoint {
+                Consumer = "watcher-a",
+                Computer = "server01",
+                Container = "Application|legacy-query-hash",
+                RecordId = 907,
+                BookmarkXml = "<Bookmark Channel='Application' RecordId='907' IsCurrent='true'/>",
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            };
+            await store.AdvanceCheckpointAsync(legacy, expectedCheckpoint: null);
+
+            EventStoreCheckpoint firstScope = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetOrCopyCheckpointAsync(
+                    "watcher-a",
+                    "server01",
+                    "Application|provider-a-query-hash",
+                    new[] { "Application|legacy-query-hash" }));
+            EventStoreCheckpoint secondScope = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetOrCopyCheckpointAsync(
+                    "watcher-a",
+                    "server01",
+                    "Application|provider-b-query-hash",
+                    new[] { "Application|legacy-query-hash" }));
+
+            Assert.Equal("Application|provider-a-query-hash", firstScope.Container);
+            Assert.Equal("Application|provider-b-query-hash", secondScope.Container);
+            Assert.Equal(907, firstScope.RecordId);
+            Assert.Equal(firstScope.RecordId, secondScope.RecordId);
+            Assert.Equal(legacy.BookmarkXml, firstScope.BookmarkXml);
+            Assert.Equal(firstScope.BookmarkXml, secondScope.BookmarkXml);
+            Assert.NotNull(await store.GetCheckpointAsync(
+                "watcher-a",
+                "server01",
+                "Application|legacy-query-hash"));
+            EventStoreCheckpoint current = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetCheckpointAsync(
+                    "watcher-a",
+                    "server01",
+                    "Application|provider-b-query-hash"));
+            Assert.Equal(secondScope.RecordId, current.RecordId);
+            Assert.Equal(secondScope.BookmarkXml, current.BookmarkXml);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task CurrentWatcherCheckpointWinsOverLegacyFallback() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            var legacy = new EventStoreCheckpoint {
+                Consumer = "watcher-a",
+                Computer = "server01",
+                Container = "Application|legacy-query-hash",
+                RecordId = 907,
+                BookmarkXml = "<Bookmark Channel='Application' RecordId='907' IsCurrent='true'/>",
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            };
+            var current = new EventStoreCheckpoint {
+                Consumer = legacy.Consumer,
+                Computer = legacy.Computer,
+                Container = "Application|provider-query-hash",
+                RecordId = 912,
+                BookmarkXml = "<Bookmark Channel='Application' RecordId='912' IsCurrent='true'/>",
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            await store.AdvanceCheckpointAsync(legacy, expectedCheckpoint: null);
+            await store.AdvanceCheckpointAsync(current, expectedCheckpoint: null);
+
+            EventStoreCheckpoint resolved = Assert.IsType<EventStoreCheckpoint>(
+                await store.GetOrCopyCheckpointAsync(
+                    legacy.Consumer,
+                    legacy.Computer,
+                    current.Container,
+                    new[] { legacy.Container }));
+
+            Assert.Equal(current.Container, resolved.Container);
+            Assert.Equal(current.RecordId, resolved.RecordId);
+            Assert.Equal(current.BookmarkXml, resolved.BookmarkXml);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
     private static EventDetectionFinding CreateDetectionFinding(
         string ruleId,
         string account,

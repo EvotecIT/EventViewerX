@@ -567,12 +567,24 @@ internal static partial class Program {
                 string xpath = EventDefinitionCompiler.BuildSourceXPath(source.LogName, source.EventIds, source.Providers, collector);
                 string targetComputer = string.IsNullOrWhiteSpace(machine) ? Environment.MachineName : machine!;
                 string checkpointContainer = CreateWatchCheckpointContainer(targetLog, xpath);
+                string[] legacyCheckpointContainers = definition == null && source.Providers.Count > 0
+                    ? new[] {
+                        CreateWatchCheckpointContainer(
+                            targetLog,
+                            EventDefinitionCompiler.BuildSourceXPath(
+                                source.LogName,
+                                source.EventIds,
+                                Array.Empty<string>(),
+                                collector))
+                    }
+                    : Array.Empty<string>();
                 EventStoreCheckpoint? savedCheckpoint = checkpointStore == null
                     ? null
-                    : await checkpointStore.GetCheckpointAsync(
+                    : await checkpointStore.GetOrCopyCheckpointAsync(
                         checkpointConsumer,
                         targetComputer,
-                        checkpointContainer).ConfigureAwait(false);
+                        checkpointContainer,
+                        legacyCheckpointContainers).ConfigureAwait(false);
                 var checkpoint = new WatchCheckpointContext(
                     targetComputer,
                     checkpointContainer,

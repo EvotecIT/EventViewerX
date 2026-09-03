@@ -47,6 +47,112 @@ public sealed partial class EventStore {
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Gets the current checkpoint or atomically copies the first available legacy container
+    /// to the requested container without changing its durable position or removing the fallback.
+    /// </summary>
+    /// <param name="consumer">Stable checkpoint consumer.</param>
+    /// <param name="computer">Source or collector computer.</param>
+    /// <param name="container">Current checkpoint container identity.</param>
+    /// <param name="legacyContainers">Older container identities in migration priority order.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The current or copied checkpoint, or <see langword="null"/> when none exists.</returns>
+    public async Task<EventStoreCheckpoint?> GetOrCopyCheckpointAsync(
+        string consumer,
+        string computer,
+        string container,
+        IEnumerable<string> legacyContainers,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(consumer) ||
+            string.IsNullOrWhiteSpace(computer) ||
+            string.IsNullOrWhiteSpace(container)) {
+            throw new ArgumentException(
+                "Consumer, computer, and container are required.");
+        }
+        if (legacyContainers == null) {
+            throw new ArgumentNullException(nameof(legacyContainers));
+        }
+
+        string normalizedConsumer = consumer.Trim();
+        string normalizedComputer = computer.Trim();
+        string normalizedContainer = container.Trim();
+        string[] normalizedLegacyContainers = legacyContainers
+            .Select(static legacy => legacy?.Trim() ?? string.Empty)
+            .ToArray();
+        if (normalizedLegacyContainers.Any(static legacy => legacy.Length == 0)) {
+            throw new ArgumentException(
+                "Legacy checkpoint containers cannot contain empty values.",
+                nameof(legacyContainers));
+        }
+        normalizedLegacyContainers = normalizedLegacyContainers
+            .Where(legacy => !string.Equals(
+                legacy,
+                normalizedContainer,
+                StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        EnsureInitialized();
+        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
+        await using SQLiteAsyncSession session = await sqlite
+            .OpenSessionAsync(Path, cancellationToken)
+            .ConfigureAwait(false);
+        return await session.RunInTransactionAsync(async (transaction, token) => {
+            await transaction.ExecuteNonQueryAsync(
+                ReserveWriterSql,
+                cancellationToken: token).ConfigureAwait(false);
+            IReadOnlyList<StoredCheckpointRow> rows = await transaction.QueryAsListAsync(
+                SelectStoredCheckpointsSql,
+                MapStoredCheckpoint,
+                cancellationToken: token).ConfigureAwait(false);
+            StoredCheckpointRow? current = rows
+                .Where(row => MatchesCheckpointIdentity(
+                    row,
+                    normalizedConsumer,
+                    normalizedComputer,
+                    normalizedContainer))
+                .OrderByDescending(static row => row.UpdatedUtc, StringComparer.Ordinal)
+                .ThenByDescending(static row => row.RecordId ?? long.MinValue)
+                .FirstOrDefault();
+            if (current != null) {
+                return ToCheckpoint(current, normalizedContainer);
+            }
+
+            foreach (string legacyContainer in normalizedLegacyContainers) {
+                StoredCheckpointRow[] legacyMatches = rows
+                    .Where(row => MatchesCheckpointIdentity(
+                        row,
+                        normalizedConsumer,
+                        normalizedComputer,
+                        legacyContainer))
+                    .OrderBy(static row => row.RowId)
+                    .ToArray();
+                if (legacyMatches.Length == 0) {
+                    continue;
+                }
+                StoredCheckpointRow legacyValue = legacyMatches
+                    .OrderByDescending(static row => row.UpdatedUtc, StringComparer.Ordinal)
+                    .ThenByDescending(static row => row.RecordId ?? long.MinValue)
+                    .First();
+                var migratedIdentity = new StoredCheckpointRow(
+                    0,
+                    normalizedConsumer,
+                    normalizedComputer,
+                    normalizedContainer,
+                    legacyValue.RecordId,
+                    legacyValue.BookmarkXml,
+                    legacyValue.UpdatedUtc);
+                await transaction.ExecuteNonQueryAsync(
+                    InsertCheckpointSql,
+                    CreateCheckpointParameters(migratedIdentity, legacyValue),
+                    token).ConfigureAwait(false);
+                return ToCheckpoint(legacyValue, normalizedContainer);
+            }
+            return null;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Deletes one durable consumer checkpoint without removing stored events.</summary>
     public async Task<bool> DeleteCheckpointAsync(
         string consumer,
@@ -207,6 +313,20 @@ public sealed partial class EventStore {
         record.IsDBNull(4) ? null : record.GetInt64(4),
         record.IsDBNull(5) ? null : record.GetString(5),
         record.GetString(6));
+
+    private static EventStoreCheckpoint ToCheckpoint(
+        StoredCheckpointRow row,
+        string container) => new() {
+            Consumer = row.Consumer,
+            Computer = row.Computer,
+            Container = container,
+            RecordId = row.RecordId,
+            BookmarkXml = row.BookmarkXml,
+            UpdatedAtUtc = DateTime.Parse(
+                row.UpdatedUtc,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind)
+        };
 
     private static bool MatchesCheckpointIdentity(
         StoredCheckpointRow row,
