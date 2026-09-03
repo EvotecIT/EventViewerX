@@ -47,7 +47,8 @@ public static partial class EventTypeEngine {
                 EventTypeCatalog.GetSources(
                     resolvedTypes),
                 query.SourceLogName,
-                query.SourceEventIds);
+                query.SourceEventIds,
+                query.SourceProviderNames);
         if (eventSources.Count == 0) {
             yield break;
         }
@@ -147,7 +148,8 @@ public static partial class EventTypeEngine {
         RestrictSources(
             IReadOnlyList<EventSourceDefinition> sources,
             string? sourceLogName,
-            IReadOnlyCollection<int>? sourceEventIds) {
+            IReadOnlyCollection<int>? sourceEventIds,
+            IReadOnlyCollection<string>? sourceProviderNames = null) {
 
         if (sources == null) {
             throw new ArgumentNullException(
@@ -170,6 +172,16 @@ public static partial class EventTypeEngine {
                 ? null
                 : new HashSet<int>(
                     sourceEventIds);
+        HashSet<string>? allowedProviderNames = sourceProviderNames == null
+            ? null
+            : new HashSet<string>(
+                sourceProviderNames.Select(static provider =>
+                    string.IsNullOrWhiteSpace(provider)
+                        ? throw new ArgumentException(
+                            "Source provider names cannot contain empty values.",
+                            nameof(sourceProviderNames))
+                        : provider.Trim()),
+                StringComparer.OrdinalIgnoreCase);
         var restricted = new List<EventSourceDefinition>();
         foreach (EventSourceDefinition source in sources) {
             if (normalizedLogName != null &&
@@ -177,6 +189,10 @@ public static partial class EventTypeEngine {
                     source.LogName,
                     normalizedLogName,
                     StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+            if (allowedProviderNames != null &&
+                !allowedProviderNames.SetEquals(source.ProviderNames)) {
                 continue;
             }
 

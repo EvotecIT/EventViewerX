@@ -1041,6 +1041,36 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void ExactProviderQueryCannotHideUnsupportedSiblingQuery() {
+        IReadOnlyList<EventSourceDefinition> sources = new[] {
+            new EventSourceDefinition("Application", new[] { 6952 }, new[] { "ADSync" })
+        };
+        var subscription = new CollectorSubscriptionSnapshot {
+            RawXml = "<QueryList><Query Id=\"0\" Path=\"Application\"><Select Path=\"Application\">(*[System[EventID=6952]]) and (*[System[Provider[@Name='ADSync']]])</Select></Query><Query Id=\"1\" Path=\"Application\"><Select Path=\"Application\">*[System[EventID=6952 and Level=2]]</Select></Query></QueryList>"
+        };
+
+        CollectorSubscriptionCoverageResult coverage =
+            CollectorSubscriptionCoverageEvaluator.Evaluate(subscription, sources);
+
+        Assert.Equal(EventReadinessStatus.Unknown, coverage.Status);
+    }
+
+    [Fact]
+    public void ExactProviderSelectCannotHideUnsupportedSiblingSelect() {
+        IReadOnlyList<EventSourceDefinition> sources = new[] {
+            new EventSourceDefinition("Application", new[] { 6952 }, new[] { "ADSync" })
+        };
+        var subscription = new CollectorSubscriptionSnapshot {
+            RawXml = "<QueryList><Query Id=\"0\" Path=\"Application\"><Select Path=\"Application\">(*[System[EventID=6952]]) and (*[System[Provider[@Name='ADSync']]])</Select><Select Path=\"Application\">*[System[EventID=6952 and Level=2]]</Select></Query></QueryList>"
+        };
+
+        CollectorSubscriptionCoverageResult coverage =
+            CollectorSubscriptionCoverageEvaluator.Evaluate(subscription, sources);
+
+        Assert.Equal(EventReadinessStatus.Unknown, coverage.Status);
+    }
+
+    [Fact]
     public void FormattedProviderPredicatePassesExactCoverage() {
         IReadOnlyList<EventSourceDefinition> sources = new[] {
             new EventSourceDefinition("Application", new[] { 6952 }, new[] { "ADSync" })

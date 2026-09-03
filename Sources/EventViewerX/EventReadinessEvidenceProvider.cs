@@ -331,6 +331,7 @@ internal sealed class EventReadinessEvidenceProvider : IEventReadinessEvidencePr
             CollectorLogName = collector ? "ForwardedEvents" : null,
             SourceLogName = source.LogName,
             SourceEventIds = source.EventIds,
+            SourceProviderNames = source.ProviderNames,
             MaxEvents = 0,
             MaxCandidates = maxEventsToScan,
             Credential = EventLogTarget.IsLocalMachine(target) ? null : credential,

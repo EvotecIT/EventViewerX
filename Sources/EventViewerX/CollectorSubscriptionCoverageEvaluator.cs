@@ -108,7 +108,8 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             foreach (string? providerName in expectedProviders) {
-                SourceCoverage eventCoverage = SourceCoverage.Missing;
+                bool covered = false;
+                bool unknown = false;
                 foreach (XElement query in queries) {
                     SourceCoverage queryCoverage = EvaluateQuery(
                         query,
@@ -119,18 +120,13 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                     if (queryCoverage == SourceCoverage.Overbroad) {
                         return SourceCoverage.Missing;
                     }
-                    if (queryCoverage == SourceCoverage.Covered) {
-                        eventCoverage = SourceCoverage.Covered;
-                    }
-                    if (queryCoverage == SourceCoverage.Unknown &&
-                        eventCoverage != SourceCoverage.Covered) {
-                        eventCoverage = SourceCoverage.Unknown;
-                    }
+                    covered |= queryCoverage == SourceCoverage.Covered;
+                    unknown |= queryCoverage == SourceCoverage.Unknown;
                 }
-                if (eventCoverage == SourceCoverage.Missing) {
+                if (!covered && !unknown) {
                     return SourceCoverage.Missing;
                 }
-                uncertain |= eventCoverage == SourceCoverage.Unknown;
+                uncertain |= unknown;
             }
         }
         return uncertain ? SourceCoverage.Unknown : SourceCoverage.Covered;
@@ -203,7 +199,9 @@ internal static class CollectorSubscriptionCoverageEvaluator {
                 return SourceCoverage.Missing;
             }
         }
-        return uncertainSuppression ? SourceCoverage.Unknown : SourceCoverage.Covered;
+        return uncertainSelection || uncertainSuppression
+            ? SourceCoverage.Unknown
+            : SourceCoverage.Covered;
     }
 
     private static bool TryReadQueryList(

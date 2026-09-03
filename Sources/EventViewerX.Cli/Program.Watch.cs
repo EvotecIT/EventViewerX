@@ -555,6 +555,9 @@ internal static partial class Program {
             ? definition.Sources.Select(static source => (source.LogName, source.EventIds, source.ProviderNames)).ToArray()
             : EventTypeCatalog.GetSources(types).Select(static source =>
                 (source.LogName, source.EventIds, source.ProviderNames)).ToArray();
+        IReadOnlyDictionary<string, HashSet<int>> legacyTypedEventIdsByLog = definition == null
+            ? EventTypeCatalog.GetSourceMap(types)
+            : new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
         var watchers = new List<WatcherInfo>();
         DateTime startedUtc = DateTime.UtcNow;
         using var backgroundCancellation = new CancellationTokenSource();
@@ -567,13 +570,17 @@ internal static partial class Program {
                 string xpath = EventDefinitionCompiler.BuildSourceXPath(source.LogName, source.EventIds, source.Providers, collector);
                 string targetComputer = string.IsNullOrWhiteSpace(machine) ? Environment.MachineName : machine!;
                 string checkpointContainer = CreateWatchCheckpointContainer(targetLog, xpath);
-                string[] legacyCheckpointContainers = definition == null && source.Providers.Count > 0
+                string? legacyLogName = legacyTypedEventIdsByLog.Keys.FirstOrDefault(logName =>
+                    string.Equals(logName, source.LogName, StringComparison.OrdinalIgnoreCase));
+                string[] legacyCheckpointContainers = legacyLogName != null
                     ? new[] {
                         CreateWatchCheckpointContainer(
-                            targetLog,
+                            collector ? "ForwardedEvents" : legacyLogName,
                             EventDefinitionCompiler.BuildSourceXPath(
-                                source.LogName,
-                                source.EventIds,
+                                legacyLogName,
+                                legacyTypedEventIdsByLog[legacyLogName]
+                                    .OrderBy(static eventId => eventId)
+                                    .ToArray(),
                                 Array.Empty<string>(),
                                 collector))
                     }

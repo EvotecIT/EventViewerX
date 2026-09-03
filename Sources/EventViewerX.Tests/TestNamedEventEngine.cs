@@ -5,6 +5,41 @@ namespace EventViewerX.Tests;
 
 public sealed class TestEventTypeEngine {
     [Fact]
+    public void ReadinessRestrictionKeepsOnlyTheRequestedProviderPartition() {
+        IReadOnlyList<EventSourceDefinition> sources = new[] {
+            new EventSourceDefinition("Application", new[] { 42 }, new[] { "Provider-A" }),
+            new EventSourceDefinition("Application", new[] { 42 }, new[] { "Provider-B" }),
+            new EventSourceDefinition("Application", new[] { 42 })
+        };
+
+        EventSourceDefinition restricted = Assert.Single(
+            EventTypeEngine.RestrictSources(
+                sources,
+                "Application",
+                new[] { 42 },
+                new[] { "provider-a" }));
+
+        Assert.Equal(new[] { "Provider-A" }, restricted.ProviderNames);
+    }
+
+    [Fact]
+    public void ReadinessRestrictionCanSelectOnlyTheUnscopedPartition() {
+        IReadOnlyList<EventSourceDefinition> sources = new[] {
+            new EventSourceDefinition("Application", new[] { 42 }, new[] { "Provider-A" }),
+            new EventSourceDefinition("Application", new[] { 42 })
+        };
+
+        EventSourceDefinition restricted = Assert.Single(
+            EventTypeEngine.RestrictSources(
+                sources,
+                "Application",
+                new[] { 42 },
+                Array.Empty<string>()));
+
+        Assert.Empty(restricted.ProviderNames);
+    }
+
+    [Fact]
     public void TypedChannelBatch_PreservesProviderScopeInNativeXPath() {
         var query = new EventTypeQuery(new[] { EventType.AADSyncFilterStatus });
         IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(query.Types);

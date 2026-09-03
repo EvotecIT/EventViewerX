@@ -74,6 +74,12 @@ public sealed class EventTypeQuery {
         set;
     }
 
+    /// <summary>
+    /// Internal exact provider-partition restriction used by per-source readiness probes.
+    /// Null keeps every provider partition; an empty collection selects only unscoped sources.
+    /// </summary>
+    internal IReadOnlyCollection<string>? SourceProviderNames { get; set; }
+
     /// <summary>Optional exact event record identifiers, useful for event-triggered task handoff.</summary>
     public IReadOnlyCollection<long>? SourceRecordIds { get; set; }
 

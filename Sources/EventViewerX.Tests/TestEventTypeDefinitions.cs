@@ -83,6 +83,28 @@ public sealed class TestEventTypeDefinitions {
     }
 
     [Fact]
+    public void ProviderScopedCompositeRetainsItsProviderNeutralLegacyLogUnion() {
+        IReadOnlyList<EventSourceDefinition> currentSources = EventTypeCatalog.GetSources(
+            new[] { EventType.EntraConnectHealth });
+        Dictionary<string, HashSet<int>> legacySources = EventTypeCatalog.GetSourceMap(
+            new[] { EventType.EntraConnectHealth });
+
+        HashSet<int> legacyApplication = Assert.Single(legacySources).Value;
+        int[] currentApplication = currentSources
+            .Where(static source => source.LogName == "Application")
+            .SelectMany(static source => source.EventIds)
+            .Distinct()
+            .OrderBy(static eventId => eventId)
+            .ToArray();
+
+        Assert.Equal(currentApplication, legacyApplication.OrderBy(static eventId => eventId));
+        Assert.Contains(611, legacyApplication);
+        Assert.Contains(906, legacyApplication);
+        Assert.Contains(907, legacyApplication);
+        Assert.Contains(6952, legacyApplication);
+    }
+
+    [Fact]
     public void TypedQueryCompilerIncludesCatalogProviderPredicates() {
         string queryXml = EventDefinitionCompiler.BuildQueryXml(
             new[] { EventType.EntraConnectHealth, EventType.KerberosKdcRc4Audit });
