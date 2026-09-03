@@ -558,6 +558,36 @@ internal static partial class Program {
         IReadOnlyDictionary<string, HashSet<int>> legacyTypedEventIdsByLog = definition == null
             ? EventTypeCatalog.GetSourceMap(types)
             : new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+        var sourcePlans = sources.Select(source => {
+            string targetLog = collector ? "ForwardedEvents" : source.LogName;
+            string xpath = EventDefinitionCompiler.BuildSourceXPath(
+                source.LogName,
+                source.EventIds,
+                source.Providers,
+                collector);
+            string checkpointContainer = CreateWatchCheckpointContainer(targetLog, xpath);
+            string? legacyLogName = legacyTypedEventIdsByLog.Keys.FirstOrDefault(logName =>
+                string.Equals(logName, source.LogName, StringComparison.OrdinalIgnoreCase));
+            string[] legacyCheckpointContainers = legacyLogName != null
+                ? new[] {
+                    CreateWatchCheckpointContainer(
+                        collector ? "ForwardedEvents" : legacyLogName,
+                        EventDefinitionCompiler.BuildSourceXPath(
+                            legacyLogName,
+                            legacyTypedEventIdsByLog[legacyLogName]
+                                .OrderBy(static eventId => eventId)
+                                .ToArray(),
+                            Array.Empty<string>(),
+                            collector))
+                }
+                : Array.Empty<string>();
+            return (
+                TargetLog: targetLog,
+                XPath: xpath,
+                CheckpointContainer: checkpointContainer,
+                LegacyCheckpointContainers: legacyCheckpointContainers);
+        }).ToArray();
+        string targetComputer = string.IsNullOrWhiteSpace(machine) ? Environment.MachineName : machine!;
         var watchers = new List<WatcherInfo>();
         DateTime startedUtc = DateTime.UtcNow;
         using var backgroundCancellation = new CancellationTokenSource();
@@ -565,41 +595,39 @@ internal static partial class Program {
         Task outboxRetryTask = Task.CompletedTask;
         try {
             TimeSpan initialOutboxRetryDelay = await ResumeOutboxAsync().ConfigureAwait(false);
-            foreach (var source in sources) {
-                string targetLog = collector ? "ForwardedEvents" : source.LogName;
-                string xpath = EventDefinitionCompiler.BuildSourceXPath(source.LogName, source.EventIds, source.Providers, collector);
-                string targetComputer = string.IsNullOrWhiteSpace(machine) ? Environment.MachineName : machine!;
-                string checkpointContainer = CreateWatchCheckpointContainer(targetLog, xpath);
-                string? legacyLogName = legacyTypedEventIdsByLog.Keys.FirstOrDefault(logName =>
-                    string.Equals(logName, source.LogName, StringComparison.OrdinalIgnoreCase));
-                string[] legacyCheckpointContainers = legacyLogName != null
-                    ? new[] {
-                        CreateWatchCheckpointContainer(
-                            collector ? "ForwardedEvents" : legacyLogName,
-                            EventDefinitionCompiler.BuildSourceXPath(
-                                legacyLogName,
-                                legacyTypedEventIdsByLog[legacyLogName]
-                                    .OrderBy(static eventId => eventId)
-                                    .ToArray(),
-                                Array.Empty<string>(),
-                                collector))
-                    }
-                    : Array.Empty<string>();
+            if (checkpointStore != null && definition == null) {
+                IReadOnlyDictionary<string, IReadOnlyCollection<string>> checkpointMigrations = sourcePlans
+                    .Where(static plan => plan.LegacyCheckpointContainers.Length > 0)
+                    .GroupBy(
+                        static plan => plan.CheckpointContainer,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        static group => group.Key,
+                        static group => (IReadOnlyCollection<string>)group
+                            .SelectMany(static plan => plan.LegacyCheckpointContainers)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray(),
+                        StringComparer.OrdinalIgnoreCase);
+                await checkpointStore.MigrateCheckpointContainersAsync(
+                    checkpointConsumer,
+                    targetComputer,
+                    checkpointMigrations).ConfigureAwait(false);
+            }
+            foreach (var plan in sourcePlans) {
                 EventStoreCheckpoint? savedCheckpoint = checkpointStore == null
                     ? null
-                    : await checkpointStore.GetOrCopyCheckpointAsync(
+                    : await checkpointStore.GetCheckpointAsync(
                         checkpointConsumer,
                         targetComputer,
-                        checkpointContainer,
-                        legacyCheckpointContainers).ConfigureAwait(false);
+                        plan.CheckpointContainer).ConfigureAwait(false);
                 var checkpoint = new WatchCheckpointContext(
                     targetComputer,
-                    checkpointContainer,
+                    plan.CheckpointContainer,
                     savedCheckpoint);
                 IReadOnlyList<EventLogSubscriptionQuery> queries = EventSubscriptionPlanner.CreateQueries(new EventSubscriptionDefinition {
-                    LogName = targetLog,
+                    LogName = plan.TargetLog,
                     MachineName = machine,
-                    FilterXPath = xpath,
+                    FilterXPath = plan.XPath,
                     ReadMode = EventReadMode.StructuredDataAndMessage,
                     Start = savedCheckpoint?.BookmarkXml == null
                         ? EventLogSubscriptionStart.Future

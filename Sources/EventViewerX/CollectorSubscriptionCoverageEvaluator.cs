@@ -139,69 +139,121 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         string? providerName,
         IReadOnlyList<string> expectedProvidersForEvent) {
 
-        bool selected = false;
-        bool uncertainSelection = false;
-        foreach (XElement select in query
+        string[] selections = query
             .Descendants()
             .Where(static element => string.Equals(element.Name.LocalName, "Select", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))) {
+            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))
+            .Select(static element => element.Value.Trim())
+            .ToArray();
+        if (selections.Length == 0) {
+            return SourceCoverage.Missing;
+        }
+        string[] suppressions = query
+            .Descendants()
+            .Where(static element => string.Equals(element.Name.LocalName, "Suppress", StringComparison.OrdinalIgnoreCase))
+            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))
+            .Select(static element => element.Value.Trim())
+            .ToArray();
 
-            string expression = select.Value.Trim();
-            if (string.Equals(expression, "*", StringComparison.Ordinal)) {
-                if (source.ProviderNames.Count > 0) {
-                    return SourceCoverage.Overbroad;
-                }
-                selected = true;
-                continue;
-            }
-            if (TryEvaluateSimpleSystemExpression(
-                    expression,
+        string[] referencedProviders = selections
+            .Concat(suppressions)
+            .SelectMany(ExtractProviderNames)
+            .Concat(expectedProvidersForEvent)
+            .Where(static provider => !string.IsNullOrWhiteSpace(provider))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        string sentinelProvider = CreateSentinelProvider(referencedProviders);
+        string[] providerClasses = referencedProviders
+            .Append(sentinelProvider)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (providerName == null) {
+            bool unknown = false;
+            foreach (string providerClass in providerClasses) {
+                ClauseCoverage coverage = EvaluateNetQuery(
+                    selections,
+                    suppressions,
                     eventId,
-                    providerName,
-                    expectedProvidersForEvent,
-                    suppression: false,
-                    out bool matches,
-                    out bool overbroad)) {
-                if (overbroad) {
-                    return SourceCoverage.Overbroad;
+                    providerClass);
+                if (coverage == ClauseCoverage.NotSelected) {
+                    return SourceCoverage.Missing;
                 }
+                unknown |= coverage == ClauseCoverage.Unknown;
+            }
+            return unknown ? SourceCoverage.Unknown : SourceCoverage.Covered;
+        }
+
+        ClauseCoverage expectedCoverage = EvaluateNetQuery(
+            selections,
+            suppressions,
+            eventId,
+            providerName);
+        bool uncertain = expectedCoverage == ClauseCoverage.Unknown;
+        foreach (string nonExpectedProvider in providerClasses.Where(candidate =>
+                     !expectedProvidersForEvent.Contains(candidate, StringComparer.OrdinalIgnoreCase))) {
+            ClauseCoverage coverage = EvaluateNetQuery(
+                selections,
+                suppressions,
+                eventId,
+                nonExpectedProvider);
+            if (coverage == ClauseCoverage.Selected) {
+                return SourceCoverage.Overbroad;
+            }
+            uncertain |= coverage == ClauseCoverage.Unknown;
+        }
+        if (uncertain) {
+            return SourceCoverage.Unknown;
+        }
+        return expectedCoverage == ClauseCoverage.Selected
+            ? SourceCoverage.Covered
+            : SourceCoverage.Missing;
+    }
+
+    private static ClauseCoverage EvaluateNetQuery(
+        IReadOnlyList<string> selections,
+        IReadOnlyList<string> suppressions,
+        int eventId,
+        string providerName) {
+
+        bool selected = false;
+        bool uncertainSelection = false;
+        foreach (string expression in selections) {
+            if (string.Equals(expression, "*", StringComparison.Ordinal)) {
+                selected = true;
+            } else if (TryEvaluateSupportedSystemExpression(
+                           expression,
+                           eventId,
+                           providerName,
+                           out bool matches)) {
                 selected |= matches;
             } else {
                 uncertainSelection = true;
             }
         }
-        if (!selected) {
-            return uncertainSelection ? SourceCoverage.Unknown : SourceCoverage.Missing;
-        }
-
         bool uncertainSuppression = false;
-        foreach (XElement suppression in query
-            .Descendants()
-            .Where(static element => string.Equals(element.Name.LocalName, "Suppress", StringComparison.OrdinalIgnoreCase))
-            .Where(element => string.Equals(ResolvePath(element), source.LogName, StringComparison.OrdinalIgnoreCase))) {
-
-            string expression = suppression.Value.Trim();
+        foreach (string expression in suppressions) {
             if (string.Equals(expression, "*", StringComparison.Ordinal)) {
-                return SourceCoverage.Missing;
+                return ClauseCoverage.NotSelected;
             }
-            if (!TryEvaluateSimpleSystemExpression(
+            if (TryEvaluateSupportedSystemExpression(
                     expression,
                     eventId,
                     providerName,
-                    source.ProviderNames,
-                    suppression: true,
-                    out bool suppressed,
-                    out _)) {
+                    out bool suppressed)) {
+                if (suppressed) {
+                    return ClauseCoverage.NotSelected;
+                }
+            } else {
                 uncertainSuppression = true;
-                continue;
-            }
-            if (suppressed) {
-                return SourceCoverage.Missing;
             }
         }
+        if (!selected) {
+            return uncertainSelection ? ClauseCoverage.Unknown : ClauseCoverage.NotSelected;
+        }
         return uncertainSelection || uncertainSuppression
-            ? SourceCoverage.Unknown
-            : SourceCoverage.Covered;
+            ? ClauseCoverage.Unknown
+            : ClauseCoverage.Selected;
     }
 
     private static bool TryReadQueryList(
@@ -250,31 +302,22 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         return XDocument.Load(reader, LoadOptions.None);
     }
 
-    private static bool TryEvaluateSimpleSystemExpression(
+    private static bool TryEvaluateSupportedSystemExpression(
         string expression,
         int eventId,
-        string? providerName,
-        IReadOnlyList<string> expectedProviders,
-        bool suppression,
-        out bool matches,
-        out bool overbroad) {
+        string providerName,
+        out bool matches) {
 
         matches = false;
-        overbroad = false;
         string normalized = Regex.Replace(expression, @"[\s()]", string.Empty);
-        var parsedIds = new HashSet<int>();
         foreach (Match match in EventIdValue.Matches(normalized)) {
             if (!int.TryParse(
                     match.Groups[1].Value,
                     NumberStyles.None,
                     CultureInfo.InvariantCulture,
-                    out int parsed)) {
+                    out _)) {
                 return false;
             }
-            parsedIds.Add(parsed);
-        }
-        if (parsedIds.Count == 0) {
-            return false;
         }
 
         MatchCollection providerMatches = ProviderNameValue.Matches(expression);
@@ -290,60 +333,18 @@ internal static class CollectorSubscriptionCoverageEvaluator {
             return false;
         }
 
-        string[] selectedProviders = providerMatches
-            .Cast<Match>()
-            .Select(static match => match.Groups["single"].Success
-                ? match.Groups["single"].Value
-                : match.Groups["double"].Value)
-            .ToArray();
         if (!HasOnlySupportedSystemSelectionSyntax(expression)) {
             return false;
         }
-
-        string sentinelProvider = CreateSentinelProvider(selectedProviders);
-        if (providerName == null) {
-            string[] providerClasses = selectedProviders
-                .Append(sentinelProvider)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            bool aggregate = !suppression;
-            foreach (string providerClass in providerClasses) {
-                if (!TryEvaluateXPath(expression, eventId, providerClass, out bool providerMatch)) {
-                    return false;
-                }
-                aggregate = suppression
-                    ? aggregate || providerMatch
-                    : aggregate && providerMatch;
-            }
-            matches = aggregate;
-            return true;
-        }
-
-        if (!TryEvaluateXPath(expression, eventId, providerName, out bool expectedMatch)) {
-            return false;
-        }
-        if (suppression) {
-            matches = expectedMatch;
-            return true;
-        }
-
-        foreach (string nonExpectedProvider in selectedProviders
-                     .Where(candidate => !expectedProviders.Contains(
-                         candidate,
-                         StringComparer.OrdinalIgnoreCase))
-                     .Append(sentinelProvider)
-                     .Distinct(StringComparer.OrdinalIgnoreCase)) {
-            if (!TryEvaluateXPath(expression, eventId, nonExpectedProvider, out bool nonExpectedMatch)) {
-                return false;
-            }
-            if (nonExpectedMatch) {
-                overbroad = true;
-                return true;
-            }
-        }
-        matches = expectedMatch;
-        return true;
+        return TryEvaluateXPath(expression, eventId, providerName, out matches);
     }
+
+    private static IEnumerable<string> ExtractProviderNames(string expression) =>
+        ProviderNameValue.Matches(expression)
+            .Cast<Match>()
+            .Select(static match => match.Groups["single"].Success
+                ? match.Groups["single"].Value
+                : match.Groups["double"].Value);
 
     private static string CreateSentinelProvider(IReadOnlyList<string> selectedProviders) {
         string sentinel = "__EventViewerX_Unlisted_Provider__";
@@ -422,5 +423,11 @@ internal static class CollectorSubscriptionCoverageEvaluator {
         Missing,
         Unknown,
         Overbroad
+    }
+
+    private enum ClauseCoverage {
+        Selected,
+        NotSelected,
+        Unknown
     }
 }
