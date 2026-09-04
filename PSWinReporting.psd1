@@ -8,7 +8,7 @@
     Description          = 'This PowerShell Module, which started as an event library (Get-EventsLibrary.ps1), has now grown up and became full fledged PowerShell Module. This module has multiple functionalities but one of the signature features of this module is ability to parse Security (mostly) logs on Domain Controllers.'
     FunctionsToExport    = @('Add-TaskScheduledForwarder', 'New-SubscriptionTemplates', 'Remove-TaskScheduledForwarder', 'Set-SubscriptionTemplates', 'Start-ADReporting', 'Start-Notifications', 'Start-RescanEvents', 'Start-SubscriptionService')
     GUID                 = '4b446d15-93e7-4eec-a6ee-d741f2ae2f3b'
-    ModuleVersion        = '1.8.1.7'
+    ModuleVersion        = '1.8.1.8'
     PowerShellVersion    = '5.1'
     PrivateData          = @{
         PSData = @{
