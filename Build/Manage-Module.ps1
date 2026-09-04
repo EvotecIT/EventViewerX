@@ -134,7 +134,9 @@ Build-Module -ModuleName 'PSWinReporting' {
     New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked" -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -ArtefactName '<ModuleName>.v<ModuleVersion>.zip'
 
-    New-ConfigurationPublish -Type PowerShellGallery -ApiKey $PowerShellGalleryApiKey -Enabled:$false
+    # The Gallery contains the historical 2.0.0-preview1 package. This final v1
+    # maintenance release is intentionally lower in semantic version order.
+    New-ConfigurationPublish -Type PowerShellGallery -ApiKey $PowerShellGalleryApiKey -Enabled:$false -Force
     New-ConfigurationPublish -Type GitHub -ApiKey $GitHubApiKey -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
 
     New-ConfigurationGate -Mode $RunMode
