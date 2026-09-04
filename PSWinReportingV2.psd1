@@ -7,7 +7,7 @@
     Description          = 'PSWinReportingV2 is a fast and efficient event viewing, reporting, and collection tool. It is version 2 of PSWinReporting and can be installed alongside it.'
     FunctionsToExport    = @('Add-EventsDefinitions', 'Add-WinTaskScheduledForwarder', 'Find-Events', 'New-WinSubscriptionTemplates', 'Remove-WinTaskScheduledForwarder', 'Start-WinNotifications', 'Start-WinReporting', 'Start-WinSubscriptionService')
     GUID                 = 'ea2bd8d2-cca1-4dc3-9e1c-ff80b06e8fbe'
-    ModuleVersion        = '2.0.24'
+    ModuleVersion        = '2.0.25'
     PrivateData          = @{
         PSData = @{
             Tags                       = @('PSWinReporting', 'ActiveDirectory', 'Events', 'Reporting', 'Windows', 'EventLog')
