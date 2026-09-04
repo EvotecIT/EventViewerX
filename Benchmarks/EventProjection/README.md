@@ -17,8 +17,8 @@ isolated `-OutputRoot` for smoke runs.
 <!-- event-projection-comparison:start -->
 | Scenario | Variables | Host | Operation | CompilePerEvent | ReusablePlan | Result |
 | --- | --- | --- | --- | ---: | ---: | --- |
-| Authentication-1000 | EventCount=1000 | Core-7.6.4 | Project | 1.00x (22ms) | 0.38x (8ms) | CompilePerEvent slower than ReusablePlan |
-| Authentication-10000 | EventCount=10000 | Core-7.6.4 | Project | 1.00x (133ms) | 0.37x (49ms) | CompilePerEvent slower than ReusablePlan |
+| Authentication-1000 | EventCount=1000 | Core-7.6.4 | Project | 1.00x (22ms) | 0.38x (8ms) | Fastest: ReusablePlan |
+| Authentication-10000 | EventCount=10000 | Core-7.6.4 | Project | 1.00x (133ms) | 0.37x (49ms) | Fastest: ReusablePlan |
 <!-- event-projection-comparison:end -->
 
 <!-- event-projection-summary:start -->

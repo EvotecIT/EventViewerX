@@ -1024,147 +1024,99 @@ Version 4 is a deliberate API cleanup:
 These are breaking changes intended to remove duplicate behavior and make cost,
 ownership, and failure boundaries predictable.
 
-## Performance evidence
+## Performance
 
-The [event query PowerForge suite](Benchmarks/EventLogParsing/README.md)
-separates byte-identical comparisons from common public jobs and
-different-schema native exports. The independent
-[local history suite](Benchmarks/EventStore/README.md) measures transactional
-ingestion, indexed and managed typed queries, UTC calendar summaries, and typed
-CSV from identical normalized rows. Every published result requires at least
-three rotated iterations plus contract validation.
+These measurements answer four practical questions: how query cost scales,
+what a remote query costs in one lab, how quickly a new process starts, and how
+much each report format adds. They are not a universal ranking. Event log
+contents, provider message rendering, filters, storage, network latency, and
+machine state can change the result.
 
-The current v4 scale, typed-report, and cold-start runs use a
-225,513,472-byte Security EVTX containing 201,672 readable events
-(`4F61E29AEAC9D3D7DDE4EE74CF8EE7AB9C5A4BF21FBE610E326A91566CC2A383`).
-The remote matrix pins a live AD0 record boundary so all three engines read
-the same records. Those runs used the same 32-logical-processor Windows host
-with .NET SDK 10.0.400 and PowerShell 7.6.4.
+The [PowerForge event-query suite](Benchmarks/EventLogParsing/README.md) runs at
+least three rotated iterations and validates event count, identity, and order
+before it updates a published table. Comparison cells show elapsed time and a
+ratio to the row's `1.00x` reference; lower is faster. `Skipped` means that a
+lane was deliberately not measured, not that it failed.
 
-The earlier common-work, byte-identical export, and EvtxECmd-native tables use
-a 231,804,928-byte Security EVTX containing 190,645 readable events
-(`FF2F428E0D7DD59EEEA3A5D87477AFFECD87C6541DF417261F21E4B144E7D6AD`)
-and .NET SDK 10.0.302. EvtxECmd was pinned to
-`2026.5.0+bfc7f47ccbf65ffc9a3777cde5498db2fdd94664`
-(`DE169B2AC7F6B1E54A684E0CDDDA30223651937B75941B21EA53A98F5A2502EE`);
-its 386-file maps manifest was also hashed. Generated payloads are deleted
-after their size and SHA-256 are validated, while the small summaries and
-provenance remain.
+The current scale and report measurements use a 225,513,472-byte Security EVTX
+containing 201,672 readable events on a 32-logical-processor Windows host with
+.NET SDK 10.0.400 and PowerShell 7.6.4. The cold-start case uses the committed
+184-event smoke fixture and reads one event so it measures process and module
+startup rather than large-log throughput. Results describe those fixtures and
+that host.
 
-<!-- event-log-common-benchmark:start -->
-| Scenario | Host | Operation | PSEventViewer | DotNet | EventViewerX | GetWinEvent | Result |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Large-Common-Sample-Full | Core-7.6.4 | Scan | 1.00x (12.22s) | 4.00x (48.93s) | 1.12x (13.70s) | 4.70x (57.45s) | PSEventViewer fastest |
-| Large-Common-Sample-Message | Core-7.6.4 | Scan | 1.00x (10.45s) | 4.67x (48.78s) | 0.81x (8.51s) | 4.89x (51.12s) | PSEventViewer slower than EventViewerX |
-| Large-Common-Sample-StructuredData | Core-7.6.4 | Scan | 1.00x (3.25s) | 1.21x (3.94s) | 0.94x (3.04s) | 8.20x (26.63s) | PSEventViewer slower than EventViewerX |
-| Large-Common-Scan-Metadata | Core-7.6.4 | Scan | 1.00x (2.54s) | 0.83x (2.10s) | 0.72x (1.82s) | 17.27x (43.90s) | PSEventViewer slower than EventViewerX |
-<!-- event-log-common-benchmark:end -->
+### Query throughput
 
-Common-public-job rows keep the input window and materialization category
-equal, but the public APIs can return different object schemas. Exact-output
-rows below require identical bytes and SHA-256.
-
-### Scale and cold-start behavior
-
-The scale matrix uses one real Security EVTX and fixed 1,000, 10,000, and
-100,000-event windows. Every cell validates count, record identity, and order;
-the table compares public jobs with equivalent materialization categories, not
-byte-identical output schemas.
+The scale matrix reads fixed 1,000, 10,000, and 100,000-event windows. It
+compares equivalent public jobs, although the returned object schemas are not
+byte-identical. EventViewerX was fastest in every measured row. The largest
+gain appears in `Metadata`; formatted messages and full materialization narrow
+the gap because Windows provider work becomes a larger part of the total cost.
 
 <!-- event-log-scale-benchmark:start -->
 | Scenario | Host | Operation | PSEventViewer | DotNet | EventViewerX | GetWinEvent | Result |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Large-Scale-1000-Full | Core-7.6.4 | Scan | 1.00x (669ms) | 0.88x (590ms) | 0.39x (261ms) | 1.70x (1.14s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-1000-Metadata | Core-7.6.4 | Scan | 1.00x (498ms) | 0.23x (116ms) | 0.22x (109ms) | 1.59x (794ms) | PSEventViewer slower than EventViewerX |
-| Large-Scale-1000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (680ms) | 0.90x (613ms) | 0.37x (252ms) | 1.68x (1.14s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-10000-Full | Core-7.6.4 | Scan | 1.00x (2.49s) | 1.88x (4.69s) | 0.63x (1.56s) | 2.26x (5.63s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-10000-Metadata | Core-7.6.4 | Scan | 1.00x (616ms) | 0.35x (218ms) | 0.30x (183ms) | 4.50x (2.77s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-10000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (2.46s) | 1.95x (4.79s) | 0.60x (1.49s) | 2.33x (5.72s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-100000-Full | Core-7.6.4 | Scan | 1.00x (14.63s) | 2.97x (43.40s) | 0.75x (10.92s) | 3.32x (48.59s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-100000-Metadata | Core-7.6.4 | Scan | 1.00x (1.80s) | 0.61x (1.09s) | 0.48x (859ms) | 10.85x (19.49s) | PSEventViewer slower than EventViewerX |
-| Large-Scale-100000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (14.44s) | 3.00x (43.27s) | 0.73x (10.56s) | 3.37x (48.65s) | PSEventViewer slower than EventViewerX |
+| Large-Scale-1000-Full | Core-7.6.4 | Scan | 1.00x (669ms) | 0.88x (590ms) | 0.39x (261ms) | 1.70x (1.14s) | Fastest: EventViewerX |
+| Large-Scale-1000-Metadata | Core-7.6.4 | Scan | 1.00x (498ms) | 0.23x (116ms) | 0.22x (109ms) | 1.59x (794ms) | Fastest: EventViewerX |
+| Large-Scale-1000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (680ms) | 0.90x (613ms) | 0.37x (252ms) | 1.68x (1.14s) | Fastest: EventViewerX |
+| Large-Scale-10000-Full | Core-7.6.4 | Scan | 1.00x (2.49s) | 1.88x (4.69s) | 0.63x (1.56s) | 2.26x (5.63s) | Fastest: EventViewerX |
+| Large-Scale-10000-Metadata | Core-7.6.4 | Scan | 1.00x (616ms) | 0.35x (218ms) | 0.30x (183ms) | 4.50x (2.77s) | Fastest: EventViewerX |
+| Large-Scale-10000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (2.46s) | 1.95x (4.79s) | 0.60x (1.49s) | 2.33x (5.72s) | Fastest: EventViewerX |
+| Large-Scale-100000-Full | Core-7.6.4 | Scan | 1.00x (14.63s) | 2.97x (43.40s) | 0.75x (10.92s) | 3.32x (48.59s) | Fastest: EventViewerX |
+| Large-Scale-100000-Metadata | Core-7.6.4 | Scan | 1.00x (1.80s) | 0.61x (1.09s) | 0.48x (859ms) | 10.85x (19.49s) | Fastest: EventViewerX |
+| Large-Scale-100000-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (14.44s) | 3.00x (43.27s) | 0.73x (10.56s) | 3.37x (48.65s) | Fastest: EventViewerX |
 <!-- event-log-scale-benchmark:end -->
 
-Remote evidence includes connection/session and network cost. The wrapper pins
-one latest record boundary before the rotated run, and every engine must return
-the same ordered record identities. These AD0 results describe this lab and
-time; the offline scale table remains the reproducible throughput evidence.
+### Remote queries
+
+Remote measurements include connection, session, and network cost. The suite
+pins one record boundary and requires every engine to return the same ordered
+records. These AD0 results describe one lab at one point in time; use the local
+scale table for reproducible throughput comparisons.
 
 <!-- event-log-remote-benchmark:start -->
 | Scenario | Variables | Host | Operation | PSEventViewer | EventViewerX | GetWinEvent | Result |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
-| Remote-AD0-Security-Latest-100-Metadata | EventCount=100, LogName=Security, MachineName=AD0 | Core-7.6.4 | Query | 1.00x (69ms) | 0.70x (48ms) | 7.89x (546ms) | PSEventViewer slower than EventViewerX |
-| Remote-AD0-Security-Latest-1000-Metadata | EventCount=1000, LogName=Security, MachineName=AD0 | Core-7.6.4 | Query | 1.00x (377ms) | 0.93x (350ms) | 19.42x (7.32s) | PSEventViewer slower than EventViewerX |
+| Remote-AD0-Security-Latest-100-Metadata | EventCount=100, LogName=Security, MachineName=AD0 | Core-7.6.4 | Query | 1.00x (69ms) | 0.70x (48ms) | 7.89x (546ms) | Fastest: EventViewerX |
+| Remote-AD0-Security-Latest-1000-Metadata | EventCount=1000, LogName=Security, MachineName=AD0 | Core-7.6.4 | Query | 1.00x (377ms) | 0.93x (350ms) | 19.42x (7.32s) | Fastest: EventViewerX |
 <!-- event-log-remote-benchmark:end -->
+
+### Process startup
 
 Cold-start measurements launch a fresh process for every sample. They answer
 the Task Scheduler and event-triggered automation question separately from
-steady-state scan throughput.
+steady-state scan throughput. In this run, both CLI forms started in about
+115ms; the PowerShell command paths took about 590ms.
 
 <!-- event-log-cold-start-benchmark:start -->
 | Scenario | Host | Operation | EventViewerXCli | EventViewerXCliPortable | GetWinEvent | PSEventViewer | Result |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Smoke-Command-Cold-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (115ms) | 1.01x (116ms) | 5.15x (590ms) | 5.14x (590ms) | EventViewerXCli tied with EventViewerXCliPortable |
+| Smoke-Command-Cold-StructuredDataAndMessage | Core-7.6.4 | Scan | 1.00x (115ms) | 1.01x (116ms) | 5.15x (590ms) | 5.14x (590ms) | Fastest: EventViewerXCli, EventViewerXCliPortable (tie) |
 <!-- event-log-cold-start-benchmark:end -->
+
+### Report generation
 
 Reporting measurements include the typed query and the requested renderer.
 `All` creates the interactive HTML report, Excel workbook, and compact email
-body in one operation; individual formats avoid work the caller does not need.
+body in one operation. On the measured 1,000-event window, HTML and email each
+completed in under 0.7s, while Excel took about 6.1s. Request only the formats
+you need.
 
 <!-- event-log-reporting-benchmark:start -->
-| Scenario | Host | Operation | EventViewerXReport | Result |
-| --- | --- | --- | ---: | --- |
-| Typed-Report-All | Core-7.6.4 | Scan | 1.00x (6.58s) | EventViewerXReport only successful |
-| Typed-Report-Email | Core-7.6.4 | Scan | 1.00x (510ms) | EventViewerXReport only successful |
-| Typed-Report-Excel | Core-7.6.4 | Scan | 1.00x (6.08s) | EventViewerXReport only successful |
-| Typed-Report-Html | Core-7.6.4 | Scan | 1.00x (689ms) | EventViewerXReport only successful |
+| Scenario | Host | Operation | EventViewerXReport |
+| --- | --- | --- | ---: |
+| Typed-Report-All | Core-7.6.4 | Scan | 6.58s |
+| Typed-Report-Email | Core-7.6.4 | Scan | 510ms |
+| Typed-Report-Excel | Core-7.6.4 | Scan | 6.08s |
+| Typed-Report-Html | Core-7.6.4 | Scan | 689ms |
 <!-- event-log-reporting-benchmark:end -->
 
-<!-- event-log-exact-output-benchmark:start -->
-| Scenario | Host | Operation | Metric | PSEventViewer | DotNet | EventViewerXExport | GetWinEvent | Result |
-| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Large-Exact-Export-MetadataCsv | Core-7.6.4 | Scan | MedianMs | 1.00x (3.83s) | 0.69x (2.64s) | Skipped | 12.66x (48.46s) | PSEventViewer slower than DotNet |
-| Large-Exact-Export-MetadataCsv | Core-7.6.4 | Scan | OutputBytes | 1.00x (19055567) | 1.00x (19055567) | Skipped | 1.00x (19055567) | PSEventViewer baseline |
-| Large-Exact-Export-RawXml | Core-7.6.4 | Scan | MedianMs | 1.00x (3.68s) | 1.30x (4.80s) | 0.85x (3.12s) | 13.58x (50.01s) | PSEventViewer slower than EventViewerXExport |
-| Large-Exact-Export-RawXml | Core-7.6.4 | Scan | OutputBytes | 1.00x (293062655) | 1.00x (293062655) | 1.00x (293062655) | 1.00x (293062655) | PSEventViewer baseline |
-<!-- event-log-exact-output-benchmark:end -->
-
-EventViewerX and EvtxECmd native formats are not interchangeable. Read these
-times together with output bytes and fields; do not turn them into an
-unqualified speed claim.
-
-<!-- event-log-native-output-benchmark:start -->
-| Scenario | Host | Operation | Metric | EventViewerXExport | EvtxECmd | Result |
-| --- | --- | --- | --- | ---: | ---: | --- |
-| Large-Native-Output-Csv | Core-7.6.4 | Scan | MedianMs | 1.00x (26.46s) | 1.09x (28.73s) | EventViewerXExport fastest |
-| Large-Native-Output-Csv | Core-7.6.4 | Scan | OutputBytes | 1.00x (698462495) | 0.46x (318630958) | EventViewerXExport baseline |
-| Large-Native-Output-FullJson | Core-7.6.4 | Scan | MedianMs | 1.00x (32.02s) | 1.27x (40.58s) | EventViewerXExport fastest |
-| Large-Native-Output-FullJson | Core-7.6.4 | Scan | OutputBytes | 1.00x (915259866) | 0.32x (292846026) | EventViewerXExport baseline |
-| Large-Native-Output-Xml | Core-7.6.4 | Scan | MedianMs | 1.00x (2.85s) | 11.15x (31.78s) | EventViewerXExport fastest |
-| Large-Native-Output-Xml | Core-7.6.4 | Scan | OutputBytes | 1.00x (293062655) | 1.12x (329124038) | EventViewerXExport baseline |
-<!-- event-log-native-output-benchmark:end -->
-
-EventViewerX full JSON includes provider-formatted messages, typed properties,
-named data, render status, raw XML, and attachments. The generated
-`OutputBytes` rows make that extra work visible instead of hiding it inside an
-unqualified timing claim. EvtxECmd is only a pinned external benchmark target
-and is not a source, package, or runtime dependency.
-
-<!-- event-log-evtx-native-benchmark:start -->
-| Scenario | Host | Operation | Metric | EvtxECmd | Result |
-| --- | --- | --- | --- | ---: | --- |
-| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | MedianMs | 1.00x (26.09s) | EvtxECmd only successful |
-| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | OutputBytes | 1.00x (318630958) | EvtxECmd baseline |
-| Large-Evtx-FullJson | Core-7.6.4 | Scan | MedianMs | 1.00x (36.26s) | EvtxECmd only successful |
-| Large-Evtx-FullJson | Core-7.6.4 | Scan | OutputBytes | 1.00x (292846026) | EvtxECmd baseline |
-| Large-Evtx-NativeParse | Core-7.6.4 | Scan | MedianMs | 1.00x (17.53s) | EvtxECmd only successful |
-| Large-Evtx-NativeParse | Core-7.6.4 | Scan | OutputBytes | n/a (0) | EvtxECmd baseline |
-| Large-Evtx-Xml | Core-7.6.4 | Scan | MedianMs | 1.00x (31.96s) | EvtxECmd only successful |
-| Large-Evtx-Xml | Core-7.6.4 | Scan | OutputBytes | 1.00x (329124038) | EvtxECmd baseline |
-<!-- event-log-evtx-native-benchmark:end -->
-
-The committed smoke fixture is small and non-sensitive. Large EVTX fixtures
-and generated multi-gigabyte outputs remain external and temporary.
+The benchmark guide keeps the byte-identical export results, different-schema
+native export measurements, external-tool characterization, commands, and full
+provenance. Those details are useful when changing the engine or exporter, but
+they are not presented here as general EventViewerX performance claims. The
+independent [local history suite](Benchmarks/EventStore/README.md) covers
+transactional ingestion, indexed queries, summaries, and typed CSV generation.
 
 ## Runtime dependencies
 

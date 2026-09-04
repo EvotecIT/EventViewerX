@@ -54,7 +54,7 @@ if (-not $SkipBuild.IsPresent) {
 }
 
 Add-Type -Path $fixtureAssembly -ErrorAction Stop
-Import-Module PSPublishModule -MinimumVersion 3.0.76 -Force -ErrorAction Stop
+Import-Module PSPublishModule -MinimumVersion 3.0.134 -Force -ErrorAction Stop
 $invoke = @{
     Path = $specPath
     OutputRoot = [IO.Path]::GetFullPath($OutputRoot)

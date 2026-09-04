@@ -82,7 +82,7 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).
 $hostProject = Join-Path $PSScriptRoot 'EventLogParsing.BenchmarkHost\EventLogParsing.BenchmarkHost.csproj'
 $specPath = Join-Path $PSScriptRoot 'event-log-parsing.benchmark.ps1'
 
-Import-Module PSPublishModule -MinimumVersion 3.0.76 -ErrorAction Stop
+Import-Module PSPublishModule -MinimumVersion 3.0.134 -ErrorAction Stop
 
 if ([bool] $EvtxECmdPath -ne [bool] $EvtxMapsPath) {
     throw 'EvtxECmdPath and EvtxMapsPath must be supplied together.'
@@ -272,7 +272,10 @@ if (-not $Plan) {
         throw "The benchmark completed with $($failedSamples.Count) failed sample(s):`n$($failureSummary -join "`n")"
     }
 
-    $readmePath = Join-Path $repositoryRoot 'README.md'
+    $readmePath = Join-Path $PSScriptRoot 'README.md'
+    if ($ReadmeTable -in 'Scale', 'ColdStart', 'Reporting') {
+        $readmePath = Join-Path $repositoryRoot 'README.md'
+    }
     if ($ReadmeTable -eq 'Common') {
         Update-BenchmarkDocument `
             -Path $readmePath `

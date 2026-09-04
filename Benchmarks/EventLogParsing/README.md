@@ -104,6 +104,82 @@ PowerForge records:
 Every generated public table requires at least three rotated iterations. A one-off diagnostic run remains useful while
 developing, but the wrapper refuses to publish it into the README.
 
+## Detailed published evidence
+
+The main README keeps the current measurements that help users choose a query, startup, or reporting path. This
+section retains lower-level evidence used to change the engine and exporters: common public work, byte-identical
+exports, different-schema native exports, and standalone characterization of the external benchmark tool.
+
+These tables use a 231,804,928-byte Security EVTX containing 190,645 readable events
+(`FF2F428E0D7DD59EEEA3A5D87477AFFECD87C6541DF417261F21E4B144E7D6AD`) on the same 32-logical-processor Windows host,
+with .NET SDK 10.0.302 and PowerShell 7.6.4. EvtxECmd was pinned to
+`2026.5.0+bfc7f47ccbf65ffc9a3777cde5498db2fdd94664`
+(`DE169B2AC7F6B1E54A684E0CDDDA30223651937B75941B21EA53A98F5A2502EE`), and the 386-file maps manifest was hashed.
+Comparison cells show elapsed time and a ratio to the row's `1.00x` reference; lower is faster. `Skipped` means the
+lane was not part of that case. Output-size ratios describe different payload sizes, not quality or speed.
+
+### Common public work
+
+These rows hold the input window and materialization category equal, but each public API returns its natural object
+schema.
+
+<!-- event-log-common-benchmark:start -->
+| Scenario | Host | Operation | PSEventViewer | DotNet | EventViewerX | GetWinEvent | Result |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| Large-Common-Sample-Full | Core-7.6.4 | Scan | 1.00x (12.22s) | 4.00x (48.93s) | 1.12x (13.70s) | 4.70x (57.45s) | Fastest: PSEventViewer |
+| Large-Common-Sample-Message | Core-7.6.4 | Scan | 1.00x (10.45s) | 4.67x (48.78s) | 0.81x (8.51s) | 4.89x (51.12s) | Fastest: EventViewerX |
+| Large-Common-Sample-StructuredData | Core-7.6.4 | Scan | 1.00x (3.25s) | 1.21x (3.94s) | 0.94x (3.04s) | 8.20x (26.63s) | Fastest: EventViewerX |
+| Large-Common-Scan-Metadata | Core-7.6.4 | Scan | 1.00x (2.54s) | 0.83x (2.10s) | 0.72x (1.82s) | 17.27x (43.90s) | Fastest: EventViewerX |
+<!-- event-log-common-benchmark:end -->
+
+### Byte-identical exports
+
+These are direct end-to-end comparisons. Each successful lane produced identical bytes and SHA-256 for its case.
+
+<!-- event-log-exact-output-benchmark:start -->
+| Scenario | Host | Operation | Metric | PSEventViewer | DotNet | EventViewerXExport | GetWinEvent | Result |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| Large-Exact-Export-MetadataCsv | Core-7.6.4 | Scan | MedianMs | 1.00x (3.83s) | 0.69x (2.64s) | Skipped | 12.66x (48.46s) | Fastest: DotNet |
+| Large-Exact-Export-MetadataCsv | Core-7.6.4 | Scan | OutputBytes | 1.00x (19055567) | 1.00x (19055567) | Skipped | 1.00x (19055567) | Reference: PSEventViewer |
+| Large-Exact-Export-RawXml | Core-7.6.4 | Scan | MedianMs | 1.00x (3.68s) | 1.30x (4.80s) | 0.85x (3.12s) | 13.58x (50.01s) | Fastest: EventViewerXExport |
+| Large-Exact-Export-RawXml | Core-7.6.4 | Scan | OutputBytes | 1.00x (293062655) | 1.00x (293062655) | 1.00x (293062655) | 1.00x (293062655) | Reference: PSEventViewer |
+<!-- event-log-exact-output-benchmark:end -->
+
+### Different-schema native exports
+
+EventViewerX and EvtxECmd native formats are not interchangeable. Read duration together with output size and field
+coverage; these rows do not support an unqualified speed claim. EventViewerX full JSON includes provider-formatted
+messages, typed properties, named data, render status, raw XML, and attachments.
+
+<!-- event-log-native-output-benchmark:start -->
+| Scenario | Host | Operation | Metric | EventViewerXExport | EvtxECmd | Result |
+| --- | --- | --- | --- | ---: | ---: | --- |
+| Large-Native-Output-Csv | Core-7.6.4 | Scan | MedianMs | 1.00x (26.46s) | 1.09x (28.73s) | Fastest: EventViewerXExport |
+| Large-Native-Output-Csv | Core-7.6.4 | Scan | OutputBytes | 1.00x (698462495) | 0.46x (318630958) | Reference: EventViewerXExport |
+| Large-Native-Output-FullJson | Core-7.6.4 | Scan | MedianMs | 1.00x (32.02s) | 1.27x (40.58s) | Fastest: EventViewerXExport |
+| Large-Native-Output-FullJson | Core-7.6.4 | Scan | OutputBytes | 1.00x (915259866) | 0.32x (292846026) | Reference: EventViewerXExport |
+| Large-Native-Output-Xml | Core-7.6.4 | Scan | MedianMs | 1.00x (2.85s) | 11.15x (31.78s) | Fastest: EventViewerXExport |
+| Large-Native-Output-Xml | Core-7.6.4 | Scan | OutputBytes | 1.00x (293062655) | 1.12x (329124038) | Reference: EventViewerXExport |
+<!-- event-log-native-output-benchmark:end -->
+
+### EvtxECmd-native workflows
+
+These rows measure only EvtxECmd. They do not imply that another lane failed. A zero-byte parse row means the tool
+parsed and validated the log without writing an export file.
+
+<!-- event-log-evtx-native-benchmark:start -->
+| Scenario | Host | Operation | Metric | EvtxECmd |
+| --- | --- | --- | --- | ---: |
+| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | MedianMs | 26.09s |
+| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | OutputBytes | 318630958 |
+| Large-Evtx-FullJson | Core-7.6.4 | Scan | MedianMs | 36.26s |
+| Large-Evtx-FullJson | Core-7.6.4 | Scan | OutputBytes | 292846026 |
+| Large-Evtx-NativeParse | Core-7.6.4 | Scan | MedianMs | 17.53s |
+| Large-Evtx-NativeParse | Core-7.6.4 | Scan | OutputBytes | 0 |
+| Large-Evtx-Xml | Core-7.6.4 | Scan | MedianMs | 31.96s |
+| Large-Evtx-Xml | Core-7.6.4 | Scan | OutputBytes | 329124038 |
+<!-- event-log-evtx-native-benchmark:end -->
+
 The scale matrix runs 1,000, 10,000, 100,000, and 1,000,000 event windows when the supplied fixture contains enough
 records. The cold-start matrix measures a fresh `evx.exe`, a fresh PowerShell process importing PSEventViewer, and a
 fresh PowerShell process running `Get-WinEvent`. Pass `-PSEventViewerPath` with the manifest from the unpacked module
@@ -132,7 +208,7 @@ Run a smoke comparison:
     -IterationCount 3
 ```
 
-Generate the common-work table in the main README from an external large fixture:
+Generate the common-work table in this benchmark guide from an external large fixture:
 
 ```powershell
 .\Benchmarks\EventLogParsing\Invoke-EventLogParsingBenchmark.ps1 `
@@ -169,9 +245,9 @@ typed query and normalized snapshot:
 
 ```powershell
 .\Benchmarks\EventLogParsing\Invoke-EventLogParsingBenchmark.ps1 `
-    -LargeFixturePath C:\Temp\Security.evtx `
-    -ExpectedLargeCount 1000000 `
-    -ExpensiveSampleCount 1000 `
+    -TypedFixturePath C:\Temp\Security.evtx `
+    -ExpectedTypedCount 1000000 `
+    -ReportSampleCount 1000 `
     -IterationCount 3 `
     -ReadmeTable Reporting
 ```
