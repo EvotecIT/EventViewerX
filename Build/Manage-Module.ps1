@@ -16,7 +16,7 @@ Import-Module PSPublishModule -Force
 
 Build-Module -ModuleName 'PSWinReportingV2' {
     $Manifest = [ordered] @{
-        ModuleVersion        = '2.0.24'
+        ModuleVersion        = '2.0.25'
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'ea2bd8d2-cca1-4dc3-9e1c-ff80b06e8fbe'
         Author               = 'Przemyslaw Klys'
@@ -34,8 +34,10 @@ Build-Module -ModuleName 'PSWinReportingV2' {
     # privately because later PSEventViewer versions changed its contract.
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteHTML' -Guid 'a7bdf640-f5cb-4acf-9de0-365b322d245c' -RequiredVersion '1.41.0'
+    # Source folders require these modules; approved merging inlines their helpers and removes them from the built manifest.
     New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' -RequiredVersion '0.0.312'
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f' -RequiredVersion '1.0.3'
+    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods', 'PSWriteColor'
 
     New-ConfigurationModuleSkip -IgnoreModuleName @(
         'Microsoft.PowerShell.Management'
@@ -108,7 +110,7 @@ Build-Module -ModuleName 'PSWinReportingV2' {
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'DefaultPSM1' -EnableFormatting -Sort None
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
 
-    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '92E95FB58EFFA6A4A75E77A33CDD6BFE6DD30F1A'
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '92E95FB58EFFA6A4A75E77A33CDD6BFE6DD30F1A'
 
     New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -ModulesPath 'Modules' -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName
