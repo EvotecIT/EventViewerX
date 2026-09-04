@@ -18,7 +18,7 @@ Build-Module -ModuleName 'PSWinReporting' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
         # Version number of this module.
-        ModuleVersion = '1.8.1.7'
+        ModuleVersion = '1.8.1.8'
         # ID used to uniquely identify this module
         GUID          = '4b446d15-93e7-4eec-a6ee-d741f2ae2f3b'
         # Author of this module
@@ -39,8 +39,10 @@ Build-Module -ModuleName 'PSWinReporting' {
     # The final frozen release carries the compatible v1 event-query engine
     # privately because later PSEventViewer versions changed its contract.
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteExcel' -Guid '82232c6a-27f1-435d-a496-929f7221334b' -RequiredVersion '0.1.15'
+    # Source folders require these modules; approved merging inlines their helpers and removes them from the built manifest.
     New-ConfigurationModule -Type RequiredModule -Name 'PSSharedGoods' -Guid 'ee272aa8-baaa-4edf-9f45-b6d6f7d844fe' -RequiredVersion '0.0.312'
     New-ConfigurationModule -Type RequiredModule -Name 'PSWriteColor' -Guid '0b0ba5c5-ec85-4c2b-a718-874e55a8bc3f' -RequiredVersion '1.0.3'
+    New-ConfigurationModule -Type ApprovedModule -Name 'PSSharedGoods', 'PSWriteColor'
     New-ConfigurationModule -Type ExternalModule -Name 'ActiveDirectory'
 
     New-ConfigurationModuleSkip -IgnoreModuleName @(
@@ -127,7 +129,7 @@ Build-Module -ModuleName 'PSWinReporting' {
     # when creating PSD1 use special style without comments and with only required parameters
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
     # configuration for documentation, at the same time it enables documentation processing
-    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '92E95FB58EFFA6A4A75E77A33CDD6BFE6DD30F1A'
+    New-ConfigurationBuild -Enable -SignModule:$SignModule -MergeModuleOnBuild -MergeFunctionsFromApprovedModules -ResolveMissingModulesOnline -DeleteTargetModuleBeforeBuild -CertificateThumbprint '92E95FB58EFFA6A4A75E77A33CDD6BFE6DD30F1A'
 
     #New-ConfigurationTest -TestsPath "$PSScriptRoot\..\Tests" -Enable
 
