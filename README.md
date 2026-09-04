@@ -18,20 +18,32 @@
   <a href="https://www.linkedin.com/in/pklys"><img src="https://img.shields.io/badge/LinkedIn-pklys-0077B5.svg?logo=LinkedIn"></a>
 </p>
 
-# PSWinReporting
+# PSWinReportingV2 - Frozen Edition
+
+PSWinReportingV2 is frozen for existing deployments. Version 2.0.24 is the
+final compatibility release from the
+[`PSWinReportingV2`](https://github.com/EvotecIT/EventViewerX/tree/PSWinReportingV2)
+branch. New event-query, reporting, and automation development belongs to
+[`EventViewerX`](https://github.com/EvotecIT/EventViewerX); PowerShell users
+consume that maintained engine through the `PSEventViewer` module.
 
 **PSWinReporting** is a little PowerShell module that solves the problem of monitoring and reading **Windows Events**. It allows you to set up monitoring of **Domain Controllers** (and from **2.X** any other servers) for events that happen on them. By default, it comes with **built-in Active Directory** events supports, but since **2.0** you can configure it to monitor anything. You can set up reporting on any types of events and have emails delivered with a summary of hourly, daily, weekly, monthly, or quarterly changes. It also supports sending notifications to Microsoft Teams, Slack, and Discord. Make sure to go thru related articles as they have all the KNOW HOW which is quite useful if you want to get everything from this module.
 
 The full project description is available on my website - [Full project description](https://evotec.xyz/hub/scripts/pswinreporting-powershell-module/).
 
-Currently, there are 2 branches of PSWinReporting.
+PSWinReporting and PSWinReportingV2 can remain installed for compatible legacy
+workflows. They are no longer parallel development lines. New implementations
+should target EventViewerX instead.
 
-- [x] Legacy branch - available in PS Gallery as [PSWinReporting](https://www.powershellgallery.com/packages/PSWinReporting/) - `Install-Module -Name 'PSWinReporting' -Force`
-- [x] Master branch - available in PS Gallery as [PSWinReportingV2](https://www.powershellgallery.com/packages/PSWinReportingV2/) - `Install-Module -Name 'PSWinReportingV2' -Force`
+## Maintainer release
 
-I've decided that both PowerShell modules can coexist together, especially for scenarios for people who want to switch, but don't want to do it right away. This way, you can keep using old version as is, and slowly fix your other stuff, or use new `Find-Events` command. I've slightly renamed the commands for V2 release.
+`Build\Manage-Module.ps1 -RunMode Build` creates unpacked and packed artifacts
+without publishing. The `Publish` gate publishes the module to PowerShell
+Gallery and creates its namespaced GitHub release. It reads credentials from
+`PSGALLERY_API_KEY` and `GITHUB_TOKEN`; signing remains controlled by
+`-SignModule`.
 
-## PSWinReportingV2 - Master Edition
+## PSWinReportingV2 features
 
 Master edition is a complete rewrite and a new beginning. It provides the same functionality as **Legacy 1.X** version and then some more.
 
@@ -97,7 +109,10 @@ Of course, you can also define **DateFrom**, **DateTo** parameters for custom us
 
 ## PSWinReporting - Legacy Edition
 
-***Legacy edition*** will continue it's life as ***1.X.X***. If you want to keep on using it, feel free, but it's highly encouraged to use ***2.x.x*** when it's fully functional with all features. Code is available as [Legacy Branch](https://github.com/EvotecIT/PSWinReporting/tree/Legacy). Following links can help in understanding how it works and how to set it up:
+The original 1.x line is also frozen for existing deployments. Its final source
+is available from the
+[`PSWinReporting`](https://github.com/EvotecIT/EventViewerX/tree/PSWinReporting)
+branch. The following links describe its historical setup and behavior:
 
 - [Review of features coming in 2.0 along with some features description for the current version](https://evotec.xyz/pswinreporting-1-8-split-of-branches-legacy-vs-new-hope/) - Overview of configuration and features.
 - [Review of new features in PSWinReporting 1.7](https://evotec.xyz/pswinreporting-forwarders-microsoft-teams-slack-microsoft-sql-and-more/) - Lots of changes, review required. Microsoft Teams, Slack, SQL and forwarders support

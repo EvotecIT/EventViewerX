@@ -5,9 +5,9 @@ param(
 
     [bool] $SignModule = $false,
 
-    [string] $PowerShellGalleryApiKeyPath = 'C:\Support\Important\PowerShellGalleryAPI.txt',
+    [string] $PowerShellGalleryApiKey = $env:PSGALLERY_API_KEY,
 
-    [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
+    [string] $GitHubApiKey = $env:GITHUB_TOKEN
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,6 +65,7 @@ Build-Module -ModuleName 'PSWinReportingV2' {
         'Test-NamedDataMatch'
         'Test-NamedDataRequiresPostFilter'
         'Test-XPathLiteralRequiresPostFilter'
+        'Invoke-DbaQuery'
         'New-SlackMessage'
         'New-SlackMessageAttachment'
         'Send-SlackMessage'
@@ -112,8 +113,8 @@ Build-Module -ModuleName 'PSWinReportingV2' {
     New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -ModulesPath 'Modules' -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName
 
-    New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
-    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
+    New-ConfigurationPublish -Type PowerShellGallery -ApiKey $PowerShellGalleryApiKey -Enabled:$false
+    New-ConfigurationPublish -Type GitHub -ApiKey $GitHubApiKey -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
 
     New-ConfigurationGate -Mode $RunMode
 }
