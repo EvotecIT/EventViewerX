@@ -14,6 +14,19 @@ Describe 'evx portable host' {
         $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
     }
 
+    It 'reports its package version consistently' {
+        [array] $VersionOutput = & $script:CliPath --version
+        [int] $VersionExitCode = $LASTEXITCODE
+        [array] $HelpOutput = & $script:CliPath --help
+        [int] $HelpExitCode = $LASTEXITCODE
+        [string] $Version = ($VersionOutput -join "`n").Trim()
+
+        $VersionExitCode | Should -Be 0
+        $HelpExitCode | Should -Be 0
+        $Version | Should -Match '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$'
+        ($HelpOutput -join "`n") | Should -Match ([regex]::Escape("EventViewerX $Version"))
+    }
+
     It 'ships the complete built-in type catalog' {
         $Definitions = @(& $script:CliPath types | ForEach-Object { $_ | ConvertFrom-Json })
 

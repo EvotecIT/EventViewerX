@@ -107,10 +107,17 @@ The `master` branch is the active home of PSEventViewer and EventViewerX.
 ```powershell
 Install-Module -Name PSEventViewer -Scope CurrentUser
 Import-Module PSEventViewer
+
+# Optional CLI for interactive use and automation on hosts with .NET 10.
+dotnet tool install --global EventViewerX.Cli --version 4.0.0
+evx --version
 ```
 
 The module supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
 targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
+The CLI is also available as RID-specific release ZIPs. Use a
+framework-dependent ZIP when .NET 10 is installed, or `PortableCompat` when
+the target host needs the runtime bundled with the executable.
 
 ## Documentation
 
@@ -866,9 +873,10 @@ escalation, incident assignment, fleet policy, or delivery credentials.
 
 ## Portable host and event-triggered automation
 
-The optional `evx.exe` is the low-startup, no-module host for Task Scheduler,
-event-triggered tasks, services, containers, and portable automation. It ships
-as both a smaller framework-dependent build and a runtime-bundled
+The optional `evx` command is the low-startup, no-module host for Task Scheduler,
+event-triggered tasks, services, containers, and portable automation. Install it
+as the `EventViewerX.Cli` .NET tool or use a RID-specific release ZIP. The ZIPs
+ship as both a smaller framework-dependent build and a runtime-bundled
 `PortableCompat` build. Both provide `types`, `query`, `report`, `watch`,
 `store`, `collector`, and `provider` workflows over the same EventViewerX engines; they
 do not introduce a second query or reporting implementation.
@@ -1184,7 +1192,16 @@ coordination to PSPublishModule/PowerForge. EventViewerX and PSEventViewer are
 built and released from one version source and validated as packed artifacts.
 
 ```powershell
-.\Build\Build-Module.ps1 -ConfigurationGateMode Build
+# Inspect the complete module, NuGet, and CLI release without producing assets.
+.\Build\Build-Release.ps1 -RunMode Plan -Version 4.0.0 -SignModule:$false
+
+# Produce and validate one unsigned release candidate. Nothing is published.
+.\Build\Build-Release.ps1 -RunMode Build -Version 4.0.0 -SignModule:$false
+
+# Publication is a separate, guarded operator action after the candidate settles.
+$commit = git rev-parse HEAD
+.\Build\Build-Release.ps1 -RunMode Publish -Version 4.0.0 `
+    -ExpectedCommit $commit -Confirmation "publish:4.0.0:$commit"
 ```
 
 Browse [the event query benchmark contract](Benchmarks/EventLogParsing/README.md),

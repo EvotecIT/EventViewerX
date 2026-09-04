@@ -1,0 +1,436 @@
+{
+  "SchemaVersion": 1,
+  "Build": {
+    "Name": "PSEventViewer",
+    "SourcePath": "..",
+    "SkipDotNetBuild": false,
+    "Version": "4.0.X",
+    "Configuration": "Release",
+    "Frameworks": [],
+    "NuGetRestoreSources": [],
+    "Tags": [],
+    "ExcludeDirectories": [
+      ".git",
+      ".vs",
+      ".vscode",
+      "bin",
+      "obj",
+      "packages",
+      "node_modules",
+      "Artefacts",
+      "Build",
+      "Docs",
+      "Documentation",
+      "Examples",
+      "Ignore",
+      "Publish",
+      "Tests"
+    ],
+    "ExcludeFiles": [
+      ".gitignore",
+      "PSEventViewer.Tests.ps1"
+    ],
+    "ExportAssemblies": [],
+    "DisableBinaryCmdletScan": false,
+    "BinaryConflictSearchRoots": [],
+    "BinaryConflictPriorityModuleNames": [],
+    "AnalyzeInstalledBinaryConflictsDuringBuild": false,
+    "ExcludeLibraryFilter": [],
+    "IgnoreLibraryOnLoad": [],
+    "DoNotCopyLibrariesRecursively": false,
+    "HandleRuntimes": false,
+    "UseAssemblyLoadContext": false,
+    "DevelopmentBinariesMode": "Off",
+    "DevelopmentSourceBootstrapperMode": "PreserveSingleFile",
+    "AssemblyTypeAccelerators": [],
+    "AssemblyTypeAcceleratorAssemblies": [],
+    "KeepStaging": false,
+    "CsprojRequiredReasons": [],
+    "RefreshManifestOnly": false
+  },
+  "Install": {
+    "Enabled": true,
+    "UpdateManifestToResolvedVersion": true
+  },
+  "Segments": [
+    {
+      "Type": "Manifest",
+      "Configuration": {
+        "ModuleVersion": "4.0.X",
+        "CompatiblePSEditions": [
+          "Desktop",
+          "Core"
+        ],
+        "Guid": "5df72a79-cdf6-4add-b38d-bcacf26fb7bc",
+        "Author": "Przemyslaw Klys",
+        "CompanyName": "Evotec",
+        "Copyright": "(c) 2011 - 2026 Przemyslaw Klys @ Evotec. All rights reserved.",
+        "Description": "High-performance typed Windows Event Log queries, reports, exports, watchers, WEC, custom providers, diagnostics, and administration for PowerShell.",
+        "PowerShellVersion": "5.1",
+        "ProcessorArchitecture": "None",
+        "Tags": [
+          "Events",
+          "Viewer",
+          "Windows",
+          "XML",
+          "XPATH",
+          "EVTX",
+          "WEC",
+          "Reporting"
+        ],
+        "IconUri": "https://evotec.xyz/wp-content/uploads/2018/10/PSEventViewer.png",
+        "ProjectUri": "https://github.com/EvotecIT/EventViewerX",
+        "RequireLicenseAcceptance": false
+      }
+    },
+    {
+      "Type": "Formatting",
+      "Options": {
+        "Merge": {
+          "FormatCodePSM1": {
+            "Enabled": true,
+            "Sort": "None",
+            "RemoveComments": false,
+            "RemoveEmptyLines": false,
+            "RemoveAllEmptyLines": false,
+            "RemoveCommentsInParamBlock": false,
+            "RemoveCommentsBeforeParamBlock": false,
+            "FormatterSettings": {
+              "IncludeRules": [
+                "PSPlaceOpenBrace",
+                "PSPlaceCloseBrace",
+                "PSUseConsistentIndentation",
+                "PSUseConsistentWhitespace",
+                "PSAlignAssignmentStatement",
+                "PSUseCorrectCasing"
+              ],
+              "Rules": {
+                "PSPlaceOpenBrace": {
+                  "OnSameLine": true,
+                  "NewLineAfter": true,
+                  "IgnoreOneLineBlock": false,
+                  "Enable": true
+                },
+                "PSPlaceCloseBrace": {
+                  "NewLineAfter": false,
+                  "IgnoreOneLineBlock": false,
+                  "NoEmptyLineBefore": true,
+                  "Enable": true
+                },
+                "PSUseConsistentIndentation": {
+                  "Kind": "space",
+                  "PipelineIndentation": "IncreaseIndentationAfterEveryPipeline",
+                  "IndentationSize": 4,
+                  "Enable": true
+                },
+                "PSUseConsistentWhitespace": {
+                  "CheckInnerBrace": true,
+                  "CheckOpenBrace": true,
+                  "CheckOpenParen": true,
+                  "CheckOperator": true,
+                  "CheckPipe": true,
+                  "CheckSeparator": true,
+                  "Enable": true
+                },
+                "PSAlignAssignmentStatement": {
+                  "CheckHashtable": true,
+                  "Enable": true
+                },
+                "PSUseCorrectCasing": {
+                  "Enable": true
+                }
+              }
+            }
+          },
+          "FormatCodePSD1": {
+            "Enabled": true,
+            "Sort": "None",
+            "RemoveComments": false,
+            "RemoveEmptyLines": false,
+            "RemoveAllEmptyLines": false,
+            "RemoveCommentsInParamBlock": false,
+            "RemoveCommentsBeforeParamBlock": false,
+            "FormatterSettings": {
+              "IncludeRules": [
+                "PSPlaceOpenBrace",
+                "PSPlaceCloseBrace",
+                "PSUseConsistentIndentation",
+                "PSUseConsistentWhitespace",
+                "PSAlignAssignmentStatement",
+                "PSUseCorrectCasing"
+              ],
+              "Rules": {
+                "PSPlaceOpenBrace": {
+                  "OnSameLine": true,
+                  "NewLineAfter": true,
+                  "IgnoreOneLineBlock": false,
+                  "Enable": true
+                },
+                "PSPlaceCloseBrace": {
+                  "NewLineAfter": false,
+                  "IgnoreOneLineBlock": false,
+                  "NoEmptyLineBefore": true,
+                  "Enable": true
+                },
+                "PSUseConsistentIndentation": {
+                  "Kind": "space",
+                  "PipelineIndentation": "IncreaseIndentationAfterEveryPipeline",
+                  "IndentationSize": 4,
+                  "Enable": true
+                },
+                "PSUseConsistentWhitespace": {
+                  "CheckInnerBrace": true,
+                  "CheckOpenBrace": true,
+                  "CheckOpenParen": true,
+                  "CheckOperator": true,
+                  "CheckPipe": true,
+                  "CheckSeparator": true,
+                  "Enable": true
+                },
+                "PSAlignAssignmentStatement": {
+                  "CheckHashtable": true,
+                  "Enable": true
+                },
+                "PSUseCorrectCasing": {
+                  "Enable": true
+                }
+              }
+            }
+          }
+        },
+        "Standard": {},
+        "UpdateProjectRoot": false
+      }
+    },
+    {
+      "Type": "Formatting",
+      "Options": {
+        "Merge": {},
+        "Standard": {
+          "FormatCodePSM1": {
+            "Enabled": true,
+            "Sort": "None",
+            "RemoveComments": false,
+            "RemoveEmptyLines": false,
+            "RemoveAllEmptyLines": false,
+            "RemoveCommentsInParamBlock": false,
+            "RemoveCommentsBeforeParamBlock": false
+          },
+          "FormatCodePSD1": {
+            "Enabled": true,
+            "Sort": "None",
+            "RemoveComments": false,
+            "RemoveEmptyLines": false,
+            "RemoveAllEmptyLines": false,
+            "RemoveCommentsInParamBlock": false,
+            "RemoveCommentsBeforeParamBlock": false
+          }
+        },
+        "UpdateProjectRoot": false
+      }
+    },
+    {
+      "Type": "Formatting",
+      "Options": {
+        "Merge": {
+          "Style": {
+            "PSD1": "Minimal"
+          }
+        },
+        "Standard": {
+          "Style": {
+            "PSD1": "Minimal"
+          }
+        },
+        "UpdateProjectRoot": false
+      }
+    },
+    {
+      "Type": "Documentation",
+      "Configuration": {
+        "Path": "Docs",
+        "PathReadme": "Docs/Readme.md"
+      }
+    },
+    {
+      "Type": "BuildDocumentation",
+      "Configuration": {
+        "Enable": true,
+        "SyncExternalHelpToProjectRoot": true,
+        "IncludeAboutTopics": true,
+        "GenerateFallbackExamples": true,
+        "GenerateExternalHelp": true,
+        "ExternalHelpCulture": "en-US",
+        "ExternalHelpFileName": "",
+        "AboutTopicsSourcePath": []
+      }
+    },
+    {
+      "Type": "Build",
+      "BuildModule": {
+        "Enable": true,
+        "DeleteBefore": true,
+        "Merge": true,
+        "MergeMissing": true,
+        "SignMerged": false,
+        "ClassesDotSource": true,
+        "LibraryDotSource": true,
+        "ResolveBinaryConflicts": {
+          "ProjectName": "PSEventViewer"
+        }
+      }
+    },
+    {
+      "Type": "Options",
+      "Options": {
+        "Signing": {
+          "CertificateThumbprint": "92E95FB58EFFA6A4A75E77A33CDD6BFE6DD30F1A"
+        }
+      }
+    },
+    {
+      "Type": "BuildLibraries",
+      "BuildLibraries": {
+        "Enable": true,
+        "Configuration": "Release",
+        "Framework": [
+          "netstandard2.1",
+          "net472"
+        ],
+        "ProjectName": "PSEventViewer",
+        "IgnoreLibraryOnLoad": [
+          "HtmlForgeX.dll",
+          "HtmlForgeX.Email.dll",
+          "OfficeIMO.Core.dll",
+          "OfficeIMO.CSV.dll",
+          "OfficeIMO.Excel.dll",
+          "DocumentFormat.OpenXml.dll",
+          "DocumentFormat.OpenXml.Framework.dll",
+          "System.IO.Packaging.dll"
+        ],
+        "HandleAssemblyWithSameName": true,
+        "NETProjectPath": "Sources/PSEventViewer/PSEventViewer.csproj",
+        "SearchClass": "PSEventViewer.CmdletGetEVXEvent",
+        "NETBinaryModuleDocumentation": true,
+        "HandleRuntimes": true,
+        "UseAssemblyLoadContext": true,
+        "AssemblyTypeAcceleratorMode": "Assembly",
+        "AssemblyTypeAcceleratorAssemblies": [
+          "EventViewerX",
+          "EventViewerX.Reporting",
+          "EventViewerX.Storage",
+          "EventViewerX.Detection",
+          "EventViewerX.Evtx"
+        ]
+      }
+    },
+    {
+      "Type": "ProjectBuild",
+      "Configuration": {
+        "Name": "EventViewerX",
+        "ConfigPath": "Sources/Build/project.build.json",
+        "Enabled": true,
+        "BuildBeforeModule": true,
+        "UseAsReleaseVersionSource": true,
+        "ProvideLocalNuGetFeed": true,
+        "PublishNuget": true
+      }
+    },
+    {
+      "Type": "Release",
+      "Configuration": {
+        "StageRoot": "Artefacts/UploadReady",
+        "VersionSource": "ProjectBuild",
+        "PrimaryProject": "EventViewerX",
+        "SynchronizeModuleVersion": true,
+        "ResumeIncompleteRelease": false,
+        "BuildOrder": [
+          "Packages",
+          "Module"
+        ],
+        "PublishOrder": [
+          "NuGet",
+          "PowerShellGallery",
+          "GitHub"
+        ]
+      }
+    },
+    {
+      "ArtefactType": "Unpacked",
+      "Type": "Unpacked",
+      "Configuration": {
+        "Enabled": true,
+        "Path": "Artefacts/Unpacked",
+        "RequiredModules": {
+          "Path": "Modules",
+          "ModulesPath": "Modules",
+          "ExcludeModuleName": []
+        }
+      }
+    },
+    {
+      "ArtefactType": "Packed",
+      "Type": "Packed",
+      "Configuration": {
+        "Enabled": true,
+        "IncludeTagName": true,
+        "Path": "Artefacts/Packed",
+        "RequiredModules": {
+          "ExcludeModuleName": []
+        }
+      }
+    },
+    {
+      "Configuration": {
+        "Destination": "PowerShellGallery",
+        "Tool": "Auto",
+        "ApiKey": "",
+        "ApiKeyFilePath": "../.secrets/PowerShellGalleryAPI.txt",
+        "Enabled": true,
+        "Force": false,
+        "DoNotMarkAsPreRelease": false,
+        "GenerateReleaseNotes": false,
+        "ReuseExistingRelease": false,
+        "ReplaceExistingAssets": false,
+        "UseAsDependencyVersionSource": true,
+        "PublishRequiredModules": false,
+        "RequiredModuleSourceRepository": "PSGallery",
+        "Verbose": false
+      },
+      "Type": "GalleryNuget"
+    },
+    {
+      "Configuration": {
+        "Destination": "GitHub",
+        "Tool": "Auto",
+        "ApiKey": "",
+        "Enabled": false,
+        "UserName": "EvotecIT",
+        "RepositoryName": "EventViewerX",
+        "Force": false,
+        "OverwriteTagName": "{ModuleName}-v{ModuleVersionWithPreRelease}",
+        "DoNotMarkAsPreRelease": false,
+        "GenerateReleaseNotes": true,
+        "ReuseExistingRelease": false,
+        "ReplaceExistingAssets": false,
+        "UseAsDependencyVersionSource": false,
+        "PublishRequiredModules": false,
+        "RequiredModuleSourceRepository": "PSGallery",
+        "Verbose": false
+      },
+      "Type": "GitHubNuget"
+    },
+    {
+      "Type": "Gate",
+      "Configuration": {
+        "Mode": "Build"
+      }
+    }
+  ],
+  "Diagnostics": {
+    "GenerateBaseline": false,
+    "UpdateBaseline": false,
+    "FailOnNewDiagnostics": false,
+    "BinaryConflictSearchRoots": []
+  }
+}

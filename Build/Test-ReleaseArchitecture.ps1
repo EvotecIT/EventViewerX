@@ -1,17 +1,34 @@
 param(
-    [string] $RepositoryRoot = (Split-Path -Parent $PSScriptRoot)
+    [string] $RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
+
+    [string] $PackageRoot,
+
+    [string] $ModuleRoot,
+
+    [string] $CliManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = [System.IO.Path]::GetFullPath($RepositoryRoot)
-$packageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
-$moduleRoot = Join-Path $RepositoryRoot 'Artefacts\Unpacked\Modules\PSEventViewer'
-$cliManifestPath = Join-Path $RepositoryRoot 'Artefacts\UploadReady\Cli\release-manifest.json'
+if ([string]::IsNullOrWhiteSpace($PackageRoot)) {
+    $PackageRoot = Join-Path $RepositoryRoot 'Artefacts\ProjectBuild\packages'
+}
+$PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
+if ([string]::IsNullOrWhiteSpace($ModuleRoot)) {
+    $ModuleRoot = Join-Path $RepositoryRoot 'Artefacts\Unpacked\Modules\PSEventViewer'
+}
+$ModuleRoot = [System.IO.Path]::GetFullPath($ModuleRoot)
+if ([string]::IsNullOrWhiteSpace($CliManifestPath)) {
+    $CliManifestPath = Join-Path $RepositoryRoot `
+        'Artefacts\Cli\Artifacts\DotNetPublish\manifest.json'
+}
+$CliManifestPath = [System.IO.Path]::GetFullPath($CliManifestPath)
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $expectedPackages = @(
     'EventViewerX'
+    'EventViewerX.Cli'
     'EventViewerX.Detection'
     'EventViewerX.Evtx'
     'EventViewerX.Reporting'
@@ -27,6 +44,7 @@ foreach ($packageId in $expectedPackages) {
     }
     $archive = [System.IO.Compression.ZipFile]::OpenRead($packages[0].FullName)
     try {
+        [array] $archiveEntries = $archive.Entries | ForEach-Object { $_.FullName }
         $entry = $archive.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
         if (-not $entry) {
             throw "Package '$($packages[0].Name)' does not contain a nuspec."
@@ -47,6 +65,8 @@ foreach ($packageId in $expectedPackages) {
     $packageMetadata[$packageId] = [pscustomobject] @{
         Version = [string] $nuspec.package.metadata.version
         Dependencies = $dependencies
+        PackageTypes = @($nuspec.package.metadata.packageTypes.packageType | ForEach-Object { [string] $_.name })
+        Files = $archiveEntries
     }
 }
 
@@ -77,15 +97,33 @@ function Assert-PackageBoundary {
 }
 
 Assert-PackageBoundary -PackageId 'EventViewerX' -Required @() `
-    -Forbidden @('EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')
+    -Forbidden @('EventViewerX.Cli', 'EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')
+Assert-PackageBoundary -PackageId 'EventViewerX.Cli' `
+    -Required @() `
+    -Forbidden @('EventViewerX', 'EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')
 Assert-PackageBoundary -PackageId 'EventViewerX.Detection' -Required @('EventViewerX') `
-    -Forbidden @('EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')
+    -Forbidden @('EventViewerX.Cli', 'EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')
 Assert-PackageBoundary -PackageId 'EventViewerX.Evtx' -Required @('EventViewerX') `
-    -Forbidden @('EventViewerX.Detection', 'EventViewerX.Reporting', 'EventViewerX.Storage')
+    -Forbidden @('EventViewerX.Cli', 'EventViewerX.Detection', 'EventViewerX.Reporting', 'EventViewerX.Storage')
 Assert-PackageBoundary -PackageId 'EventViewerX.Reporting' -Required @('EventViewerX') `
-    -Forbidden @('EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Storage')
+    -Forbidden @('EventViewerX.Cli', 'EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Storage')
 Assert-PackageBoundary -PackageId 'EventViewerX.Storage' -Required @('EventViewerX') `
-    -Forbidden @('EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting')
+    -Forbidden @('EventViewerX.Cli', 'EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting')
+if ('DotnetTool' -notin $packageMetadata['EventViewerX.Cli'].PackageTypes) {
+    throw 'EventViewerX.Cli must be packed as a .NET tool.'
+}
+$expectedCliAssemblies = @(
+    'EventViewerX.dll'
+    'EventViewerX.Detection.dll'
+    'EventViewerX.Evtx.dll'
+    'EventViewerX.Reporting.dll'
+    'EventViewerX.Storage.dll'
+)
+foreach ($assemblyName in $expectedCliAssemblies) {
+    if ("tools/net10.0/any/$assemblyName" -notin $packageMetadata['EventViewerX.Cli'].Files) {
+        throw "EventViewerX.Cli does not contain the canonical $assemblyName assembly."
+    }
+}
 
 $manifest = Import-PowerShellDataFile -LiteralPath (Join-Path $moduleRoot 'PSEventViewer.psd1')
 if ([version] $manifest.ModuleVersion -ne [version] $version) {
@@ -105,13 +143,27 @@ foreach ($assembly in $moduleAssemblies) {
     }
 }
 
-$cliManifest = Get-Content -LiteralPath $cliManifestPath -Raw | ConvertFrom-Json
-[array] $cliEntries = $cliManifest.assetEntries | Where-Object { $_.category -eq 'Tool' }
+$cliManifest = Get-Content -LiteralPath $CliManifestPath -Raw | ConvertFrom-Json
+$isUnifiedReleaseManifest = $null -ne $cliManifest.PSObject.Properties['assetEntries']
+if ($isUnifiedReleaseManifest) {
+    [array] $cliEntries = $cliManifest.assetEntries | Where-Object { $_.category -eq 'Tool' }
+} else {
+    [array] $cliEntries = $cliManifest | Where-Object {
+        $_.category -eq 'Publish' -and
+        $_.target -eq 'EventViewerX.Cli' -and
+        -not [string]::IsNullOrWhiteSpace([string] $_.zipPath)
+    }
+}
 if ($cliEntries.Count -ne 12) {
     throw "Expected 12 CLI runtime/style assets, found $($cliEntries.Count)."
 }
-if (@($cliEntries | Where-Object { $_.Version -ne $version }).Count -ne 0) {
+if ($isUnifiedReleaseManifest -and
+    @($cliEntries | Where-Object { $_.Version -ne $version }).Count -ne 0) {
     throw "One or more CLI assets do not match release version $version."
+}
+if (-not $isUnifiedReleaseManifest -and
+    @($cliEntries | Where-Object { $_.sourceDirty -ne $false }).Count -ne 0) {
+    throw 'One or more CLI assets do not have clean source provenance.'
 }
 
 [pscustomobject] @{

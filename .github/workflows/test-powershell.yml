@@ -34,6 +34,10 @@ jobs:
           Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
         shell: pwsh
 
+      - name: Test release guards
+        run: .\Build\Test-ReleaseGuards.ps1
+        shell: pwsh
+
       - name: Refresh module manifest
         run: |
           .\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
