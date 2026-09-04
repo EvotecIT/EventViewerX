@@ -19,12 +19,33 @@
 
 # PSWinReporting - Legacy Edition
 
+PSWinReporting is frozen for existing deployments. Version 1.8.1.7 is the final
+compatibility release from the
+[`PSWinReporting`](https://github.com/EvotecIT/EventViewerX/tree/PSWinReporting)
+branch. New event-query, reporting, and automation development belongs to
+[`EventViewerX`](https://github.com/EvotecIT/EventViewerX); PowerShell users
+consume that maintained engine through the `PSEventViewer` module.
+
 This `PowerShell Module`, which started as an event library `(Get-EventsLibrary.ps1)`, has now grown up and became full fledged PowerShell Module. This module has multiple functionalities but one of the signature features of this module is ability to parse Security (mostly) logs on `Domain Controllers`. But that's not all. You can set up reporting on it and have emails delivered with summary of **hourly**, **daily**, **weekly**, **monthly** or **quarterly** changes. Changes that happen on your **Active Directory** Domain. Changes that your Service Desk agents, or other administrators do. And with new versions… well you can do a lot of stuff. Just read below. Make sure to go thru related articles as they have all the KNOW HOW which is quite useful if you want to get everything from this module. Module is published on [Powershell Gallery](https://www.powershellgallery.com/packages/PSWinReporting/).
 
-This ***legacy edition*** will continue it's life as ***1.7.X***. If you want to keep on using it, feel free, but it's highely encouraged to use ***2.x.x*** when it's fully functional with all features.
+Existing installations can remain on PSWinReporting when migration is not yet
+practical. Treat this branch as a compatibility surface rather than a second
+place for feature development.
+
+## Maintainer release
+
+`Build\Manage-Module.ps1 -RunMode Build` creates unpacked and packed artifacts
+without publishing. The `Publish` gate publishes the module to PowerShell
+Gallery and creates its namespaced GitHub release. It reads credentials from
+`PSGALLERY_API_KEY` and `GITHUB_TOKEN`; signing remains controlled by
+`-SignModule`.
 
 ## ChangeLog
 
+- 1.8.1.7 - Final compatibility release
+  - Keeps the compatible event-query implementation inside the frozen module.
+  - Locks gallery dependencies to the versions used by this release line.
+  - Uses the shared PSPublishModule build and publication pipeline.
 - 1.8.1.6 - 25.09.2021
   - Now checks for LogFile path existance before continuing.
   - Now handles errors when dealing with event log size

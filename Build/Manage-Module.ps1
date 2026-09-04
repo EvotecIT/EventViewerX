@@ -5,9 +5,9 @@ param(
 
     [bool] $SignModule = $false,
 
-    [string] $PowerShellGalleryApiKeyPath = 'C:\Support\Important\PowerShellGalleryAPI.txt',
+    [string] $PowerShellGalleryApiKey = $env:PSGALLERY_API_KEY,
 
-    [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
+    [string] $GitHubApiKey = $env:GITHUB_TOKEN
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,6 +51,8 @@ Build-Module -ModuleName 'PSWinReporting' {
         'ScheduledTasks'
         'PSWriteExcel'
         'TeamsX'
+        # the frozen event-query engine is part of this module
+        'PSEventViewer'
         # this is optional, and checked for existance in the source codes directly
         'PSTeams'
         'PSSlack'
@@ -78,6 +80,7 @@ Build-Module -ModuleName 'PSWinReporting' {
         'New-SlackMessageAttachment'
         'New-TeamsFact'
         'New-TeamsSection'
+        'Send-TeamsMessage'
         'Send-SlackMessage'
         # dbatools
         'Invoke-DbaQuery'
@@ -131,8 +134,8 @@ Build-Module -ModuleName 'PSWinReporting' {
     New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked" -AddRequiredModules -RequiredModulesSource Download -RequiredModulesRepository 'PSGallery'
     New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -ArtefactName '<ModuleName>.v<ModuleVersion>.zip'
 
-    New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
-    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
+    New-ConfigurationPublish -Type PowerShellGallery -ApiKey $PowerShellGalleryApiKey -Enabled:$false
+    New-ConfigurationPublish -Type GitHub -ApiKey $GitHubApiKey -UserName 'EvotecIT' -RepositoryName 'EventViewerX' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName '{ModuleName}-v{ModuleVersionWithPreRelease}'
 
     New-ConfigurationGate -Mode $RunMode
 }
