@@ -71,7 +71,7 @@ param(
     [ValidateRange(1, [int]::MaxValue)]
     [int] $IterationCount = 1,
 
-    [ValidateSet('None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput', 'EvtxNative')]
+    [ValidateSet('None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput')]
     [string] $ReadmeTable = 'None',
 
     [switch] $Plan
@@ -134,17 +134,6 @@ if ($ReadmeTable -notin 'None', 'ColdStart', 'Reporting') {
             'Large-Native-Output-Xml'
         )
         $Engine = 'EventViewerXExport', 'EvtxECmd'
-    } elseif ($ReadmeTable -eq 'EvtxNative') {
-        if (-not $EvtxECmdPath -or -not $EvtxMapsPath) {
-            throw 'ReadmeTable EvtxNative requires EvtxECmdPath and EvtxMapsPath.'
-        }
-        $Case = @(
-            'Large-Evtx-NativeParse'
-            'Large-Evtx-ForensicCsv'
-            'Large-Evtx-FullJson'
-            'Large-Evtx-Xml'
-        )
-        $Engine = 'EvtxECmd'
     }
 }
 if ($ReadmeTable -eq 'Reporting') {
@@ -315,13 +304,6 @@ if (-not $Plan) {
         Update-BenchmarkDocument `
             -Path $readmePath `
             -BlockId 'event-log-native-output-benchmark' `
-            -ComparisonPath $benchmarkResult.Artifacts['comparison.json'] `
-            -Renderer ComparisonTable `
-            -Confirm:$false | Out-Null
-    } elseif ($ReadmeTable -eq 'EvtxNative') {
-        Update-BenchmarkDocument `
-            -Path $readmePath `
-            -BlockId 'event-log-evtx-native-benchmark' `
             -ComparisonPath $benchmarkResult.Artifacts['comparison.json'] `
             -Renderer ComparisonTable `
             -Confirm:$false | Out-Null

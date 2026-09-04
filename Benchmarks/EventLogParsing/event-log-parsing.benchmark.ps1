@@ -23,8 +23,8 @@ $benchmarkWrapper = Join-Path $PSScriptRoot 'Invoke-EventLogParsingBenchmark.ps1
 $benchmarkSpec = Join-Path $PSScriptRoot 'event-log-parsing.benchmark.ps1'
 $pwshPath = [string] (Get-Command pwsh -ErrorAction Stop).Source
 $dotnetPath = [string] (Get-Command dotnet -ErrorAction Stop).Source
-if ($readmeTable -notin 'None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput', 'EvtxNative') {
-    throw "ReadmeTable must be None, Common, Scale, ColdStart, Reporting, ExactOutput, NativeOutput, or EvtxNative. Received '$readmeTable'."
+if ($readmeTable -notin 'None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput') {
+    throw "ReadmeTable must be None, Common, Scale, ColdStart, Reporting, ExactOutput, or NativeOutput. Received '$readmeTable'."
 }
 [long[]] $scaleSampleCounts = @($scaleSampleCountsText.Split(',') |
         ForEach-Object {
@@ -1157,9 +1157,6 @@ New-BenchmarkSuite 'event-log-parsing' -OutputRoot (Join-Path $repositoryRoot 'I
     } elseif ($readmeTable -eq 'NativeOutput') {
         Add-BenchmarkComparison Engine -Baseline EventViewerXExport -Metric MedianMs -TieTolerance 0.03
         Add-BenchmarkComparison Engine -Baseline EventViewerXExport -Metric OutputBytes
-    } elseif ($readmeTable -eq 'EvtxNative') {
-        Add-BenchmarkComparison Engine -Baseline EvtxECmd -Metric MedianMs -TieTolerance 0.03
-        Add-BenchmarkComparison Engine -Baseline EvtxECmd -Metric OutputBytes
     }
     Set-BenchmarkArtifacts Json, Csv, Markdown
 }

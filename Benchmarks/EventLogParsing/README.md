@@ -9,17 +9,20 @@ The committed smoke fixture contains 184 events. Large fixtures remain external 
 
 ## Comparison contract
 
-The suite keeps four kinds of evidence separate:
+The suite keeps three kinds of published evidence separate:
 
 | Class | What is held equal | What the result means |
 | --- | --- | --- |
 | Apples to apples: exact output | Same EVTX, event order, schema, encoding, row/event count, byte count, and SHA-256 | A direct end-to-end comparison. The engines must create the same metadata CSV or raw XML document byte for byte. |
 | Apples to apples: common user job | Same EVTX, direction, maximum event count, read-mode category, streaming consumer, and event order and identity checks | A comparison of the natural public APIs for the same user job. PSEventViewer may return additional parsed fields, and those extra counters are reported. |
 | Apples to oranges: complete native output | Same EVTX, validated event count, and broadly similar output purpose, but EventViewerX and EvtxECmd use different schemas and output volumes | Useful operational evidence, but not an interchangeable-output or unqualified speed claim. |
-| EvtxECmd-native workflow | EvtxECmd's own parse and export modes, measured without pretending another engine performs the same work | A reproducible description of the external tool's native workflows. |
 
 Do not combine rows from different classes into a single “faster than” claim. In particular, comparing a five-column
 metadata CSV with EvtxECmd's forensic CSV compares different work and different output volumes.
+
+EvtxECmd is a competing tool, but its tool-only parse and export cases are diagnostics rather than EventViewerX
+performance evidence. They remain runnable so maintainers can understand the external side of a different-schema
+comparison, but the documentation does not publish a one-engine table as though it were a product comparison.
 
 ## Engines
 
@@ -108,7 +111,7 @@ developing, but the wrapper refuses to publish it into the README.
 
 The main README keeps the current measurements that help users choose a query, startup, or reporting path. This
 section retains lower-level evidence used to change the engine and exporters: common public work, byte-identical
-exports, different-schema native exports, and standalone characterization of the external benchmark tool.
+exports, and different-schema native exports.
 
 These tables use a 231,804,928-byte Security EVTX containing 190,645 readable events
 (`FF2F428E0D7DD59EEEA3A5D87477AFFECD87C6541DF417261F21E4B144E7D6AD`) on the same 32-logical-processor Windows host,
@@ -161,24 +164,6 @@ messages, typed properties, named data, render status, raw XML, and attachments.
 | Large-Native-Output-Xml | Core-7.6.4 | Scan | MedianMs | 1.00x (2.85s) | 11.15x (31.78s) | Fastest: EventViewerXExport |
 | Large-Native-Output-Xml | Core-7.6.4 | Scan | OutputBytes | 1.00x (293062655) | 1.12x (329124038) | Reference: EventViewerXExport |
 <!-- event-log-native-output-benchmark:end -->
-
-### EvtxECmd-native workflows
-
-These rows measure only EvtxECmd. They do not imply that another lane failed. A zero-byte parse row means the tool
-parsed and validated the log without writing an export file.
-
-<!-- event-log-evtx-native-benchmark:start -->
-| Scenario | Host | Operation | Metric | EvtxECmd |
-| --- | --- | --- | --- | ---: |
-| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | MedianMs | 26.09s |
-| Large-Evtx-ForensicCsv | Core-7.6.4 | Scan | OutputBytes | 318630958 |
-| Large-Evtx-FullJson | Core-7.6.4 | Scan | MedianMs | 36.26s |
-| Large-Evtx-FullJson | Core-7.6.4 | Scan | OutputBytes | 292846026 |
-| Large-Evtx-NativeParse | Core-7.6.4 | Scan | MedianMs | 17.53s |
-| Large-Evtx-NativeParse | Core-7.6.4 | Scan | OutputBytes | 0 |
-| Large-Evtx-Xml | Core-7.6.4 | Scan | MedianMs | 31.96s |
-| Large-Evtx-Xml | Core-7.6.4 | Scan | OutputBytes | 329124038 |
-<!-- event-log-evtx-native-benchmark:end -->
 
 The scale matrix runs 1,000, 10,000, 100,000, and 1,000,000 event windows when the supplied fixture contains enough
 records. The cold-start matrix measures a fresh `evx.exe`, a fresh PowerShell process importing PSEventViewer, and a
@@ -274,7 +259,7 @@ Generate the different-schema EventViewerX/EvtxECmd export table:
     -ReadmeTable NativeOutput
 ```
 
-Generate the separate EvtxECmd-native workflow table:
+Run the EvtxECmd-native workflows as diagnostic measurements without publishing a comparison table:
 
 ```powershell
 .\Benchmarks\EventLogParsing\Invoke-EventLogParsingBenchmark.ps1 `
@@ -283,7 +268,8 @@ Generate the separate EvtxECmd-native workflow table:
     -EvtxECmdPath C:\Tools\EvtxECmd.exe `
     -EvtxMapsPath C:\Tools\Maps `
     -IterationCount 3 `
-    -ReadmeTable EvtxNative
+    -Case Large-Evtx-NativeParse, Large-Evtx-ForensicCsv, Large-Evtx-FullJson, Large-Evtx-Xml `
+    -Engine EvtxECmd
 ```
 
 `-ReadmeTable` owns its curated case and engine matrix so a partial run cannot silently replace a public table. The

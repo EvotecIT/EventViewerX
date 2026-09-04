@@ -1112,9 +1112,9 @@ you need.
 <!-- event-log-reporting-benchmark:end -->
 
 The benchmark guide keeps the byte-identical export results, different-schema
-native export measurements, external-tool characterization, commands, and full
-provenance. Those details are useful when changing the engine or exporter, but
-they are not presented here as general EventViewerX performance claims. The
+native export comparisons, commands, and full provenance. Those details are
+useful when changing the engine or exporter, but they are not presented here
+as general EventViewerX performance claims. The
 independent [local history suite](Benchmarks/EventStore/README.md) covers
 transactional ingestion, indexed queries, summaries, and typed CSV generation.
 
