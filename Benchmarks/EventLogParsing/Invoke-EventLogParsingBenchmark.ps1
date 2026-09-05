@@ -71,7 +71,7 @@ param(
     [ValidateRange(1, [int]::MaxValue)]
     [int] $IterationCount = 1,
 
-    [ValidateSet('None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput', 'EvtxNative')]
+    [ValidateSet('None', 'Common', 'Scale', 'ColdStart', 'Reporting', 'ExactOutput', 'NativeOutput')]
     [string] $ReadmeTable = 'None',
 
     [switch] $Plan
@@ -82,7 +82,7 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).
 $hostProject = Join-Path $PSScriptRoot 'EventLogParsing.BenchmarkHost\EventLogParsing.BenchmarkHost.csproj'
 $specPath = Join-Path $PSScriptRoot 'event-log-parsing.benchmark.ps1'
 
-Import-Module PSPublishModule -MinimumVersion 3.0.76 -ErrorAction Stop
+Import-Module PSPublishModule -MinimumVersion 3.0.134 -ErrorAction Stop
 
 if ([bool] $EvtxECmdPath -ne [bool] $EvtxMapsPath) {
     throw 'EvtxECmdPath and EvtxMapsPath must be supplied together.'
@@ -134,17 +134,6 @@ if ($ReadmeTable -notin 'None', 'ColdStart', 'Reporting') {
             'Large-Native-Output-Xml'
         )
         $Engine = 'EventViewerXExport', 'EvtxECmd'
-    } elseif ($ReadmeTable -eq 'EvtxNative') {
-        if (-not $EvtxECmdPath -or -not $EvtxMapsPath) {
-            throw 'ReadmeTable EvtxNative requires EvtxECmdPath and EvtxMapsPath.'
-        }
-        $Case = @(
-            'Large-Evtx-NativeParse'
-            'Large-Evtx-ForensicCsv'
-            'Large-Evtx-FullJson'
-            'Large-Evtx-Xml'
-        )
-        $Engine = 'EvtxECmd'
     }
 }
 if ($ReadmeTable -eq 'Reporting') {
@@ -272,7 +261,10 @@ if (-not $Plan) {
         throw "The benchmark completed with $($failedSamples.Count) failed sample(s):`n$($failureSummary -join "`n")"
     }
 
-    $readmePath = Join-Path $repositoryRoot 'README.md'
+    $readmePath = Join-Path $PSScriptRoot 'README.md'
+    if ($ReadmeTable -in 'Scale', 'ColdStart', 'Reporting') {
+        $readmePath = Join-Path $repositoryRoot 'README.md'
+    }
     if ($ReadmeTable -eq 'Common') {
         Update-BenchmarkDocument `
             -Path $readmePath `
@@ -312,13 +304,6 @@ if (-not $Plan) {
         Update-BenchmarkDocument `
             -Path $readmePath `
             -BlockId 'event-log-native-output-benchmark' `
-            -ComparisonPath $benchmarkResult.Artifacts['comparison.json'] `
-            -Renderer ComparisonTable `
-            -Confirm:$false | Out-Null
-    } elseif ($ReadmeTable -eq 'EvtxNative') {
-        Update-BenchmarkDocument `
-            -Path $readmePath `
-            -BlockId 'event-log-evtx-native-benchmark' `
             -ComparisonPath $benchmarkResult.Artifacts['comparison.json'] `
             -Renderer ComparisonTable `
             -Confirm:$false | Out-Null
