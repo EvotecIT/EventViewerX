@@ -95,8 +95,7 @@
     "AfterStaging": [
       {
         "Name": "Validate EventViewerX release artifacts",
-        "FilePath": "Test-ReleaseReady.ps1",
-        "WorkingDirectory": "..",
+        "ConfigPath": "release-validation.json",
         "TimeoutSeconds": 1800
       }
     ]

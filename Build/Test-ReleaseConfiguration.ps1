@@ -71,7 +71,7 @@ if (($fullModuleAssets -join "`n") -cne ($moduleOnlyAssets -join "`n")) {
 }
 [array] $moduleReleaseValidations = @($moduleRelease.Validation.AfterStaging)
 if ($moduleReleaseValidations.Count -ne 1 -or
-    [string] $moduleReleaseValidations[0].FilePath -ne 'Test-ModuleReleaseReady.ps1') {
+    [string] $moduleReleaseValidations[0].ConfigPath -ne 'release-validation.json') {
     throw 'The module release must validate its exact staged package and module artifacts.'
 }
 

@@ -1,0 +1,116 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/Schemas/powerforge.release-validation.schema.json",
+  "SchemaVersion": 1,
+  "ProjectRoot": "..",
+  "Packages": {
+    "Path": "{PackageRoot}",
+    "ExactSet": true,
+    "SameVersion": true,
+    "RequireAuthorSignature": true,
+    "AuthorCertificateFingerprints": [
+      "D13C03BFEEC0CBF7FD0E0E7FFAF3F3D2076E62B1AF64665E806917B9191CFFDE"
+    ],
+    "Items": [
+      {
+        "Id": "EventViewerX",
+        "RequiredEntries": [
+          "lib/**/EventViewerX.dll"
+        ],
+        "ForbiddenDependencies": [
+          "EventViewerX.Detection",
+          "EventViewerX.Evtx",
+          "EventViewerX.Reporting",
+          "EventViewerX.Storage",
+          "EventViewerX.Cli"
+        ]
+      },
+      {
+        "Id": "EventViewerX.Detection",
+        "RequiredEntries": [
+          "lib/**/EventViewerX.Detection.dll"
+        ],
+        "RequiredDependencies": [
+          "EventViewerX"
+        ],
+        "ForbiddenDependencies": [
+          "EventViewerX.Evtx",
+          "EventViewerX.Reporting",
+          "EventViewerX.Storage",
+          "EventViewerX.Cli"
+        ]
+      },
+      {
+        "Id": "EventViewerX.Evtx",
+        "RequiredEntries": [
+          "lib/**/EventViewerX.Evtx.dll"
+        ],
+        "RequiredDependencies": [
+          "EventViewerX"
+        ],
+        "ForbiddenDependencies": [
+          "EventViewerX.Detection",
+          "EventViewerX.Reporting",
+          "EventViewerX.Storage",
+          "EventViewerX.Cli"
+        ]
+      },
+      {
+        "Id": "EventViewerX.Reporting",
+        "RequiredEntries": [
+          "lib/**/EventViewerX.Reporting.dll"
+        ],
+        "RequiredDependencies": [
+          "EventViewerX"
+        ],
+        "ForbiddenDependencies": [
+          "EventViewerX.Detection",
+          "EventViewerX.Evtx",
+          "EventViewerX.Storage",
+          "EventViewerX.Cli"
+        ]
+      },
+      {
+        "Id": "EventViewerX.Storage",
+        "RequiredEntries": [
+          "lib/**/EventViewerX.Storage.dll"
+        ],
+        "RequiredDependencies": [
+          "EventViewerX"
+        ],
+        "ForbiddenDependencies": [
+          "EventViewerX.Detection",
+          "EventViewerX.Evtx",
+          "EventViewerX.Reporting",
+          "EventViewerX.Cli"
+        ]
+      }
+    ]
+  },
+  "Modules": [
+    {
+      "Path": "{ModuleArchive}",
+      "ArchiveRoot": "PSEventViewer",
+      "Manifest": "PSEventViewer.psd1",
+      "ProcessorArchitecture": "None",
+      "RequiredFiles": [
+        "PSEventViewer.psm1",
+        "Lib/Standard/runtimes/win-x64/native/e_sqlite3.dll",
+        "Lib/Standard/runtimes/win-x86/native/e_sqlite3.dll",
+        "Lib/Standard/runtimes/win-arm64/native/e_sqlite3.dll"
+      ],
+      "VersionedAssemblies": [
+        "Lib/Standard/EventViewerX*.dll"
+      ],
+      "ProbeScript": "Build/Test-ModuleRuntime.ps1",
+      "Hosts": [
+        "pwsh",
+        "powershell"
+      ]
+    }
+  ],
+  "CliArtifacts": {
+    "ManifestPath": "{ReleaseManifestPath}",
+    "PublishConfigPath": "Build/release.json",
+    "Target": "EventViewerX.Cli"
+  }
+}

@@ -34,8 +34,7 @@
     "AfterStaging": [
       {
         "Name": "Validate EventViewerX NuGet and PSEventViewer release artifacts",
-        "FilePath": "Test-ModuleReleaseReady.ps1",
-        "WorkingDirectory": "..",
+        "ConfigPath": "release-validation.json",
         "TimeoutSeconds": 1800
       }
     ]
