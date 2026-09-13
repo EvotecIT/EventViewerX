@@ -1144,23 +1144,24 @@ to PSPublishModule/PowerForge. EventViewerX and PSEventViewer use one version
 source and are validated as packed artifacts. The package/module release is
 independent from the standalone CLI archives.
 
+Install or update PSPublishModule to the latest version before running the release wrappers.
+
 ```powershell
 # Inspect the EventViewerX NuGet and PSEventViewer release without producing assets.
-.\Build\Build-All.ps1 -RunMode Plan -SkipCli -Version 4.0.0 -SignModule:$false
+.\Build\Build-Module.ps1 -RunMode Plan
 
 # Produce and validate those packages without publishing standalone CLI archives.
-.\Build\Build-All.ps1 -RunMode Build -SkipCli -Version 4.0.0 -SignModule:$false
+.\Build\Build-Module.ps1 -RunMode Build
 
-# Publish EventViewerX library packages to NuGet and PSEventViewer to PowerShell Gallery.
-$commit = git rev-parse HEAD
-.\Build\Build-Module.ps1 -RunMode Publish -ModuleVersion 4.0.0 `
-    -ExpectedCommit $commit -PublishConfirmation "publish:4.0.0:$commit"
+# Resolve the configured 4.0.X version, publish the EventViewerX libraries to
+# NuGet, and publish PSEventViewer to PowerShell Gallery.
+.\Build\Build-Module.ps1 -RunMode Publish
 
 # Build the standalone CLI archives locally. This command does not upload them.
 .\Build\Build-Cli.ps1 -RunMode Build
 
 # Plan the complete package, module, CLI, and unified GitHub release.
-.\Build\Build-All.ps1 -RunMode Plan -Version 4.0.0 -SignModule:$false
+.\Build\Build-All.ps1 -RunMode Plan
 ```
 
 Browse [the event query benchmark contract](Benchmarks/EventLogParsing/README.md),

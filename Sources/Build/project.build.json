@@ -28,7 +28,7 @@
   "CertificateStore": "CurrentUser",
   "TimeStampServer": "http://timestamp.digicert.com",
   "PublishSource": "https://api.nuget.org/v3/index.json",
-  "PublishApiKeyFilePath": null,
+  "PublishApiKeyFilePath": "../../.secrets/NugetOrgEvotec.txt",
   "PublishApiKeyEnvName": "NUGET_API_KEY",
   "SkipDuplicate": true,
   "PublishFailFast": true,

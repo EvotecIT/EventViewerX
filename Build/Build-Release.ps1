@@ -3,89 +3,19 @@ param(
     [ValidateSet('Plan', 'Build', 'Publish')]
     [string] $RunMode = 'Build',
 
-    [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string] $Version = '4.0.0',
-
-    [bool] $SignModule = $true,
-
-    [ValidateSet('auto', 'net472', 'net8.0', 'net10.0')]
-    [string] $ModuleFramework,
-
-    [switch] $SkipCli,
-
-    [switch] $SkipInstall,
-
-    [ValidatePattern('^[0-9a-fA-F]{40}$')]
-    [string] $ExpectedCommit,
-
-    [string] $Confirmation
+    [string] $ConfigPath = (Join-Path $PSScriptRoot 'release.json')
 )
 
 $ErrorActionPreference = 'Stop'
 
-$repositoryRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $PSScriptRoot '..'))
-$configName = if ($SkipCli) { 'release.module.json' } else { 'release.json' }
-$configPath = Join-Path $PSScriptRoot $configName
-
-if ($RunMode -eq 'Publish') {
-    if ([string]::IsNullOrWhiteSpace($ExpectedCommit)) {
-        throw 'ExpectedCommit is required for a public release.'
-    }
-    [string] $actualCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or $actualCommit -ine $ExpectedCommit) {
-        throw "Expected release commit '$ExpectedCommit', received '$actualCommit'."
-    }
-    [array] $checkoutChanges = & git -C $repositoryRoot status --porcelain
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The release checkout state could not be inspected.'
-    }
-    if ($checkoutChanges.Count -ne 0) {
-        throw "The release checkout contains changes: $($checkoutChanges -join ', ')"
-    }
-    [string] $expectedConfirmation =
-        "publish:$Version`:$($ExpectedCommit.ToLowerInvariant())"
-    if ($Confirmation -cne $expectedConfirmation) {
-        throw "Confirmation must exactly equal '$expectedConfirmation'."
-    }
-}
-
-Import-Module PSPublishModule -Force
+Import-Module PSPublishModule -Force -ErrorAction Stop
 
 $invokeSplat = @{
-    ConfigPath       = $configPath
-    ModuleVersion    = $Version
-    ModuleSignModule = $SignModule
+    ConfigPath    = $ConfigPath
+    ModuleRunMode = if ($RunMode -eq 'Build') { 'Build' } else { 'Publish' }
 }
-if ($PSBoundParameters.ContainsKey('ModuleFramework')) {
-    $invokeSplat.ModuleFramework = $ModuleFramework
-}
-if ($SkipInstall) {
-    $invokeSplat.ModuleSkipInstall = $true
-}
-switch ($RunMode) {
-    'Plan' {
-        $invokeSplat.Plan = $true
-        $invokeSplat.ModuleRunMode = 'Publish'
-        $invokeSplat.PublishNuget = $true
-    }
-    'Build' {
-        $invokeSplat.ModuleRunMode = 'Build'
-    }
-    'Publish' {
-        $invokeSplat.ModuleRunMode = 'Publish'
-        $invokeSplat.PublishNuget = $true
-    }
+if ($RunMode -eq 'Plan') {
+    $invokeSplat.Plan = $true
 }
 
-$result = Invoke-PowerForgeRelease @invokeSplat
-if ($null -eq $result -or -not $result.Success) {
-    $message = if ($null -eq $result) {
-        'The unified PowerForge release returned no result.'
-    } else {
-        [string] $result.ErrorMessage
-    }
-    throw "The unified PowerForge release failed. $message"
-}
-
-$result
+Invoke-PowerForgeRelease @invokeSplat

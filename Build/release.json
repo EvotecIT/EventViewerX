@@ -6,7 +6,6 @@
     "ModuleName": "PSEventViewer",
     "ConfigPath": "Build/module.json",
     "IncludesPackages": true,
-    "ModuleVersion": "4.0.X",
     "SignModule": true,
     "TimeoutSeconds": 7200,
     "ArtifactPaths": [
@@ -96,8 +95,7 @@
     "AfterStaging": [
       {
         "Name": "Validate EventViewerX release artifacts",
-        "FilePath": "Test-ReleaseReady.ps1",
-        "WorkingDirectory": "..",
+        "ConfigPath": "release-validation.json",
         "TimeoutSeconds": 1800
       }
     ]

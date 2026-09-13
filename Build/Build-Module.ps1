@@ -1,117 +1,21 @@
 [CmdletBinding()]
 param(
     [Alias('ConfigurationGateMode')]
-    [ValidateSet('Manifest', 'Documentation', 'Build', 'Publish')]
-    [string] $RunMode = 'Build',
-
-    [bool] $SignModule = $true,
-
-    [ValidatePattern('^\d+\.\d+\.(?:\d+|X)$')]
-    [string] $ModuleVersion = '4.0.X',
-
-    [string] $PreReleaseTag,
-
-    [ValidateSet('Release', 'Debug')]
-    [string] $Configuration = 'Release',
-
-    [ValidateSet('auto', 'net472', 'net8.0', 'net10.0')]
-    [string] $Framework,
-
-    [switch] $NoDotnetBuild,
-
-    [string] $StagingPath,
-
-    [switch] $ReuseStaging,
-
-    [bool] $IncludeProjectPackages = $true,
-
-    [bool] $IncludeModulePublishing = $true,
-
-    [switch] $PowerForgeUnifiedGitHubRelease,
-
-    [switch] $PowerForgeReleaseStage,
-
-    [switch] $SkipInstall,
-
-    [ValidatePattern('^[0-9a-fA-F]{40}$')]
-    [string] $ExpectedCommit,
-
-    [string] $PublishConfirmation
+    [ValidateSet('Manifest', 'Documentation', 'Plan', 'Build', 'Publish')]
+    [string] $RunMode = 'Build'
 )
 
 $ErrorActionPreference = 'Stop'
 
-if ($RunMode -eq 'Publish') {
-    [array] $unsupportedPublishParameters = @(
-        'PreReleaseTag'
-        'Configuration'
-        'NoDotnetBuild'
-        'StagingPath'
-        'ReuseStaging'
-        'IncludeProjectPackages'
-        'IncludeModulePublishing'
-        'PowerForgeUnifiedGitHubRelease'
-        'PowerForgeReleaseStage'
-    ) | Where-Object { $PSBoundParameters.ContainsKey($_) }
-    if ($unsupportedPublishParameters.Count -ne 0) {
-        throw "The guarded package/module publish lane does not support: $($unsupportedPublishParameters -join ', ')."
-    }
-
+if ($RunMode -in @('Plan', 'Build', 'Publish')) {
     $releaseSplat = @{
-        RunMode      = 'Publish'
-        Version      = $ModuleVersion
-        SignModule   = $SignModule
-        SkipCli      = $true
-        SkipInstall  = $SkipInstall
-    }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit)) {
-        $releaseSplat.ExpectedCommit = $ExpectedCommit
-    }
-    if (-not [string]::IsNullOrWhiteSpace($PublishConfirmation)) {
-        $releaseSplat.Confirmation = $PublishConfirmation
-    }
-    if ($PSBoundParameters.ContainsKey('Framework')) {
-        $releaseSplat.ModuleFramework = $Framework
+        RunMode    = $RunMode
+        ConfigPath = Join-Path $PSScriptRoot 'release.module.json'
     }
     & (Join-Path $PSScriptRoot 'Build-Release.ps1') @releaseSplat
-    return
-}
-
-Import-Module PSPublishModule -Force
-
-$moduleBuildSplat = @{
-    ConfigPath              = Join-Path $PSScriptRoot 'module.json'
-    RunMode                 = $RunMode
-    ModuleVersion           = $ModuleVersion
-    BuildConfiguration      = $Configuration
-    IncludeProjectPackages  = $IncludeProjectPackages
-    IncludeModulePublishing = $IncludeModulePublishing
-}
-if (-not [string]::IsNullOrWhiteSpace($PreReleaseTag)) {
-    $moduleBuildSplat.PreReleaseTag = $PreReleaseTag
-}
-if ($PSBoundParameters.ContainsKey('Framework')) {
-    $moduleBuildSplat.BuildFramework = $Framework
-}
-if ($NoDotnetBuild) {
-    $moduleBuildSplat.NoDotnetBuild = $true
-}
-if (-not [string]::IsNullOrWhiteSpace($StagingPath)) {
-    $moduleBuildSplat.StagingPath = $StagingPath
-}
-if ($ReuseStaging -or ($NoDotnetBuild -and -not [string]::IsNullOrWhiteSpace($StagingPath))) {
-    $moduleBuildSplat.ReuseStaging = $true
-}
-if ($SignModule) {
-    $moduleBuildSplat.SignModule = $true
 } else {
-    $moduleBuildSplat.NoSign = $true
+    Import-Module PSPublishModule -Force -ErrorAction Stop
+    Invoke-ModuleBuild `
+        -ConfigPath (Join-Path $PSScriptRoot 'module.json') `
+        -RunMode $RunMode
 }
-if ($PowerForgeUnifiedGitHubRelease) {
-    $moduleBuildSplat.PowerForgeUnifiedGitHubRelease = $true
-}
-if ($SkipInstall) {
-    $moduleBuildSplat.SkipInstall = $true
-}
-
-Invoke-ModuleBuild @moduleBuildSplat

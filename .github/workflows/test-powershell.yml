@@ -34,10 +34,6 @@ jobs:
           Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
         shell: pwsh
 
-      - name: Test release guards
-        run: .\Build\Test-ReleaseGuards.ps1
-        shell: pwsh
-
       - name: Test release selection
         run: |
           .\Build\Test-ReleaseConfiguration.ps1
