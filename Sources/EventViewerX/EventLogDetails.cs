@@ -109,10 +109,14 @@ public class EventLogDetails {
         if (logConfig == null) throw new ArgumentNullException(nameof(logConfig));
 
         MachineName = machineName ?? string.Empty;
+        long? maximumSize = null;
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.LogName), () => logConfig.LogName ?? string.Empty, value => LogName = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.LogType), () => logConfig.LogType.ToString(), value => LogType = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.IsEnabled), () => logConfig.IsEnabled, value => IsEnabled = value, EventLogDetailsStatus.LogConfigurationUnavailable);
-        Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.MaximumSizeInBytes), () => logConfig.MaximumSizeInBytes, value => MaximumSizeInBytes = value, EventLogDetailsStatus.LogConfigurationUnavailable);
+        Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.MaximumSizeInBytes), () => logConfig.MaximumSizeInBytes, value => {
+            MaximumSizeInBytes = value;
+            maximumSize = value;
+        }, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.LogFilePath), () => logConfig.LogFilePath ?? string.Empty, value => LogFilePath = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.LogIsolation), () => logConfig.LogIsolation, value => LogIsolation = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.LogMode), () => logConfig.LogMode.ToString(), value => LogMode = value, EventLogDetailsStatus.LogConfigurationUnavailable);
@@ -140,7 +144,7 @@ public class EventLogDetails {
             FileSizeCurrentMB = ConvertSize(FileSize, "B", "MB", 2);
         }
 
-        FileSizeMaximum = MaximumSizeInBytes;
+        FileSizeMaximum = maximumSize;
         FileSizeMaximumMB = ConvertSize(FileSizeMaximum, "B", "MB", 2);
     }
 
@@ -184,8 +188,12 @@ public class EventLogDetails {
     /// <param name="toUnit">Destination unit of measure.</param>
     /// <param name="precision">Number of decimal places.</param>
     /// <returns>Converted value.</returns>
-    private static double ConvertSize(double? value, string fromUnit, string toUnit, int precision) {
-        if (!value.HasValue || value.Value <= 0) {
+    internal static double? ConvertSize(double? value, string fromUnit, string toUnit, int precision) {
+        if (!value.HasValue) {
+            return null;
+        }
+
+        if (value.Value <= 0) {
             return 0;
         }
 
