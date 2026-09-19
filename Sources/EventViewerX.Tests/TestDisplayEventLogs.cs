@@ -13,7 +13,9 @@ public class TestDisplayEventLogs {
 
     [Fact]
     public void CreateEventLogDetailsWithNullInfo() {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
         using var session = new EventLogSession();
         using var config = new EventLogConfiguration("Application", session);
         var logger = new InternalLogger();
@@ -29,7 +31,9 @@ public class TestDisplayEventLogs {
 
     [Fact]
     public void CreateEventLogDetailsWithRuntimeInfoReportsActualSize() {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) {
+            return;
+        }
         using var session = new EventLogSession();
         using var config = new EventLogConfiguration("Application", session);
         var info = session.GetLogInformation("Application", PathType.LogName);
