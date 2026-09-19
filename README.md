@@ -439,6 +439,9 @@ Get-EVXProvider -Name 'Microsoft-Windows-Kernel-*' -NameOnly
 # Channel inventory and health probe.
 Get-EVXLog -LogName 'Microsoft-Windows-PowerShell/*' -Force
 Test-EVXLog -LogName System -MaxEventsToScan 100
+$channelSecurity = (Get-EVXLog -LogName Security).Security
+$channelSecurity.DaclState
+$channelSecurity.AccessRules | Select-Object TrusteeSid, IsAllow, IsDeny, AccessMask, IncludesReadRight
 
 # Manifest channel policy.
 Set-EVXLog -LogName Microsoft-Windows-PowerShell/Operational `
@@ -467,6 +470,8 @@ $subscription | Set-EVXCollectorSubscription `
 $subscription.SourceSubscriptionManagerValue
 Get-EVXCollectorSubscription -Name $subscription.SubscriptionId `
     -IncludeRuntimeStatus
+Get-EVXCollectorSubscription -Name $subscription.SubscriptionId `
+    -IncludeSourceAuthorization | Select-Object -ExpandProperty SourceAuthorization
 Set-EVXCollectorSubscription -Name 'Domain Controllers' `
     -Enabled $true -Confirm:$false
 ```
@@ -481,6 +486,12 @@ read access where it is not already present. Domain controllers require their
 Domain Controllers group SID (RID 516) or explicit computer SIDs; the generic
 Domain Computers ACE is not sufficient. Runtime status exposes processed-event
 counters, source heartbeats, and the exact Windows error codes.
+Channel access rules are raw DACL entries, not an effective-access calculation
+for a particular account. The opt-in source-authorization read runs locally on
+the collector and separates domain-computer SDDL from non-domain certificate
+issuer and subject policy. A missing or unparseable descriptor is reported as
+unavailable, never as an empty permission list; use PowerShell remoting to
+inspect source authorization on another collector.
 Affected Windows Server 2025 builds can crash the Event Log service while
 evaluating any filtered native XPath against `ForwardedEvents`. EventViewerX
 therefore opens that collector channel once with `*` and applies the complete

@@ -37,8 +37,15 @@ public static class CollectorSubscriptionXml {
 
             details = new CollectorSubscriptionXmlDetails {
                 NormalizedXml = NormalizeXml(document),
+                SubscriptionId = ReadRootValue(document.Root!, "SubscriptionId"),
                 Description = description,
                 DestinationLog = destinationLog,
+                SubscriptionType = ReadRootValue(document.Root!, "SubscriptionType"),
+                AllowedSourceDomainComputersSddl = ReadRootValue(document.Root!, "AllowedSourceDomainComputers"),
+                RawNonDomainSourceXml = ReadRootElementXml(document.Root!, "AllowedSourceNonDomainComputers"),
+                AllowedIssuerCAs = ReadNonDomainValue(document.Root!, "AllowedIssuerCAList") ?? ReadRawRootValue(document.Root!, "AllowedIssuerCAList"),
+                AllowedSubjects = ReadNonDomainValue(document.Root!, "AllowedSubjectList") ?? ReadRawRootValue(document.Root!, "AllowedSubjects"),
+                DeniedSubjects = ReadNonDomainValue(document.Root!, "DeniedSubjectList") ?? ReadRawRootValue(document.Root!, "DeniedSubjects"),
                 Queries = queries
             };
             return true;
@@ -201,5 +208,33 @@ public static class CollectorSubscriptionXml {
 
         var trimmed = value.Trim();
         return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static string? ReadRootValue(XElement root, string name) =>
+        NormalizeOptional(root.Elements()
+            .FirstOrDefault(element => element.Name.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.Value);
+
+    private static string? ReadRootElementXml(XElement root, string name) =>
+        root.Elements()
+            .FirstOrDefault(element => element.Name.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.ToString(SaveOptions.DisableFormatting);
+
+    private static string? ReadRawRootValue(XElement root, string name) {
+        XElement? value = root.Elements()
+            .FirstOrDefault(element => element.Name.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return value == null
+            ? null
+            : value.HasElements
+                ? value.ToString(SaveOptions.DisableFormatting)
+                : NormalizeOptional(value.Value);
+    }
+
+    private static string? ReadNonDomainValue(XElement root, string name) {
+        XElement? nonDomain = root.Elements()
+            .FirstOrDefault(static element => element.Name.LocalName.Equals("AllowedSourceNonDomainComputers", StringComparison.OrdinalIgnoreCase));
+        return nonDomain == null
+            ? null
+            : ReadRawRootValue(nonDomain, name);
     }
 }

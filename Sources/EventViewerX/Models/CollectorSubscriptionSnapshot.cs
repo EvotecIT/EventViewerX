@@ -45,6 +45,12 @@ public sealed record CollectorSubscriptionSnapshot {
     public CollectorSubscriptionRuntimeStatus? RuntimeStatus { get; set; }
 
     /// <summary>
+    /// Source authorization from an opt-in live WEC read. Null means it was not requested;
+    /// collector-initiated subscriptions return an explicit not-applicable result.
+    /// </summary>
+    public CollectorSourceAuthorization? SourceAuthorization { get; set; }
+
+    /// <summary>
     /// Creates a reusable snapshot from a raw subscription model.
     /// </summary>
     public static CollectorSubscriptionSnapshot FromSubscriptionInfo(SubscriptionInfo subscription, string targetMachineName) {

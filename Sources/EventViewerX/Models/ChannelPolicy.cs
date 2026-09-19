@@ -33,6 +33,11 @@ public sealed class ChannelPolicy {
     public string? ModeName => ChannelPolicyModeNames.Normalize(Mode);
     /// <summary>SDDL security descriptor controlling access.</summary>
     public string? SecurityDescriptor { get; set; }
+    /// <summary>
+    /// Current read-only interpretation of <see cref="SecurityDescriptor"/>. Recomputed when read so
+    /// callers editing a policy never see rules from a previous descriptor value.
+    /// </summary>
+    public EventLogChannelSecurityInfo Security => EventLogChannelSecurityInfo.Inspect(SecurityDescriptor);
 
     /// <summary>
     /// Applies a canonical mode name to <see cref="Mode"/>.
@@ -64,5 +69,6 @@ public sealed class ChannelPolicy {
         [nameof(Isolation)] = Isolation?.ToString(),
         [nameof(Mode)] = ModeName,
         [nameof(SecurityDescriptor)] = SecurityDescriptor,
+        [nameof(Security)] = Security,
     };
 }
