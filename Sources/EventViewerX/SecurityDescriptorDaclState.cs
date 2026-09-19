@@ -1,9 +1,10 @@
 namespace EventViewerX;
 
 /// <summary>
-/// Describes the DACL in an event-log channel security descriptor without claiming effective access.
+/// Describes whether a Windows security descriptor has a DACL and whether it contains entries.
+/// This is not an effective-access result.
 /// </summary>
-public enum EventLogDaclState {
+public enum SecurityDescriptorDaclState {
     /// <summary>The descriptor was unavailable or could not be parsed.</summary>
     Unavailable,
     /// <summary>The descriptor does not contain a DACL.</summary>

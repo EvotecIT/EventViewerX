@@ -24,6 +24,11 @@ namespace PSEventViewer;
 ///   <code>Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeRuntimeStatus</code>
 ///   <para>Adds processed-event counters, source heartbeat timestamps, and native Windows errors to the local snapshot.</para>
 /// </example>
+/// <example>
+///   <summary>Inspect who may forward to a source-initiated subscription</summary>
+///   <code>Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeSourceAuthorization</code>
+///   <para>Reads the local collector's authoritative subscription XML and adds the domain-computer DACL and raw certificate subject policy. This does not calculate effective authorization.</para>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "EVXCollectorSubscription", DefaultParameterSetName = "Subscriptions")]
 [OutputType(typeof(CollectorSubscriptionSnapshot), typeof(CollectorReadinessStatus))]
 public sealed class CmdletGetEVXCollectorSubscription : AsyncPSCmdlet {
@@ -43,6 +48,10 @@ public sealed class CmdletGetEVXCollectorSubscription : AsyncPSCmdlet {
     /// <summary>Includes current per-source runtime state and Windows error details. Runtime status is local-only.</summary>
     [Parameter(ParameterSetName = "Subscriptions")]
     public SwitchParameter IncludeRuntimeStatus { get; set; }
+
+    /// <summary>Reads domain-computer and non-domain certificate source authorization from the local collector's authoritative subscription configuration.</summary>
+    [Parameter(ParameterSetName = "Subscriptions")]
+    public SwitchParameter IncludeSourceAuthorization { get; set; }
 
     /// <summary>Returns local WEC, WinRM listener, and ForwardedEvents readiness instead of subscription inventory.</summary>
     [Parameter(Mandatory = true, ParameterSetName = "Readiness")]
@@ -76,6 +85,9 @@ public sealed class CmdletGetEVXCollectorSubscription : AsyncPSCmdlet {
         if (IncludeRuntimeStatus.IsPresent && machines.Any(static machine => machine != null)) {
             throw new PSArgumentException("IncludeRuntimeStatus is available only for the local collector. Run the command on a remote collector through PowerShell remoting when runtime status is required.");
         }
+        if (IncludeSourceAuthorization.IsPresent && machines.Any(static machine => machine != null)) {
+            throw new PSArgumentException("IncludeSourceAuthorization is available only for the local collector. Run the command on a remote collector through PowerShell remoting when source authorization is required.");
+        }
         foreach (string? machineName in machines) {
             CancelToken.ThrowIfCancellationRequested();
             IReadOnlyList<CollectorSubscriptionSnapshot> snapshots =
@@ -91,6 +103,14 @@ public sealed class CmdletGetEVXCollectorSubscription : AsyncPSCmdlet {
                     if (IncludeRuntimeStatus.IsPresent) {
                         snapshot.RuntimeStatus = CollectorSubscriptionManager
                             .GetCollectorSubscriptionRuntimeStatus(snapshot.SubscriptionName, CancelToken);
+                    }
+                    if (IncludeSourceAuthorization.IsPresent) {
+                        snapshot.SourceAuthorization = CollectorSubscriptionManager
+                            .GetCollectorSourceAuthorization(snapshot.SubscriptionName, CancelToken);
+                        string? authorizationDiagnostic = snapshot.SourceAuthorization?.Diagnostic;
+                        if (!string.IsNullOrWhiteSpace(authorizationDiagnostic)) {
+                            WriteWarning($"Subscription '{snapshot.SubscriptionName}': {authorizationDiagnostic}");
+                        }
                     }
                     WriteObject(snapshot);
                 }

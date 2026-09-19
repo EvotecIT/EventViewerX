@@ -7,6 +7,8 @@ namespace EventViewerX;
 /// </summary>
 public class EventLogDetails {
     private readonly List<EventLogDetailsDiagnostic> _diagnostics = new();
+    private string _securityDescriptor = string.Empty;
+    private EventLogChannelSecurityInfo? _security;
 
     /// <summary>Machine that hosts the log.</summary>
     public string MachineName { get; set; } = string.Empty;
@@ -63,14 +65,22 @@ public class EventLogDetails {
     /// <summary>Oldest record number.</summary>
     public long? OldestRecordNumber { get; set; }
     /// <summary>Security descriptor of the log.</summary>
-    public string SecurityDescriptor { get; set; } = string.Empty;
+    public string SecurityDescriptor {
+        get => _securityDescriptor;
+        set {
+            _securityDescriptor = value ?? string.Empty;
+            _security = null;
+        }
+    }
+    /// <summary>Read-only interpretation of the current channel security descriptor.</summary>
+    public EventLogChannelSecurityInfo Security => _security ??= EventLogChannelSecurityInfo.Inspect(SecurityDescriptor);
     /// <summary>
     /// Channel DACL entries, or null when the descriptor was unavailable or could not be parsed.
     /// Inspect <see cref="SecurityDaclState"/> before interpreting an empty list. Entries do not calculate effective access.
     /// </summary>
-    public IReadOnlyList<EventLogAccessRule>? SecurityAccessRules { get; private set; }
+    public IReadOnlyList<EventLogAccessRule>? SecurityAccessRules => Security.AccessRules;
     /// <summary>Distinguishes unavailable, absent, null, empty, and populated channel DACLs.</summary>
-    public EventLogDaclState SecurityDaclState { get; private set; } = EventLogDaclState.Unavailable;
+    public SecurityDescriptorDaclState SecurityDaclState => Security.DaclState;
     /// <summary>Indicates if the log is classic type.</summary>
     public bool IsClassicLog { get; set; }
 
@@ -114,12 +124,6 @@ public class EventLogDetails {
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderLatency), () => logConfig.ProviderLatency.GetValueOrDefault(), value => ProviderLatency = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderControlGuid), () => logConfig.ProviderControlGuid?.ToString() ?? string.Empty, value => ProviderControlGuid = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.SecurityDescriptor), () => logConfig.SecurityDescriptor ?? string.Empty, value => SecurityDescriptor = value, EventLogDetailsStatus.LogConfigurationUnavailable);
-        if (!string.IsNullOrWhiteSpace(SecurityDescriptor)) {
-            Capture(EventLogDetailsReadStage.Configuration, nameof(SecurityAccessRules), () => EventLogSecurityDescriptor.Parse(SecurityDescriptor), value => {
-                SecurityDaclState = value.DaclState;
-                SecurityAccessRules = value.AccessRules;
-            }, EventLogDetailsStatus.LogConfigurationUnavailable);
-        }
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderLevel), () => logConfig.ProviderLevel?.ToString() ?? string.Empty, value => ProviderLevel = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderKeywords), () => logConfig.ProviderKeywords?.ToString() ?? string.Empty, value => ProviderKeywords = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.IsClassicLog), () => logConfig.IsClassicLog, value => IsClassicLog = value, EventLogDetailsStatus.LogConfigurationUnavailable);
