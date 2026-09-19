@@ -64,6 +64,11 @@ public class EventLogDetails {
     public long? OldestRecordNumber { get; set; }
     /// <summary>Security descriptor of the log.</summary>
     public string SecurityDescriptor { get; set; } = string.Empty;
+    /// <summary>
+    /// Explicit channel DACL entries, or null when the descriptor was unavailable or could not be parsed.
+    /// These entries do not calculate effective access for a user or group.
+    /// </summary>
+    public IReadOnlyList<EventLogAccessRule>? SecurityAccessRules { get; private set; }
     /// <summary>Indicates if the log is classic type.</summary>
     public bool IsClassicLog { get; set; }
 
@@ -107,6 +112,9 @@ public class EventLogDetails {
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderLatency), () => logConfig.ProviderLatency.GetValueOrDefault(), value => ProviderLatency = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderControlGuid), () => logConfig.ProviderControlGuid?.ToString() ?? string.Empty, value => ProviderControlGuid = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.SecurityDescriptor), () => logConfig.SecurityDescriptor ?? string.Empty, value => SecurityDescriptor = value, EventLogDetailsStatus.LogConfigurationUnavailable);
+        if (!string.IsNullOrWhiteSpace(SecurityDescriptor)) {
+            Capture(EventLogDetailsReadStage.Configuration, nameof(SecurityAccessRules), () => EventLogSecurityDescriptor.ParseAccessRules(SecurityDescriptor), value => SecurityAccessRules = value, EventLogDetailsStatus.LogConfigurationUnavailable);
+        }
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderLevel), () => logConfig.ProviderLevel?.ToString() ?? string.Empty, value => ProviderLevel = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderKeywords), () => logConfig.ProviderKeywords?.ToString() ?? string.Empty, value => ProviderKeywords = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.IsClassicLog), () => logConfig.IsClassicLog, value => IsClassicLog = value, EventLogDetailsStatus.LogConfigurationUnavailable);
