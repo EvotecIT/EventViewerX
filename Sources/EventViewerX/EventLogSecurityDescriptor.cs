@@ -3,11 +3,18 @@ using System.Security.AccessControl;
 namespace EventViewerX;
 
 internal static class EventLogSecurityDescriptor {
-    internal static IReadOnlyList<EventLogAccessRule> ParseAccessRules(string sddl) {
+    internal static EventLogParsedSecurityDescriptor Parse(string sddl) {
         var descriptor = new RawSecurityDescriptor(sddl);
+        if ((descriptor.ControlFlags & ControlFlags.DiscretionaryAclPresent) == 0) {
+            return new EventLogParsedSecurityDescriptor(EventLogDaclState.NotPresent, Array.Empty<EventLogAccessRule>());
+        }
+
         RawAcl? dacl = descriptor.DiscretionaryAcl;
         if (dacl == null) {
-            return Array.Empty<EventLogAccessRule>();
+            return new EventLogParsedSecurityDescriptor(EventLogDaclState.Null, Array.Empty<EventLogAccessRule>());
+        }
+        if (dacl.Count == 0) {
+            return new EventLogParsedSecurityDescriptor(EventLogDaclState.Empty, Array.Empty<EventLogAccessRule>());
         }
 
         var rules = new List<EventLogAccessRule>(dacl.Count);
@@ -25,6 +32,16 @@ internal static class EventLogSecurityDescriptor {
                 known.AccessMask));
         }
 
-        return rules.AsReadOnly();
+        return new EventLogParsedSecurityDescriptor(EventLogDaclState.Entries, rules.AsReadOnly());
     }
+}
+
+internal sealed class EventLogParsedSecurityDescriptor {
+    internal EventLogParsedSecurityDescriptor(EventLogDaclState daclState, IReadOnlyList<EventLogAccessRule> accessRules) {
+        DaclState = daclState;
+        AccessRules = accessRules;
+    }
+
+    internal EventLogDaclState DaclState { get; }
+    internal IReadOnlyList<EventLogAccessRule> AccessRules { get; }
 }

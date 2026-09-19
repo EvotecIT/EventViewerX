@@ -7,7 +7,9 @@ public class TestEventLogSecurityDescriptor {
     public void ParsesEventLogRightsWithoutLocalizedAccountNames() {
         const string sddl = "O:BAG:SYD:(A;;0xf0007;;;SY)(A;;0x1;;;NS)(D;;0x2;;;BA)";
 
-        IReadOnlyList<EventLogAccessRule> rules = EventLogSecurityDescriptor.ParseAccessRules(sddl);
+        EventLogParsedSecurityDescriptor parsed = EventLogSecurityDescriptor.Parse(sddl);
+        Assert.Equal(EventLogDaclState.Entries, parsed.DaclState);
+        IReadOnlyList<EventLogAccessRule> rules = parsed.AccessRules;
 
         Assert.Collection(rules,
             system => {
@@ -33,7 +35,18 @@ public class TestEventLogSecurityDescriptor {
 
     [Fact]
     public void MalformedDescriptorCannotBeReportedAsAnEmptyAcl() {
-        Assert.ThrowsAny<Exception>(() => EventLogSecurityDescriptor.ParseAccessRules("not-sddl"));
+        Assert.ThrowsAny<Exception>(() => EventLogSecurityDescriptor.Parse("not-sddl"));
+    }
+
+    [Theory]
+    [InlineData("O:SYG:SY", EventLogDaclState.NotPresent)]
+    [InlineData("O:SYG:SYD:NO_ACCESS_CONTROL", EventLogDaclState.Null)]
+    [InlineData("O:SYG:SYD:", EventLogDaclState.Empty)]
+    public void DistinguishesMissingNullAndEmptyDacls(string sddl, EventLogDaclState expectedState) {
+        EventLogParsedSecurityDescriptor parsed = EventLogSecurityDescriptor.Parse(sddl);
+
+        Assert.Equal(expectedState, parsed.DaclState);
+        Assert.Empty(parsed.AccessRules);
     }
 
     [Fact]
@@ -45,6 +58,7 @@ public class TestEventLogSecurityDescriptor {
         Assert.NotNull(result.Details);
         Assert.False(string.IsNullOrWhiteSpace(result.Details.SecurityDescriptor));
         Assert.NotNull(result.Details.SecurityAccessRules);
+        Assert.Equal(EventLogDaclState.Entries, result.Details.SecurityDaclState);
         Assert.NotEmpty(result.Details.SecurityAccessRules);
     }
 }

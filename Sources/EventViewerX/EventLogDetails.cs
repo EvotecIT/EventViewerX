@@ -65,10 +65,12 @@ public class EventLogDetails {
     /// <summary>Security descriptor of the log.</summary>
     public string SecurityDescriptor { get; set; } = string.Empty;
     /// <summary>
-    /// Explicit channel DACL entries, or null when the descriptor was unavailable or could not be parsed.
-    /// These entries do not calculate effective access for a user or group.
+    /// Channel DACL entries, or null when the descriptor was unavailable or could not be parsed.
+    /// Inspect <see cref="SecurityDaclState"/> before interpreting an empty list. Entries do not calculate effective access.
     /// </summary>
     public IReadOnlyList<EventLogAccessRule>? SecurityAccessRules { get; private set; }
+    /// <summary>Distinguishes unavailable, absent, null, empty, and populated channel DACLs.</summary>
+    public EventLogDaclState SecurityDaclState { get; private set; } = EventLogDaclState.Unavailable;
     /// <summary>Indicates if the log is classic type.</summary>
     public bool IsClassicLog { get; set; }
 
@@ -113,7 +115,10 @@ public class EventLogDetails {
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderControlGuid), () => logConfig.ProviderControlGuid?.ToString() ?? string.Empty, value => ProviderControlGuid = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.SecurityDescriptor), () => logConfig.SecurityDescriptor ?? string.Empty, value => SecurityDescriptor = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         if (!string.IsNullOrWhiteSpace(SecurityDescriptor)) {
-            Capture(EventLogDetailsReadStage.Configuration, nameof(SecurityAccessRules), () => EventLogSecurityDescriptor.ParseAccessRules(SecurityDescriptor), value => SecurityAccessRules = value, EventLogDetailsStatus.LogConfigurationUnavailable);
+            Capture(EventLogDetailsReadStage.Configuration, nameof(SecurityAccessRules), () => EventLogSecurityDescriptor.Parse(SecurityDescriptor), value => {
+                SecurityDaclState = value.DaclState;
+                SecurityAccessRules = value.AccessRules;
+            }, EventLogDetailsStatus.LogConfigurationUnavailable);
         }
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderLevel), () => logConfig.ProviderLevel?.ToString() ?? string.Empty, value => ProviderLevel = value, EventLogDetailsStatus.LogConfigurationUnavailable);
         Capture(EventLogDetailsReadStage.Configuration, nameof(logConfig.ProviderKeywords), () => logConfig.ProviderKeywords?.ToString() ?? string.Empty, value => ProviderKeywords = value, EventLogDetailsStatus.LogConfigurationUnavailable);
