@@ -94,11 +94,9 @@ internal sealed class BenchmarkOptions {
 
         if (!string.IsNullOrWhiteSpace(outputPath)) {
             outputPath = System.IO.Path.GetFullPath(outputPath);
-            StringComparison pathComparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
-            if (string.Equals(path, outputPath, pathComparison)) {
-                throw new ArgumentException("The benchmark output path must not overwrite the input EVTX fixture.");
+            if (File.Exists(outputPath) || Directory.Exists(outputPath)) {
+                throw new ArgumentException(
+                    "The benchmark output path must name a new file; existing files are never overwritten.");
             }
         }
 

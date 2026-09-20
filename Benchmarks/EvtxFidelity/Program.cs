@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using EventViewerX;
 using EventViewerX.Evtx;
@@ -130,7 +131,14 @@ if (!string.IsNullOrWhiteSpace(options.OutputPath)) {
     if (!string.IsNullOrEmpty(directory)) {
         Directory.CreateDirectory(directory);
     }
-    File.WriteAllText(outputPath, json + Environment.NewLine);
+    using var stream = new FileStream(
+        outputPath,
+        FileMode.CreateNew,
+        FileAccess.Write,
+        FileShare.None);
+    using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    writer.Write(json);
+    writer.Write(Environment.NewLine);
 }
 
 if (portableMeasurements.Any(static measurement => measurement.Count == 0)) {

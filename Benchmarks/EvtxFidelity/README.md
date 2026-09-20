@@ -35,6 +35,8 @@ measured iteration, medians, fidelity minima, diagnostics, and the evaluated
 budget. `Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.
+The `--output` path must name a new file. Existing files are never overwritten,
+which protects forensic fixtures and their filesystem aliases.
 
 The gate fails when the portable reader returns no records, a configured
 command reader returns no records, or Windows comparison finds identity loss,
