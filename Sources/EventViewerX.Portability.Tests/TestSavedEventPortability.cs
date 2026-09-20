@@ -185,6 +185,83 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void EvtxDumpReaderHonorsCancellationBeforeStartingTheParser() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var reader = new EvtxDumpSavedEventReader($"eventviewerx-missing-{Guid.NewGuid():N}");
+        var query = new EventLogFileQuery(path) { XPath = "*", Oldest = true };
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        OperationCanceledException exception = Assert.ThrowsAny<OperationCanceledException>(() =>
+            reader.Read(query, cancellationToken: cancellation.Token).ToArray());
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerPreservesMultilineRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\" encoding=\"utf-8\"?>", out _));
+        Assert.False(framer.TryAdd("<Event><System>", out _));
+        Assert.False(framer.TryAdd(string.Empty, out _));
+        Assert.False(framer.TryAdd("<EventID>42</EventID></System>", out _));
+        Assert.True(framer.TryAdd("<EventData><Data>line</Data></EventData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><System>\n\n<EventID>42</EventID></System>\n<EventData><Data>line</Data></EventData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsIncompleteRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        Assert.False(framer.TryAdd("<Event><System>", out _));
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => framer.Complete());
+
+        Assert.Contains("ended inside", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsOversizedSingleLineRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        string xml = "<Event>" +
+                     new string('x', EvtxDumpXmlRecordFramer.MaximumRecordCharacters) +
+                     "</Event>";
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => framer.TryAdd(xml, out _));
+
+        Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxRecordHeaderCursorRestoresFileOffsetWithoutReplacingEventTime() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var header = new byte[24];
+        using (FileStream stream = File.OpenRead(path)) {
+            stream.Position = 4096 + 512;
+            stream.ReadExactly(header);
+        }
+        long recordId = BitConverter.ToInt64(header, 8);
+        DateTime timestampUtc = DateTime.FromFileTimeUtc(BitConverter.ToInt64(header, 16));
+        var actual = new SavedEventRecord {
+            RecordId = recordId,
+            TimeCreatedUtc = timestampUtc.AddTicks(-1),
+            RawXml = $"<Event><System><TimeCreated SystemTime=\"{timestampUtc.AddTicks(-1):yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'}\" /></System></Event>"
+        };
+
+        using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+        bool matched = cursor.TryApply(actual);
+
+        Assert.True(matched);
+        Assert.Equal(timestampUtc.AddTicks(-1), actual.TimeCreatedUtc);
+        Assert.Equal(4096 + 512, actual.FileOffset);
+    }
+
+    [Fact]
     public void ParserNeutralReaderDoesNotInvokeWindowsEventingApis() {
         string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-portable-{Guid.NewGuid():N}.evtx");
         File.WriteAllBytes(path, new byte[] { 1 });

@@ -10,15 +10,44 @@ timestamp.
 dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj -- C:\Fixtures\Security.evtx 0 C:\Tools\evtx_dump.exe
 ```
 
+For a repeatable regression gate, select the materialization contract, run
+rotated iterations, and set explicit budgets. The command exits with code 5
+when a configured throughput or allocation budget fails; identity loss keeps
+its existing non-zero failure codes.
+
+```powershell
+dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj `
+    --configuration Release -- `
+    C:\Fixtures\Security.evtx 10000 `
+    --read-mode StructuredData `
+    --warmup 1 `
+    --iterations 3 `
+    --minimum-identity-ratio 1 `
+    --minimum-exact-timestamp-ratio 1 `
+    --min-events-per-second 15000 `
+    --max-bytes-per-event 100000 `
+    --output .\Ignore\Benchmarks\EvtxFidelity\structured-data.json
+```
+
+The JSON records fixture SHA-256, runtime and architecture, parser assembly
+versions, every measured iteration, medians, fidelity minima, diagnostics, and
+the evaluated budget. `Metadata`, `Message`, `StructuredData`, `RawXml`,
+`StructuredDataAndMessage`, and `Full` can be measured independently; do not
+compare unlike read modes as if they were equivalent work.
+
 The gate fails when the portable reader returns no records or, on Windows,
 when identity parity is below 99 percent or records are missing. Provider
 message text is intentionally excluded because non-Windows systems normally
-do not have the originating provider message DLLs.
+do not have the originating provider message DLLs. An explicitly configured
+exact-timestamp gate exits with code 6 when no Windows reference result is
+available; it never reports an unmeasured fidelity requirement as passing.
 
 The command-backed adapter is compared with a one-microsecond timestamp
-tolerance and reports exact timestamp parity separately. `evtx_dump` JSONL
-serializes timestamps to microsecond precision, so its interchange format does
-not expose the final 100-nanosecond FILETIME digit.
+tolerance and reports exact timestamp parity separately. Set
+`--minimum-exact-timestamp-ratio 1` when validating a parser build intended for
+lossless use. Released `evtx_dump` 0.12.2 renders FILETIME values with six
+fractional digits, so it does not expose the final 100-nanosecond digit until
+that upstream renderer is corrected.
 
 ## Current evidence
 
@@ -52,12 +81,22 @@ cross-platform CI suite.
 The caller-supplied `evtx_dump` 0.12.2 adapter also preserved 653 of 653 records
 with complete identity parity.
 
-On the 31.5 MB Security fixture, the command adapter normalized 62,031 records
-at approximately 18,854 events/second and 63.9 KB allocated/event in one full
-run. A subsequent 10,000-record comparison measured approximately 9,566
-events/second, with 100 percent event ID, provider, channel, computer, and
-one-microsecond timestamp parity. Exact timestamp parity was lower because the
-JSONL format omits the final 100-nanosecond digit.
+On a fresh 21.0 MB Security snapshot, a five-iteration 1,000-record comparison
+measured the compact-XML command adapter at a median of approximately 11,082
+events/second and 47.6 KB allocated/event. The existing managed dependency
+measured approximately 3,313 events/second and 841.3 KB/event; the Windows
+Eventing API measured approximately 60,532 events/second and 4.2 KB/event.
+All three paths preserved every compared event identity. Released
+`evtx_dump` 0.12.2 retained one-microsecond timestamp parity but only 10.6
+percent exact timestamp parity because its renderer emits six fractional
+digits.
+
+A local proof build changing that renderer from six FILETIME digits to seven
+passed the exact-fidelity gate on all 5,000 comparisons across five measured
+iterations. Its median remained approximately 11,082 events/second and 47.6
+KB/event. The proof binary is not a product dependency or release; production
+adoption remains gated on an upstream correction or an owned native package
+with the same fidelity evidence.
 
 `python-evtx` 0.8.1 supplied the second independent recovery comparison. It
 rendered 7 of 7 clean records, 270 of 270 sparse/bad-chunk records, and all
