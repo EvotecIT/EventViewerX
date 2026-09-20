@@ -105,7 +105,12 @@ function Assert-ExactMatrix {
         [Parameter(Mandatory)] [scriptblock] $Key
     )
 
-    [string[]] $actual = @($Rows | ForEach-Object $Key | Sort-Object -Unique)
+    [string[]] $allKeys = @($Rows | ForEach-Object $Key)
+    [array] $duplicates = @($allKeys | Group-Object | Where-Object Count -gt 1)
+    if ($duplicates.Count -gt 0) {
+        throw "Benchmark matrix contains duplicate parameter tuples: $($duplicates.Name -join ', ')."
+    }
+    [string[]] $actual = @($allKeys | Sort-Object)
     [string[]] $expected = @($ExpectedKeys | Sort-Object -Unique)
     if (($actual -join "`n") -ne ($expected -join "`n")) {
         throw "Benchmark matrix mismatch. Expected [$($expected -join ', ')]; actual [$($actual -join ', ')]."

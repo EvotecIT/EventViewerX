@@ -465,7 +465,9 @@ public static class SigmaRuleCompiler {
                     "EVXSIGMA024",
                     $"Sigma category '{category}' resolves to telemetry that conflicts with service '{service}' in profile '{profile.ProfileId}' version '{profile.Version}'.");
             }
-            channels = mapping.Channels.ToArray();
+            channels = channel == null
+                ? mapping.Channels.ToArray()
+                : new[] { channel };
             providers = mapping.Providers.ToArray();
             eventIds = mapping.EventIds.ToArray();
         }

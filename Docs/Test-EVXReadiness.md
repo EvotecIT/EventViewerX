@@ -213,7 +213,8 @@ Accept wildcard characters: False
 
 ### -MaximumHeartbeatAgeMinutes
 Optional maximum accepted age, in minutes, for each WEC source heartbeat.
-Omit this parameter when the organization has not selected a heartbeat-lag policy.
+Requires Collector and SubscriptionName. Omit this parameter when the organization
+has not selected a heartbeat-lag policy.
 
 ```yaml
 Type: Int32

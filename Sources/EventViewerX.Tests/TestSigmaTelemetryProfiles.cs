@@ -95,6 +95,48 @@ public sealed class TestSigmaTelemetryProfiles {
     }
 
     [Fact]
+    public void CompatibleServiceNarrowsAMultiChannelProfileMapping() {
+        const string yaml = """
+            title: Explicit service narrowing test
+            id: dddddddd-dddd-4ddd-8ddd-dddddddddddd
+            logsource:
+              product: windows
+              service: sysmon
+              category: process_creation
+            detection:
+              selection:
+                Image|endswith: '\\powershell.exe'
+              condition: selection
+            """;
+        var profile = new SigmaLogSourceProfile(
+            "multi-channel-test",
+            "1.0.0",
+            new[] {
+                new SigmaLogSourceMapping(
+                    "process_creation",
+                    new[] {
+                        "Microsoft-Windows-Sysmon/Operational",
+                        "Security"
+                    },
+                    new[] { "Microsoft-Windows-Sysmon" },
+                    new[] { 1 })
+            });
+        var options = new SigmaCompilationOptions {
+            LogSourceProfile = profile
+        };
+
+        SigmaCompilationResult result = SigmaRuleCompiler.CompileYaml(yaml, options);
+        EventDetectionRuleDefinition definition = Assert.Single(result.Rules).Definition;
+
+        Assert.True(result.IsSupported);
+        Assert.Equal(
+            new[] { "Microsoft-Windows-Sysmon/Operational" },
+            definition.Channels);
+        Assert.Equal(new[] { "Microsoft-Windows-Sysmon" }, definition.Providers);
+        Assert.Equal(new[] { 1 }, definition.EventIds);
+    }
+
+    [Fact]
     public void BuiltInProfileIsVersionedAndHasUniqueMappings() {
         SigmaLogSourceProfile profile = SigmaLogSourceProfile.WindowsSysmonAndPowerShell;
 

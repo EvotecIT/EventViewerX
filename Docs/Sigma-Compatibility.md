@@ -57,8 +57,12 @@ evx detect --path .\Security.evtx --sigma .\Rules\*.yml `
 
 The reproducible audit uses the SigmaHQ `sigma` repository at exact commit
 `2e8fd89f82d9104c1b30321a307254ddeea17de2`. The audit executable verifies the
-40-character commit and a clean tracked corpus before reading rules. It emits
-JSON and Markdown reports and rejects unknown command-line options.
+40-character commit and rejects tracked modifications. Its scan set comes from
+Git's tracked files at that commit, so ignored or untracked YAML cannot alter
+the result. All selected files form one compilation unit so correlations can
+resolve rules defined in other files, while diagnostics remain attributed to
+their source files. The audit emits JSON and Markdown reports and rejects
+unknown command-line options.
 
 For the 2,410 Windows rules at that commit:
 

@@ -6,7 +6,9 @@ internal static class SigmaAuditRunner {
     private const string Repository = "https://github.com/SigmaHQ/sigma";
 
     internal static SigmaAuditReport Run(AuditOptions options) {
-        GitCorpusVerifier.Verify(options.CorpusPath, options.Commit);
+        GitCorpusSnapshot corpus = GitCorpusVerifier.Verify(
+            options.CorpusPath,
+            options.Commit);
         SigmaLogSourceProfile? profile = options.Profile switch {
             AuditProfile.Strict => null,
             AuditProfile.WindowsSysmonAndPowerShell =>
@@ -24,12 +26,13 @@ internal static class SigmaAuditRunner {
                 $"Sigma scope root '{scanRoot}' does not exist.");
         }
 
-        string[] files = Directory
-            .EnumerateFiles(scanRoot, "*.yml", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(
-                scanRoot,
-                "*.yaml",
-                SearchOption.AllDirectories))
+        string scanPrefix = Path.GetFullPath(scanRoot)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+            Path.DirectorySeparatorChar;
+        string[] files = corpus.Files
+            .Where(path => path.StartsWith(
+                scanPrefix,
+                StringComparison.OrdinalIgnoreCase))
             .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (files.Length == 0) {
@@ -37,9 +40,11 @@ internal static class SigmaAuditRunner {
                 $"Sigma scope root '{scanRoot}' contains no YAML files.");
         }
 
-        SigmaFileResult[] results = files
-            .Select(path => AuditFile(options.CorpusPath, scanRoot, path, compilationOptions))
-            .ToArray();
+        SigmaFileResult[] results = SigmaCorpusCompiler.Audit(
+            options.CorpusPath,
+            scanRoot,
+            files,
+            compilationOptions);
         int supported = results.Count(static item =>
             item.Status == SigmaFileStatus.Supported);
         int supportedWithWarnings = results.Count(static item =>
@@ -66,65 +71,6 @@ internal static class SigmaAuditRunner {
             Diagnostics = BuildDiagnostics(results),
             Files = results
         };
-    }
-
-    private static SigmaFileResult AuditFile(
-        string corpusRoot,
-        string scopeRoot,
-        string path,
-        SigmaCompilationOptions compilationOptions) {
-
-        string relativePath = Path
-            .GetRelativePath(corpusRoot, path)
-            .Replace(Path.DirectorySeparatorChar, '/');
-        string category = Path
-            .GetRelativePath(scopeRoot, path)
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Split('/')[0];
-        try {
-            SigmaCompilationResult compilation =
-                SigmaRuleCompiler.Load(path, compilationOptions);
-            SigmaFileDiagnostic[] diagnostics = compilation.Diagnostics
-                .Select(static item => new SigmaFileDiagnostic {
-                    Code = item.Code,
-                    Severity = item.Severity.ToString(),
-                    Message = item.Message,
-                    DocumentIndex = item.DocumentIndex
-                })
-                .ToArray();
-            bool errors = compilation.Diagnostics.Any(static item =>
-                item.Severity == SigmaDiagnosticSeverity.Error);
-            bool warnings = compilation.Diagnostics.Any(static item =>
-                item.Severity == SigmaDiagnosticSeverity.Warning);
-            return new SigmaFileResult {
-                Path = relativePath,
-                Category = category,
-                Status = errors
-                    ? SigmaFileStatus.Unsupported
-                    : warnings
-                        ? SigmaFileStatus.SupportedWithWarnings
-                        : SigmaFileStatus.Supported,
-                CompiledRules = compilation.Rules.Count,
-                Diagnostics = diagnostics
-            };
-        } catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException) {
-
-            return new SigmaFileResult {
-                Path = relativePath,
-                Category = category,
-                Status = SigmaFileStatus.Unsupported,
-                CompiledRules = 0,
-                Diagnostics = new[] {
-                    new SigmaFileDiagnostic {
-                        Code = "EVXSIGMAAUDIT001",
-                        Severity = "Error",
-                        Message = exception.Message,
-                        DocumentIndex = 0
-                    }
-                }
-            };
-        }
     }
 
     private static IReadOnlyList<SigmaCategorySummary> BuildCategories(

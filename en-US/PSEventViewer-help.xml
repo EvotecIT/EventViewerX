@@ -23298,7 +23298,8 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
           <maml:description>
             <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
-Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
+Requires Collector and SubscriptionName. Omit this parameter when the organization&#xD;
+has not selected a heartbeat-lag policy.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
@@ -23613,7 +23614,8 @@ Omit this parameter when the organization has not selected a heartbeat-lag polic
           <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
           <maml:description>
             <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
-Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
+Requires Collector and SubscriptionName. Omit this parameter when the organization&#xD;
+has not selected a heartbeat-lag policy.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
@@ -23830,7 +23832,8 @@ Omit this parameter when the organization has not selected a heartbeat-lag polic
         <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
         <maml:description>
           <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
-Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
+Requires Collector and SubscriptionName. Omit this parameter when the organization&#xD;
+has not selected a heartbeat-lag policy.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
         <dev:type>

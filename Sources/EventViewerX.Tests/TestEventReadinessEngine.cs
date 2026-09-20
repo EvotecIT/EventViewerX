@@ -854,6 +854,25 @@ public sealed class TestEventReadinessEngine {
         Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, heartbeat.DiagnosticKind);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("collector01.example.com")]
+    public void CollectorHeartbeatPolicyRequiresASubscription(string? collector) {
+        var request = new EventReadinessRequest {
+            Types = new[] { EventType.ADUserLogonNTLMv1 },
+            Collector = collector,
+            MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+        };
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            EventReadinessEngine.Evaluate(
+                request,
+                CreateCollectorEvidence(),
+                CancellationToken.None));
+
+        Assert.Equal("MaximumCollectorHeartbeatAge", exception.ParamName);
+    }
+
     [Fact]
     public void ActiveSubscriptionWithNoRuntimeSourcesFailsExpectedSourceEnrollment() {
         var evidence = CreateCollectorEvidence();

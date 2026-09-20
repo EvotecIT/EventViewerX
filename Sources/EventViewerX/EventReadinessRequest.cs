@@ -27,7 +27,8 @@ public sealed class EventReadinessRequest {
     public int MaxEventsToScan { get; set; } = 4096;
     /// <summary>
     /// Optional maximum accepted age for a WEC source heartbeat. When omitted, heartbeat timestamps
-    /// remain diagnostic evidence and no product-owned staleness policy is invented.
+    /// remain diagnostic evidence and no product-owned staleness policy is invented. Requires a
+    /// collector subscription when set.
     /// </summary>
     public TimeSpan? MaximumCollectorHeartbeatAge { get; set; }
 
@@ -70,6 +71,11 @@ public sealed class EventReadinessRequest {
             throw new ArgumentOutOfRangeException(
                 nameof(MaximumCollectorHeartbeatAge),
                 "Maximum collector heartbeat age must be greater than zero and no more than 365 days.");
+        }
+        if (MaximumCollectorHeartbeatAge.HasValue && subscriptionName == null) {
+            throw new ArgumentException(
+                "MaximumCollectorHeartbeatAge requires a collector subscription so heartbeat evidence cannot be silently ignored.",
+                nameof(MaximumCollectorHeartbeatAge));
         }
         return new EventReadinessRequest {
             Types = selected,

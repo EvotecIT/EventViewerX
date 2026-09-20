@@ -96,7 +96,8 @@ public sealed class CmdletTestEVXReadiness : AsyncPSCmdlet {
 
     /// <summary>
     /// Optional maximum accepted age, in minutes, for each WEC source heartbeat.
-    /// Omit this parameter when the organization has not selected a heartbeat-lag policy.
+    /// Requires Collector and SubscriptionName. Omit this parameter when the organization
+    /// has not selected a heartbeat-lag policy.
     /// </summary>
     [Parameter]
     [ValidateRange(1, 525600)]

@@ -61,7 +61,9 @@ subscription enablement, typed query coverage, expected-source enrollment,
 runtime errors, and the optional operator-owned heartbeat-age policy. Omitting
 `MaximumHeartbeatAgeMinutes` leaves heartbeat timestamps as evidence and does
 not invent an organizational threshold. A missing timestamp is `Unknown`, not
-fabricated success or failure.
+fabricated success or failure. A heartbeat-age policy requires both `Collector`
+and `SubscriptionName`; the request is rejected if no subscription exists to
+which the policy can be applied.
 
 For direct inspection:
 

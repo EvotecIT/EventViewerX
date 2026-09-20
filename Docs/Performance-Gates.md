@@ -23,6 +23,8 @@ Timing tolerances are intentionally broad: 50% relative plus a small absolute
 allowance. These gates catch large regressions without turning workstation
 noise into a product failure. Correctness, complete matrices, zero failed
 samples, bytes per event, and scale slope are stronger invariants.
+Each expected detection parameter tuple must occur exactly once; missing rows
+and duplicate rows both fail before a timing or allocation comparison runs.
 
 ## Run the gates
 
