@@ -1,4 +1,5 @@
 using EventViewerX.Evtx;
+using System.Diagnostics;
 using System.Text;
 using Xunit;
 
@@ -373,6 +374,28 @@ public sealed class TestSavedEventPortability {
 
         Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
         Assert.True(boundaryChecks > 0);
+    }
+
+    [Fact]
+    public void EvtxDumpReadBoundaryExcludesConsumerDelayFromInactivity() {
+        string text = new string('x', 65_535) + "\nsecond\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        using var textReader = new StreamReader(stream, Encoding.UTF8);
+        var reader = new EvtxDumpBoundedLineReader(textReader, maximumLineCharacters: 65_535);
+        var inactivity = new Stopwatch();
+        int boundaryChecks = 0;
+        Action boundaryCheck = () => boundaryChecks++;
+
+        string? first = EvtxDumpSavedEventReader.ReadLineBounded(reader, boundaryCheck, inactivity);
+        TimeSpan beforeConsumerDelay = inactivity.Elapsed;
+        Thread.Sleep(100);
+        Assert.Equal(beforeConsumerDelay, inactivity.Elapsed);
+        string? second = EvtxDumpSavedEventReader.ReadLineBounded(reader, boundaryCheck, inactivity);
+
+        Assert.Equal(65_535, first!.Length);
+        Assert.Equal("second", second);
+        Assert.True(boundaryChecks >= 2);
+        Assert.False(inactivity.IsRunning);
     }
 
     [Fact]

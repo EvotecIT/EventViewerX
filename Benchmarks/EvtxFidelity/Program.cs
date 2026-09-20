@@ -60,12 +60,6 @@ for (int iteration = 0; iteration < options.WarmupIterations; iteration++) {
     }
 }
 
-_ = portableAction(diagnostics.Add);
-if (commandAction != null) {
-    _ = commandAction(commandDiagnostics.Add);
-    CheckCommandIdentity();
-}
-
 for (int iteration = 0; iteration < options.Iterations; iteration++) {
     Measurement? windows = null;
     if (OperatingSystem.IsWindows() && iteration % 2 == 1) {
@@ -92,6 +86,12 @@ for (int iteration = 0; iteration < options.Iterations; iteration++) {
             }
         }
     }
+}
+
+_ = portableAction(diagnostics.Add);
+if (commandAction != null) {
+    _ = commandAction(commandDiagnostics.Add);
+    CheckCommandIdentity();
 }
 
 MeasurementAggregate portableAggregate = MeasurementAggregate.Create(portableMeasurements);

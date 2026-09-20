@@ -32,10 +32,10 @@ dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj 
 The JSON records fixture SHA-256, runtime and architecture, parser assembly
 versions, the resolved external-parser path and SHA-256 checked around each invocation, every
 measured iteration, medians, fidelity minima, diagnostics, and the evaluated
-budget. Diagnostics are collected in a separate unmeasured pass so every timed
-iteration performs equivalent work. The gate rejects results when the fixture
-or external parser changed or any requested Windows reference iteration is
-missing.
+budget. Diagnostics are collected in a separate unmeasured pass after the timed
+iterations, so every timed iteration performs equivalent work and `--warmup 0`
+still measures cold parser startup. The gate rejects results when the fixture or
+external parser changed or any requested Windows reference iteration is missing.
 `Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.

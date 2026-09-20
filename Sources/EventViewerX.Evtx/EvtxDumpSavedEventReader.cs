@@ -15,7 +15,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
     /// <summary>Creates a bounded reader for an explicit executable path or a command resolvable through PATH.</summary>
     /// <param name="executablePath">Exact executable path or command resolvable through PATH.</param>
     /// <param name="maximumRuntime">Maximum total parser lifetime. The default is 30 minutes.</param>
-    /// <param name="maximumInactivity">Maximum time without one parser output line. The default is two minutes.</param>
+    /// <param name="maximumInactivity">Maximum time spent waiting for parser output. Caller processing time is excluded. The default is two minutes.</param>
     public EvtxDumpSavedEventReader(
         string executablePath = "evtx_dump",
         TimeSpan? maximumRuntime = null,
@@ -114,12 +114,11 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         Action boundaryCheck = () =>
             ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
         try {
-            string? line;
-            while ((line = ReadLineBounded(
-                        lineReader,
-                        boundaryCheck)) != null) {
-
-                inactivity.Restart();
+            while (true) {
+                string? line = ReadLineBounded(lineReader, boundaryCheck, inactivity);
+                if (line == null) {
+                    break;
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 string? xml;
                 try {
@@ -206,9 +205,18 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         }
     }
 
-    private string? ReadLineBounded(
+    internal static string? ReadLineBounded(
         EvtxDumpBoundedLineReader reader,
-        Action boundaryCheck) => reader.ReadLine(boundaryCheck);
+        Action boundaryCheck,
+        Stopwatch inactivity) {
+
+        inactivity.Restart();
+        try {
+            return reader.ReadLine(boundaryCheck);
+        } finally {
+            inactivity.Stop();
+        }
+    }
 
     private void WaitForExitBounded(
         Process process,
