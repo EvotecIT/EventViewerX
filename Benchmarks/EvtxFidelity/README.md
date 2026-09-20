@@ -11,7 +11,7 @@ dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj 
 ```
 
 For a repeatable regression gate, select the materialization contract, run
-rotated iterations, and set explicit budgets. The command exits with code 5
+multiple iterations, and set explicit budgets. The command exits with code 5
 when a configured throughput or allocation budget fails; identity loss keeps
 its existing non-zero failure codes.
 
@@ -30,10 +30,10 @@ dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj 
 ```
 
 The JSON records fixture SHA-256, runtime and architecture, parser assembly
-versions, the resolved external-parser path and SHA-256 when configured, every
+versions, the resolved external-parser path and SHA-256 checked around each invocation, every
 measured iteration, medians, fidelity minima, diagnostics, and the evaluated
-budget. It hashes the fixture before and after the run and rejects results when
-the bytes changed or only some requested Windows reference iterations completed.
+budget. It rejects results when the fixture or external parser changed or only
+some requested Windows reference iterations completed.
 `Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.

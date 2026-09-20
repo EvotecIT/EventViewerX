@@ -123,7 +123,12 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                 cancellationToken.ThrowIfCancellationRequested();
                 string? xml;
                 try {
-                    if (!framer.TryAdd(line, out xml)) {
+                    bool framed = framer.TryAdd(line, out xml, out string? recoveryError);
+                    if (recoveryError != null) {
+                        rejectedRecords++;
+                        firstRejection ??= recoveryError;
+                    }
+                    if (!framed) {
                         continue;
                     }
                 } catch (Exception exception) {

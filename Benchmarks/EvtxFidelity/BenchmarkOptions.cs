@@ -44,6 +44,10 @@ internal sealed class BenchmarkOptions {
         }
         if (index < args.Length && !IsOption(args[index])) {
             evtxDumpPath = args[index++];
+            if (string.IsNullOrWhiteSpace(evtxDumpPath)) {
+                throw new ArgumentException("The evtx-dump command requires a non-empty path or command name.");
+            }
+            evtxDumpPath = evtxDumpPath.Trim();
         }
 
         while (index < args.Length) {
@@ -85,6 +89,9 @@ internal sealed class BenchmarkOptions {
                         maximumInclusive: 1);
                     break;
                 case "--output":
+                    if (string.IsNullOrWhiteSpace(value)) {
+                        throw new ArgumentException("Option 'output' requires a non-empty path.");
+                    }
                     outputPath = value;
                     break;
                 default:
@@ -92,7 +99,7 @@ internal sealed class BenchmarkOptions {
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(outputPath)) {
+        if (outputPath != null) {
             outputPath = System.IO.Path.GetFullPath(outputPath);
             if (File.Exists(outputPath) || Directory.Exists(outputPath)) {
                 throw new ArgumentException(
@@ -103,7 +110,8 @@ internal sealed class BenchmarkOptions {
         return new BenchmarkOptions {
             Path = path,
             MaximumEvents = maximumEvents,
-            EvtxDumpPath = evtxDumpPath ?? Environment.GetEnvironmentVariable("EVENTVIEWERX_EVTX_DUMP"),
+            EvtxDumpPath = NormalizeOptionalCommand(
+                evtxDumpPath ?? Environment.GetEnvironmentVariable("EVENTVIEWERX_EVTX_DUMP")),
             ReadMode = readMode,
             WarmupIterations = warmupIterations,
             Iterations = iterations,
@@ -116,6 +124,9 @@ internal sealed class BenchmarkOptions {
     }
 
     private static bool IsOption(string value) => value.StartsWith("--", StringComparison.Ordinal);
+
+    private static string? NormalizeOptionalCommand(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static long ParseLong(
         string value,

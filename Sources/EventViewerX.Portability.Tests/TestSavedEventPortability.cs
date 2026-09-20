@@ -216,6 +216,96 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void EvtxDumpXmlFramerDoesNotEndAtNestedEventClosingTag() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData>", out _));
+        Assert.False(framer.TryAdd("<Event><Value>nested</Value></Event>", out _));
+        Assert.True(framer.TryAdd("</UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData>\n<Event><Value>nested</Value></Event>\n</UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRecoversAtNextDocumentDeclaration() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        const string firstDocument = "<?xml version=\"1.0\"?><Event><System /></Event>";
+        const string secondDocument = "<?xml version=\"1.0\"?><Event><System /></Event>";
+
+        Assert.False(framer.TryAdd("<Event><UserData>", out _, out _));
+        Assert.True(framer.TryAdd(
+            firstDocument,
+            out string? first,
+            out string? recoveryError));
+        Assert.True(framer.TryAdd(secondDocument, out string? second, out _));
+
+        Assert.Contains("previous Event fragment ended", recoveryError, StringComparison.Ordinal);
+        Assert.Equal(firstDocument, first);
+        Assert.Equal(secondDocument, second);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerPreservesCompactDeclarationAndEvent() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        const string value = "<?xml version=\"1.0\"?><Event><System /></Event>";
+
+        Assert.True(framer.TryAdd(value, out string? xml));
+
+        Assert.Equal(value, xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsStylesheetProcessingInstructionAsPreamble() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<?xml-stylesheet?><Event />", out _));
+
+        Assert.Contains("unexpected output", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerIgnoresClosingTagTextInsideCData() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData><![CDATA[", out _));
+        Assert.False(framer.TryAdd("</Event>", out _));
+        Assert.True(framer.TryAdd("]]></UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData><![CDATA[\n</Event>\n]]></UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsRootNamePrefixCollision() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<Eventual />", out _));
+
+        Assert.Contains("unexpected output", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRecoversAfterMalformedTrailingMarkup() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<Event></Event></Event>", out _));
+
+        Assert.True(framer.TryAdd("<Event />", out string? xml));
+        Assert.Equal("<Event />", xml);
+        framer.Complete();
+    }
+
+    [Fact]
     public void EvtxDumpXmlFramerRejectsIncompleteRecords() {
         var framer = new EvtxDumpXmlRecordFramer();
         Assert.False(framer.TryAdd("<Event><System>", out _));

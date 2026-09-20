@@ -15,9 +15,24 @@ internal sealed record ExternalCommandIdentity(
 
         string? resolvedPath = Resolve(command);
         if (resolvedPath == null) {
-            return new ExternalCommandIdentity(command, null, null, null, null);
+            throw new FileNotFoundException(
+                $"The configured external parser '{command}' could not be resolved to a file.",
+                command);
         }
 
+        return CreateResolved(command, resolvedPath);
+    }
+
+    internal static ExternalCommandIdentity Refresh(ExternalCommandIdentity identity) {
+        if (string.IsNullOrWhiteSpace(identity.ResolvedPath)) {
+            throw new FileNotFoundException(
+                $"The configured external parser '{identity.SuppliedCommand}' has no resolved file path.",
+                identity.SuppliedCommand);
+        }
+        return CreateResolved(identity.SuppliedCommand, identity.ResolvedPath);
+    }
+
+    private static ExternalCommandIdentity CreateResolved(string command, string resolvedPath) {
         var file = new FileInfo(resolvedPath);
         string? fileVersion = null;
         try {

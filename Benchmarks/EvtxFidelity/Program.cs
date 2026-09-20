@@ -17,7 +17,14 @@ try {
 
 var diagnostics = new List<SavedEventReadDiagnostic>();
 var commandDiagnostics = new List<SavedEventReadDiagnostic>();
-ExternalCommandIdentity? commandIdentity = ExternalCommandIdentity.Create(options.EvtxDumpPath);
+ExternalCommandIdentity? commandIdentityBefore;
+try {
+    commandIdentityBefore = ExternalCommandIdentity.Create(options.EvtxDumpPath);
+} catch (Exception exception) when (
+    exception is FileNotFoundException or IOException or UnauthorizedAccessException) {
+    Console.Error.WriteLine(exception.Message);
+    return 66;
+}
 FixtureIdentity fixtureBefore = ReadFixtureIdentity(options.Path);
 var portableMeasurements = new List<MeasurementSummary>(options.Iterations);
 var commandMeasurements = new List<MeasurementSummary>(options.Iterations);
@@ -29,16 +36,20 @@ string? windowsError = null;
 Func<Action<SavedEventReadDiagnostic>?, EventObject[]> portableAction = diagnosticHandler =>
     Read(new EvtxSavedEventReader(), diagnosticHandler);
 Func<Action<SavedEventReadDiagnostic>?, EventObject[]>? commandAction =
-    string.IsNullOrWhiteSpace(options.EvtxDumpPath)
+    commandIdentityBefore?.ResolvedPath == null
         ? null
         : diagnosticHandler => Read(
-            new EvtxDumpSavedEventReader(options.EvtxDumpPath!),
+            new EvtxDumpSavedEventReader(commandIdentityBefore.ResolvedPath),
             diagnosticHandler);
+ExternalCommandIdentity? commandIdentityAfter = null;
+string? commandIdentityError = null;
+bool? commandIdentityStable = commandAction == null ? null : true;
 
 for (int iteration = 0; iteration < options.WarmupIterations; iteration++) {
     _ = portableAction(null);
     if (commandAction != null) {
         _ = commandAction(null);
+        CheckCommandIdentity();
     }
     if (OperatingSystem.IsWindows()) {
         try {
@@ -64,6 +75,7 @@ for (int iteration = 0; iteration < options.Iterations; iteration++) {
             iteration == 0 ? commandDiagnostics.Add : null));
     if (command != null) {
         commandMeasurements.Add(command.Summary);
+        CheckCommandIdentity();
     }
 
     if (OperatingSystem.IsWindows()) {
@@ -100,6 +112,7 @@ try {
     fixtureIntegrityError = exception.GetType().Name + ": " + exception.Message;
 }
 bool fixtureStable = fixtureAfter != null && fixtureBefore == fixtureAfter;
+CheckCommandIdentity();
 bool windowsReferenceIncomplete = OperatingSystem.IsWindows() &&
                                   windowsMeasurements.Count > 0 &&
                                   windowsMeasurements.Count != options.Iterations;
@@ -129,7 +142,13 @@ var output = new {
     Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
     EventViewerXEvtxVersion = AssemblyVersion(typeof(EvtxSavedEventReader).Assembly),
     ParserDependencyVersion = AssemblyVersion(typeof(evtx.EventLog).Assembly),
-    EvtxDumpExecutable = commandIdentity,
+    EvtxDumpExecutable = commandIdentityBefore,
+    EvtxDumpExecutableIntegrity = new {
+        Before = commandIdentityBefore,
+        After = commandIdentityAfter,
+        Stable = commandIdentityStable,
+        Error = commandIdentityError
+    },
     Portable = portableAggregate,
     EvtxDump = commandAggregate,
     Windows = windowsAggregate,
@@ -146,7 +165,7 @@ var output = new {
 var serializerOptions = new JsonSerializerOptions { WriteIndented = true };
 string json = JsonSerializer.Serialize(output, serializerOptions);
 Console.WriteLine(json);
-if (!string.IsNullOrWhiteSpace(options.OutputPath)) {
+if (options.OutputPath != null) {
     string outputPath = Path.GetFullPath(options.OutputPath!);
     string? directory = Path.GetDirectoryName(outputPath);
     if (!string.IsNullOrEmpty(directory)) {
@@ -170,6 +189,9 @@ if (commandAction != null && commandMeasurements.Any(static measurement => measu
 }
 if (!fixtureStable) {
     return 8;
+}
+if (commandIdentityStable == false) {
+    return 9;
 }
 if (windowsReferenceIncomplete) {
     return 7;
@@ -214,6 +236,20 @@ Measurement? TryMeasureWindows() {
     } catch (Exception exception) {
         windowsError ??= exception.GetType().Name + ": " + exception.Message;
         return null;
+    }
+}
+
+void CheckCommandIdentity() {
+    if (commandIdentityBefore == null || commandIdentityStable == false) {
+        return;
+    }
+    try {
+        commandIdentityAfter = ExternalCommandIdentity.Refresh(commandIdentityBefore);
+        commandIdentityStable = commandIdentityAfter == commandIdentityBefore;
+    } catch (Exception exception) when (
+        exception is FileNotFoundException or IOException or UnauthorizedAccessException) {
+        commandIdentityError = exception.GetType().Name + ": " + exception.Message;
+        commandIdentityStable = false;
     }
 }
 
