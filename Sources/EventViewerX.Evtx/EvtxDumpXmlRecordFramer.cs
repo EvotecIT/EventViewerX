@@ -65,6 +65,7 @@ internal sealed class EvtxDumpXmlRecordFramer {
         }
 
         _record.Append('\n');
+        _ = _depthTracker.Process("\n");
         if (_record.Length > MaximumRecordCharacters - line.Length) {
             Reset();
             throw new InvalidDataException(

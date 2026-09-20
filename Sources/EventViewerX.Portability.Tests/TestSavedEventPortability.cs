@@ -297,6 +297,25 @@ public sealed class TestSavedEventPortability {
         framer.Complete();
     }
 
+    [Theory]
+    [InlineData("<Event><![CDATA[value]]", "></Missing>", "]]></Event>")]
+    [InlineData("<Event><!-- value-", "-></Missing>", "--></Event>")]
+    [InlineData("<Event><?probe value?", "></Missing>", "?></Event>")]
+    public void EvtxDumpXmlFramerPreservesTerminatorPrefixesAcrossReconstructedLineBreaks(
+        string firstLine,
+        string secondLine,
+        string thirdLine) {
+
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd(firstLine, out _));
+        Assert.False(framer.TryAdd(secondLine, out _));
+        Assert.True(framer.TryAdd(thirdLine, out string? xml));
+
+        Assert.Equal($"{firstLine}\n{secondLine}\n{thirdLine}", xml);
+        framer.Complete();
+    }
+
     [Fact]
     public void EvtxDumpXmlFramerRejectsRootNamePrefixCollision() {
         var framer = new EvtxDumpXmlRecordFramer();
