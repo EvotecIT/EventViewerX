@@ -408,6 +408,40 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void EvtxRecordHeaderCursorResynchronizesAfterDamagedRecordHeader() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"EventViewerX-{Guid.NewGuid():N}.evtx");
+        File.Copy(source, path);
+        try {
+            const long firstRecordOffset = 4096 + 512;
+            long firstRecordId;
+            long secondRecordId;
+            int firstRecordSize;
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) {
+                stream.Position = firstRecordOffset + 4;
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+                firstRecordSize = checked((int)reader.ReadUInt32());
+                firstRecordId = reader.ReadInt64();
+                stream.Position = firstRecordOffset + firstRecordSize + 8;
+                secondRecordId = reader.ReadInt64();
+                stream.Position = firstRecordOffset;
+                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+                writer.Write(0);
+            }
+            var damagedRecord = new SavedEventRecord { RecordId = firstRecordId };
+            var recoveredRecord = new SavedEventRecord { RecordId = secondRecordId };
+
+            using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+
+            Assert.False(cursor.TryApply(damagedRecord));
+            Assert.True(cursor.TryApply(recoveredRecord));
+            Assert.Equal(firstRecordOffset + firstRecordSize, recoveredRecord.FileOffset);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void ParserNeutralReaderDoesNotInvokeWindowsEventingApis() {
         string path = Path.Combine(Path.GetTempPath(), $"eventviewerx-portable-{Guid.NewGuid():N}.evtx");
         File.WriteAllBytes(path, new byte[] { 1 });
