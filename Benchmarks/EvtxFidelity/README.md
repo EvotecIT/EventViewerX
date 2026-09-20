@@ -32,7 +32,9 @@ dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj 
 The JSON records fixture SHA-256, runtime and architecture, parser assembly
 versions, the resolved external-parser path and SHA-256 when configured, every
 measured iteration, medians, fidelity minima, diagnostics, and the evaluated
-budget. `Metadata`, `Message`, `StructuredData`, `RawXml`,
+budget. It hashes the fixture before and after the run and rejects results when
+the bytes changed or only some requested Windows reference iterations completed.
+`Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.
 The `--output` path must name a new file. Existing files are never overwritten,

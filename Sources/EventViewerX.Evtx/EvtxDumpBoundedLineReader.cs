@@ -34,6 +34,7 @@ internal sealed class EvtxDumpBoundedLineReader {
                     waitBoundaryCheck();
                 }
                 _length = read.GetAwaiter().GetResult();
+                waitBoundaryCheck();
                 _position = 0;
                 if (_length == 0) {
                     return line?.ToString();

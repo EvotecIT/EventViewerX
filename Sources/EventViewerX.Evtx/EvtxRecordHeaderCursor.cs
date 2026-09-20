@@ -81,13 +81,6 @@ internal sealed class EvtxRecordHeaderCursor : IDisposable {
                 }
 
                 long recordNumber = BitConverter.ToInt64(buffer, recordOffset + 8);
-                long fileTime = BitConverter.ToInt64(buffer, recordOffset + 16);
-                try {
-                    _ = DateTime.FromFileTimeUtc(fileTime);
-                } catch (ArgumentOutOfRangeException) {
-                    recordOffset += recordSize;
-                    continue;
-                }
                 yield return new EvtxRecordHeader(
                     recordNumber,
                     chunkFileOffset + recordOffset);

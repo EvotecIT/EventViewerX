@@ -18,6 +18,7 @@ try {
 var diagnostics = new List<SavedEventReadDiagnostic>();
 var commandDiagnostics = new List<SavedEventReadDiagnostic>();
 ExternalCommandIdentity? commandIdentity = ExternalCommandIdentity.Create(options.EvtxDumpPath);
+FixtureIdentity fixtureBefore = ReadFixtureIdentity(options.Path);
 var portableMeasurements = new List<MeasurementSummary>(options.Iterations);
 var commandMeasurements = new List<MeasurementSummary>(options.Iterations);
 var windowsMeasurements = new List<MeasurementSummary>(options.Iterations);
@@ -90,16 +91,33 @@ FidelityAggregate? fidelityAggregate = fidelities.Count == 0
 FidelityAggregate? commandFidelityAggregate = commandFidelities.Count == 0
     ? null
     : FidelityAggregate.Create(commandFidelities);
+FixtureIdentity? fixtureAfter = null;
+string? fixtureIntegrityError = null;
+try {
+    fixtureAfter = ReadFixtureIdentity(options.Path);
+} catch (Exception exception) when (
+    exception is IOException or UnauthorizedAccessException) {
+    fixtureIntegrityError = exception.GetType().Name + ": " + exception.Message;
+}
+bool fixtureStable = fixtureAfter != null && fixtureBefore == fixtureAfter;
+bool windowsReferenceIncomplete = OperatingSystem.IsWindows() &&
+                                  windowsMeasurements.Count > 0 &&
+                                  windowsMeasurements.Count != options.Iterations;
 PerformanceBudgetResult budget = PerformanceBudgetEvaluator.Evaluate(
     options,
     portableAggregate.Median,
     fidelityAggregate);
 
-var fixture = new FileInfo(options.Path);
 var output = new {
     options.Path,
-    FileBytes = fixture.Length,
-    FileSha256 = ComputeSha256(options.Path),
+    FileBytes = fixtureBefore.Bytes,
+    FileSha256 = fixtureBefore.Sha256,
+    FixtureIntegrity = new {
+        Before = fixtureBefore,
+        After = fixtureAfter,
+        Stable = fixtureStable,
+        Error = fixtureIntegrityError
+    },
     options.MaximumEvents,
     ReadMode = options.ReadMode.ToString(),
     options.WarmupIterations,
@@ -115,6 +133,9 @@ var output = new {
     Portable = portableAggregate,
     EvtxDump = commandAggregate,
     Windows = windowsAggregate,
+    WindowsReferenceComplete = OperatingSystem.IsWindows()
+        ? windowsMeasurements.Count == options.Iterations
+        : (bool?)null,
     WindowsError = windowsError,
     Fidelity = fidelityAggregate,
     EvtxDumpFidelity = commandFidelityAggregate,
@@ -146,6 +167,12 @@ if (portableMeasurements.Any(static measurement => measurement.Count == 0)) {
 }
 if (commandAction != null && commandMeasurements.Any(static measurement => measurement.Count == 0)) {
     return 4;
+}
+if (!fixtureStable) {
+    return 8;
+}
+if (windowsReferenceIncomplete) {
+    return 7;
 }
 if (options.MinimumExactTimestampRatio > 0 && fidelityAggregate == null) {
     return 6;
@@ -190,9 +217,14 @@ Measurement? TryMeasureWindows() {
     }
 }
 
-static string ComputeSha256(string path) {
-    using FileStream stream = File.OpenRead(path);
-    return Convert.ToHexString(SHA256.HashData(stream));
+static FixtureIdentity ReadFixtureIdentity(string path) {
+    using FileStream stream = File.Open(
+        path,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.ReadWrite | FileShare.Delete);
+    long bytes = stream.Length;
+    return new FixtureIdentity(bytes, Convert.ToHexString(SHA256.HashData(stream)));
 }
 
 static string AssemblyVersion(Assembly assembly) =>
@@ -209,3 +241,5 @@ static IEnumerable<object> ProjectDiagnostics(IEnumerable<SavedEventReadDiagnost
         item.FileOffset,
         item.Message
     });
+
+internal sealed record FixtureIdentity(long Bytes, string Sha256);

@@ -243,11 +243,13 @@ public sealed class TestSavedEventPortability {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("123456789\n"));
         using var textReader = new StreamReader(stream, Encoding.UTF8);
         var reader = new EvtxDumpBoundedLineReader(textReader, maximumLineCharacters: 8);
+        int boundaryChecks = 0;
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(
-            () => reader.ReadLine(static () => { }));
+            () => reader.ReadLine(() => boundaryChecks++));
 
         Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
+        Assert.True(boundaryChecks > 0);
     }
 
     [Fact]
@@ -272,6 +274,33 @@ public sealed class TestSavedEventPortability {
         Assert.True(matched);
         Assert.Equal(timestampUtc.AddTicks(-1), actual.TimeCreatedUtc);
         Assert.Equal(4096 + 512, actual.FileOffset);
+    }
+
+    [Fact]
+    public void EvtxRecordHeaderCursorPreservesOffsetWhenHeaderTimestampIsInvalid() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"EventViewerX-{Guid.NewGuid():N}.evtx");
+        File.Copy(source, path);
+        try {
+            long recordId;
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) {
+                stream.Position = 4096 + 512 + 8;
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+                recordId = reader.ReadInt64();
+                stream.Position = 4096 + 512 + 16;
+                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+                writer.Write(long.MaxValue);
+            }
+            var actual = new SavedEventRecord { RecordId = recordId };
+
+            using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+            bool matched = cursor.TryApply(actual);
+
+            Assert.True(matched);
+            Assert.Equal(4096 + 512, actual.FileOffset);
+        } finally {
+            File.Delete(path);
+        }
     }
 
     [Fact]
