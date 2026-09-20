@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T15:00:19.4647027+00:00",
+  "metrics": {
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=OrderedTemporal|AllocatedBytesPerEvent": 160.003656,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=StatelessPredicate|AllocatedBytesPerEvent": 104.0032,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=ThresholdWindow|AllocatedBytesPerEvent": 176.78412,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=OrderedTemporal|AllocatedBytesPerEvent": 160.03656,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=StatelessPredicate|AllocatedBytesPerEvent": 104.032,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=ThresholdWindow|AllocatedBytesPerEvent": 181.01386,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=OrderedTemporal|AllocatedBytesPerEvent": 160.3656,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=StatelessPredicate|AllocatedBytesPerEvent": 104.32,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=ThresholdWindow|AllocatedBytesPerEvent": 186.5887,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=OrderedTemporal|AllocatedBytesPerEvent": 163.656,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=StatelessPredicate|AllocatedBytesPerEvent": 107.2,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=ThresholdWindow|AllocatedBytesPerEvent": 179.992
+  }
+}

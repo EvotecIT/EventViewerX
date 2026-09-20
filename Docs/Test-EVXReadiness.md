@@ -13,12 +13,12 @@ Composes explicit target discovery, native Event Log probes, effective local aud
 ## SYNTAX
 ### Type (Default)
 ```powershell
-Test-EVXReadiness [-Type] <EventType[]> [-ActiveDirectory <EventTargetDiscoveryScope>] [-Name <string>] [-IncludeTrustedForests] [-Collector <string>] [-SubscriptionName <string>] [-ExpectedSource <string[]>] [-DirectoryCredential <pscredential>] [-EventLogCredential <pscredential>] [-Authentication <EventLogAuthentication>] [-DiscoveryTimeoutMs <int>] [-MaximumDomainCount <int>] [-MaximumTargetCount <int>] [-ProbeTimeoutMs <int>] [-MaxEventsToScan <int>] [<CommonParameters>]
+Test-EVXReadiness [-Type] <EventType[]> [-ActiveDirectory <EventTargetDiscoveryScope>] [-Name <string>] [-IncludeTrustedForests] [-Collector <string>] [-SubscriptionName <string>] [-ExpectedSource <string[]>] [-DirectoryCredential <pscredential>] [-EventLogCredential <pscredential>] [-Authentication <EventLogAuthentication>] [-DiscoveryTimeoutMs <int>] [-MaximumDomainCount <int>] [-MaximumTargetCount <int>] [-ProbeTimeoutMs <int>] [-MaxEventsToScan <int>] [-MaximumHeartbeatAgeMinutes <int>] [<CommonParameters>]
 ```
 
 ### Scenario
 ```powershell
-Test-EVXReadiness [-Scenario] <EventReadinessScenario> [-ActiveDirectory <EventTargetDiscoveryScope>] [-Name <string>] [-IncludeTrustedForests] [-Collector <string>] [-SubscriptionName <string>] [-ExpectedSource <string[]>] [-DirectoryCredential <pscredential>] [-EventLogCredential <pscredential>] [-Authentication <EventLogAuthentication>] [-DiscoveryTimeoutMs <int>] [-MaximumDomainCount <int>] [-MaximumTargetCount <int>] [-ProbeTimeoutMs <int>] [-MaxEventsToScan <int>] [<CommonParameters>]
+Test-EVXReadiness [-Scenario] <EventReadinessScenario> [-ActiveDirectory <EventTargetDiscoveryScope>] [-Name <string>] [-IncludeTrustedForests] [-Collector <string>] [-SubscriptionName <string>] [-ExpectedSource <string[]>] [-DirectoryCredential <pscredential>] [-EventLogCredential <pscredential>] [-Authentication <EventLogAuthentication>] [-DiscoveryTimeoutMs <int>] [-MaximumDomainCount <int>] [-MaximumTargetCount <int>] [-ProbeTimeoutMs <int>] [-MaxEventsToScan <int>] [-MaximumHeartbeatAgeMinutes <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -211,6 +211,23 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -MaximumHeartbeatAgeMinutes
+Optional maximum accepted age, in minutes, for each WEC source heartbeat.
+Omit this parameter when the organization has not selected a heartbeat-lag policy.
+
+```yaml
+Type: Int32
+Parameter Sets: Type, Scenario
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -MaximumTargetCount
 Maximum distinct event-log targets retained by one explicit discovery.
 
@@ -298,7 +315,7 @@ Explicit event types to assess.
 Type: EventType[]
 Parameter Sets: Type
 Aliases: None
-Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, KerberosKdcRc4Audit, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth, ScheduledTaskEnabled, ScheduledTaskDisabled, ScheduledTaskUpdated, FirewallRuleAdded, FirewallRuleDeleted, DefenderThreatDetected, DefenderThreatAction, DefenderConfigurationChanged, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity, AuthenticationHealth, GroupPolicyDirectoryAudit
+Possible values: ADComputerCreateChange, ADComputerDeleted, ADComputerChangeDetailed, ADGroupMembershipChange, ADGroupEnumeration, ADGroupChange, ADGroupCreateDelete, ADGroupChangeDetailed, ADGroupPolicyChanges, ADGroupPolicyEdits, ADGroupPolicyLinks, ADGroupPolicyChangesDetailed, GpoCreated, GpoDeleted, GpoModified, ADLdapBindingSummary, ADLdapBindingDetails, ADUserCreateChange, ADUserStatus, ADUserChangeDetailed, ADUserLockouts, ADUserLogon, ADUserLogonNTLMv1, ADUserLogonFailed, ADUserUnlocked, ADUserPrivilegeUse, ADUserRightsAssignment, KerberosTGTRequest, KerberosServiceTicket, KerberosTicketFailure, KerberosPolicyChange, ADOrganizationalUnitChangeDetailed, ADOtherChangeDetailed, ADSMBServerAuditV1, LogsClearedSecurity, LogsClearedOther, LogsFullSecurity, NetworkAccessAuthenticationPolicy, CertificateIssued, AuditPolicyChange, FirewallRuleChange, DhcpLeaseCreated, BitLockerKeyChange, BitLockerSuspended, DeviceRecognized, DeviceDisabled, ObjectDeletion, ScheduledTaskDeleted, ScheduledTaskCreated, OSCrash, OSBugCheck, OSStartup, OSShutdown, OSUncleanShutdown, OSStartupSecurity, OSCrashOnAuditFailRecovery, OSTimeChange, WindowsUpdateFailure, ClientGroupPoliciesApplication, ClientGroupPoliciesSystem, HyperVVirtualMachineShutdown, HyperVVirtualMachineStarted, IISSiteBindingFailure, HyperVCheckpointCreated, IISSiteStopped, ExchangeDatabaseMounted, DfsReplicationError, SqlDatabaseCreated, SyncCompleted, AADConnectStagingEnabled, AADConnectStagingDisabled, AADConnectPasswordSyncFailed, AADConnectRunProfile, AADSyncCycleStage, AADSyncProvisionCredentialsPing, AADSyncPasswordHashSyncStatus, AADSyncImportStatus, AADSyncFilterStatus, NetworkMonitorDriverLoaded, NetworkPromiscuousMode, ActiveDirectoryAuthentication, ActiveDirectoryAccountLifecycle, ActiveDirectoryChanges, GroupPolicyActivity, KerberosActivity, OperatingSystemLifecycle, WindowsSecurityChanges, EntraConnectHealth, NetworkSecurity, InfrastructureHealth, ScheduledTaskEnabled, ScheduledTaskDisabled, ScheduledTaskUpdated, FirewallRuleAdded, FirewallRuleDeleted, DefenderThreatDetected, DefenderThreatAction, DefenderConfigurationChanged, ScheduledTaskActivity, FirewallRuleActivity, DefenderSecurity, AuthenticationHealth, GroupPolicyDirectoryAudit, KerberosKdcRc4Audit
 
 Required: True
 Position: 0

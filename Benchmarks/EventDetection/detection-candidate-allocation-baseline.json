@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T15:00:19.4630477+00:00",
+  "metrics": {
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=1000|AllocatedBytes": 2030360,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=100|AllocatedBytes": 2030360,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=10|AllocatedBytes": 2030368,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=1|AllocatedBytes": 2030360
+  }
+}

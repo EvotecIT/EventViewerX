@@ -13,12 +13,12 @@ The YAML adapter is separate from the detection engine because it adds a YAML de
 ## SYNTAX
 ### Rule (Default)
 ```powershell
-Import-EVXSigmaRule [-Path] <string[]> [<CommonParameters>]
+Import-EVXSigmaRule [-Path] <string[]> [-TelemetryProfile <string>] [<CommonParameters>]
 ```
 
 ### Pack
 ```powershell
-Import-EVXSigmaRule [-Path] <string[]> -AsPack -PackId <string> -Version <string> [<CommonParameters>]
+Import-EVXSigmaRule [-Path] <string[]> -AsPack -PackId <string> -Version <string> [-TelemetryProfile <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -90,6 +90,23 @@ Position: 0
 Default value: None
 Accept pipeline input: True (ByValue, ByPropertyName)
 Accept wildcard characters: True
+```
+
+### -TelemetryProfile
+Explicit telemetry assumptions used for category-only Sigma log sources.
+Strict is lossless and rejects categories without exact native selectors.
+
+```yaml
+Type: String
+Parameter Sets: Rule, Pack
+Aliases: None
+Possible values: Strict, WindowsSysmonAndPowerShell
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
 ```
 
 ### -Version

@@ -94,6 +94,14 @@ public sealed class CmdletTestEVXReadiness : AsyncPSCmdlet {
     [ValidateRange(1, int.MaxValue)]
     public int MaxEventsToScan { get; set; } = 4096;
 
+    /// <summary>
+    /// Optional maximum accepted age, in minutes, for each WEC source heartbeat.
+    /// Omit this parameter when the organization has not selected a heartbeat-lag policy.
+    /// </summary>
+    [Parameter]
+    [ValidateRange(1, 525600)]
+    public int MaximumHeartbeatAgeMinutes { get; set; }
+
     /// <inheritdoc />
     protected override Task ProcessRecordAsync() {
         var request = new EventReadinessRequest {
@@ -114,7 +122,10 @@ public sealed class CmdletTestEVXReadiness : AsyncPSCmdlet {
             EventLogCredential = EventLogCredential?.GetNetworkCredential(),
             Authentication = Authentication,
             ProbeTimeout = TimeSpan.FromMilliseconds(ProbeTimeoutMs),
-            MaxEventsToScan = MaxEventsToScan
+            MaxEventsToScan = MaxEventsToScan,
+            MaximumCollectorHeartbeatAge = MaximumHeartbeatAgeMinutes > 0
+                ? TimeSpan.FromMinutes(MaximumHeartbeatAgeMinutes)
+                : null
         };
         WriteObject(EventReadinessEngine.Evaluate(request, CancelToken));
         return Task.CompletedTask;

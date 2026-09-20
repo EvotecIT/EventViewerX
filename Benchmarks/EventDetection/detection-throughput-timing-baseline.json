@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T15:00:19.4639571+00:00",
+  "metrics": {
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=OrderedTemporal|MedianMs": 107.52748333333332,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=StatelessPredicate|MedianMs": 91.15102222222222,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000000;Lane=ThresholdWindow|MedianMs": 482.3738,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=OrderedTemporal|MedianMs": 10.629079296875,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=StatelessPredicate|MedianMs": 8.4470671875,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=100000;Lane=ThresholdWindow|MedianMs": 47.57053636363636,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=OrderedTemporal|MedianMs": 1.0334109375,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=StatelessPredicate|MedianMs": 0.8798130859375,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=10000;Lane=ThresholdWindow|MedianMs": 4.65337578125,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=OrderedTemporal|MedianMs": 0.11401185913085937,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=StatelessPredicate|MedianMs": 0.0965123291015625,
+    "event-detection|Throughput|StreamDetection|EventViewerXDetection|EventCount=1000;Lane=ThresholdWindow|MedianMs": 0.459223828125
+  }
+}

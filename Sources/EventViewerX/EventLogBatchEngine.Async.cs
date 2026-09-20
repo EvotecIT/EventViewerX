@@ -33,6 +33,7 @@ public static partial class EventLogBatchEngine {
                             plan.Sources[index],
                             plan.ContinueOnError,
                             plan.FailureHandler,
+                            cancellationToken,
                             primingToken))
                 .ConfigureAwait(false);
         var cursors = primed
@@ -94,16 +95,29 @@ public static partial class EventLogBatchEngine {
         EventSourceSnapshot source,
         bool continueOnError,
         Action<EventLogQueryFailure>? failureHandler,
-        CancellationToken cancellationToken) {
+        CancellationToken requestToken,
+        CancellationToken primingToken) {
 
         return await Task.Run(() => {
-            EventSourceCursor? cursor = TryOpenCursor(
-                index,
-                source,
-                continueOnError,
-                failureHandler,
-                cancellationToken);
+            CancellationTokenSource sourceLifetime =
+                CreatePrimedSourceLifetime(
+                    requestToken,
+                    primingToken);
+            EventSourceCursor? cursor;
+            try {
+                cursor = TryOpenCursor(
+                    index,
+                    source,
+                    continueOnError,
+                    failureHandler,
+                    sourceLifetime.Token,
+                    sourceLifetime);
+            } catch {
+                sourceLifetime.Dispose();
+                throw;
+            }
             if (cursor == null) {
+                sourceLifetime.Dispose();
                 return null;
             }
             try {
@@ -111,7 +125,7 @@ public static partial class EventLogBatchEngine {
                         cursor,
                         continueOnError,
                         failureHandler,
-                        cancellationToken)) {
+                        primingToken)) {
                     EventSourceCursor result = cursor;
                     cursor = null;
                     return result;

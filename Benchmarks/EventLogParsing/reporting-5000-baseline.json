@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T14:58:56.4214341+00:00",
+  "metrics": {
+    "event-log-parsing|Typed-Report-All|Scan|EventViewerXReport||MedianMs": 11314.2985,
+    "event-log-parsing|Typed-Report-Email|Scan|EventViewerXReport||MedianMs": 625.172,
+    "event-log-parsing|Typed-Report-Excel|Scan|EventViewerXReport||MedianMs": 12092.1153,
+    "event-log-parsing|Typed-Report-Html|Scan|EventViewerXReport||MedianMs": 812.7538
+  }
+}

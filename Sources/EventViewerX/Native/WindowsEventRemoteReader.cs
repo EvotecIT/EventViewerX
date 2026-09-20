@@ -132,7 +132,7 @@ internal static class WindowsEventRemoteReader {
         var queryFailures = new ConcurrentQueue<EventLogQueryFailure>();
         var sessionOpened = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        using var workerCancellation =
+        var workerCancellation =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task producer;
         try {
@@ -180,6 +180,7 @@ internal static class WindowsEventRemoteReader {
         } catch {
             operationSlot.Dispose();
             results.Dispose();
+            workerCancellation.Dispose();
             throw;
         }
 
@@ -232,11 +233,13 @@ internal static class WindowsEventRemoteReader {
             workerCancellation.Cancel();
             if (producer.IsCompleted) {
                 results.Dispose();
+                workerCancellation.Dispose();
             } else {
                 _ = producer.ContinueWith(
                     completed => {
                         _ = completed.Exception;
                         results.Dispose();
+                        workerCancellation.Dispose();
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.ExecuteSynchronously,

@@ -65,6 +65,16 @@ param(
 
     [string] $OutputRoot,
 
+    [string] $BaselinePath,
+
+    [switch] $UpdateBaseline,
+
+    [ValidateRange(0, 10)]
+    [double] $RelativeTolerance = 0.5,
+
+    [ValidateRange(0, [double]::MaxValue)]
+    [double] $AbsoluteToleranceMs = 500,
+
     [ValidateRange(0, [int]::MaxValue)]
     [int] $WarmupCount = 0,
 
@@ -261,6 +271,24 @@ if (-not $Plan) {
         throw "The benchmark completed with $($failedSamples.Count) failed sample(s):`n$($failureSummary -join "`n")"
     }
 
+    if ($BaselinePath) {
+        $gate = @{
+            SummaryPath = [string] $benchmarkResult.Artifacts['summary.json']
+            BaselinePath = [IO.Path]::GetFullPath($BaselinePath)
+            Metric = 'MedianMs'
+            GroupBy = @('Suite', 'Scenario', 'Operation', 'Engine', 'Variables')
+            RelativeTolerance = $RelativeTolerance
+            AbsoluteToleranceMs = $AbsoluteToleranceMs
+            Confirm = $false
+        }
+        if ($UpdateBaseline.IsPresent) {
+            $gate.Update = $true
+        }
+        Test-BenchmarkGate @gate | Out-Null
+    } elseif ($UpdateBaseline.IsPresent) {
+        throw 'UpdateBaseline requires BaselinePath.'
+    }
+
     $readmePath = Join-Path $PSScriptRoot 'README.md'
     if ($ReadmeTable -in 'Scale', 'ColdStart', 'Reporting') {
         $readmePath = Join-Path $repositoryRoot 'README.md'
@@ -308,6 +336,8 @@ if (-not $Plan) {
             -Renderer ComparisonTable `
             -Confirm:$false | Out-Null
     }
+} elseif ($UpdateBaseline.IsPresent) {
+    throw 'A benchmark plan cannot update a performance baseline.'
 }
 
 $benchmarkResult

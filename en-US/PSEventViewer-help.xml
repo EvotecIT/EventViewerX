@@ -2144,6 +2144,18 @@ already provides integrity validation.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>IncludeSourceAuthorization</maml:name>
+          <maml:description>
+            <maml:para>Reads domain-computer and non-domain certificate source authorization from the local collector's authoritative subscription configuration.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="ComputerName,ServerName">
           <maml:name>MachineName</maml:name>
           <maml:description>
@@ -2202,6 +2214,18 @@ already provides integrity validation.</maml:para>
         <maml:name>IncludeRuntimeStatus</maml:name>
         <maml:description>
           <maml:para>Includes current per-source runtime state and Windows error details. Runtime status is local-only.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>IncludeSourceAuthorization</maml:name>
+        <maml:description>
+          <maml:para>Reads domain-computer and non-domain certificate source authorization from the local collector's authoritative subscription configuration.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
@@ -2298,6 +2322,13 @@ already provides integrity validation.</maml:para>
         <dev:code>Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeRuntimeStatus</dev:code>
         <dev:remarks>
           <maml:para>Adds processed-event counters, source heartbeat timestamps, and native Windows errors to the local snapshot.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>Inspect who may forward to a source-initiated subscription</maml:title>
+        <dev:code>Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeSourceAuthorization</dev:code>
+        <dev:remarks>
+          <maml:para>Reads the local collector's authoritative subscription XML and adds the domain-computer DACL and raw certificate subject policy. This does not calculate effective authorization.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -4399,7 +4430,6 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -4472,6 +4502,7 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -7319,7 +7350,6 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -7392,6 +7422,7 @@ Settings.QuerySessionTimeoutMs for reading.</maml:para>
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -8938,7 +8969,6 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -9011,6 +9041,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -9059,7 +9090,6 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -9132,6 +9162,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -9566,6 +9597,23 @@ This cannot be combined with EventLogPath.</maml:para>
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>TelemetryProfile</maml:name>
+          <maml:description>
+            <maml:para>Explicit telemetry assumptions used for category-only Sigma log sources.&#xD;
+Strict is lossless and rejects categories without exact native selectors.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Strict</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">WindowsSysmonAndPowerShell</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
       </command:syntaxItem>
       <command:syntaxItem parameterSetName="Pack">
         <maml:name>Import-EVXSigmaRule</maml:name>
@@ -9601,6 +9649,23 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>TelemetryProfile</maml:name>
+          <maml:description>
+            <maml:para>Explicit telemetry assumptions used for category-only Sigma log sources.&#xD;
+Strict is lossless and rejects categories without exact native selectors.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Strict</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">WindowsSysmonAndPowerShell</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>String</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -9652,6 +9717,23 @@ This cannot be combined with EventLogPath.</maml:para>
         <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>TelemetryProfile</maml:name>
+        <maml:description>
+          <maml:para>Explicit telemetry assumptions used for category-only Sigma log sources.&#xD;
+Strict is lossless and rejects categories without exact native selectors.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">Strict</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">WindowsSysmonAndPowerShell</command:parameterValue>
+        </command:parameterValueGroup>
+        <dev:type>
+          <maml:name>String</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -11012,7 +11094,6 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -11085,6 +11166,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -11390,7 +11472,6 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -11463,6 +11544,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -12629,7 +12711,6 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -12702,6 +12783,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -13816,7 +13898,6 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -13889,6 +13970,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -14212,7 +14294,6 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -14285,6 +14366,7 @@ This cannot be combined with EventLogPath.</maml:para>
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType</maml:name>
@@ -15261,7 +15343,6 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -15334,6 +15415,7 @@ This cannot be combined with EventLogPath.</maml:para>
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType</maml:name>
@@ -17898,7 +17980,6 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -17971,6 +18052,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -18403,7 +18485,6 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -18476,6 +18557,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -20082,7 +20164,6 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -20155,6 +20236,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -21607,7 +21689,6 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -21680,6 +21761,7 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -22324,7 +22406,6 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -22397,6 +22478,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -23213,6 +23295,19 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
+          <maml:description>
+            <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
+Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>MaximumTargetCount</maml:name>
           <maml:description>
             <maml:para>Maximum distinct event-log targets retained by one explicit discovery.</maml:para>
@@ -23298,7 +23393,6 @@ LogName and Path are not included because this watcher targets one LogName.</mam
             <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -23371,6 +23465,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
             <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>EventType[]</maml:name>
@@ -23506,6 +23601,19 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <maml:name>MaximumDomainCount</maml:name>
           <maml:description>
             <maml:para>Maximum domains retained by one explicit discovery.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
+          <maml:description>
+            <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
+Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
@@ -23719,6 +23827,19 @@ LogName and Path are not included because this watcher targets one LogName.</mam
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumHeartbeatAgeMinutes</maml:name>
+        <maml:description>
+          <maml:para>Optional maximum accepted age, in minutes, for each WEC source heartbeat.&#xD;
+Omit this parameter when the organization has not selected a heartbeat-lag policy.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>MaximumTargetCount</maml:name>
         <maml:description>
           <maml:para>Maximum distinct event-log targets retained by one explicit discovery.</maml:para>
@@ -23824,7 +23945,6 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">KerberosServiceTicket</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosTicketFailure</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">KerberosPolicyChange</command:parameterValue>
-          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOrganizationalUnitChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADOtherChangeDetailed</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">ADSMBServerAuditV1</command:parameterValue>
@@ -23897,6 +24017,7 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="false" variableLength="false">DefenderSecurity</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">AuthenticationHealth</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">GroupPolicyDirectoryAudit</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KerberosKdcRc4Audit</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>EventType[]</maml:name>
@@ -23978,6 +24099,23 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>TelemetryProfile</maml:name>
+          <maml:description>
+            <maml:para>Explicit telemetry assumptions used for category-only Sigma log sources.&#xD;
+Strict is lossless and rejects categories without exact native selectors.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Strict</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">WindowsSysmonAndPowerShell</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
       </command:syntaxItem>
     </command:syntax>
     <command:parameters>
@@ -23989,6 +24127,23 @@ LogName and Path are not included because this watcher targets one LogName.</mam
         <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>TelemetryProfile</maml:name>
+        <maml:description>
+          <maml:para>Explicit telemetry assumptions used for category-only Sigma log sources.&#xD;
+Strict is lossless and rejects categories without exact native selectors.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">Strict</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">WindowsSysmonAndPowerShell</command:parameterValue>
+        </command:parameterValueGroup>
+        <dev:type>
+          <maml:name>String</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>

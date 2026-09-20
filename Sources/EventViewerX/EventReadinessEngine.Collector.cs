@@ -347,7 +347,59 @@ public static partial class EventReadinessEngine {
                     : sourceIsHealthy
                         ? EventReadinessDiagnosticKind.None
                         : EventReadinessDiagnosticKind.InvalidConfiguration));
+            AddCollectorHeartbeatCheck(
+                checks,
+                expectedSource,
+                source,
+                request.MaximumCollectorHeartbeatAge);
         }
+    }
+
+    private static void AddCollectorHeartbeatCheck(
+        ICollection<EventReadinessCheckResult> checks,
+        string expectedSource,
+        CollectorSubscriptionSourceRuntimeStatus source,
+        TimeSpan? maximumHeartbeatAge) {
+
+        if (!maximumHeartbeatAge.HasValue) {
+            return;
+        }
+        if (!source.LastHeartbeatTime.HasValue) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceHeartbeat",
+                expectedSource,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                $"Windows did not report a heartbeat timestamp; required maximum age={maximumHeartbeatAge.Value}.",
+                "Inspect the source forwarding-client operational log and confirm that the subscription heartbeat interval is configured and observed.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            return;
+        }
+
+        DateTimeOffset observedUtc = DateTimeOffset.UtcNow;
+        TimeSpan age = observedUtc - source.LastHeartbeatTime.Value.ToUniversalTime();
+        if (age < TimeSpan.Zero) {
+            age = TimeSpan.Zero;
+        }
+        bool current = age <= maximumHeartbeatAge.Value;
+        checks.Add(new EventReadinessCheckResult(
+            EventReadinessLayer.WindowsEventCollector,
+            "ExpectedSourceHeartbeat",
+            expectedSource,
+            current
+                ? EventReadinessStatus.Pass
+                : EventReadinessStatus.Fail,
+            EventReadinessEvidenceLevel.Inspected,
+            $"Last heartbeat={source.LastHeartbeatTime.Value:O}; age={age}; required maximum age={maximumHeartbeatAge.Value}.",
+            current
+                ? string.Empty
+                : "Inspect source policy, WinRM reachability, subscription authorization, and the forwarding-client operational log before treating the source as complete.",
+            required: true,
+            diagnosticKind: current
+                ? EventReadinessDiagnosticKind.None
+                : EventReadinessDiagnosticKind.InvalidConfiguration));
     }
 
     private static string[] BuildExpectedSourceSet(IEnumerable<string> sources) => sources

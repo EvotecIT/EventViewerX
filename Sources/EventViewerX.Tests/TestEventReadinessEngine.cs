@@ -801,6 +801,60 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void CollectorHeartbeatPolicyFailsAStaleSource() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddHours(-2)
+            }
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Fail, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsMissingTimestampUnknown() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
     public void ActiveSubscriptionWithNoRuntimeSourcesFailsExpectedSourceEnrollment() {
         var evidence = CreateCollectorEvidence();
         evidence.CollectorRuntime.Sources = Array.Empty<CollectorSubscriptionSourceRuntimeStatus>();
