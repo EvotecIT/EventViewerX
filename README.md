@@ -2,6 +2,12 @@
 
 High-performance Windows Event Log tooling for .NET and PowerShell.
 
+> **4.0 development status:** the expanded API, CLI, detection, reporting,
+> storage, WEC, and portable-EVTX documentation below describes the current
+> source tree. Version 4.0 has not been published or released. The public
+> PowerShell Gallery and NuGet packages remain on their 3.x lines until the
+> separate 4.0 release decision is made.
+
 PSEventViewer is the thin PowerShell surface. EventViewerX is the reusable C#
 engine underneath it. Live channels, remote sessions, WEC, provider messages,
 and Windows configuration use the Windows Event Log APIs. Saved EVTX files can
@@ -107,13 +113,13 @@ The `master` branch is the active home of PSEventViewer and EventViewerX.
 ```powershell
 Install-Module -Name PSEventViewer -Scope CurrentUser
 Import-Module PSEventViewer
-
-# Optional CLI for interactive use and automation on hosts with .NET 10.
-dotnet tool install --global EventViewerX.Cli --version 4.0.0
-evx --version
 ```
 
-The module supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
+That command installs the current public 3.x module, not the unreleased 4.0
+source described by this branch. The 4.0 CLI and package set are source-only
+until a later release; do not use a speculative `4.0.0` package command.
+
+The 4.0 source supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
 targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
 The CLI is also available as RID-specific release ZIPs. Use a
 framework-dependent ZIP when .NET 10 is installed, or `PortableCompat` when
@@ -136,6 +142,17 @@ the target host needs the runtime bundled with the executable.
   rollback, and removal.
 - [Custom event definitions](Docs/Event-Definitions.md): one portable typed
   schema shared by query, reports, watchers, WEC, C#, and `evx.exe`.
+- [Operational detection packs](Docs/Operational-Packs.md): the five built-in,
+  versioned admin workflows, their coverage contracts, fixture gates, and
+  tuning path without adding cmdlets per scenario.
+- [Sigma compatibility](Docs/Sigma-Compatibility.md): strict compilation,
+  the opt-in Sysmon/PowerShell telemetry profile, pinned SigmaHQ audit results,
+  and the remaining unsupported semantics.
+- [WEC fleet operations](Docs/WEC-Fleet-Operations.md): planning, readiness,
+  drift, heartbeat lag, end-to-end completeness proof, rollback, and truthful
+  local/remote boundaries.
+- [Performance regression gates](Docs/Performance-Gates.md): reproducible
+  watcher, storage, reporting, and detection budgets and their update policy.
 - [Troubleshooting](Docs/Troubleshooting.md): performance, permissions,
   remoting, message resources, EVTX, checkpoints, and provider deployment.
 - [Security and ownership boundaries](Docs/Security.md): remote credentials,

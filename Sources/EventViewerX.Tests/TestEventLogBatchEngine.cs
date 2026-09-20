@@ -884,6 +884,26 @@ namespace EventViewerX.Tests;
     }
 
     [Fact]
+    public void PrimedSourceLifetimeRemainsUsableAfterPrimingOwnerIsDisposed() {
+        using var requestCancellation =
+            new CancellationTokenSource();
+        var primingCancellation =
+            new CancellationTokenSource();
+        using CancellationTokenSource sourceLifetime =
+            EventLogBatchEngine.CreatePrimedSourceLifetime(
+                requestCancellation.Token,
+                primingCancellation.Token);
+        CancellationToken sourceToken = sourceLifetime.Token;
+
+        primingCancellation.Dispose();
+
+        using CancellationTokenRegistration registration =
+            sourceToken.Register(static () => { });
+        requestCancellation.Cancel();
+        Assert.True(sourceToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task FatalAsynchronousPrimerCancelsItsSibling() {
         var siblingStarted =
             new TaskCompletionSource<bool>(

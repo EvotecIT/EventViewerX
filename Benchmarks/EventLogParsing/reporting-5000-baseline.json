@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T16:35:13.9685567+00:00",
+  "metrics": {
+    "event-log-parsing|Typed-Report-All|Scan|EventViewerXReport|ExpectedTypedCount=5000;ReportSampleCount=1000;TypedFixtureSha256=2B7C5527C6E85DD09A286CB6203EAF266DAE64259D835059A5DB4D953B8C2A5A|MedianMs": 17799.3101,
+    "event-log-parsing|Typed-Report-Email|Scan|EventViewerXReport|ExpectedTypedCount=5000;ReportSampleCount=1000;TypedFixtureSha256=2B7C5527C6E85DD09A286CB6203EAF266DAE64259D835059A5DB4D953B8C2A5A|MedianMs": 1070.828,
+    "event-log-parsing|Typed-Report-Excel|Scan|EventViewerXReport|ExpectedTypedCount=5000;ReportSampleCount=1000;TypedFixtureSha256=2B7C5527C6E85DD09A286CB6203EAF266DAE64259D835059A5DB4D953B8C2A5A|MedianMs": 15649.7688,
+    "event-log-parsing|Typed-Report-Html|Scan|EventViewerXReport|ExpectedTypedCount=5000;ReportSampleCount=1000;TypedFixtureSha256=2B7C5527C6E85DD09A286CB6203EAF266DAE64259D835059A5DB4D953B8C2A5A|MedianMs": 1884.8237
+  }
+}

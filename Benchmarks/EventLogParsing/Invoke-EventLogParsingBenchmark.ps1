@@ -65,6 +65,16 @@ param(
 
     [string] $OutputRoot,
 
+    [string] $BaselinePath,
+
+    [switch] $UpdateBaseline,
+
+    [ValidateRange(0, 10)]
+    [double] $RelativeTolerance = 0.5,
+
+    [ValidateRange(0, [double]::MaxValue)]
+    [double] $AbsoluteToleranceMs = 500,
+
     [ValidateRange(0, [int]::MaxValue)]
     [int] $WarmupCount = 0,
 
@@ -83,6 +93,10 @@ $hostProject = Join-Path $PSScriptRoot 'EventLogParsing.BenchmarkHost\EventLogPa
 $specPath = Join-Path $PSScriptRoot 'event-log-parsing.benchmark.ps1'
 
 Import-Module PSPublishModule -MinimumVersion 3.0.134 -ErrorAction Stop
+
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
+}
 
 if ([bool] $EvtxECmdPath -ne [bool] $EvtxMapsPath) {
     throw 'EvtxECmdPath and EvtxMapsPath must be supplied together.'
@@ -149,6 +163,15 @@ if ($ReadmeTable -eq 'Reporting') {
     $Case = 'Typed-Report-Html', 'Typed-Report-Excel', 'Typed-Report-Email', 'Typed-Report-All'
     $Engine = 'EventViewerXReport'
 }
+$typedFixtureFullPath = $null
+$typedFixtureSha256 = $null
+if ($TypedFixturePath) {
+    $typedFixtureFullPath = [IO.Path]::GetFullPath($TypedFixturePath)
+    if (-not (Test-Path -LiteralPath $typedFixtureFullPath -PathType Leaf)) {
+        throw "The typed fixture '$typedFixtureFullPath' does not exist."
+    }
+    $typedFixtureSha256 = (Get-FileHash -LiteralPath $typedFixtureFullPath -Algorithm SHA256).Hash
+}
 if ($ReadmeTable -eq 'ColdStart') {
     if ($Case -or $Engine) {
         throw 'ReadmeTable ColdStart owns its curated Case and Engine matrix. Do not combine it with Case or Engine.'
@@ -192,7 +215,8 @@ if ($TypedFixturePath) {
     if ($ExpectedTypedCount -le 0) {
         throw 'TypedFixturePath requires a positive ExpectedTypedCount.'
     }
-    $variables.TypedFixturePath = [IO.Path]::GetFullPath($TypedFixturePath)
+    $variables.TypedFixturePath = $typedFixtureFullPath
+    $variables.TypedFixtureSha256 = $typedFixtureSha256
     $variables.ExpectedTypedCount = $ExpectedTypedCount
     $variables.TypedEventTypes = $TypedEventTypes
 }
@@ -261,6 +285,24 @@ if (-not $Plan) {
         throw "The benchmark completed with $($failedSamples.Count) failed sample(s):`n$($failureSummary -join "`n")"
     }
 
+    if ($BaselinePath) {
+        $gate = @{
+            SummaryPath = [string] $benchmarkResult.Artifacts['summary.json']
+            BaselinePath = [IO.Path]::GetFullPath($BaselinePath)
+            Metric = 'MedianMs'
+            GroupBy = @('Suite', 'Scenario', 'Operation', 'Engine', 'Variables')
+            RelativeTolerance = $RelativeTolerance
+            AbsoluteToleranceMs = $AbsoluteToleranceMs
+            Confirm = $false
+        }
+        if ($UpdateBaseline.IsPresent) {
+            $gate.Update = $true
+        }
+        Test-BenchmarkGate @gate | Out-Null
+    } elseif ($UpdateBaseline.IsPresent) {
+        throw 'UpdateBaseline requires BaselinePath.'
+    }
+
     $readmePath = Join-Path $PSScriptRoot 'README.md'
     if ($ReadmeTable -in 'Scale', 'ColdStart', 'Reporting') {
         $readmePath = Join-Path $repositoryRoot 'README.md'
@@ -308,6 +350,8 @@ if (-not $Plan) {
             -Renderer ComparisonTable `
             -Confirm:$false | Out-Null
     }
+} elseif ($UpdateBaseline.IsPresent) {
+    throw 'A benchmark plan cannot update a performance baseline.'
 }
 
 $benchmarkResult

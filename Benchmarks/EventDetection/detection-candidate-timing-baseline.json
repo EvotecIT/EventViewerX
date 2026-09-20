@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T15:00:19.4557095+00:00",
+  "metrics": {
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=1000|MedianMs": 0.670431640625,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=100|MedianMs": 0.64148505859375,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=10|MedianMs": 0.757770751953125,
+    "event-detection|CandidateIndex|EvaluateIndexedCandidates|EventViewerXDetection|RuleCount=1|MedianMs": 0.5335905029296875
+  }
+}

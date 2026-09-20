@@ -24,6 +24,9 @@ internal static partial class Program {
         var packs = new List<EventDetectionPack>();
         string[] packPaths = options.GetMany("pack");
         string[] sigmaPaths = options.GetMany("sigma");
+        SigmaCompilationOptions? sigmaOptions = ResolveSigmaCompilationOptions(
+            options.Get("sigma-profile"),
+            sigmaPaths.Length > 0);
         bool explicitContent = packPaths.Length > 0 || sigmaPaths.Length > 0;
         if (!explicitContent || options.Has("include-built-in")) {
             EventDetectionPack[] builtIn = EventDetectionCatalog.GetBuiltInPacks().ToArray();
@@ -41,7 +44,9 @@ internal static partial class Program {
             rules.AddRange(pack.GetRules());
         }
         if (sigmaPaths.Length > 0) {
-            SigmaCompilationResult result = SigmaRuleCompiler.Load(sigmaPaths);
+            SigmaCompilationResult result = SigmaRuleCompiler.Load(
+                sigmaPaths,
+                sigmaOptions);
             foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
                 Console.Error.WriteLine($"{diagnostic.Severity} {diagnostic.Code}: {diagnostic.Message}");
             }
@@ -369,6 +374,26 @@ internal static partial class Program {
             }
         }
         return execution.IsComplete ? 0 : 2;
+    }
+
+    private static SigmaCompilationOptions? ResolveSigmaCompilationOptions(
+        string? profile,
+        bool hasSigmaInput) {
+
+        if (profile == null) {
+            return null;
+        }
+        if (!hasSigmaInput) {
+            throw new ArgumentException("--sigma-profile requires at least one --sigma input.");
+        }
+        return profile.Trim().ToLowerInvariant() switch {
+            "strict" => null,
+            "windows-sysmon-powershell" => new SigmaCompilationOptions {
+                LogSourceProfile = SigmaLogSourceProfile.WindowsSysmonAndPowerShell
+            },
+            _ => throw new ArgumentException(
+                "--sigma-profile must be 'strict' or 'windows-sysmon-powershell'.")
+        };
     }
 
     private static long Remaining(long maximum, int current) =>

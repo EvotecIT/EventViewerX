@@ -23,6 +23,16 @@ param(
 
     [string] $OutputRoot,
 
+    [string] $BaselinePath,
+
+    [switch] $UpdateBaseline,
+
+    [ValidateRange(0, 10)]
+    [double] $RelativeTolerance = 0.5,
+
+    [ValidateRange(0, [double]::MaxValue)]
+    [double] $AbsoluteToleranceMs = 250,
+
     [switch] $Plan,
 
     [switch] $SkipBuild
@@ -36,6 +46,9 @@ $corePath = Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0-
 $specPath = Join-Path $PSScriptRoot 'event-watcher-burst.benchmark.ps1'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'Ignore\Benchmarks\EventWatcher'
+}
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
 }
 
 if (-not $SkipBuild.IsPresent) {
@@ -74,5 +87,24 @@ if (-not $Plan.IsPresent) {
     if ($failed.Count -gt 0) {
         throw "Watcher burst benchmark run $($result.RunId) contained failed samples."
     }
+    if ($BaselinePath) {
+        $gate = @{
+            SummaryPath = [string] $result.Artifacts['summary.json']
+            BaselinePath = [IO.Path]::GetFullPath($BaselinePath)
+            Metric = 'MedianMs'
+            GroupBy = @('Suite', 'Scenario', 'Operation', 'Engine', 'Variables')
+            RelativeTolerance = $RelativeTolerance
+            AbsoluteToleranceMs = $AbsoluteToleranceMs
+            Confirm = $false
+        }
+        if ($UpdateBaseline.IsPresent) {
+            $gate.Update = $true
+        }
+        Test-BenchmarkGate @gate | Out-Null
+    } elseif ($UpdateBaseline.IsPresent) {
+        throw 'UpdateBaseline requires BaselinePath.'
+    }
+} elseif ($UpdateBaseline.IsPresent) {
+    throw 'A benchmark plan cannot update a performance baseline.'
 }
 $result

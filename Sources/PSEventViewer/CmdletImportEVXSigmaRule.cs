@@ -27,6 +27,14 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
     [SupportsWildcards]
     public string[] Path { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Explicit telemetry assumptions used for category-only Sigma log sources.
+    /// Strict is lossless and rejects categories without exact native selectors.
+    /// </summary>
+    [Parameter]
+    [ValidateSet("Strict", "WindowsSysmonAndPowerShell")]
+    public string TelemetryProfile { get; set; } = "Strict";
+
     /// <summary>Returns one versioned EventViewerX pack instead of individual rules.</summary>
     [Parameter(Mandatory = true, ParameterSetName = "Pack")]
     public SwitchParameter AsPack { get; set; }
@@ -50,7 +58,9 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
 
     /// <inheritdoc />
     protected override void EndProcessing() {
-        SigmaCompilationResult result = SigmaRuleCompiler.Load(_resolvedPaths);
+        SigmaCompilationResult result = SigmaRuleCompiler.Load(
+            _resolvedPaths,
+            ResolveCompilationOptions());
         foreach (SigmaDiagnostic diagnostic in result.Diagnostics) {
             if (diagnostic.Severity == SigmaDiagnosticSeverity.Warning) {
                 WriteWarning($"{diagnostic.Code}: {diagnostic.Message}");
@@ -76,4 +86,14 @@ public sealed class CmdletImportEVXSigmaRule : PSCmdlet {
             result.Rules.Select(static rule => rule.Definition));
         WriteObject(pack, enumerateCollection: false);
     }
+
+    private SigmaCompilationOptions? ResolveCompilationOptions() =>
+        string.Equals(
+            TelemetryProfile,
+            "WindowsSysmonAndPowerShell",
+            StringComparison.OrdinalIgnoreCase)
+            ? new SigmaCompilationOptions {
+                LogSourceProfile = SigmaLogSourceProfile.WindowsSysmonAndPowerShell
+            }
+            : null;
 }

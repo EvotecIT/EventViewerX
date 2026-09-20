@@ -801,6 +801,254 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void CollectorHeartbeatPolicyFailsAStaleSource() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddHours(-2)
+            }
+        };
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Fail, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsSmallClockSkewCurrent() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddMinutes(1)
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollectorWithHeartbeatPolicy(evidence);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Pass, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.None, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyRejectsImplausibleFutureTimestamp() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddMinutes(10)
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollectorWithHeartbeatPolicy(evidence);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, heartbeat.DiagnosticKind);
+        Assert.Contains("future", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsMissingTimestampUnknown() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsRemoteRuntimeEvidenceUnknown() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = "wec01.example.com",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" },
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal("dc01.example.com", heartbeat.Target);
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsMissingExpectedSourceSetUnknown() {
+        var evidence = CreateCollectorEvidence();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.NoEvidence, heartbeat.DiagnosticKind);
+        Assert.Contains("no expected source set", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsMissingSubscriptionUnknown() {
+        var evidence = CreateCollectorEvidence();
+        evidence.Subscription = null;
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" },
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal("dc01.example.com", heartbeat.Target);
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Contains("subscription was not found", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, evidence.RuntimeReadCount);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsMissingRuntimeSourceUnknown() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = Array.Empty<CollectorSubscriptionSourceRuntimeStatus>();
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" },
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal("dc01.example.com", heartbeat.Target);
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Contains("absent from subscription runtime", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsRuntimeAccessFailureUnknown() {
+        var evidence = CreateCollectorEvidence();
+        evidence.RuntimeException = new UnauthorizedAccessException("access is denied");
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" },
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Contains("access was denied", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyKeepsRuntimeInspectionFailureUnknown() {
+        var evidence = CreateCollectorEvidence();
+        evidence.RuntimeException = new InvalidOperationException("runtime failed");
+
+        EventReadinessReport report = EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                ExpectedSources = new[] { "dc01.example.com" },
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+            },
+            evidence,
+            CancellationToken.None);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Contains("inspection failed", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("collector01.example.com")]
+    public void CollectorHeartbeatPolicyRequiresASubscription(string? collector) {
+        var request = new EventReadinessRequest {
+            Types = new[] { EventType.ADUserLogonNTLMv1 },
+            Collector = collector,
+            MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15)
+        };
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            EventReadinessEngine.Evaluate(
+                request,
+                CreateCollectorEvidence(),
+                CancellationToken.None));
+
+        Assert.Equal("MaximumCollectorHeartbeatAge", exception.ParamName);
+    }
+
+    [Fact]
     public void ActiveSubscriptionWithNoRuntimeSourcesFailsExpectedSourceEnrollment() {
         var evidence = CreateCollectorEvidence();
         evidence.CollectorRuntime.Sources = Array.Empty<CollectorSubscriptionSourceRuntimeStatus>();
@@ -1647,6 +1895,21 @@ public sealed class TestEventReadinessEngine {
             evidence,
             CancellationToken.None);
 
+    private static EventReadinessReport EvaluateCollectorWithHeartbeatPolicy(
+        FakeEvidenceProvider evidence) =>
+        EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
     private static EventTargetDiscoveryResult DomainControllerTargetResult() => new(
         EventTargetDiscoveryScope.CurrentDomain,
         null,
@@ -1701,6 +1964,7 @@ public sealed class TestEventReadinessEngine {
         internal Action<CancellationToken>? ChannelPolicyReadAction { get; set; }
         internal int ChannelPolicyReadCount { get; private set; }
         internal Exception? SubscriptionException { get; set; }
+        internal Exception? RuntimeException { get; set; }
         internal int RuntimeReadCount { get; private set; }
         internal List<(string LogName, string XPath, string? MachineName, NetworkCredential? Credential)> ProbeCalls { get; } = new();
 
@@ -1858,6 +2122,9 @@ public sealed class TestEventReadinessEngine {
             CancellationToken cancellationToken) {
 
             RuntimeReadCount++;
+            if (RuntimeException != null) {
+                throw RuntimeException;
+            }
             return CollectorRuntime;
         }
     }

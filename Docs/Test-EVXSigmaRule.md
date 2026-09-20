@@ -13,7 +13,7 @@ Returns structured diagnostics and native rules without executing them. Unsuppor
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Test-EVXSigmaRule [-Path] <string[]> [<CommonParameters>]
+Test-EVXSigmaRule [-Path] <string[]> [-TelemetryProfile <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -46,6 +46,23 @@ Position: 0
 Default value: None
 Accept pipeline input: True (ByValue, ByPropertyName)
 Accept wildcard characters: True
+```
+
+### -TelemetryProfile
+Explicit telemetry assumptions used for category-only Sigma log sources.
+Strict is lossless and rejects categories without exact native selectors.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values: Strict, WindowsSysmonAndPowerShell
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
 ```
 
 ### CommonParameters

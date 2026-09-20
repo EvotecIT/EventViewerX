@@ -9,7 +9,10 @@ namespace EventViewerX.Sigma;
 /// <summary>Parses, validates, and compiles supported Sigma 2.x YAML into native EventViewerX detections.</summary>
 public static class SigmaRuleCompiler {
     /// <summary>Compiles one or more YAML documents separated by <c>---</c>.</summary>
-    public static SigmaCompilationResult CompileYaml(string yaml) {
+    public static SigmaCompilationResult CompileYaml(string yaml) => CompileYaml(yaml, null);
+
+    /// <summary>Compiles one or more YAML documents using explicitly selected compilation options.</summary>
+    public static SigmaCompilationResult CompileYaml(string yaml, SigmaCompilationOptions? options) {
         if (string.IsNullOrWhiteSpace(yaml)) {
             throw new ArgumentException("Sigma YAML cannot be empty.", nameof(yaml));
         }
@@ -56,7 +59,7 @@ public static class SigmaRuleCompiler {
                 continue;
             }
             if (TryGet(root, "detection", out _)) {
-                TryCompileBaseRule(root, index, diagnostics, baseRules);
+                TryCompileBaseRule(root, index, options, diagnostics, baseRules);
             } else if (!correlation) {
                 diagnostics.Add(Error(
                     "EVXSIGMA003",
@@ -95,8 +98,21 @@ public static class SigmaRuleCompiler {
         return CompileYaml(File.ReadAllText(Path.GetFullPath(path)));
     }
 
+    /// <summary>Loads and compiles Sigma YAML from disk using explicitly selected compilation options.</summary>
+    public static SigmaCompilationResult Load(string path, SigmaCompilationOptions? options) {
+        if (string.IsNullOrWhiteSpace(path)) {
+            throw new ArgumentException("Sigma path cannot be empty.", nameof(path));
+        }
+        return CompileYaml(File.ReadAllText(Path.GetFullPath(path)), options);
+    }
+
     /// <summary>Loads several Sigma YAML files as one compilation unit so correlations can resolve across files.</summary>
     public static SigmaCompilationResult Load(IEnumerable<string> paths) {
+        return Load(paths, null);
+    }
+
+    /// <summary>Loads several Sigma YAML files as one compilation unit using explicitly selected compilation options.</summary>
+    public static SigmaCompilationResult Load(IEnumerable<string> paths, SigmaCompilationOptions? options) {
         if (paths == null) {
             throw new ArgumentNullException(nameof(paths));
         }
@@ -109,7 +125,7 @@ public static class SigmaRuleCompiler {
         }
         return CompileYaml(string.Join(
             Environment.NewLine + "---" + Environment.NewLine,
-            resolved.Select(File.ReadAllText)));
+            resolved.Select(File.ReadAllText)), options);
     }
 
     /// <summary>Creates a native integrity-protected pack from fully supported Sigma input.</summary>
@@ -120,7 +136,19 @@ public static class SigmaRuleCompiler {
         IEnumerable<string>? authors = null,
         string? license = null) {
 
-        SigmaCompilationResult result = CompileYaml(yaml);
+        return CompilePack(yaml, packId, version, authors, license, null);
+    }
+
+    /// <summary>Creates a native integrity-protected pack from fully supported Sigma input using explicit compilation options.</summary>
+    public static EventDetectionPack CompilePack(
+        string yaml,
+        string packId,
+        string version,
+        IEnumerable<string>? authors,
+        string? license,
+        SigmaCompilationOptions? options) {
+
+        SigmaCompilationResult result = CompileYaml(yaml, options);
         if (!result.IsSupported) {
             _ = result.CompilePlan();
         }
@@ -135,6 +163,7 @@ public static class SigmaRuleCompiler {
     private static void TryCompileBaseRule(
         YamlMappingNode root,
         int documentIndex,
+        SigmaCompilationOptions? options,
         ICollection<SigmaDiagnostic> diagnostics,
         ICollection<CompiledBaseRule> rules) {
 
@@ -163,7 +192,7 @@ public static class SigmaRuleCompiler {
             }
             string condition = RequiredText(detection, "condition");
             EventPredicate predicate = SigmaConditionCompiler.Compile(condition, selections);
-            LogSourceSelectors selectors = CompileLogSource(root, predicate, documentIndex, diagnostics);
+            LogSourceSelectors selectors = CompileLogSource(root, predicate, options, documentIndex, diagnostics);
             string status = OptionalText(root, "status");
             var definition = new EventDetectionRuleDefinition {
                 RuleId = "SIGMA-" + sourceId,
@@ -180,7 +209,7 @@ public static class SigmaRuleCompiler {
                 Kind = EventDetectionRuleKind.Stateless,
                 Channels = selectors.Channels,
                 Providers = selectors.Providers,
-                EventIds = SigmaSelectionCompiler.GetGuaranteedEventIds(predicate),
+                EventIds = selectors.EventIds,
                 Predicate = predicate,
                 Tags = TextList(root, "tags"),
                 FalsePositives = TextList(root, "falsepositives"),
@@ -385,6 +414,7 @@ public static class SigmaRuleCompiler {
     private static LogSourceSelectors CompileLogSource(
         YamlMappingNode root,
         EventPredicate predicate,
+        SigmaCompilationOptions? options,
         int documentIndex,
         ICollection<SigmaDiagnostic> diagnostics) {
 
@@ -394,7 +424,10 @@ public static class SigmaRuleCompiler {
                 SigmaDiagnosticSeverity.Warning,
                 "Sigma rule has no logsource; EVX will rely on exact managed predicate verification.",
                 documentIndex));
-            return new LogSourceSelectors(Array.Empty<string>(), Array.Empty<string>());
+            return new LogSourceSelectors(
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                SigmaSelectionCompiler.GetGuaranteedEventIds(predicate));
         }
         string product = OptionalText(logSource, "product");
         if (product.Length != 0 && !string.Equals(product, "windows", StringComparison.OrdinalIgnoreCase)) {
@@ -417,18 +450,28 @@ public static class SigmaRuleCompiler {
                 "EVXSIGMA022",
                 $"Sigma Windows logsource service '{service}' has no lossless EventViewerX channel mapping.")
         };
-        if (category.Length != 0 && !HasGuaranteedEventIdConstraint(predicate)) {
-            throw new SigmaConditionException(
-                "EVXSIGMA023",
-                $"Sigma category '{category}' cannot be preserved losslessly without an explicit EventID constraint on every matching branch.");
+        int[] eventIds = SigmaSelectionCompiler.GetGuaranteedEventIds(predicate);
+        string[] channels = channel == null ? Array.Empty<string>() : new[] { channel };
+        string[] providers = Array.Empty<string>();
+        if (category.Length != 0 && eventIds.Length == 0) {
+            SigmaLogSourceProfile? profile = options?.LogSourceProfile;
+            if (profile == null || !profile.TryGetMapping(category, out SigmaLogSourceMapping mapping)) {
+                throw new SigmaConditionException(
+                    "EVXSIGMA023",
+                    $"Sigma category '{category}' cannot be preserved losslessly without an explicit EventID constraint on every matching branch or an explicitly selected telemetry profile mapping.");
+            }
+            if (channel != null && !mapping.Channels.Contains(channel, StringComparer.OrdinalIgnoreCase)) {
+                throw new SigmaConditionException(
+                    "EVXSIGMA024",
+                    $"Sigma category '{category}' resolves to telemetry that conflicts with service '{service}' in profile '{profile.ProfileId}' version '{profile.Version}'.");
+            }
+            channels = channel == null
+                ? mapping.Channels.ToArray()
+                : new[] { channel };
+            providers = mapping.Providers.ToArray();
+            eventIds = mapping.EventIds.ToArray();
         }
-        return new LogSourceSelectors(
-            channel == null ? Array.Empty<string>() : new[] { channel },
-            Array.Empty<string>());
-    }
-
-    private static bool HasGuaranteedEventIdConstraint(EventPredicate predicate) {
-        return SigmaSelectionCompiler.GetGuaranteedEventIds(predicate).Length > 0;
+        return new LogSourceSelectors(channels, providers, eventIds);
     }
 
     private static CompiledBaseRule ResolveBaseRule(
@@ -599,12 +642,14 @@ public static class SigmaRuleCompiler {
     }
 
     private readonly struct LogSourceSelectors {
-        internal LogSourceSelectors(string[] channels, string[] providers) {
+        internal LogSourceSelectors(string[] channels, string[] providers, int[] eventIds) {
             Channels = channels;
             Providers = providers;
+            EventIds = eventIds;
         }
 
         internal string[] Channels { get; }
         internal string[] Providers { get; }
+        internal int[] EventIds { get; }
     }
 }

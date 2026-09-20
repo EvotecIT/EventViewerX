@@ -13,6 +13,7 @@ $expensiveSampleCount = Get-BenchmarkInput -Name ExpensiveSampleCount -Int -Defa
 $scaleSampleCountsText = Get-BenchmarkInput -Name ScaleSampleCounts -Default '1000,10000,100000,1000000'
 $reportSampleCount = Get-BenchmarkInput -Name ReportSampleCount -Int -Default 1000
 $typedFixturePath = Get-BenchmarkInput -Name TypedFixturePath
+$typedFixtureSha256 = Get-BenchmarkInput -Name TypedFixtureSha256
 $expectedTypedCount = Get-BenchmarkInput -Name ExpectedTypedCount -Int -Default 0
 $typedEventTypes = Get-BenchmarkInput -Name TypedEventTypes -Default 'ADUserLogon,ADUserLogonFailed,ADUserLockouts'
 $readmeTable = Get-BenchmarkInput -Name ReadmeTable -Default None
@@ -261,7 +262,23 @@ $definitions += [pscustomobject] @{
 $caseDefinitions = @{}
 [array] $cases = foreach ($definition in $definitions) {
     $caseDefinitions[$definition.Name] = $definition
-    [pscustomobject] @{ Name = $definition.Name }
+    if ($definition.Fixture -eq 'Typed') {
+        if ([string]::IsNullOrWhiteSpace($typedFixtureSha256)) {
+            throw 'TypedFixtureSha256 is required so typed benchmark baselines identify the exact workload fixture.'
+        }
+        [pscustomobject] @{
+            Name               = $definition.Name
+            TypedFixtureSha256 = $typedFixtureSha256
+            ExpectedTypedCount = $expectedTypedCount
+            ReportSampleCount  = if ($definition.Workload -like 'TypedReport*') {
+                $definition.MaxEvents
+            } else {
+                0
+            }
+        }
+    } else {
+        [pscustomobject] @{ Name = $definition.Name }
+    }
 }
 $commonIdentitySignatures = @{}
 $exactOutputHashes = @{}

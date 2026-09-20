@@ -229,13 +229,25 @@ public static partial class EventLogBatchEngine {
             maxConcurrency,
             cancellationToken,
             (index, primingToken) => {
-                EventSourceCursor? cursor = TryOpenCursor(
-                    index,
-                    sources[index],
-                    continueOnError,
-                    failureHandler,
-                    primingToken);
+                CancellationTokenSource sourceLifetime =
+                    CreatePrimedSourceLifetime(
+                        cancellationToken,
+                        primingToken);
+                EventSourceCursor? cursor;
+                try {
+                    cursor = TryOpenCursor(
+                        index,
+                        sources[index],
+                        continueOnError,
+                        failureHandler,
+                        sourceLifetime.Token,
+                        sourceLifetime);
+                } catch {
+                    sourceLifetime.Dispose();
+                    throw;
+                }
                 if (cursor == null) {
+                    sourceLifetime.Dispose();
                     return null;
                 }
                 try {
@@ -256,19 +268,37 @@ public static partial class EventLogBatchEngine {
             });
     }
 
+    internal static CancellationTokenSource CreatePrimedSourceLifetime(
+        CancellationToken requestToken,
+        CancellationToken primingToken) {
+
+        // The priming token belongs to the bounded startup phase and is
+        // disposed as soon as all source heads are available. A source may
+        // continue enumerating long after that point, so retain an owned
+        // linked source whose token remains registrable for the cursor's
+        // complete lifetime. Fatal priming cancellation still reaches every
+        // active source, while request cancellation remains effective after
+        // priming has completed.
+        return CancellationTokenSource.CreateLinkedTokenSource(
+            requestToken,
+            primingToken);
+    }
+
     private static EventSourceCursor? TryOpenCursor(
         int index,
         EventSourceSnapshot source,
         bool continueOnError,
         Action<EventLogQueryFailure>? failureHandler,
-        CancellationToken cancellationToken) {
+        CancellationToken cancellationToken,
+        CancellationTokenSource? sourceLifetime = null) {
 
         try {
             return new EventSourceCursor(
                 index,
                 source,
                 source.Open(cancellationToken)
-                    .GetEnumerator());
+                    .GetEnumerator(),
+                sourceLifetime);
         } catch (Exception exception) {
             if (!continueOnError) {
                 throw;
@@ -407,16 +437,19 @@ public static partial class EventLogBatchEngine {
 
     private sealed class EventSourceCursor : IDisposable {
         private readonly IEnumerator<EventObject> _enumerator;
+        private readonly CancellationTokenSource? _sourceLifetime;
         private bool _disposed;
 
         internal EventSourceCursor(
             int index,
             EventSourceSnapshot source,
-            IEnumerator<EventObject> enumerator) {
+            IEnumerator<EventObject> enumerator,
+            CancellationTokenSource? sourceLifetime = null) {
 
             Index = index;
             Source = source;
             _enumerator = enumerator;
+            _sourceLifetime = sourceLifetime;
         }
 
         internal int Index { get; }
@@ -436,7 +469,11 @@ public static partial class EventLogBatchEngine {
                 return;
             }
             _disposed = true;
-            _enumerator.Dispose();
+            try {
+                _enumerator.Dispose();
+            } finally {
+                _sourceLifetime?.Dispose();
+            }
         }
     }
 

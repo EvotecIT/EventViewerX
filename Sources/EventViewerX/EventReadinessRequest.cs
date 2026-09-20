@@ -25,6 +25,12 @@ public sealed class EventReadinessRequest {
     public TimeSpan ProbeTimeout { get; set; } = TimeSpan.FromSeconds(15);
     /// <summary>Maximum records inspected by each probe.</summary>
     public int MaxEventsToScan { get; set; } = 4096;
+    /// <summary>
+    /// Optional maximum accepted age for a WEC source heartbeat. When omitted, heartbeat timestamps
+    /// remain diagnostic evidence and no product-owned staleness policy is invented. Requires a
+    /// collector subscription when set.
+    /// </summary>
+    public TimeSpan? MaximumCollectorHeartbeatAge { get; set; }
 
     internal EventReadinessRequest Snapshot() {
         EventType[] selected = Scenario == EventReadinessScenario.None
@@ -59,6 +65,18 @@ public sealed class EventReadinessRequest {
         if (MaxEventsToScan <= 0) {
             throw new ArgumentOutOfRangeException(nameof(MaxEventsToScan));
         }
+        if (MaximumCollectorHeartbeatAge.HasValue &&
+            (MaximumCollectorHeartbeatAge.Value <= TimeSpan.Zero ||
+             MaximumCollectorHeartbeatAge.Value > TimeSpan.FromDays(365))) {
+            throw new ArgumentOutOfRangeException(
+                nameof(MaximumCollectorHeartbeatAge),
+                "Maximum collector heartbeat age must be greater than zero and no more than 365 days.");
+        }
+        if (MaximumCollectorHeartbeatAge.HasValue && subscriptionName == null) {
+            throw new ArgumentException(
+                "MaximumCollectorHeartbeatAge requires a collector subscription so heartbeat evidence cannot be silently ignored.",
+                nameof(MaximumCollectorHeartbeatAge));
+        }
         return new EventReadinessRequest {
             Types = selected,
             Scenario = Scenario,
@@ -71,7 +89,8 @@ public sealed class EventReadinessRequest {
                 : new NetworkCredential(EventLogCredential.UserName, EventLogCredential.Password, EventLogCredential.Domain),
             Authentication = Authentication,
             ProbeTimeout = ProbeTimeout,
-            MaxEventsToScan = MaxEventsToScan
+            MaxEventsToScan = MaxEventsToScan,
+            MaximumCollectorHeartbeatAge = MaximumCollectorHeartbeatAge
         };
     }
 

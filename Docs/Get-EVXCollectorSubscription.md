@@ -13,7 +13,7 @@ Reads local or remote WEC subscription inventory and returns detached snapshots 
 ## SYNTAX
 ### Subscriptions (Default)
 ```powershell
-Get-EVXCollectorSubscription [[-Name] <string[]>] [-MachineName <string[]>] [-EnabledOnly] [-IncludeRuntimeStatus] [<CommonParameters>]
+Get-EVXCollectorSubscription [[-Name] <string[]>] [-MachineName <string[]>] [-EnabledOnly] [-IncludeRuntimeStatus] [-IncludeSourceAuthorization] [<CommonParameters>]
 ```
 
 ### Readiness
@@ -56,6 +56,13 @@ Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeRu
 
 Adds processed-event counters, source heartbeat timestamps, and native Windows errors to the local snapshot.
 
+### EXAMPLE 5
+```powershell
+Get-EVXCollectorSubscription -Name 'Domain controller authentication' -IncludeSourceAuthorization
+```
+
+Reads the local collector's authoritative subscription XML and adds the domain-computer DACL and raw certificate subject policy. This does not calculate effective authorization.
+
 ## PARAMETERS
 
 ### -EnabledOnly
@@ -76,6 +83,22 @@ Accept wildcard characters: False
 
 ### -IncludeRuntimeStatus
 Includes current per-source runtime state and Windows error details. Runtime status is local-only.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Subscriptions
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -IncludeSourceAuthorization
+Reads domain-computer and non-domain certificate source authorization from the local collector's authoritative subscription configuration.
 
 ```yaml
 Type: SwitchParameter

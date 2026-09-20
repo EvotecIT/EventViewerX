@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-09-20T14:58:56.4137178+00:00",
+  "metrics": {
+    "event-store|DailySummary-100000|Execute|EventViewerXStorage|RowCount=100000;Workload=DailySummary|MedianMs": 166.097,
+    "event-store|ManagedQuery-100000|Execute|EventViewerXStorage|RowCount=100000;Workload=ManagedQuery|MedianMs": 1707.0471,
+    "event-store|SqlQuery-100000|Execute|EventViewerXStorage|RowCount=100000;Workload=SqlQuery|MedianMs": 329.5802,
+    "event-store|TypedCsv-100000|Execute|EventViewerXStorage|RowCount=100000;Workload=TypedCsv|MedianMs": 83.3207,
+    "event-store|Write-100000|Execute|EventViewerXStorage|RowCount=100000;Workload=Write|MedianMs": 7906.9641
+  }
+}

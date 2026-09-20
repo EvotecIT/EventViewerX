@@ -21,6 +21,14 @@ public sealed class CmdletTestEVXSigmaRule : PSCmdlet {
     [SupportsWildcards]
     public string[] Path { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Explicit telemetry assumptions used for category-only Sigma log sources.
+    /// Strict is lossless and rejects categories without exact native selectors.
+    /// </summary>
+    [Parameter]
+    [ValidateSet("Strict", "WindowsSysmonAndPowerShell")]
+    public string TelemetryProfile { get; set; } = "Strict";
+
     /// <inheritdoc />
     protected override void ProcessRecord() {
         foreach (string path in SigmaPathResolver.Resolve(SessionState, Path, nameof(Path))) {
@@ -32,7 +40,19 @@ public sealed class CmdletTestEVXSigmaRule : PSCmdlet {
 
     /// <inheritdoc />
     protected override void EndProcessing() {
-        SigmaCompilationResult result = SigmaRuleCompiler.Load(_resolvedPaths);
+        SigmaCompilationResult result = SigmaRuleCompiler.Load(
+            _resolvedPaths,
+            ResolveCompilationOptions());
         WriteObject(result, enumerateCollection: false);
     }
+
+    private SigmaCompilationOptions? ResolveCompilationOptions() =>
+        string.Equals(
+            TelemetryProfile,
+            "WindowsSysmonAndPowerShell",
+            StringComparison.OrdinalIgnoreCase)
+            ? new SigmaCompilationOptions {
+                LogSourceProfile = SigmaLogSourceProfile.WindowsSysmonAndPowerShell
+            }
+            : null;
 }

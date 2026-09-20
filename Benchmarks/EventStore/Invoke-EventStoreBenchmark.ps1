@@ -21,6 +21,16 @@ param(
 
     [string] $OutputRoot,
 
+    [string] $BaselinePath,
+
+    [switch] $UpdateBaseline,
+
+    [ValidateRange(0, 10)]
+    [double] $RelativeTolerance = 0.5,
+
+    [ValidateRange(0, [double]::MaxValue)]
+    [double] $AbsoluteToleranceMs = 250,
+
     [switch] $SkipBuild,
 
     [switch] $Plan,
@@ -31,12 +41,15 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csproj'
-$modulePath = Join-Path $repositoryRoot 'PSEventViewer.psd1'
+$runtimeRoot = Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net8.0-windows'
 $specPath = Join-Path $PSScriptRoot 'event-store.benchmark.ps1'
 $fixtureProjectPath = Join-Path $PSScriptRoot 'EventStore.BenchmarkFixture.csproj'
 $fixtureAssemblyPath = Join-Path $PSScriptRoot 'bin\Release\net8.0-windows\EventStore.BenchmarkFixture.dll'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'Ignore\Benchmarks\EventStore'
+}
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
 }
 $resolvedRowCounts = @($RowCount | ForEach-Object {
         foreach ($token in $_.Split(',')) {
@@ -53,7 +66,7 @@ $resolvedRowCounts = @($RowCount | ForEach-Object {
     } | Sort-Object -Unique)
 
 if (-not $SkipBuild.IsPresent) {
-    dotnet build $projectPath --configuration Release --framework net10.0-windows
+    dotnet build $projectPath --configuration Release --framework net8.0-windows
     if ($LASTEXITCODE -ne 0) {
         throw 'The PSEventViewer Release build failed before the event-store benchmark.'
     }
@@ -63,7 +76,29 @@ if (-not $SkipBuild.IsPresent) {
     }
 }
 
-Import-Module $modulePath -Force -ErrorAction Stop
+$nativeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
+$nativeSQLitePath = Join-Path $runtimeRoot "runtimes\win-$nativeArchitecture\native\e_sqlite3.dll"
+if (-not (Test-Path -LiteralPath $nativeSQLitePath -PathType Leaf)) {
+    throw "The event-store benchmark SQLite runtime '$nativeSQLitePath' does not exist."
+}
+[System.Runtime.InteropServices.NativeLibrary]::Load($nativeSQLitePath) | Out-Null
+foreach ($assemblyName in @(
+        'EventViewerX.dll'
+        'EventViewerX.Reporting.dll'
+        'SQLitePCLRaw.core.dll'
+        'SQLitePCLRaw.provider.e_sqlite3.dll'
+        'SQLitePCLRaw.batteries_v2.dll'
+        'Microsoft.Data.Sqlite.dll'
+        'DbaClientX.Core.dll'
+        'DbaClientX.SQLite.dll'
+        'EventViewerX.Storage.dll'
+    )) {
+    $assemblyPath = Join-Path $runtimeRoot $assemblyName
+    if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+        throw "The event-store benchmark assembly '$assemblyPath' does not exist."
+    }
+    [System.Reflection.Assembly]::LoadFrom($assemblyPath) | Out-Null
+}
 Add-Type -Path $fixtureAssemblyPath -ErrorAction Stop
 Import-Module PSPublishModule -MinimumVersion 3.0.134 -Force -ErrorAction Stop
 $results = foreach ($currentRowCount in $resolvedRowCounts) {
@@ -86,6 +121,28 @@ if (-not $Plan.IsPresent) {
     if ($failed.Count -gt 0) {
         throw "One or more event-store benchmark runs contained failed samples."
     }
+    if ($BaselinePath) {
+        if ($results.Count -ne 1) {
+            throw 'BaselinePath requires exactly one RowCount so a run cannot silently overwrite or compare the wrong scale baseline.'
+        }
+        $gate = @{
+            SummaryPath = [string] $results[0].Artifacts['summary.json']
+            BaselinePath = [IO.Path]::GetFullPath($BaselinePath)
+            Metric = 'MedianMs'
+            GroupBy = @('Suite', 'Scenario', 'Operation', 'Engine', 'Variables')
+            RelativeTolerance = $RelativeTolerance
+            AbsoluteToleranceMs = $AbsoluteToleranceMs
+            Confirm = $false
+        }
+        if ($UpdateBaseline.IsPresent) {
+            $gate.Update = $true
+        }
+        Test-BenchmarkGate @gate | Out-Null
+    } elseif ($UpdateBaseline.IsPresent) {
+        throw 'UpdateBaseline requires BaselinePath.'
+    }
+} elseif ($UpdateBaseline.IsPresent) {
+    throw 'A benchmark plan cannot update a performance baseline.'
 }
 if ($UpdateReadme.IsPresent) {
     if ($Plan.IsPresent) {
