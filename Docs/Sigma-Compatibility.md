@@ -57,11 +57,13 @@ evx detect --path .\Security.evtx --sigma .\Rules\*.yml `
 
 The reproducible audit uses the SigmaHQ `sigma` repository at exact commit
 `2e8fd89f82d9104c1b30321a307254ddeea17de2`. The audit executable verifies the
-40-character commit and rejects tracked modifications. Its scan set comes from
-Git's tracked files at that commit, so ignored or untracked YAML cannot alter
-the result. All selected files form one compilation unit so correlations can
-resolve rules defined in other files, while diagnostics remain attributed to
-their source files. The audit emits JSON and Markdown reports and rejects
+40-character commit and rejects tracked modifications within the selected
+scope. Its scan set comes from Git's tracked, materialized files in that scope,
+so a real sparse checkout is supported while ignored, untracked, or
+skip-worktree files cannot alter the result. All selected files form one
+compilation unit so correlations can resolve rules defined in other files,
+while diagnostics remain attributed to their source files. The audit emits
+distinct JSON and Markdown report files and rejects aliased output paths and
 unknown command-line options.
 
 For the 2,410 Windows rules at that commit:
@@ -78,7 +80,7 @@ unsupported conditions, 5 unsupported correlation constructs, and 3 other
 unsupported selection constructs.
 
 Run the audit from a pinned, clean sparse checkout whose corpus root contains
-the `windows` directory:
+the materialized `windows` directory:
 
 ```powershell
 dotnet run --project .\Sources\EventViewerX.SigmaAudit\EventViewerX.SigmaAudit.csproj `

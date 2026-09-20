@@ -159,6 +159,15 @@ if ($ReadmeTable -eq 'Reporting') {
     $Case = 'Typed-Report-Html', 'Typed-Report-Excel', 'Typed-Report-Email', 'Typed-Report-All'
     $Engine = 'EventViewerXReport'
 }
+$typedFixtureFullPath = $null
+$typedFixtureSha256 = $null
+if ($TypedFixturePath) {
+    $typedFixtureFullPath = [IO.Path]::GetFullPath($TypedFixturePath)
+    if (-not (Test-Path -LiteralPath $typedFixtureFullPath -PathType Leaf)) {
+        throw "The typed fixture '$typedFixtureFullPath' does not exist."
+    }
+    $typedFixtureSha256 = (Get-FileHash -LiteralPath $typedFixtureFullPath -Algorithm SHA256).Hash
+}
 if ($ReadmeTable -eq 'ColdStart') {
     if ($Case -or $Engine) {
         throw 'ReadmeTable ColdStart owns its curated Case and Engine matrix. Do not combine it with Case or Engine.'
@@ -202,7 +211,8 @@ if ($TypedFixturePath) {
     if ($ExpectedTypedCount -le 0) {
         throw 'TypedFixturePath requires a positive ExpectedTypedCount.'
     }
-    $variables.TypedFixturePath = [IO.Path]::GetFullPath($TypedFixturePath)
+    $variables.TypedFixturePath = $typedFixtureFullPath
+    $variables.TypedFixtureSha256 = $typedFixtureSha256
     $variables.ExpectedTypedCount = $ExpectedTypedCount
     $variables.TypedEventTypes = $TypedEventTypes
 }

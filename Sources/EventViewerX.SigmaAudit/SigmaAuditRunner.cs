@@ -6,8 +6,16 @@ internal static class SigmaAuditRunner {
     private const string Repository = "https://github.com/SigmaHQ/sigma";
 
     internal static SigmaAuditReport Run(AuditOptions options) {
+        string scanRoot = options.Scope == AuditScope.Windows
+            ? Path.Combine(options.CorpusPath, "windows")
+            : options.CorpusPath;
+        if (!Directory.Exists(scanRoot)) {
+            throw new ArgumentException(
+                $"Sigma scope root '{scanRoot}' does not exist.");
+        }
         GitCorpusSnapshot corpus = GitCorpusVerifier.Verify(
             options.CorpusPath,
+            scanRoot,
             options.Commit);
         SigmaLogSourceProfile? profile = options.Profile switch {
             AuditProfile.Strict => null,
@@ -18,14 +26,6 @@ internal static class SigmaAuditRunner {
         var compilationOptions = new SigmaCompilationOptions {
             LogSourceProfile = profile
         };
-        string scanRoot = options.Scope == AuditScope.Windows
-            ? Path.Combine(options.CorpusPath, "windows")
-            : options.CorpusPath;
-        if (!Directory.Exists(scanRoot)) {
-            throw new ArgumentException(
-                $"Sigma scope root '{scanRoot}' does not exist.");
-        }
-
         string scanPrefix = Path.GetFullPath(scanRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
             Path.DirectorySeparatorChar;

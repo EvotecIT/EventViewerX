@@ -15,7 +15,7 @@ a thin adapter to PowerForge gates.
 | --- | --- | --- |
 | Persistent watcher | 100, 1,000, and 10,000-event bursts | Exact delivery/loss/duplicate validation plus median wall-clock baseline. |
 | Local history | 100,000 rows across write, managed query, SQL query, daily summary, and typed CSV | Workload correctness plus median wall-clock baseline. |
-| Typed reporting | Exact 5,000-record Security EVTX, 1,000-report-row window, HTML/Excel/email/all | Exact typed count and renderer validation plus median wall-clock baseline. The sensitive lab fixture is not committed. |
+| Typed reporting | Exact 5,000-record Security EVTX, 1,000-report-row window, HTML/Excel/email/all | Exact fixture SHA-256, typed count, effective report sample count, renderer validation, and median wall-clock baseline. The sensitive lab fixture is not committed. |
 | Detection candidate index | 1, 10, 100, and 1,000 enabled rules | Complete matrix, median time, and allocation per operation. |
 | Detection streaming | Three lanes at 1K, 10K, 100K, and 1M observations | Complete matrix, median time, and allocation per event. |
 
@@ -25,6 +25,10 @@ noise into a product failure. Correctness, complete matrices, zero failed
 samples, bytes per event, and scale slope are stronger invariants.
 Each expected detection parameter tuple must occur exactly once; missing rows
 and duplicate rows both fail before a timing or allocation comparison runs.
+Typed parsing and reporting keys include the automatically calculated fixture
+SHA-256, expected typed count, and effective report sample count. Replacing the
+fixture or changing the measured row window therefore requires an explicitly
+reviewed baseline update rather than silently reusing an unrelated budget.
 
 ## Run the gates
 

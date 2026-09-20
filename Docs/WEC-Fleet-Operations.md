@@ -63,7 +63,11 @@ runtime errors, and the optional operator-owned heartbeat-age policy. Omitting
 not invent an organizational threshold. A missing timestamp is `Unknown`, not
 fabricated success or failure. A heartbeat-age policy requires both `Collector`
 and `SubscriptionName`; the request is rejected if no subscription exists to
-which the policy can be applied.
+which the policy can be applied. Once a policy is requested, EventViewerX keeps
+an explicit required `ExpectedSourceHeartbeat` check even when the subscription,
+expected source set, local runtime access, or an expected runtime source is
+unavailable. Those checks remain `Unknown` with remediation instead of
+disappearing from the report.
 
 For direct inspection:
 

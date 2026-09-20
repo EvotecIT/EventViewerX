@@ -120,6 +120,10 @@ public static partial class EventReadinessEngine {
             return;
         }
 
+        string[] expectedSources = BuildExpectedSourceSet(
+            request.ExpectedSources.Concat(
+                discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>()));
+
         CollectorSubscriptionSnapshot? subscription = null;
         bool subscriptionInspected = false;
         try {
@@ -166,6 +170,13 @@ public static partial class EventReadinessEngine {
                 "Create the subscription or correct the supplied subscription name.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.Missing));
+            AddCollectorHeartbeatUnknownChecks(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                expectedSources,
+                request.MaximumCollectorHeartbeatAge,
+                "Heartbeat age cannot be evaluated because the named subscription was not found.",
+                "Create or select the subscription, then rerun readiness after Windows reports source runtime heartbeat evidence.");
             return;
         } else if (subscription != null) {
             AddCollectorBooleanCheck(
@@ -214,9 +225,6 @@ public static partial class EventReadinessEngine {
                 diagnosticKind: coverage.DiagnosticKind));
         }
 
-        string[] expectedSources = BuildExpectedSourceSet(
-            request.ExpectedSources.Concat(
-                discovery?.Targets.Select(static target => target.ComputerName) ?? Array.Empty<string>()));
         if (expectedSources.Length == 0) {
             checks.Add(new EventReadinessCheckResult(
                 EventReadinessLayer.WindowsEventCollector,
@@ -240,6 +248,13 @@ public static partial class EventReadinessEngine {
                 "Run the same readiness command locally on the collector to compare expected sources with runtime enrollment.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
+            AddCollectorHeartbeatUnknownChecks(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                expectedSources,
+                request.MaximumCollectorHeartbeatAge,
+                "Heartbeat age cannot be inspected remotely because wecutil runtime status is local-only.",
+                "Run the same readiness command locally on the collector and inspect each expected source heartbeat.");
             return;
         }
 
@@ -259,6 +274,13 @@ public static partial class EventReadinessEngine {
                 "Run the assessment with an identity permitted to read local WEC runtime status.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.AccessDenied));
+            AddCollectorHeartbeatUnknownChecks(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                expectedSources,
+                request.MaximumCollectorHeartbeatAge,
+                "Heartbeat age is unavailable because local subscription runtime access was denied.",
+                "Run the assessment with an identity permitted to read local WEC runtime status.");
             return;
         } catch (Exception exception) {
             checks.Add(new EventReadinessCheckResult(
@@ -271,6 +293,13 @@ public static partial class EventReadinessEngine {
                 "Run 'wecutil gr' or Get-EVXCollectorSubscription -IncludeRuntimeStatus locally and inspect the Windows error.",
                 required: true,
                 diagnosticKind: EventReadinessDiagnosticKind.Error));
+            AddCollectorHeartbeatUnknownChecks(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                expectedSources,
+                request.MaximumCollectorHeartbeatAge,
+                "Heartbeat age is unavailable because local subscription runtime inspection failed.",
+                "Run 'wecutil gr' locally and inspect the Windows error before applying the heartbeat policy.");
             return;
         }
         bool runtimeHasDefinitiveError =
@@ -291,6 +320,17 @@ public static partial class EventReadinessEngine {
                 : "Run 'wecutil gr' locally and confirm that Windows returned runtime evidence for the subscription.",
             EventReadinessDiagnosticKind.InvalidConfiguration);
         if ((!runtimeStateConclusive && runtime.Sources.Count == 0) || expectedSources.Length == 0) {
+            AddCollectorHeartbeatUnknownChecks(
+                checks,
+                collector + "/" + request.SubscriptionName,
+                expectedSources,
+                request.MaximumCollectorHeartbeatAge,
+                expectedSources.Length == 0
+                    ? "Heartbeat age cannot be evaluated because no expected source set was supplied or discovered."
+                    : "Heartbeat age cannot be evaluated because Windows returned no subscription runtime source evidence.",
+                expectedSources.Length == 0
+                    ? "Supply -ExpectedSource or enable an explicit directory discovery scope, then rerun readiness locally on the collector."
+                    : "Run 'wecutil gr' locally and confirm that Windows returns source runtime and heartbeat evidence.");
             return;
         }
         CollectorSubscriptionSourceRuntimeStatus[] runtimeSources = runtime.Sources
@@ -316,6 +356,13 @@ public static partial class EventReadinessEngine {
                     "Verify source policy, subscription ACL, WinRM reachability, and forwarding-client operational logs.",
                     required: true,
                     diagnosticKind: EventReadinessDiagnosticKind.Missing));
+                AddCollectorHeartbeatUnknownChecks(
+                    checks,
+                    collector + "/" + request.SubscriptionName,
+                    new[] { expectedSource },
+                    request.MaximumCollectorHeartbeatAge,
+                    "Heartbeat age cannot be evaluated because the expected source is absent from subscription runtime.",
+                    "Verify source enrollment and rerun readiness after Windows reports runtime heartbeat evidence.");
                 continue;
             }
             bool sourceHasDefinitiveError =
@@ -352,6 +399,34 @@ public static partial class EventReadinessEngine {
                 expectedSource,
                 source,
                 request.MaximumCollectorHeartbeatAge);
+        }
+    }
+
+    private static void AddCollectorHeartbeatUnknownChecks(
+        ICollection<EventReadinessCheckResult> checks,
+        string policyTarget,
+        IReadOnlyList<string> expectedSources,
+        TimeSpan? maximumHeartbeatAge,
+        string evidence,
+        string remediation) {
+
+        if (!maximumHeartbeatAge.HasValue) {
+            return;
+        }
+        IEnumerable<string> targets = expectedSources.Count == 0
+            ? new[] { policyTarget }
+            : expectedSources;
+        foreach (string target in targets) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceHeartbeat",
+                target,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Unknown,
+                $"{evidence} Required maximum age={maximumHeartbeatAge.Value}.",
+                remediation,
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.NoEvidence));
         }
     }
 

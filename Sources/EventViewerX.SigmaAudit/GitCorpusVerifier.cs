@@ -3,7 +3,11 @@ using System.Diagnostics;
 namespace EventViewerX.SigmaAudit;
 
 internal static class GitCorpusVerifier {
-    internal static GitCorpusSnapshot Verify(string corpusPath, string expectedCommit) {
+    internal static GitCorpusSnapshot Verify(
+        string corpusPath,
+        string scanRoot,
+        string expectedCommit) {
+
         DirectoryInfo repository = FindRepository(corpusPath);
         string actualCommit = Run(repository.FullName, "rev-parse", "HEAD").Trim();
         if (!string.Equals(actualCommit, expectedCommit, StringComparison.OrdinalIgnoreCase)) {
@@ -11,14 +15,14 @@ internal static class GitCorpusVerifier {
                 $"Sigma corpus HEAD is '{actualCommit}', not requested commit '{expectedCommit}'.");
         }
 
-        string relativeCorpus = Path.GetRelativePath(repository.FullName, corpusPath);
+        string relativeScanRoot = Path.GetRelativePath(repository.FullName, scanRoot);
         string status = Run(
             repository.FullName,
             "status",
             "--porcelain",
             "--untracked-files=no",
             "--",
-            relativeCorpus).Trim();
+            relativeScanRoot).Trim();
         if (status.Length != 0) {
             throw new InvalidDataException(
                 "Sigma corpus contains tracked changes and cannot produce a reproducible compatibility report.");
@@ -29,8 +33,8 @@ internal static class GitCorpusVerifier {
             "ls-files",
             "-z",
             "--",
-            relativeCorpus);
-        string corpusFullPath = Path.GetFullPath(corpusPath)
+            relativeScanRoot);
+        string scanRootFullPath = Path.GetFullPath(scanRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string[] files = trackedOutput
             .Split('\0', StringSplitOptions.RemoveEmptyEntries)
@@ -38,14 +42,14 @@ internal static class GitCorpusVerifier {
                 repository.FullName,
                 path.Replace('/', Path.DirectorySeparatorChar))))
             .Where(path =>
-                path.StartsWith(corpusFullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                path.StartsWith(scanRootFullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
                 (path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) ||
                  path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)))
             .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (files.Length == 0) {
             throw new InvalidDataException(
-                $"Sigma corpus '{corpusFullPath}' contains no tracked YAML files.");
+                $"Sigma scope '{scanRootFullPath}' contains no tracked YAML files.");
         }
         string? missing = files.FirstOrDefault(static path => !File.Exists(path));
         if (missing != null) {

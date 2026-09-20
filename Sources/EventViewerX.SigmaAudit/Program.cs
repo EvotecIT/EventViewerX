@@ -122,11 +122,21 @@ internal sealed class AuditOptions {
         if (commit.Length != 40 || commit.Any(static value => !Uri.IsHexDigit(value))) {
             throw new ArgumentException("Commit must be a full 40-character hexadecimal Git object ID.");
         }
+        string fullOutputJson = Path.GetFullPath(outputJson);
+        string fullOutputMarkdown = Path.GetFullPath(outputMarkdown);
+        if (string.Equals(
+            fullOutputJson,
+            fullOutputMarkdown,
+            StringComparison.OrdinalIgnoreCase)) {
+
+            throw new ArgumentException(
+                "Output JSON and Markdown paths must resolve to distinct files.");
+        }
         return new AuditOptions(
             fullCorpus,
             commit.ToLowerInvariant(),
-            outputJson,
-            outputMarkdown,
+            fullOutputJson,
+            fullOutputMarkdown,
             scope,
             profile);
     }

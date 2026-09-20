@@ -92,6 +92,11 @@ operation in a retained `output-validation.json` sidecar. After validation succe
 deleted so repeated large-log samples do not consume unbounded disk space. A failed lane keeps its output for
 diagnosis.
 
+Typed benchmark baseline keys include the wrapper-calculated fixture SHA-256,
+the expected typed count, and the effective report sample count for each case.
+This prevents a valid budget from being reused for different EVTX bytes or a
+smaller reporting window.
+
 PowerForge records:
 
 - end-to-end duration and engine-reported duration;
