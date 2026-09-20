@@ -16,6 +16,7 @@ try {
 
 var diagnostics = new List<SavedEventReadDiagnostic>();
 var commandDiagnostics = new List<SavedEventReadDiagnostic>();
+ExternalCommandIdentity? commandIdentity = ExternalCommandIdentity.Create(options.EvtxDumpPath);
 var portableMeasurements = new List<MeasurementSummary>(options.Iterations);
 var commandMeasurements = new List<MeasurementSummary>(options.Iterations);
 var windowsMeasurements = new List<MeasurementSummary>(options.Iterations);
@@ -109,6 +110,7 @@ var output = new {
     Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
     EventViewerXEvtxVersion = AssemblyVersion(typeof(EvtxSavedEventReader).Assembly),
     ParserDependencyVersion = AssemblyVersion(typeof(evtx.EventLog).Assembly),
+    EvtxDumpExecutable = commandIdentity,
     Portable = portableAggregate,
     EvtxDump = commandAggregate,
     Windows = windowsAggregate,
@@ -133,6 +135,9 @@ if (!string.IsNullOrWhiteSpace(options.OutputPath)) {
 
 if (portableMeasurements.Any(static measurement => measurement.Count == 0)) {
     return 2;
+}
+if (commandAction != null && commandMeasurements.Any(static measurement => measurement.Count == 0)) {
+    return 4;
 }
 if (options.MinimumExactTimestampRatio > 0 && fidelityAggregate == null) {
     return 6;

@@ -30,13 +30,15 @@ dotnet run --project .\Benchmarks\EvtxFidelity\EventViewerX.EvtxFidelity.csproj 
 ```
 
 The JSON records fixture SHA-256, runtime and architecture, parser assembly
-versions, every measured iteration, medians, fidelity minima, diagnostics, and
-the evaluated budget. `Metadata`, `Message`, `StructuredData`, `RawXml`,
+versions, the resolved external-parser path and SHA-256 when configured, every
+measured iteration, medians, fidelity minima, diagnostics, and the evaluated
+budget. `Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.
 
-The gate fails when the portable reader returns no records or, on Windows,
-when identity parity is below 99 percent or records are missing. Provider
+The gate fails when the portable reader returns no records, a configured
+command reader returns no records, or Windows comparison finds identity loss,
+missing records, or extra records. Provider
 message text is intentionally excluded because non-Windows systems normally
 do not have the originating provider message DLLs. An explicitly configured
 exact-timestamp gate exits with code 6 when no Windows reference result is
@@ -82,10 +84,10 @@ The caller-supplied `evtx_dump` 0.12.2 adapter also preserved 653 of 653 records
 with complete identity parity.
 
 On a fresh 21.0 MB Security snapshot, a five-iteration 1,000-record comparison
-measured the compact-XML command adapter at a median of approximately 11,082
-events/second and 47.6 KB allocated/event. The existing managed dependency
-measured approximately 3,313 events/second and 841.3 KB/event; the Windows
-Eventing API measured approximately 60,532 events/second and 4.2 KB/event.
+measured the final bounded compact-XML command adapter at approximately 8,308
+events/second and 49.6 KB allocated/event. The existing managed dependency
+measured approximately 2,755 events/second and 841.3 KB/event; the Windows
+Eventing API measured approximately 50,320 events/second and 4.2 KB/event.
 All three paths preserved every compared event identity. Released
 `evtx_dump` 0.12.2 retained one-microsecond timestamp parity but only 10.6
 percent exact timestamp parity because its renderer emits six fractional
@@ -93,8 +95,9 @@ digits.
 
 A local proof build changing that renderer from six FILETIME digits to seven
 passed the exact-fidelity gate on all 5,000 comparisons across five measured
-iterations. Its median remained approximately 11,082 events/second and 47.6
-KB/event. The proof binary is not a product dependency or release; production
+iterations. Its final bounded-reader median was approximately 8,308
+events/second and 49.6 KB/event. The proof binary is not a product dependency
+or release; production
 adoption remains gated on an upstream correction or an owned native package
 with the same fidelity evidence.
 

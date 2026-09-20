@@ -1,4 +1,5 @@
 using EventViewerX.Evtx;
+using System.Text;
 using Xunit;
 
 namespace EventViewerX.Portability.Tests;
@@ -233,6 +234,18 @@ public sealed class TestSavedEventPortability {
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(
             () => framer.TryAdd(xml, out _));
+
+        Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpBoundedLineReaderRejectsLineBeforeMaterializingPastLimit() {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("123456789\n"));
+        using var textReader = new StreamReader(stream, Encoding.UTF8);
+        var reader = new EvtxDumpBoundedLineReader(textReader, maximumLineCharacters: 8);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => reader.ReadLine(static () => { }));
 
         Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
     }

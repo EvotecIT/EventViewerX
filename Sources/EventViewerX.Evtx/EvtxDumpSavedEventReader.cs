@@ -106,16 +106,18 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         int rejectedRecords = 0;
         string? firstRejection = null;
         var framer = new EvtxDumpXmlRecordFramer();
+        var lineReader = new EvtxDumpBoundedLineReader(
+            process.StandardOutput,
+            EvtxDumpXmlRecordFramer.MaximumRecordCharacters);
         using var headerCursor = new EvtxRecordHeaderCursor(path, cancellationToken);
         int headerMisses = 0;
+        Action boundaryCheck = () =>
+            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
         try {
             string? line;
             while ((line = ReadLineBounded(
-                        process.StandardOutput,
-                        process,
-                        runtime,
-                        inactivity,
-                        cancellationToken)) != null) {
+                        lineReader,
+                        boundaryCheck)) != null) {
 
                 inactivity.Restart();
                 cancellationToken.ThrowIfCancellationRequested();
@@ -200,18 +202,8 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
     }
 
     private string? ReadLineBounded(
-        StreamReader reader,
-        Process process,
-        Stopwatch runtime,
-        Stopwatch inactivity,
-        CancellationToken cancellationToken) {
-
-        Task<string?> read = reader.ReadLineAsync();
-        while (!read.Wait(100)) {
-            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
-        }
-        return read.GetAwaiter().GetResult();
-    }
+        EvtxDumpBoundedLineReader reader,
+        Action boundaryCheck) => reader.ReadLine(boundaryCheck);
 
     private void WaitForExitBounded(
         Process process,
