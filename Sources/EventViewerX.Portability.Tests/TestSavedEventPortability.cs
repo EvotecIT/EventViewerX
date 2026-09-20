@@ -1,4 +1,6 @@
 using EventViewerX.Evtx;
+using System.Diagnostics;
+using System.Text;
 using Xunit;
 
 namespace EventViewerX.Portability.Tests;
@@ -182,6 +184,303 @@ public sealed class TestSavedEventPortability {
             new EvtxDumpSavedEventReader(maximumRuntime: TimeSpan.Zero));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new EvtxDumpSavedEventReader(maximumInactivity: TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void EvtxDumpReaderHonorsCancellationBeforeStartingTheParser() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var reader = new EvtxDumpSavedEventReader($"eventviewerx-missing-{Guid.NewGuid():N}");
+        var query = new EventLogFileQuery(path) { XPath = "*", Oldest = true };
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        OperationCanceledException exception = Assert.ThrowsAny<OperationCanceledException>(() =>
+            reader.Read(query, cancellationToken: cancellation.Token).ToArray());
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerPreservesMultilineRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\" encoding=\"utf-8\"?>", out _));
+        Assert.False(framer.TryAdd("<Event><System>", out _));
+        Assert.False(framer.TryAdd(string.Empty, out _));
+        Assert.False(framer.TryAdd("<EventID>42</EventID></System>", out _));
+        Assert.True(framer.TryAdd("<EventData><Data>line</Data></EventData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><System>\n\n<EventID>42</EventID></System>\n<EventData><Data>line</Data></EventData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerDoesNotEndAtNestedEventClosingTag() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData>", out _));
+        Assert.False(framer.TryAdd("<Event><Value>nested</Value></Event>", out _));
+        Assert.True(framer.TryAdd("</UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData>\n<Event><Value>nested</Value></Event>\n</UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRecoversAtNextDocumentDeclaration() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        const string firstDocument = "<?xml version=\"1.0\"?><Event><System /></Event>";
+        const string secondDocument = "<?xml version=\"1.0\"?><Event><System /></Event>";
+
+        Assert.False(framer.TryAdd("<Event><UserData>", out _, out _));
+        Assert.True(framer.TryAdd(
+            firstDocument,
+            out string? first,
+            out string? recoveryError));
+        Assert.True(framer.TryAdd(secondDocument, out string? second, out _));
+
+        Assert.Contains("previous Event fragment ended", recoveryError, StringComparison.Ordinal);
+        Assert.Equal(firstDocument, first);
+        Assert.Equal(secondDocument, second);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerPreservesCompactDeclarationAndEvent() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        const string value = "<?xml version=\"1.0\"?><Event><System /></Event>";
+
+        Assert.True(framer.TryAdd(value, out string? xml));
+
+        Assert.Equal(value, xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsStylesheetProcessingInstructionAsPreamble() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<?xml-stylesheet?><Event />", out _));
+
+        Assert.Contains("unexpected output", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerIgnoresClosingTagTextInsideCData() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData><![CDATA[", out _));
+        Assert.False(framer.TryAdd("</Event>", out _));
+        Assert.True(framer.TryAdd("]]></UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData><![CDATA[\n</Event>\n]]></UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerDoesNotResynchronizeAtDeclarationTextInsideCData() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData><![CDATA[", out _));
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\"?><Event><Value>embedded</Value></Event>", out _));
+        Assert.True(framer.TryAdd("]]></UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData><![CDATA[\n<?xml version=\"1.0\"?><Event><Value>embedded</Value></Event>\n]]></UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Theory]
+    [InlineData("<Event><![CDATA[value]]", "></Missing>", "]]></Event>")]
+    [InlineData("<Event><!-- value-", "-></Missing>", "--></Event>")]
+    [InlineData("<Event><?probe value?", "></Missing>", "?></Event>")]
+    public void EvtxDumpXmlFramerPreservesTerminatorPrefixesAcrossReconstructedLineBreaks(
+        string firstLine,
+        string secondLine,
+        string thirdLine) {
+
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd(firstLine, out _));
+        Assert.False(framer.TryAdd(secondLine, out _));
+        Assert.True(framer.TryAdd(thirdLine, out string? xml));
+
+        Assert.Equal($"{firstLine}\n{secondLine}\n{thirdLine}", xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsRootNamePrefixCollision() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<Eventual />", out _));
+
+        Assert.Contains("unexpected output", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRecoversAfterMalformedTrailingMarkup() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.Throws<InvalidDataException>(() =>
+            framer.TryAdd("<Event></Event></Event>", out _));
+
+        Assert.True(framer.TryAdd("<Event />", out string? xml));
+        Assert.Equal("<Event />", xml);
+        framer.Complete();
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsIncompleteRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        Assert.False(framer.TryAdd("<Event><System>", out _));
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => framer.Complete());
+
+        Assert.Contains("ended inside", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpXmlFramerRejectsOversizedSingleLineRecords() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        string xml = "<Event>" +
+                     new string('x', EvtxDumpXmlRecordFramer.MaximumRecordCharacters) +
+                     "</Event>";
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => framer.TryAdd(xml, out _));
+
+        Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvtxDumpBoundedLineReaderRejectsLineBeforeMaterializingPastLimit() {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("123456789\n"));
+        using var textReader = new StreamReader(stream, Encoding.UTF8);
+        var reader = new EvtxDumpBoundedLineReader(textReader, maximumLineCharacters: 8);
+        int boundaryChecks = 0;
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => reader.ReadLine(() => boundaryChecks++));
+
+        Assert.Contains("larger than", exception.Message, StringComparison.Ordinal);
+        Assert.True(boundaryChecks > 0);
+    }
+
+    [Fact]
+    public void EvtxDumpReadBoundaryExcludesConsumerDelayFromInactivity() {
+        string text = new string('x', 65_535) + "\nsecond\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        using var textReader = new StreamReader(stream, Encoding.UTF8);
+        var reader = new EvtxDumpBoundedLineReader(textReader, maximumLineCharacters: 65_535);
+        var inactivity = new Stopwatch();
+        int boundaryChecks = 0;
+        Action boundaryCheck = () => boundaryChecks++;
+
+        string? first = EvtxDumpSavedEventReader.ReadLineBounded(reader, boundaryCheck, inactivity);
+        TimeSpan beforeConsumerDelay = inactivity.Elapsed;
+        Thread.Sleep(100);
+        Assert.Equal(beforeConsumerDelay, inactivity.Elapsed);
+        string? second = EvtxDumpSavedEventReader.ReadLineBounded(reader, boundaryCheck, inactivity);
+
+        Assert.Equal(65_535, first!.Length);
+        Assert.Equal("second", second);
+        Assert.True(boundaryChecks >= 2);
+        Assert.False(inactivity.IsRunning);
+    }
+
+    [Fact]
+    public void EvtxRecordHeaderCursorRestoresFileOffsetWithoutReplacingEventTime() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var header = new byte[24];
+        using (FileStream stream = File.OpenRead(path)) {
+            stream.Position = 4096 + 512;
+            stream.ReadExactly(header);
+        }
+        long recordId = BitConverter.ToInt64(header, 8);
+        DateTime timestampUtc = DateTime.FromFileTimeUtc(BitConverter.ToInt64(header, 16));
+        var actual = new SavedEventRecord {
+            RecordId = recordId,
+            TimeCreatedUtc = timestampUtc.AddTicks(-1),
+            RawXml = $"<Event><System><TimeCreated SystemTime=\"{timestampUtc.AddTicks(-1):yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'}\" /></System></Event>"
+        };
+
+        using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+        bool matched = cursor.TryApply(actual);
+
+        Assert.True(matched);
+        Assert.Equal(timestampUtc.AddTicks(-1), actual.TimeCreatedUtc);
+        Assert.Equal(4096 + 512, actual.FileOffset);
+    }
+
+    [Fact]
+    public void EvtxRecordHeaderCursorPreservesOffsetWhenHeaderTimestampIsInvalid() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"EventViewerX-{Guid.NewGuid():N}.evtx");
+        File.Copy(source, path);
+        try {
+            long recordId;
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) {
+                stream.Position = 4096 + 512 + 8;
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+                recordId = reader.ReadInt64();
+                stream.Position = 4096 + 512 + 16;
+                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+                writer.Write(long.MaxValue);
+            }
+            var actual = new SavedEventRecord { RecordId = recordId };
+
+            using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+            bool matched = cursor.TryApply(actual);
+
+            Assert.True(matched);
+            Assert.Equal(4096 + 512, actual.FileOffset);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void EvtxRecordHeaderCursorResynchronizesAfterDamagedRecordHeader() {
+        string source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        string path = Path.Combine(Path.GetTempPath(), $"EventViewerX-{Guid.NewGuid():N}.evtx");
+        File.Copy(source, path);
+        try {
+            const long firstRecordOffset = 4096 + 512;
+            long firstRecordId;
+            long secondRecordId;
+            int firstRecordSize;
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read)) {
+                stream.Position = firstRecordOffset + 4;
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+                firstRecordSize = checked((int)reader.ReadUInt32());
+                firstRecordId = reader.ReadInt64();
+                stream.Position = firstRecordOffset + firstRecordSize + 8;
+                secondRecordId = reader.ReadInt64();
+                stream.Position = firstRecordOffset;
+                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+                writer.Write(0);
+            }
+            var damagedRecord = new SavedEventRecord { RecordId = firstRecordId };
+            var recoveredRecord = new SavedEventRecord { RecordId = secondRecordId };
+
+            using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
+
+            Assert.False(cursor.TryApply(damagedRecord));
+            Assert.True(cursor.TryApply(recoveredRecord));
+            Assert.Equal(firstRecordOffset + firstRecordSize, recoveredRecord.FileOffset);
+        } finally {
+            File.Delete(path);
+        }
     }
 
     [Fact]

@@ -1,177 +1,284 @@
-using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using EventViewerX;
 using EventViewerX.Evtx;
 
-if (args.Length == 0 || !File.Exists(args[0])) {
-    Console.Error.WriteLine("Usage: EventViewerX.EvtxFidelity <fixture.evtx> [maximum-events]");
+BenchmarkOptions options;
+try {
+    options = BenchmarkOptions.Parse(args);
+} catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException) {
+    Console.Error.WriteLine(exception.Message);
+    Console.Error.WriteLine(BenchmarkOptions.Usage);
     return 64;
 }
 
-string path = Path.GetFullPath(args[0]);
-long maximum = args.Length > 1 ? long.Parse(args[1]) : 0;
 var diagnostics = new List<SavedEventReadDiagnostic>();
-Measurement portable = Measure(() => EventLogEngine.ReadFile(new EventLogFileQuery(path) {
-    Oldest = true,
-    ReadMode = EventReadMode.StructuredData,
-    MaxEvents = maximum,
-    SavedEventReader = new EvtxSavedEventReader(),
-    SavedEventDiagnosticHandler = diagnostics.Add
-}).ToArray());
-string? evtxDumpPath = args.Length > 2
-    ? args[2]
-    : Environment.GetEnvironmentVariable("EVENTVIEWERX_EVTX_DUMP");
 var commandDiagnostics = new List<SavedEventReadDiagnostic>();
-Measurement? command = string.IsNullOrWhiteSpace(evtxDumpPath)
-    ? null
-    : Measure(() => EventLogEngine.ReadFile(new EventLogFileQuery(path) {
-        Oldest = true,
-        ReadMode = EventReadMode.StructuredData,
-        MaxEvents = maximum,
-        SavedEventReader = new EvtxDumpSavedEventReader(evtxDumpPath),
-        SavedEventDiagnosticHandler = commandDiagnostics.Add
-    }).ToArray());
-
-Measurement? windows = null;
-Fidelity? fidelity = null;
-Fidelity? commandFidelity = null;
+ExternalCommandIdentity? commandIdentityBefore;
+try {
+    commandIdentityBefore = ExternalCommandIdentity.Create(options.EvtxDumpPath);
+} catch (Exception exception) when (
+    exception is FileNotFoundException or IOException or UnauthorizedAccessException) {
+    Console.Error.WriteLine(exception.Message);
+    return 66;
+}
+FixtureIdentity fixtureBefore = ReadFixtureIdentity(options.Path);
+var portableMeasurements = new List<MeasurementSummary>(options.Iterations);
+var commandMeasurements = new List<MeasurementSummary>(options.Iterations);
+var windowsMeasurements = new List<MeasurementSummary>(options.Iterations);
+var fidelities = new List<Fidelity>(options.Iterations);
+var commandFidelities = new List<Fidelity>(options.Iterations);
 string? windowsError = null;
-if (OperatingSystem.IsWindows()) {
-    try {
-        windows = Measure(() => EventLogEngine.ReadFile(new EventLogFileQuery(path) {
-            Oldest = true,
-            ReadMode = EventReadMode.StructuredData,
-            MaxEvents = maximum
-        }).ToArray());
-        fidelity = Compare(windows.Events, portable.Events);
-        commandFidelity = command == null ? null : Compare(windows.Events, command.Events);
-    } catch (Exception exception) {
-        windowsError = exception.GetType().Name + ": " + exception.Message;
+
+Func<Action<SavedEventReadDiagnostic>?, EventObject[]> portableAction = diagnosticHandler =>
+    Read(new EvtxSavedEventReader(), diagnosticHandler);
+Func<Action<SavedEventReadDiagnostic>?, EventObject[]>? commandAction =
+    commandIdentityBefore?.ResolvedPath == null
+        ? null
+        : diagnosticHandler => Read(
+            new EvtxDumpSavedEventReader(commandIdentityBefore.ResolvedPath),
+            diagnosticHandler);
+ExternalCommandIdentity? commandIdentityAfter = null;
+string? commandIdentityError = null;
+bool? commandIdentityStable = commandAction == null ? null : true;
+
+for (int iteration = 0; iteration < options.WarmupIterations; iteration++) {
+    _ = portableAction(null);
+    if (commandAction != null) {
+        _ = commandAction(null);
+        CheckCommandIdentity();
+    }
+    if (OperatingSystem.IsWindows()) {
+        try {
+            _ = ReadWindows();
+        } catch (Exception exception) {
+            windowsError ??= exception.GetType().Name + ": " + exception.Message;
+        }
     }
 }
+
+for (int iteration = 0; iteration < options.Iterations; iteration++) {
+    Measurement? windows = null;
+    if (OperatingSystem.IsWindows() && iteration % 2 == 1) {
+        windows = TryMeasureWindows();
+    }
+    Measurement portable = MeasurementRunner.Measure(() => portableAction(null));
+    portableMeasurements.Add(portable.Summary);
+
+    Measurement? command = commandAction == null
+        ? null
+        : MeasurementRunner.Measure(() => commandAction(null));
+    if (command != null) {
+        commandMeasurements.Add(command.Summary);
+        CheckCommandIdentity();
+    }
+
+    if (OperatingSystem.IsWindows()) {
+        windows ??= TryMeasureWindows();
+        if (windows != null) {
+            windowsMeasurements.Add(windows.Summary);
+            fidelities.Add(FidelityComparer.Compare(windows.Events, portable.Events));
+            if (command != null) {
+                commandFidelities.Add(FidelityComparer.Compare(windows.Events, command.Events));
+            }
+        }
+    }
+}
+
+_ = portableAction(diagnostics.Add);
+if (commandAction != null) {
+    _ = commandAction(commandDiagnostics.Add);
+    CheckCommandIdentity();
+}
+
+MeasurementAggregate portableAggregate = MeasurementAggregate.Create(portableMeasurements);
+MeasurementAggregate? commandAggregate = commandMeasurements.Count == 0
+    ? null
+    : MeasurementAggregate.Create(commandMeasurements);
+MeasurementAggregate? windowsAggregate = windowsMeasurements.Count == 0
+    ? null
+    : MeasurementAggregate.Create(windowsMeasurements);
+FidelityAggregate? fidelityAggregate = fidelities.Count == 0
+    ? null
+    : FidelityAggregate.Create(fidelities);
+FidelityAggregate? commandFidelityAggregate = commandFidelities.Count == 0
+    ? null
+    : FidelityAggregate.Create(commandFidelities);
+FixtureIdentity? fixtureAfter = null;
+string? fixtureIntegrityError = null;
+try {
+    fixtureAfter = ReadFixtureIdentity(options.Path);
+} catch (Exception exception) when (
+    exception is IOException or UnauthorizedAccessException) {
+    fixtureIntegrityError = exception.GetType().Name + ": " + exception.Message;
+}
+bool fixtureStable = fixtureAfter != null && fixtureBefore == fixtureAfter;
+CheckCommandIdentity();
+bool windowsReferenceIncomplete = OperatingSystem.IsWindows() &&
+                                  windowsMeasurements.Count != options.Iterations;
+PerformanceBudgetResult budget = PerformanceBudgetEvaluator.Evaluate(
+    options,
+    portableAggregate.Median,
+    fidelityAggregate);
 
 var output = new {
-    Path = path,
-    FileBytes = new FileInfo(path).Length,
-    Portable = portable.ToSummary(),
-    EvtxDump = command?.ToSummary(),
-    Windows = windows?.ToSummary(),
+    options.Path,
+    FileBytes = fixtureBefore.Bytes,
+    FileSha256 = fixtureBefore.Sha256,
+    FixtureIntegrity = new {
+        Before = fixtureBefore,
+        After = fixtureAfter,
+        Stable = fixtureStable,
+        Error = fixtureIntegrityError
+    },
+    options.MaximumEvents,
+    ReadMode = options.ReadMode.ToString(),
+    options.WarmupIterations,
+    options.Iterations,
+    options.MinimumIdentityMatchRatio,
+    options.MinimumExactTimestampRatio,
+    Runtime = RuntimeInformation.FrameworkDescription,
+    OperatingSystem = RuntimeInformation.OSDescription,
+    Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+    EventViewerXEvtxVersion = AssemblyVersion(typeof(EvtxSavedEventReader).Assembly),
+    ParserDependencyVersion = AssemblyVersion(typeof(evtx.EventLog).Assembly),
+    EvtxDumpExecutable = commandIdentityBefore,
+    EvtxDumpExecutableIntegrity = new {
+        Before = commandIdentityBefore,
+        After = commandIdentityAfter,
+        Stable = commandIdentityStable,
+        Error = commandIdentityError
+    },
+    Portable = portableAggregate,
+    EvtxDump = commandAggregate,
+    Windows = windowsAggregate,
+    WindowsReferenceComplete = OperatingSystem.IsWindows()
+        ? windowsMeasurements.Count == options.Iterations
+        : (bool?)null,
     WindowsError = windowsError,
-    Fidelity = fidelity,
-    EvtxDumpFidelity = commandFidelity,
-    Diagnostics = diagnostics.Select(static item => new {
-        item.Code,
-        Severity = item.Severity.ToString(),
-        item.Recovered,
-        item.FileOffset,
-        item.Message
-    }),
-    EvtxDumpDiagnostics = commandDiagnostics.Select(static item => new {
-        item.Code,
-        Severity = item.Severity.ToString(),
-        item.Recovered,
-        item.FileOffset,
-        item.Message
-    })
+    Fidelity = fidelityAggregate,
+    EvtxDumpFidelity = commandFidelityAggregate,
+    PerformanceBudget = budget,
+    Diagnostics = ProjectDiagnostics(diagnostics),
+    EvtxDumpDiagnostics = ProjectDiagnostics(commandDiagnostics)
 };
-Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
-if (portable.Events.Length == 0) {
+var serializerOptions = new JsonSerializerOptions { WriteIndented = true };
+string json = JsonSerializer.Serialize(output, serializerOptions);
+Console.WriteLine(json);
+if (options.OutputPath != null) {
+    string outputPath = Path.GetFullPath(options.OutputPath!);
+    string? directory = Path.GetDirectoryName(outputPath);
+    if (!string.IsNullOrEmpty(directory)) {
+        Directory.CreateDirectory(directory);
+    }
+    using var stream = new FileStream(
+        outputPath,
+        FileMode.CreateNew,
+        FileAccess.Write,
+        FileShare.None);
+    using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    writer.Write(json);
+    writer.Write(Environment.NewLine);
+}
+
+if (portableMeasurements.Any(static measurement => measurement.Count == 0)) {
     return 2;
 }
-if (fidelity != null && (fidelity.IdentityMatchRatio < 0.99 || fidelity.MissingPortableRecords > 0)) {
-    return 3;
-}
-if (commandFidelity != null &&
-    (commandFidelity.IdentityMatchRatio < 0.99 || commandFidelity.MissingPortableRecords > 0)) {
+if (commandAction != null && commandMeasurements.Any(static measurement => measurement.Count == 0)) {
     return 4;
 }
-return 0;
-
-static Measurement Measure(Func<EventObject[]> action) {
-    GC.Collect();
-    GC.WaitForPendingFinalizers();
-    GC.Collect();
-    long before = GC.GetTotalAllocatedBytes(precise: true);
-    var stopwatch = Stopwatch.StartNew();
-    EventObject[] events = action();
-    stopwatch.Stop();
-    long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
-    return new Measurement(events, stopwatch.Elapsed, allocated);
+if (!fixtureStable) {
+    return 8;
 }
+if (commandIdentityStable == false) {
+    return 9;
+}
+if (windowsReferenceIncomplete) {
+    return 7;
+}
+if (options.MinimumExactTimestampRatio > 0 && fidelityAggregate == null) {
+    return 6;
+}
+if (fidelityAggregate != null &&
+    (fidelityAggregate.MinimumIdentityMatchRatio < options.MinimumIdentityMatchRatio ||
+     fidelityAggregate.MinimumExactTimestampMatchRatio < options.MinimumExactTimestampRatio ||
+     fidelityAggregate.MaximumMissingPortableRecords > 0 ||
+     fidelityAggregate.MaximumExtraPortableRecords > 0)) {
+    return 3;
+}
+if (commandFidelityAggregate != null &&
+    (commandFidelityAggregate.MinimumIdentityMatchRatio < options.MinimumIdentityMatchRatio ||
+     commandFidelityAggregate.MinimumExactTimestampMatchRatio < options.MinimumExactTimestampRatio ||
+     commandFidelityAggregate.MaximumMissingPortableRecords > 0 ||
+     commandFidelityAggregate.MaximumExtraPortableRecords > 0)) {
+    return 4;
+}
+return budget.Passed ? 0 : 5;
 
-static Fidelity Compare(EventObject[] expected, EventObject[] actual) {
-    Dictionary<long, EventObject> expectedById = expected
-        .Where(static item => item.RecordId.HasValue)
-        .GroupBy(static item => item.RecordId!.Value)
-        .ToDictionary(static group => group.Key, static group => group.First());
-    int compared = 0;
-    int identityMatches = 0;
-    int eventIdMatches = 0;
-    int providerMatches = 0;
-    int channelMatches = 0;
-    int computerMatches = 0;
-    int timestampMatches = 0;
-    int timestampExactMatches = 0;
-    foreach (EventObject item in actual.Where(static item => item.RecordId.HasValue)) {
-        if (!expectedById.TryGetValue(item.RecordId!.Value, out EventObject? source)) {
-            continue;
-        }
-        compared++;
-        bool eventId = source.Id == item.Id;
-        bool provider = string.Equals(source.ProviderName, item.ProviderName, StringComparison.Ordinal);
-        bool channel = string.Equals(source.OriginalLogName, item.OriginalLogName, StringComparison.Ordinal);
-        bool computer = string.Equals(source.SourceComputer, item.SourceComputer, StringComparison.OrdinalIgnoreCase);
-        long timestampDifference = Math.Abs(
-            source.TimeCreated.ToUniversalTime().Ticks - item.TimeCreated.ToUniversalTime().Ticks);
-        bool timestampExact = timestampDifference == 0;
-        bool timestamp = timestampDifference <= 10;
-        eventIdMatches += eventId ? 1 : 0;
-        providerMatches += provider ? 1 : 0;
-        channelMatches += channel ? 1 : 0;
-        computerMatches += computer ? 1 : 0;
-        timestampMatches += timestamp ? 1 : 0;
-        timestampExactMatches += timestampExact ? 1 : 0;
-        if (eventId && provider && channel && computer && timestamp) {
-            identityMatches++;
-        }
+EventObject[] Read(ISavedEventReader reader, Action<SavedEventReadDiagnostic>? diagnosticHandler) =>
+    EventLogEngine.ReadFile(new EventLogFileQuery(options.Path) {
+        Oldest = true,
+        ReadMode = options.ReadMode,
+        MaxEvents = options.MaximumEvents,
+        SavedEventReader = reader,
+        SavedEventDiagnosticHandler = diagnosticHandler
+    }).ToArray();
+
+EventObject[] ReadWindows() => EventLogEngine.ReadFile(new EventLogFileQuery(options.Path) {
+    Oldest = true,
+    ReadMode = options.ReadMode,
+    MaxEvents = options.MaximumEvents
+}).ToArray();
+
+Measurement? TryMeasureWindows() {
+    try {
+        return MeasurementRunner.Measure(ReadWindows);
+    } catch (Exception exception) {
+        windowsError ??= exception.GetType().Name + ": " + exception.Message;
+        return null;
     }
-    return new Fidelity(
-        expected.Length,
-        actual.Length,
-        compared,
-        identityMatches,
-        compared == 0 ? 0 : (double)identityMatches / compared,
-        compared == 0 ? 0 : (double)eventIdMatches / compared,
-        compared == 0 ? 0 : (double)providerMatches / compared,
-        compared == 0 ? 0 : (double)channelMatches / compared,
-        compared == 0 ? 0 : (double)computerMatches / compared,
-        compared == 0 ? 0 : (double)timestampMatches / compared,
-        compared == 0 ? 0 : (double)timestampExactMatches / compared,
-        Math.Max(0, expected.Length - actual.Length),
-        Math.Max(0, actual.Length - expected.Length));
 }
 
-internal sealed record Measurement(EventObject[] Events, TimeSpan Elapsed, long AllocatedBytes) {
-    internal object ToSummary() => new {
-        Count = Events.Length,
-        ElapsedMilliseconds = Elapsed.TotalMilliseconds,
-        AllocatedBytes,
-        EventsPerSecond = Elapsed.TotalSeconds == 0 ? 0 : Events.Length / Elapsed.TotalSeconds,
-        BytesPerEvent = Events.Length == 0 ? 0 : (double)AllocatedBytes / Events.Length
-    };
+void CheckCommandIdentity() {
+    if (commandIdentityBefore == null || commandIdentityStable == false) {
+        return;
+    }
+    try {
+        commandIdentityAfter = ExternalCommandIdentity.Refresh(commandIdentityBefore);
+        commandIdentityStable = commandIdentityAfter == commandIdentityBefore;
+    } catch (Exception exception) when (
+        exception is FileNotFoundException or IOException or UnauthorizedAccessException) {
+        commandIdentityError = exception.GetType().Name + ": " + exception.Message;
+        commandIdentityStable = false;
+    }
 }
 
-internal sealed record Fidelity(
-    int WindowsRecords,
-    int PortableRecords,
-    int ComparedRecords,
-    int IdentityMatches,
-    double IdentityMatchRatio,
-    double EventIdMatchRatio,
-    double ProviderMatchRatio,
-    double ChannelMatchRatio,
-    double ComputerMatchRatio,
-    double TimestampMatchRatio,
-    double TimestampExactMatchRatio,
-    int MissingPortableRecords,
-    int ExtraPortableRecords);
+static FixtureIdentity ReadFixtureIdentity(string path) {
+    using FileStream stream = File.Open(
+        path,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.ReadWrite | FileShare.Delete);
+    long bytes = stream.Length;
+    return new FixtureIdentity(bytes, Convert.ToHexString(SHA256.HashData(stream)));
+}
+
+static string AssemblyVersion(Assembly assembly) =>
+    assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ??
+    assembly.GetName().Version?.ToString() ??
+    string.Empty;
+
+static IEnumerable<object> ProjectDiagnostics(IEnumerable<SavedEventReadDiagnostic> diagnostics) =>
+    diagnostics.Select(static item => new {
+        item.Code,
+        Severity = item.Severity.ToString(),
+        item.Recovered,
+        item.AffectsCompleteness,
+        item.FileOffset,
+        item.Message
+    });
+
+internal sealed record FixtureIdentity(long Bytes, string Sha256);

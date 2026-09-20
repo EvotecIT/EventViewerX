@@ -4,7 +4,7 @@ using System.Text;
 namespace EventViewerX.Evtx;
 
 /// <summary>
-/// Cross-platform EVTX reader that streams JSONL from the caller-supplied Rust <c>evtx_dump</c> executable.
+/// Cross-platform EVTX reader that streams compact XML from the caller-supplied Rust <c>evtx_dump</c> executable.
 /// This adapter does not download, install, or update the executable.
 /// </summary>
 public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
@@ -15,7 +15,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
     /// <summary>Creates a bounded reader for an explicit executable path or a command resolvable through PATH.</summary>
     /// <param name="executablePath">Exact executable path or command resolvable through PATH.</param>
     /// <param name="maximumRuntime">Maximum total parser lifetime. The default is 30 minutes.</param>
-    /// <param name="maximumInactivity">Maximum time without one JSONL output line. The default is two minutes.</param>
+    /// <param name="maximumInactivity">Maximum time spent waiting for parser output. Caller processing time is excluded. The default is two minutes.</param>
     public EvtxDumpSavedEventReader(
         string executablePath = "evtx_dump",
         TimeSpan? maximumRuntime = null,
@@ -44,6 +44,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         if (query == null) {
             throw new ArgumentNullException(nameof(query));
         }
+        cancellationToken.ThrowIfCancellationRequested();
         EvtxContainerShapeInspector.Report(query.Path, diagnosticHandler);
         var matcher = new EvtxXPathMatcher(query.XPath);
         if (query.Oldest) {
@@ -76,7 +77,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
 
         var startInfo = new ProcessStartInfo {
             FileName = _executablePath,
-            Arguments = $"-t 1 -o jsonl {QuoteArgument(Path.GetFullPath(path))}",
+            Arguments = $"-t 1 -o xml --no-indent --dont-show-record-number {QuoteArgument(Path.GetFullPath(path))}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -104,33 +105,58 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         int normalizedRecords = 0;
         int rejectedRecords = 0;
         string? firstRejection = null;
+        var framer = new EvtxDumpXmlRecordFramer();
+        var lineReader = new EvtxDumpBoundedLineReader(
+            process.StandardOutput,
+            EvtxDumpXmlRecordFramer.MaximumRecordCharacters);
+        using var headerCursor = new EvtxRecordHeaderCursor(path, cancellationToken);
+        int headerMisses = 0;
+        Action boundaryCheck = () =>
+            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
         try {
-            string? line;
-            while ((line = ReadLineBounded(
-                        process.StandardOutput,
-                        process,
-                        runtime,
-                        inactivity,
-                        cancellationToken)) != null) {
-
-                inactivity.Restart();
+            while (true) {
+                string? line = ReadLineBounded(lineReader, boundaryCheck, inactivity);
+                if (line == null) {
+                    break;
+                }
                 cancellationToken.ThrowIfCancellationRequested();
-                if (string.IsNullOrWhiteSpace(line)) {
+                string? xml;
+                try {
+                    bool framed = framer.TryAdd(line, out xml, out string? recoveryError);
+                    if (recoveryError != null) {
+                        rejectedRecords++;
+                        firstRejection ??= recoveryError;
+                    }
+                    if (!framed) {
+                        continue;
+                    }
+                } catch (Exception exception) {
+                    rejectedRecords++;
+                    firstRejection ??= exception.Message;
                     continue;
                 }
                 inputRecords++;
                 SavedEventRecord record;
                 try {
-                    record = EvtxDumpJsonProjector.Create(line);
+                    record = SavedEventXmlProjector.Create(xml!);
                 } catch (Exception exception) {
                     rejectedRecords++;
                     firstRejection ??= exception.Message;
                     continue;
                 }
                 normalizedRecords++;
+                if (!headerCursor.TryApply(record)) {
+                    headerMisses++;
+                }
                 if (matcher.IsMatch(record.RawXml)) {
                     yield return record;
                 }
+            }
+            try {
+                framer.Complete();
+            } catch (Exception exception) {
+                rejectedRecords++;
+                firstRejection ??= exception.Message;
             }
             WaitForExitBounded(process, runtime, cancellationToken);
             completed = true;
@@ -149,16 +175,25 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                 diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
                     Code = "EVXEVTX304",
                     Severity = SavedEventReadDiagnosticSeverity.Warning,
-                    Message = $"Rejected {rejectedRecords} malformed evtx_dump JSONL record(s) while retaining valid records. First failure: {firstRejection}",
+                    Message = $"Rejected {rejectedRecords} malformed evtx_dump XML record(s) while retaining valid records. First failure: {firstRejection}",
                     Recovered = normalizedRecords > 0,
                     AffectsCompleteness = true
+                });
+            }
+            if (headerMisses > 0) {
+                diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
+                    Code = "EVXEVTX305",
+                    Severity = SavedEventReadDiagnosticSeverity.Warning,
+                    Message = $"Could not correlate {headerMisses} evtx_dump record(s) with their EVTX headers. " +
+                              "Those records have no source file offset.",
+                    Recovered = true
                 });
             }
             if (process.ExitCode != 0) {
                 throw new InvalidDataException(
                     $"evtx_dump exited with code {process.ExitCode}. See saved-event diagnostics for parser output.");
             }
-            if (inputRecords > 0 && normalizedRecords == 0) {
+            if ((inputRecords > 0 || rejectedRecords > 0) && normalizedRecords == 0) {
                 throw new InvalidDataException(
                     "evtx_dump produced records, but EventViewerX could not normalize any of them. " +
                     "The executable output may be incompatible with this EventViewerX version.");
@@ -170,18 +205,17 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
         }
     }
 
-    private string? ReadLineBounded(
-        StreamReader reader,
-        Process process,
-        Stopwatch runtime,
-        Stopwatch inactivity,
-        CancellationToken cancellationToken) {
+    internal static string? ReadLineBounded(
+        EvtxDumpBoundedLineReader reader,
+        Action boundaryCheck,
+        Stopwatch inactivity) {
 
-        Task<string?> read = reader.ReadLineAsync();
-        while (!read.Wait(100)) {
-            ThrowIfProcessBoundExceeded(process, runtime, inactivity, cancellationToken);
+        inactivity.Restart();
+        try {
+            return reader.ReadLine(boundaryCheck);
+        } finally {
+            inactivity.Stop();
         }
-        return read.GetAwaiter().GetResult();
     }
 
     private void WaitForExitBounded(
