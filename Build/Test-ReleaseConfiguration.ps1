@@ -102,6 +102,9 @@ $moduleBuild = Get-Content -LiteralPath (Join-Path $RepositoryRoot 'Build\module
 if ([string] $moduleBuild.Build.Version -ne '4.0.X') {
     throw 'Build/module.json must remain the module version source with the 4.0.X track.'
 }
+if ($moduleBuild.Install.Enabled -ne $false) {
+    throw 'The release configuration must not install the freshly signed module into the user module path.'
+}
 [array] $excludedDirectories = @($moduleBuild.Build.ExcludeDirectories)
 foreach ($requiredExclusion in @(
         '.codex-artifacts'

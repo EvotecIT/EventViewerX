@@ -54,7 +54,7 @@
     "RefreshManifestOnly": false
   },
   "Install": {
-    "Enabled": true,
+    "Enabled": false,
     "UpdateManifestToResolvedVersion": true
   },
   "Segments": [
