@@ -31,6 +31,7 @@ internal static class GitCorpusVerifier {
         string trackedOutput = Run(
             repository.FullName,
             "ls-files",
+            "-v",
             "-z",
             "--",
             relativeScanRoot);
@@ -38,6 +39,14 @@ internal static class GitCorpusVerifier {
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string[] files = trackedOutput
             .Split('\0', StringSplitOptions.RemoveEmptyEntries)
+            .Select(record => {
+                if (record.Length < 3 || record[1] != ' ' || record[0] != 'H') {
+                    throw new InvalidDataException(
+                        $"Tracked Sigma corpus entry '{record}' has a hidden or unsupported Git index state. " +
+                        "Clear assume-unchanged/skip-worktree flags and materialize the pinned file before auditing it.");
+                }
+                return record[2..];
+            })
             .Select(path => Path.GetFullPath(Path.Combine(
                 repository.FullName,
                 path.Replace('/', Path.DirectorySeparatorChar))))

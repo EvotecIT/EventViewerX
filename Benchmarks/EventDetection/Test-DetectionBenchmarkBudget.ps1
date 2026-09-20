@@ -80,14 +80,35 @@ function ConvertTo-DetectionSummaryRow {
     if ($eventCount -le 0) {
         throw "Benchmark '$($Benchmark.FullName)' has an invalid EventCount."
     }
-    $allocated = [double] $Benchmark.Memory.BytesAllocatedPerOperation
+    $sampleCountProperty = $Benchmark.Statistics.PSObject.Properties['N']
+    $medianProperty = $Benchmark.Statistics.PSObject.Properties['Median']
+    $allocationProperty = $Benchmark.Memory.PSObject.Properties['BytesAllocatedPerOperation']
+    if ($null -eq $sampleCountProperty -or $null -eq $sampleCountProperty.Value -or
+        $null -eq $medianProperty -or $null -eq $medianProperty.Value) {
+        throw "Benchmark '$($Benchmark.FullName)' is missing required timing statistics."
+    }
+    $sampleCount = [int] $sampleCountProperty.Value
+    $medianNanoseconds = [double] $medianProperty.Value
+    if ($sampleCount -le 0 -or
+        [double]::IsNaN($medianNanoseconds) -or
+        [double]::IsInfinity($medianNanoseconds) -or
+        $medianNanoseconds -lt 0) {
+        throw "Benchmark '$($Benchmark.FullName)' has invalid timing statistics."
+    }
+    if ($null -eq $allocationProperty -or $null -eq $allocationProperty.Value) {
+        throw "Benchmark '$($Benchmark.FullName)' is missing BytesAllocatedPerOperation."
+    }
+    $allocated = [double] $allocationProperty.Value
+    if ([double]::IsNaN($allocated) -or [double]::IsInfinity($allocated) -or $allocated -lt 0) {
+        throw "Benchmark '$($Benchmark.FullName)' has invalid BytesAllocatedPerOperation."
+    }
     [ordered] @{
         suite = 'event-detection'
         scenario = $Scenario
         operation = [string] $Benchmark.Method
         engine = 'EventViewerXDetection'
         variables = $variables
-        sampleCount = [int] $Benchmark.Statistics.N
+        sampleCount = $sampleCount
         failureCount = 0
         status = 'Succeeded'
         medianMs = [double] $Benchmark.Statistics.Median / 1000000.0
@@ -142,6 +163,10 @@ $expectedThroughput = foreach ($eventCount in 1000,10000,100000,1000000) {
 }
 Assert-ExactMatrix -Rows $throughputRows -ExpectedKeys $expectedThroughput -Key {
     "$($_.variables.EventCount)|$($_.variables.Lane)"
+}
+if ($UpdateBaseline.IsPresent -and
+    @($candidateRows + $throughputRows | Where-Object sampleCount -lt 3).Count -gt 0) {
+    throw 'Updating detection baselines requires at least three measured samples for every benchmark tuple.'
 }
 
 [IO.Directory]::CreateDirectory($outputRoot) | Out-Null

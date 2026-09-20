@@ -2,6 +2,9 @@ namespace EventViewerX;
 
 /// <summary>Windows Event Collector readiness composition.</summary>
 public static partial class EventReadinessEngine {
+    private static readonly TimeSpan MaximumFutureCollectorHeartbeatSkew =
+        TimeSpan.FromMinutes(5);
+
     private static void AddCollectorChecks(
         EventReadinessRequest request,
         EventTargetDiscoveryResult? discovery,
@@ -454,7 +457,22 @@ public static partial class EventReadinessEngine {
         }
 
         DateTimeOffset observedUtc = DateTimeOffset.UtcNow;
-        TimeSpan age = observedUtc - source.LastHeartbeatTime.Value.ToUniversalTime();
+        DateTimeOffset heartbeatUtc = source.LastHeartbeatTime.Value.ToUniversalTime();
+        TimeSpan age = observedUtc - heartbeatUtc;
+        if (age < -MaximumFutureCollectorHeartbeatSkew) {
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.WindowsEventCollector,
+                "ExpectedSourceHeartbeat",
+                expectedSource,
+                EventReadinessStatus.Unknown,
+                EventReadinessEvidenceLevel.Inspected,
+                $"Last heartbeat={source.LastHeartbeatTime.Value:O}; observed UTC={observedUtc:O}; " +
+                $"timestamp is more than {MaximumFutureCollectorHeartbeatSkew} in the future.",
+                "Correct the collector/source clocks or timestamp parsing before treating heartbeat freshness as evidence.",
+                required: true,
+                diagnosticKind: EventReadinessDiagnosticKind.InvalidConfiguration));
+            return;
+        }
         if (age < TimeSpan.Zero) {
             age = TimeSpan.Zero;
         }

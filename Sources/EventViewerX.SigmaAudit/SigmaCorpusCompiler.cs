@@ -25,10 +25,13 @@ internal static class SigmaCorpusCompiler {
             return files.Select(static file => ResultForUnreadableFile(file)).ToArray();
         }
 
-        string yaml = string.Join(
-            Environment.NewLine + "---" + Environment.NewLine,
-            files.Where(static file => file.Error == null)
-                .Select(static file => file.Yaml));
+        var combinedStream = new YamlStream(
+            documents.Select(static document => document.Document).ToArray());
+        string yaml;
+        using (var writer = new StringWriter()) {
+            combinedStream.Save(writer, assignAnchors: false);
+            yaml = writer.ToString();
+        }
         SigmaCompilationResult compilation = SigmaRuleCompiler.CompileYaml(yaml, options);
         var compiledSourceIds = new HashSet<string>(
             compilation.Rules.Select(static rule => rule.Definition.SourceId),
@@ -67,7 +70,7 @@ internal static class SigmaCorpusCompiler {
                     document,
                     firstDocumentIndex + index))
                 .ToArray();
-            return new CorpusFile(relativePath, category, yaml, documents, null);
+            return new CorpusFile(relativePath, category, documents, null);
         } catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
@@ -78,7 +81,6 @@ internal static class SigmaCorpusCompiler {
             return new CorpusFile(
                 relativePath,
                 category,
-                string.Empty,
                 Array.Empty<CorpusDocument>(),
                 exception.Message);
         }
@@ -95,7 +97,7 @@ internal static class SigmaCorpusCompiler {
                 sourceId = "generated-" + Hash(yaml)[..24].ToLowerInvariant();
             }
         }
-        return new CorpusDocument(index, sourceId);
+        return new CorpusDocument(index, sourceId, document);
     }
 
     private static SigmaFileResult ResultForFile(
@@ -185,9 +187,11 @@ internal static class SigmaCorpusCompiler {
     private sealed record CorpusFile(
         string RelativePath,
         string Category,
-        string Yaml,
         IReadOnlyList<CorpusDocument> Documents,
         string? Error);
 
-    private sealed record CorpusDocument(int Index, string? SourceId);
+    private sealed record CorpusDocument(
+        int Index,
+        string? SourceId,
+        YamlDocument Document);
 }

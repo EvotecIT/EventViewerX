@@ -47,6 +47,9 @@ $specPath = Join-Path $PSScriptRoot 'event-watcher-burst.benchmark.ps1'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'Ignore\Benchmarks\EventWatcher'
 }
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
+}
 
 if (-not $SkipBuild.IsPresent) {
     dotnet build $projectPath --configuration Release --framework net10.0

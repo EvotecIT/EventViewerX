@@ -832,6 +832,47 @@ public sealed class TestEventReadinessEngine {
     }
 
     [Fact]
+    public void CollectorHeartbeatPolicyKeepsSmallClockSkewCurrent() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddMinutes(1)
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollectorWithHeartbeatPolicy(evidence);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Pass, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.None, heartbeat.DiagnosticKind);
+    }
+
+    [Fact]
+    public void CollectorHeartbeatPolicyRejectsImplausibleFutureTimestamp() {
+        var evidence = CreateCollectorEvidence();
+        evidence.CollectorRuntime.Sources = new[] {
+            new CollectorSubscriptionSourceRuntimeStatus {
+                Address = "dc01.example.com",
+                Status = "Active",
+                LastErrorCode = 0,
+                LastHeartbeatTime = DateTimeOffset.UtcNow.AddMinutes(10)
+            }
+        };
+
+        EventReadinessReport report = EvaluateCollectorWithHeartbeatPolicy(evidence);
+
+        EventReadinessCheckResult heartbeat = Assert.Single(report.Checks, static check =>
+            check.Check == "ExpectedSourceHeartbeat");
+        Assert.Equal(EventReadinessStatus.Unknown, heartbeat.Status);
+        Assert.Equal(EventReadinessDiagnosticKind.InvalidConfiguration, heartbeat.DiagnosticKind);
+        Assert.Contains("future", heartbeat.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void CollectorHeartbeatPolicyKeepsMissingTimestampUnknown() {
         var evidence = CreateCollectorEvidence();
 
@@ -1847,6 +1888,21 @@ public sealed class TestEventReadinessEngine {
                 Types = new[] { EventType.ADUserLogonNTLMv1 },
                 Collector = ".",
                 SubscriptionName = "EventViewerX-AD",
+                TargetDiscovery = new EventTargetDiscoveryRequest {
+                    Scope = EventTargetDiscoveryScope.CurrentDomain
+                }
+            },
+            evidence,
+            CancellationToken.None);
+
+    private static EventReadinessReport EvaluateCollectorWithHeartbeatPolicy(
+        FakeEvidenceProvider evidence) =>
+        EventReadinessEngine.Evaluate(
+            new EventReadinessRequest {
+                Types = new[] { EventType.ADUserLogonNTLMv1 },
+                Collector = ".",
+                SubscriptionName = "EventViewerX-AD",
+                MaximumCollectorHeartbeatAge = TimeSpan.FromMinutes(15),
                 TargetDiscovery = new EventTargetDiscoveryRequest {
                     Scope = EventTargetDiscoveryScope.CurrentDomain
                 }

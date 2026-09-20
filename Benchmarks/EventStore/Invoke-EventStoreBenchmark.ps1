@@ -48,6 +48,9 @@ $fixtureAssemblyPath = Join-Path $PSScriptRoot 'bin\Release\net8.0-windows\Event
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'Ignore\Benchmarks\EventStore'
 }
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
+}
 $resolvedRowCounts = @($RowCount | ForEach-Object {
         foreach ($token in $_.Split(',')) {
             [int] $value = 0

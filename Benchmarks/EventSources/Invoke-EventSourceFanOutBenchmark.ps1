@@ -34,7 +34,7 @@ param(
     [ValidateRange(1, [int]::MaxValue)]
     [int] $RemoteConnectionTimeoutMilliseconds = 5000,
 
-    [ValidateRange(0, [int]::MaxValue)]
+    [ValidateRange(1, [int]::MaxValue)]
     [int] $RemoteReadTimeoutMilliseconds = 30000,
 
     [string] $OutputRoot,
@@ -68,7 +68,15 @@ if (-not $SkipBuild.IsPresent) {
 Import-Module $modulePath -Force -ErrorAction Stop
 Import-Module PSPublishModule -MinimumVersion 3.0.134 -Force -ErrorAction Stop
 [array] $boundaries = foreach ($target in $targets) {
-    $boundaryEvent = Get-WinEvent -ComputerName $target -LogName $LogName -MaxEvents 1
+    $boundaryQuery = [EventViewerX.EventLogChannelQuery]::new($LogName)
+    $boundaryQuery.MachineName = $target
+    $boundaryQuery.ReadMode = [EventViewerX.EventReadMode]::Metadata
+    $boundaryQuery.MaxEvents = 1
+    $boundaryQuery.RemoteConnectionTimeoutMilliseconds = $RemoteConnectionTimeoutMilliseconds
+    $boundaryQuery.RemoteReadTimeoutMilliseconds = $RemoteReadTimeoutMilliseconds
+    $boundaryEvent = [EventViewerX.EventLogEngine]::ReadChannel(
+        $boundaryQuery,
+        [Threading.CancellationToken]::None) | Select-Object -First 1
     if ($null -eq $boundaryEvent -or $null -eq $boundaryEvent.RecordId) {
         throw "Unable to capture a stable record boundary for '$LogName' on '$target'."
     }

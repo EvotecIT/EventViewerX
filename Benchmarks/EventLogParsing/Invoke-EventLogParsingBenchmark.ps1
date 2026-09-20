@@ -94,6 +94,10 @@ $specPath = Join-Path $PSScriptRoot 'event-log-parsing.benchmark.ps1'
 
 Import-Module PSPublishModule -MinimumVersion 3.0.134 -ErrorAction Stop
 
+if ($UpdateBaseline.IsPresent -and $IterationCount -lt 3) {
+    throw 'Updating a performance baseline requires at least three measured iterations.'
+}
+
 if ([bool] $EvtxECmdPath -ne [bool] $EvtxMapsPath) {
     throw 'EvtxECmdPath and EvtxMapsPath must be supplied together.'
 }
