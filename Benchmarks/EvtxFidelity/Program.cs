@@ -60,19 +60,23 @@ for (int iteration = 0; iteration < options.WarmupIterations; iteration++) {
     }
 }
 
+_ = portableAction(diagnostics.Add);
+if (commandAction != null) {
+    _ = commandAction(commandDiagnostics.Add);
+    CheckCommandIdentity();
+}
+
 for (int iteration = 0; iteration < options.Iterations; iteration++) {
     Measurement? windows = null;
     if (OperatingSystem.IsWindows() && iteration % 2 == 1) {
         windows = TryMeasureWindows();
     }
-    Measurement portable = MeasurementRunner.Measure(() => portableAction(
-        iteration == 0 ? diagnostics.Add : null));
+    Measurement portable = MeasurementRunner.Measure(() => portableAction(null));
     portableMeasurements.Add(portable.Summary);
 
     Measurement? command = commandAction == null
         ? null
-        : MeasurementRunner.Measure(() => commandAction(
-            iteration == 0 ? commandDiagnostics.Add : null));
+        : MeasurementRunner.Measure(() => commandAction(null));
     if (command != null) {
         commandMeasurements.Add(command.Summary);
         CheckCommandIdentity();
@@ -114,7 +118,6 @@ try {
 bool fixtureStable = fixtureAfter != null && fixtureBefore == fixtureAfter;
 CheckCommandIdentity();
 bool windowsReferenceIncomplete = OperatingSystem.IsWindows() &&
-                                  windowsMeasurements.Count > 0 &&
                                   windowsMeasurements.Count != options.Iterations;
 PerformanceBudgetResult budget = PerformanceBudgetEvaluator.Evaluate(
     options,

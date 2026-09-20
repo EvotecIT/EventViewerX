@@ -28,7 +28,8 @@ internal sealed class EvtxDumpXmlRecordFramer {
         xml = null;
         recoveryError = null;
         int first = FirstNonWhitespace(line);
-        if (TryGetXmlDeclarationEnd(line, first, out int declarationEnd)) {
+        if (_depthTracker.CanResynchronizeAtDocumentBoundary &&
+            TryGetXmlDeclarationEnd(line, first, out int declarationEnd)) {
             if (_record != null) {
                 recoveryError = "evtx_dump started a new XML document before the previous Event fragment ended.";
                 Reset();

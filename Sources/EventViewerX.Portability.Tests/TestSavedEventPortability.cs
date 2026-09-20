@@ -284,6 +284,20 @@ public sealed class TestSavedEventPortability {
     }
 
     [Fact]
+    public void EvtxDumpXmlFramerDoesNotResynchronizeAtDeclarationTextInsideCData() {
+        var framer = new EvtxDumpXmlRecordFramer();
+
+        Assert.False(framer.TryAdd("<Event><UserData><![CDATA[", out _));
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\"?><Event><Value>embedded</Value></Event>", out _));
+        Assert.True(framer.TryAdd("]]></UserData></Event>", out string? xml));
+
+        Assert.Equal(
+            "<Event><UserData><![CDATA[\n<?xml version=\"1.0\"?><Event><Value>embedded</Value></Event>\n]]></UserData></Event>",
+            xml);
+        framer.Complete();
+    }
+
+    [Fact]
     public void EvtxDumpXmlFramerRejectsRootNamePrefixCollision() {
         var framer = new EvtxDumpXmlRecordFramer();
 

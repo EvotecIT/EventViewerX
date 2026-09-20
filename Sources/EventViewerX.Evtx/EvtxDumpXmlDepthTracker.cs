@@ -15,6 +15,12 @@ internal sealed class EvtxDumpXmlDepthTracker {
     private int _tagNameLength;
     private bool _tagNameComplete;
 
+    /// <summary>
+    /// Gets whether a declaration at the start of the next line is in XML text rather than
+    /// inside CDATA, a comment, a processing instruction, a declaration, or a tag.
+    /// </summary>
+    internal bool CanResynchronizeAtDocumentBoundary => _state == ScanState.Text;
+
     internal bool Process(string value) {
         bool completed = false;
         for (int index = 0; index < value.Length; index++) {
