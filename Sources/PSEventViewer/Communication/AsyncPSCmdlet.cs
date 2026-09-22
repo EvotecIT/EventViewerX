@@ -66,6 +66,7 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
     private enum PipelineType
     {
         Output,
+        OutputAcknowledged,
         OutputEnumerate,
         Error,
         TerminatingError,
@@ -603,6 +604,19 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
             return;
 
         _ = TryQueue(item);
+    }
+
+    /// <summary>Writes one row and waits until the PowerShell pipeline has consumed it.</summary>
+    /// <remarks>Use for a sequential source that must not buffer rows behind a slow consumer.</remarks>
+    protected void WriteObjectWithBackpressure(object? sendToPipeline)
+    {
+        if (CanAccessPipelineDirectly)
+        {
+            WriteObject(sendToPipeline, enumerateCollection: false);
+            return;
+        }
+
+        _ = RequestPipelineReply(sendToPipeline, PipelineType.OutputAcknowledged);
     }
 
     /// <summary>Thread-safe error bridge for asynchronous cmdlet code.</summary>

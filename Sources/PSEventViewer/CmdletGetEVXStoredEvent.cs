@@ -72,7 +72,7 @@ public sealed class CmdletGetEVXStoredEvent : AsyncPSCmdlet {
         };
         EventStoreRowReadResult result = await new EventStore(resolved)
             .StreamRowsAsync(query, (row, _) => {
-                WriteObject(row, enumerateCollection: false);
+                WriteObjectWithBackpressure(row);
                 return Task.CompletedTask;
             }, CancelToken).ConfigureAwait(false);
         if (!result.IsComplete) {

@@ -22,7 +22,20 @@ public static class KerberosRc4ImpactEngine {
         foreach (EventReportRow row in report.Rows) {
             accumulator.Add(row);
         }
-        return accumulator.Complete(!report.ScanLimitReached, report.CompletenessDiagnostic);
+        EventReportCoverage[] failedSources = report.Coverage
+            .Where(static coverage => !coverage.Succeeded)
+            .ToArray();
+        bool sourceComplete = !report.ScanLimitReached && failedSources.Length == 0;
+        string? failures = failedSources.Length == 0 ? null :
+            $"{failedSources.Length} source query failed: " +
+            string.Join("; ", failedSources.Take(10).Select(static coverage =>
+                $"{coverage.MachineName}/{coverage.LogName} ({coverage.Status}): {coverage.Detail}")) +
+            (failedSources.Length > 10 ? "; additional failures omitted" : string.Empty);
+        string? diagnostic = EventCompletenessDiagnostic.Compose(
+            report.CompletenessDiagnostic,
+            failures,
+            sourceComplete ? null : "The source query was incomplete; RC4 impact output cannot be treated as exhaustive.");
+        return accumulator.Complete(sourceComplete, diagnostic);
     }
 }
 

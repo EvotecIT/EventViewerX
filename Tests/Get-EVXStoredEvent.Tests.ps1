@@ -5,11 +5,17 @@ Describe 'Stored history streaming and Kerberos impact' {
         $null = Show-EVXEvent -Path $Fixture -MaxEvents 3 -StorePath $StorePath -PassThru
 
         $Rows = @(Get-EVXStoredEvent -Path $StorePath -Oldest)
+        $SlowConsumerRows = @(Get-EVXStoredEvent -Path $StorePath -Oldest |
+            ForEach-Object {
+                Start-Sleep -Milliseconds 20
+                $_
+            })
         $Warnings = @()
         $Limited = @(Get-EVXStoredEvent -Path $StorePath -Oldest -MaxEvents 2 `
             -WarningVariable Warnings)
 
         $Rows.Count | Should -Be 3
+        $SlowConsumerRows.RecordId | Should -Be @($Rows.RecordId)
         $Limited.Count | Should -Be 2
         $Limited.RecordId | Should -Be @($Rows[0].RecordId, $Rows[1].RecordId)
         $Limited[0].NormalizedValues.Count | Should -BeGreaterThan 0

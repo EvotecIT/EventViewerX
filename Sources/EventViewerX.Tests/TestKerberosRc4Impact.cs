@@ -41,6 +41,32 @@ public sealed class TestKerberosRc4Impact {
         Assert.Contains("Verify collection", report.CoverageStatement, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReportAnalysisRetainsFailedDomainControllerCoverage() {
+        EventReportRow row = Row(201, "DC01", "client$", "svc", "one");
+        EventReport source = EventReportEngine.CreateStored(
+            new[] { row },
+            new[] { EventReportSectionSchema.FromType(EventType.KerberosKdcRc4Audit) },
+            coverage: new[] {
+                new EventReportCoverage {
+                    MachineName = "DC02",
+                    LogName = "System",
+                    Succeeded = false,
+                    Status = "AccessDenied",
+                    Detail = "The channel could not be read"
+                }
+            },
+            completenessDiagnostic: "Collection did not finish.");
+
+        KerberosRc4ImpactReport impact = KerberosRc4ImpactEngine.Analyze(source);
+
+        Assert.False(impact.SelectedWindowComplete);
+        Assert.Single(impact.Groups);
+        Assert.Contains("DC02/System", impact.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.Contains("AccessDenied", impact.CompletenessDiagnostic, StringComparison.Ordinal);
+        Assert.Contains("Collection did not finish", impact.CompletenessDiagnostic, StringComparison.Ordinal);
+    }
+
     private static EventReportRow Row(int eventId, string controller, string account, string service,
         string identity, string provider = "Kdcsvc") => new() {
         Type = nameof(EventType.KerberosKdcRc4Audit),

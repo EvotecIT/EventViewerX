@@ -297,9 +297,14 @@ public sealed partial class EventStore {
 
     private static QueryCommand BuildReadCommand(
         EventStoreQuery query,
-        PredicatePushdownPolicy pushdown) {
+        PredicatePushdownPolicy pushdown,
+        long? upperRowId = null) {
 
         WhereCommand filter = BuildWhere(query, includePredicateNative: true, pushdown: pushdown);
+        if (upperRowId.HasValue) {
+            filter.Clauses.Add("rowid <= $streamUpperRowId");
+            filter.Parameters["$streamUpperRowId"] = upperRowId.Value;
+        }
 
         bool requiresManagedFiltering = query.Predicate != null || RequiresManagedTextMatching(query);
         int candidateLimit = requiresManagedFiltering && query.MaxCandidates > 0

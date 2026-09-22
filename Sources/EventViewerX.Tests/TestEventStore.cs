@@ -50,6 +50,33 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
+    public async Task StreamRowsExcludesConcurrentNewDefinitionWithoutBlockingWriter() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            DateTime start = new(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            await store.WriteAsync(CreateReport(Enumerable.Range(1, 300)
+                .Select(index => (start.AddMinutes(index), (long)index, $"user-{index}"))
+                .ToArray()));
+            int observed = 0;
+            EventStoreRowReadResult result = await store.StreamRowsAsync(
+                new EventStoreQuery { Oldest = true },
+                async (_, _) => {
+                    if (++observed == 1) {
+                        await store.WriteAsync(CreateReportForDefinition(
+                            "NewStoredDefinition", (start.AddMinutes(301), 301L, "later")));
+                    }
+                });
+
+            Assert.True(result.IsComplete);
+            Assert.Equal(300, observed);
+            Assert.Equal(301, (await store.ReadReportAsync(new EventStoreQuery())).Rows.Count);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task RecordlessRowsWithDifferentSystemActivityMetadataRemainDistinct() {
         string path = CreateStorePath();
         try {
