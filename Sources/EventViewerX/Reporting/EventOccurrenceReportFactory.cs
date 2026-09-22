@@ -18,6 +18,7 @@ public static class EventOccurrenceReportFactory {
         }
         bool sourceComplete = sourceReport == null ||
             !sourceReport.ScanLimitReached &&
+            string.IsNullOrWhiteSpace(sourceReport.CompletenessDiagnostic) &&
             sourceReport.Coverage.All(static coverage => coverage.Succeeded);
         bool isComplete = result.IsComplete && sourceComplete;
         string? diagnostic = EventCompletenessDiagnostic.Compose(
@@ -113,6 +114,7 @@ public static class EventOccurrenceReportFactory {
             throw new ArgumentNullException(nameof(sourceReport));
         }
         bool sourceComplete = !sourceReport.ScanLimitReached &&
+            string.IsNullOrWhiteSpace(sourceReport.CompletenessDiagnostic) &&
             sourceReport.Coverage.All(static coverage => coverage.Succeeded);
         if (sourceComplete) {
             return result;
@@ -157,6 +159,7 @@ public static class EventOccurrenceReportFactory {
                 }).ToArray()
             }).ToArray();
         bool sourceComplete = !sourceReport.ScanLimitReached &&
+            string.IsNullOrWhiteSpace(sourceReport.CompletenessDiagnostic) &&
             sourceReport.Coverage.All(static coverage => coverage.Succeeded);
         string? diagnostic = EventCompletenessDiagnostic.Compose(
             result.Diagnostic,

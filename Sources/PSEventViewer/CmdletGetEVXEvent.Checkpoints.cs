@@ -476,8 +476,12 @@ public sealed partial class CmdletGetEVXEvent {
                                     checkpoint
                                 }
                             }),
-                        MaxEvents = 1,
-                        ReadMode =
+                         MaxEvents = 1,
+                         SavedEventReader = _resolvedSavedEventReader,
+                         SavedEventDiagnosticHandler = _resolvedSavedEventReader != null
+                             ? WriteSavedEventDiagnostic
+                             : null,
+                         ReadMode =
                             EventReadMode.Metadata
                     },
                     cancellationToken).FirstOrDefault()
@@ -501,8 +505,14 @@ public sealed partial class CmdletGetEVXEvent {
                 }
 
                 try {
-                    EventObject? boundaryEvent = checkpoint > 0
-                        ? EventLogEngine.ReadChannel(
+                    bool forwarded = string.Equals(log, "ForwardedEvents", StringComparison.OrdinalIgnoreCase);
+                    EventObject? boundaryEvent = null;
+                    if (checkpoint > 0) {
+                        long forwardedProbeLimit = MaxEventsScanned > 0 ? MaxEventsScanned : 100_000;
+                        long queryLimit = forwarded && forwardedProbeLimit < long.MaxValue
+                            ? forwardedProbeLimit + 1
+                            : forwarded ? forwardedProbeLimit : 1;
+                        IEnumerable<EventObject> boundaryEvents = EventLogEngine.ReadChannel(
                             new EventLogChannelQuery(log) {
                                 MachineName = machine,
                                 Credential =
@@ -510,16 +520,12 @@ public sealed partial class CmdletGetEVXEvent {
                                         .GetNetworkCredential(),
                                 Authentication =
                                     Authentication,
-                                XPath =
-                                    EventFilterCompiler
-                                        .BuildXPath(
-                                            new EventFilter {
-                                                RecordIds =
-                                                    new[] {
-                                                        checkpoint
-                                                    }
-                                            }),
-                                MaxEvents = 1,
+                                XPath = forwarded
+                                    ? "*"
+                                    : EventFilterCompiler.BuildXPath(
+                                        new EventFilter { RecordIds = new[] { checkpoint } }),
+                                Oldest = !forwarded,
+                                MaxEvents = queryLimit,
                                 RemoteConnectionTimeoutMilliseconds =
                                     EffectiveRemoteConnectionTimeoutMilliseconds,
                                 RemoteReadTimeoutMilliseconds =
@@ -531,9 +537,24 @@ public sealed partial class CmdletGetEVXEvent {
                                 ReadMode =
                                     EventReadMode.Metadata
                             },
-                            cancellationToken)
-                            .FirstOrDefault()
-                        : null;
+                            cancellationToken);
+                        if (forwarded) {
+                            EventCheckpointBoundaryProbeResult probe = EventCheckpointBoundaryProbe.Find(
+                                boundaryEvents,
+                                checkpoint,
+                                forwardedProbeLimit);
+                            if (probe.State == EventCheckpointBoundaryProbeState.LimitReached) {
+                                WriteVerbose(
+                                    $"Checkpoint boundary {checkpoint} for '{checkpointKey}' was not found within " +
+                                    $"the bounded {forwardedProbeLimit:N0}-record ForwardedEvents probe. " +
+                                    "Preserving the checkpoint because the probe was inconclusive.");
+                                continue;
+                            }
+                            boundaryEvent = probe.BoundaryEvent;
+                        } else {
+                            boundaryEvent = boundaryEvents.FirstOrDefault();
+                        }
+                    }
                     EvaluateCheckpointBoundary(
                         checkpointKey,
                         checkpoint,

@@ -222,6 +222,7 @@ public sealed partial class EventStore {
         string recovery = Path + ".restore-recovery-" + Guid.NewGuid().ToString("N");
         bool liveStoreExisted = File.Exists(Path);
         bool mutationStarted = false;
+        bool preserveRecovery = false;
         try {
             await CreateConsistentSnapshotAsync(
                 backup,
@@ -262,32 +263,72 @@ public sealed partial class EventStore {
                 throw new InvalidDataException(
                     "Restored EventStore failed integrity validation: " + string.Join(" ", restored.Diagnostics));
             }
-            DeleteSidecar(recovery);
             return restored;
-        } catch {
-            if (mutationStarted && liveStoreExisted && File.Exists(recovery)) {
-                DeleteSidecar(Path + "-wal");
-                DeleteSidecar(Path + "-shm");
-                if (File.Exists(Path)) {
-                    File.Replace(recovery, Path, destinationBackupFileName: null);
-                } else {
-                    File.Move(recovery, Path);
+        } catch (Exception restoreError) {
+            try {
+                if (mutationStarted && liveStoreExisted) {
+                    if (!File.Exists(recovery)) {
+                        throw new FileNotFoundException(
+                            "The validated recovery snapshot is missing; automatic rollback cannot proceed.",
+                            recovery);
+                    }
+                    DeleteSidecar(Path + "-wal");
+                    DeleteSidecar(Path + "-shm");
+                    ReplaceFromRecoverySnapshot(recovery, Path);
+                    EventStoreIntegrityResult rollbackIntegrity = await CheckIntegrityAsync(
+                        CancellationToken.None).ConfigureAwait(false);
+                    if (!rollbackIntegrity.IsHealthy) {
+                        throw new InvalidDataException(
+                            "Automatic rollback failed integrity validation: " +
+                            string.Join(" ", rollbackIntegrity.Diagnostics));
+                    }
+                } else if (mutationStarted && !liveStoreExisted) {
+                    DeleteSidecar(Path + "-wal");
+                    DeleteSidecar(Path + "-shm");
+                    DeleteSidecar(Path);
                 }
-                lock (_initializationLock) {
-                    _initialized = false;
-                }
-            } else if (mutationStarted && !liveStoreExisted) {
-                DeleteSidecar(Path + "-wal");
-                DeleteSidecar(Path + "-shm");
-                DeleteSidecar(Path);
-                lock (_initializationLock) {
-                    _initialized = false;
+            } catch (Exception rollbackError) {
+                preserveRecovery = true;
+                string recoveryStatus = File.Exists(recovery)
+                    ? $"The recovery snapshot is at '{recovery}'."
+                    : $"The recovery snapshot is missing from '{recovery}'.";
+                throw new IOException(
+                    $"EventStore restore failed and automatic rollback also failed. {recoveryStatus} Stop readers and writers before recovering the live store.",
+                    new AggregateException(restoreError, rollbackError));
+            } finally {
+                if (mutationStarted) {
+                    lock (_initializationLock) {
+                        _initialized = false;
+                    }
                 }
             }
             throw;
         } finally {
-            DeleteSidecar(pending);
-            DeleteSidecar(recovery);
+            if (!preserveRecovery) {
+                DeleteSidecar(pending);
+                DeleteSidecar(recovery);
+            }
+        }
+    }
+
+    /// <summary>Applies a recovery copy so the validated snapshot survives replacement failure.</summary>
+    internal static void ReplaceFromRecoverySnapshot(string recovery, string destination) {
+        string candidate = destination + ".restore-rollback-" + Guid.NewGuid().ToString("N");
+        try {
+            File.Copy(recovery, candidate);
+            if (File.Exists(destination)) {
+                File.Replace(candidate, destination, destinationBackupFileName: null);
+            } else {
+                File.Move(candidate, destination);
+            }
+        } finally {
+            if (File.Exists(candidate)) {
+                try {
+                    File.Delete(candidate);
+                } catch (IOException) {
+                    // The validated recovery snapshot remains available for manual recovery.
+                }
+            }
         }
     }
 

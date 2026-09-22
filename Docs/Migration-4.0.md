@@ -8,10 +8,10 @@ This guide describes the intended 4.0 contract. Do not remove a working legacy s
 
 - PowerShell: install and import `PSEventViewer`.
 - .NET: reference `EventViewerX`, `EventViewerX.Detection`, `EventViewerX.Evtx`, `EventViewerX.Reporting`, and `EventViewerX.Storage` as needed.
-- CLI: install the `EventViewerX.Cli` .NET tool or use `evx` from the matching platform release ZIP.
+- CLI: build `EventViewerX.Cli` from source until its .NET tool and platform ZIPs are published.
 - Windows PowerShell 5.1 and PowerShell 7 expose the same module commands and result contracts.
 
-The five EventViewerX library packages, the CLI tool package, and PSEventViewer use one release version. PSWinReporting 1.x and PSWinReportingV2 2.x keep their historical versions and are not upgraded into EventViewerX 4.0.
+The five EventViewerX libraries and PSEventViewer have public 4.0.0 packages. The CLI project follows the same source version, but its tool package and ZIPs have not been published. PSWinReporting 1.x and PSWinReportingV2 2.x keep their historical versions and are not upgraded into EventViewerX 4.0.
 
 ## Choose the collection path first
 

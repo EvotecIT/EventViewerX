@@ -96,6 +96,9 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
 
         foreach (ThirdPartyEventRecord source in eventLog.GetEventRecords()) {
             cancellationToken.ThrowIfCancellationRequested();
+            if (matcher.CanRejectBeforeRendering(source.EventRecordId, source.EventId)) {
+                continue;
+            }
             string xml;
             try {
                 xml = source.ConvertPayloadToXml();

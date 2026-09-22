@@ -1419,6 +1419,37 @@ public sealed class TestEventAnalysis {
     }
 
     [Fact]
+    public void DiagnosticOnlySourceRemainsIncompleteThroughOccurrencesAndAggregation() {
+        EventReportRow row = CreateRow(1, new Dictionary<string, object?> { ["Who"] = "Alice" });
+        EventReport source = EventReportEngine.CreateStored(
+            new[] { row },
+            new[] { new EventReportSectionSchema {
+                Name = row.Type,
+                Kind = EventReportSectionKind.Custom,
+                Columns = new[] { new EventReportColumnSchema {
+                    Name = "Who",
+                    ValueTypeName = EventReportColumnSchema.GetStableTypeName(typeof(string))
+                } }
+            } },
+            completenessDiagnostic: "The saved event reader stopped early.");
+        EventOccurrenceResult occurrences = EventOccurrenceEngine.Group(
+            source.Rows, new EventOccurrenceOptions { Mode = EventDuplicateMode.Transport });
+
+        EventReport summary = EventOccurrenceReportFactory.Create(occurrences, source);
+        EventOccurrenceResult composed = EventOccurrenceReportFactory.ComposeSourceCompleteness(occurrences, source);
+        EventReport representatives = EventOccurrenceReportFactory.CreateRepresentatives(occurrences, source);
+        EventAggregationDefinition definition = new() { GroupBy = new[] { "Who" } };
+
+        Assert.True(summary.ScanLimitReached);
+        Assert.False(composed.IsComplete);
+        Assert.True(representatives.ScanLimitReached);
+        Assert.Equal(EventAggregationInputCompleteness.Incomplete,
+            EventAggregationEngine.Aggregate(source, definition).InputCompleteness);
+        Assert.Equal(EventAggregationInputCompleteness.Incomplete,
+            EventAggregationEngine.Aggregate(representatives, definition).InputCompleteness);
+    }
+
+    [Fact]
     public void AggregationChartsKeepNullAndLiteralNullSeriesDistinct() {
         DateTime day = new(2026, 8, 23, 10, 0, 0, DateTimeKind.Utc);
         EventReportRow missing = CreateRow(1, new Dictionary<string, object?> { ["Who"] = null }, day);

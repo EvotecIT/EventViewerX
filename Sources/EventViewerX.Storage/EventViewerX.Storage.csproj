@@ -4,7 +4,7 @@
     <Description>Optional DbaClientX-backed local event history and summary storage for EventViewerX.</Description>
     <AssemblyName>EventViewerX.Storage</AssemblyName>
     <AssemblyTitle>EventViewerX.Storage</AssemblyTitle>
-    <VersionPrefix>4.0.0</VersionPrefix>
+    <VersionPrefix>4.0.1</VersionPrefix>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

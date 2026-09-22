@@ -146,11 +146,90 @@ public static class PSEventViewerNativeLoader {
 #     }
 # }
 
-if ($Development) {
-    $Assembly = Get-ChildItem -Path "$($DevelopmentAssemblyFolder.Path)\*.dll" -ErrorAction SilentlyContinue -File |
-        Where-Object Name -NE 'e_sqlite3.dll'
+if ($PSEdition -eq 'Core') {
+    # PowerShell ships its own JsonSchema.Net. Keep the compiled module's dependencies in
+    # a separate load context while sharing PowerShell and framework types with the host.
+    if (-not ('PSEventViewerAssemblyLoadContext' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Reflection;
+using System.Runtime.Loader;
+
+public sealed class PSEventViewerAssemblyLoadContext : AssemblyLoadContext {
+    private static readonly ConcurrentDictionary<string, PSEventViewerAssemblyLoadContext> Contexts =
+        new ConcurrentDictionary<string, PSEventViewerAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+    private readonly string directory;
+
+    private PSEventViewerAssemblyLoadContext(string directory) : base("PSEventViewer", false) {
+        this.directory = directory;
+    }
+
+    public static PSEventViewerAssemblyLoadContext GetOrCreate(string directory) {
+        return Contexts.GetOrAdd(Path.GetFullPath(directory),
+            path => new PSEventViewerAssemblyLoadContext(path));
+    }
+
+    public Assembly LoadModule(string path) {
+        string fullPath = Path.GetFullPath(path);
+        foreach (Assembly assembly in Assemblies) {
+            if (string.Equals(assembly.Location, fullPath, StringComparison.OrdinalIgnoreCase)) {
+                return assembly;
+            }
+        }
+        return LoadFromAssemblyPath(fullPath);
+    }
+
+    protected override Assembly Load(AssemblyName name) {
+        string simple = name.Name ?? string.Empty;
+        if (simple == "System.Management.Automation" || simple == "netstandard" ||
+            simple == "System" ||
+            simple.StartsWith("Microsoft.PowerShell.", StringComparison.Ordinal)) {
+            return null;
+        }
+        if (simple == "System.Diagnostics.EventLog" ||
+            simple == "System.DirectoryServices" ||
+            simple == "System.Threading.AccessControl") {
+            // PowerShell's host supplies the platform-aware implementation. Build output
+            // can contain reference assemblies that report Windows APIs as unsupported.
+            foreach (Assembly hostAssembly in AssemblyLoadContext.Default.Assemblies) {
+                if (string.Equals(hostAssembly.GetName().Name, simple, StringComparison.OrdinalIgnoreCase)) {
+                    return hostAssembly;
+                }
+            }
+            try {
+                return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(simple));
+            } catch (FileNotFoundException) {
+                return null;
+            }
+        }
+        string path = Path.Combine(directory, simple + ".dll");
+        if (simple.StartsWith("System.", StringComparison.Ordinal)) {
+            // Share a host assembly when it satisfies the requested version. A bundled
+            // dependency such as System.Text.Json 10 must remain available on .NET 8 hosts.
+            foreach (Assembly hostAssembly in AssemblyLoadContext.Default.Assemblies) {
+                if (string.Equals(hostAssembly.GetName().Name, simple, StringComparison.OrdinalIgnoreCase) &&
+                    hostAssembly.GetName().Version >= name.Version) {
+                    return hostAssembly;
+                }
+            }
+            if (!File.Exists(path)) {
+                return null;
+            }
+        }
+        return File.Exists(path) ? LoadFromAssemblyPath(path) : null;
+    }
+}
+'@
+    }
+    $CoreAssemblyContext = [PSEventViewerAssemblyLoadContext]::GetOrCreate($BinaryRoot)
+    $Assembly = @()
 } else {
     $Assembly = @(
+        if ($Development) {
+            Get-ChildItem -LiteralPath $DevelopmentAssemblyFolder.Path -Filter '*.dll' -File
+        }
         if ($Framework -and $PSEdition -eq 'Core') {
             Get-ChildItem -Path $PSScriptRoot\Lib\$Framework\*.dll -ErrorAction SilentlyContinue #-Recurse
         }
@@ -164,7 +243,12 @@ $FoundErrors = @(
     if ($Development) {
         foreach ($BinaryModule in $BinaryDev) {
             try {
-                Import-Module -Name $BinaryModule -Force -ErrorAction Stop
+                if ($PSEdition -eq 'Core') {
+                    $CompiledModule = $CoreAssemblyContext.LoadModule([string] $BinaryModule)
+                    Import-Module -Assembly $CompiledModule -Force -ErrorAction Stop
+                } else {
+                    Import-Module -Name $BinaryModule -Force -ErrorAction Stop
+                }
             } catch {
                 Write-Warning "Failed to import module $($BinaryModule): $($_.Exception.Message)"
                 $true
@@ -174,7 +258,9 @@ $FoundErrors = @(
         foreach ($BinaryModule in $BinaryModules) {
             try {
                 if ($Framework -and $PSEdition -eq 'Core') {
-                    Import-Module -Name "$PSScriptRoot\Lib\$Framework\$BinaryModule" -Force -ErrorAction Stop
+                    $CompiledModule = $CoreAssemblyContext.LoadModule(
+                        (Join-Path $BinaryRoot $BinaryModule))
+                    Import-Module -Assembly $CompiledModule -Force -ErrorAction Stop
                 }
                 if ($FrameworkNet -and $PSEdition -ne 'Core') {
                     Import-Module -Name "$PSScriptRoot\Lib\$FrameworkNet\$BinaryModule" -Force -ErrorAction Stop
@@ -220,8 +306,43 @@ $FoundErrors = @(
 
 if ($FoundErrors.Count -gt 0) {
     $ModuleName = (Get-ChildItem $PSScriptRoot\*.psd1).BaseName
-    Write-Warning "Importing module $ModuleName failed. Fix errors before continuing."
-    break
+    throw "Importing module $ModuleName failed. Fix errors before continuing."
+}
+
+if ($PSEdition -eq 'Core') {
+    # PowerShell's type-name resolver only searches its default load context. Publish the
+    # EventViewerX type names from the isolated context without loading duplicate assemblies.
+    $TypeAccelerators = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+    $KnownTypes = $TypeAccelerators::Get
+    $script:OwnedTypeAccelerators = @{}
+    foreach ($Dependency in Get-ChildItem -LiteralPath $BinaryRoot -Filter 'EventViewerX*.dll' -File) {
+        $LoadedAssembly = $null
+        foreach ($Candidate in $CoreAssemblyContext.Assemblies) {
+            if ([string]::Equals($Candidate.Location, $Dependency.FullName,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                $LoadedAssembly = $Candidate
+                break
+            }
+        }
+        if (-not $LoadedAssembly) {
+            $LoadedAssembly = $CoreAssemblyContext.LoadModule($Dependency.FullName)
+        }
+        foreach ($PublicType in $LoadedAssembly.GetExportedTypes()) {
+            if ($PublicType.FullName -and -not $KnownTypes.ContainsKey($PublicType.FullName)) {
+                $TypeAccelerators::Add($PublicType.FullName, $PublicType)
+                $script:OwnedTypeAccelerators[$PublicType.FullName] = $PublicType
+            }
+        }
+    }
+    $ExecutionContext.SessionState.Module.OnRemove = {
+        $Accelerators = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+        foreach ($Name in @($script:OwnedTypeAccelerators.Keys)) {
+            if ($Accelerators::Get.ContainsKey($Name) -and
+                [object]::ReferenceEquals($Accelerators::Get[$Name], $script:OwnedTypeAccelerators[$Name])) {
+                $Accelerators::Remove($Name) | Out-Null
+            }
+        }
+    }
 }
 
 Export-ModuleMember -Function '*' -Alias '*' -Cmdlet '*'

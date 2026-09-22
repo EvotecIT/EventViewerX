@@ -136,6 +136,7 @@ var output = new {
     },
     options.MaximumEvents,
     ReadMode = options.ReadMode.ToString(),
+    options.XPath,
     options.WarmupIterations,
     options.Iterations,
     options.MinimumIdentityMatchRatio,
@@ -222,6 +223,7 @@ EventObject[] Read(ISavedEventReader reader, Action<SavedEventReadDiagnostic>? d
     EventLogEngine.ReadFile(new EventLogFileQuery(options.Path) {
         Oldest = true,
         ReadMode = options.ReadMode,
+        XPath = options.XPath,
         MaxEvents = options.MaximumEvents,
         SavedEventReader = reader,
         SavedEventDiagnosticHandler = diagnosticHandler
@@ -230,6 +232,7 @@ EventObject[] Read(ISavedEventReader reader, Action<SavedEventReadDiagnostic>? d
 EventObject[] ReadWindows() => EventLogEngine.ReadFile(new EventLogFileQuery(options.Path) {
     Oldest = true,
     ReadMode = options.ReadMode,
+    XPath = options.XPath,
     MaxEvents = options.MaximumEvents
 }).ToArray();
 

@@ -2,7 +2,7 @@
 Module Name: PSEventViewer
 Module Guid: 5df72a79-cdf6-4add-b38d-bcacf26fb7bc
 Download Help Link: https://github.com/EvotecIT/EventViewerX
-Help Version: 4.0.0
+Help Version: 4.0.1
 Locale: en-US
 ---
 # PSEventViewer Module
@@ -50,6 +50,11 @@ Enhanced event querying cmdlet that replaces and extends Get-WinEvent functional
 
 Supports local and remote logs, built-in event types, custom JSON definitions, record ID resumes, parallel queries, and rich filtering.
 
+### [Get-EVXKerberosImpact](Get-EVXKerberosImpact.md)
+Summarizes observed KDCsvc RC4 enforcement impact by domain controller, account, and service.
+
+Distinguishes audit warnings, requests already blocked, and explicit insecure defaults. Event evidence does not certify complete domain coverage.
+
 ### [Get-EVXLog](Get-EVXLog.md)
 Retrieves event log details by name.
 
@@ -67,6 +72,11 @@ The default set supports local and remote provider discovery. Package sets inspe
 Returns event channels, IDs, audit policies, and configuration requirements.
 
 Uses the same compiled requirement catalog intended for readiness checks and generated onboarding guidance.
+
+### [Get-EVXStoredEvent](Get-EVXStoredEvent.md)
+Streams filtered rows from an EventViewerX history store.
+
+Emits each normalized row as it is read, keeping memory bounded for large histories. MaxEvents and MaxCandidates report when a result is incomplete.
 
 ### [Get-EVXTarget](Get-EVXTarget.md)
 Discovers local or explicitly selected Active Directory event targets.

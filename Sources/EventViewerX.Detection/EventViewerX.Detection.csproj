@@ -4,7 +4,7 @@
     <Description>Sigma YAML import, validation, and compilation for the EventViewerX detection engine.</Description>
     <AssemblyName>EventViewerX.Detection</AssemblyName>
     <AssemblyTitle>EventViewerX.Detection</AssemblyTitle>
-    <VersionPrefix>4.0.0</VersionPrefix>
+    <VersionPrefix>4.0.1</VersionPrefix>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

@@ -61,6 +61,28 @@ Describe 'evx portable host' {
         $Row._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
     }
 
+    It 'streams stored query JSONL and reports bounded Kerberos evidence' {
+        $StorePath = Join-Path $TestDrive 'stream-and-impact.db'
+        $null = & $script:CliPath query --path $script:FixturePath --max 3 --write-store $StorePath
+        $LASTEXITCODE | Should -Be 0
+
+        $Streamed = @(& $script:CliPath query --store $StorePath --stream --max 2 |
+                ForEach-Object { $_ | ConvertFrom-Json })
+        $LASTEXITCODE | Should -Be 0
+        $Snapshot = @(& $script:CliPath query --store $StorePath --max 2 |
+                ForEach-Object { $_ | ConvertFrom-Json })
+        $LASTEXITCODE | Should -Be 0
+        $Streamed.Count | Should -Be 2
+        $Streamed.RecordId | Should -Be $Snapshot.RecordId
+        $Streamed[0]._EventViewerX.Normalization | Should -Not -BeNullOrEmpty
+
+        $Impact = & $script:CliPath kerberos-impact --store $StorePath | ConvertFrom-Json
+        $LASTEXITCODE | Should -Be 0
+        $Impact.EventsObserved | Should -Be 0
+        $Impact.SelectedWindowComplete | Should -BeTrue
+        $Impact.CoverageStatement | Should -Match 'every domain controller'
+    }
+
     It 'renders HTML and Excel from one query and composes a Mailozaurr delivery' {
         $HtmlPath = Join-Path $TestDrive 'events.html'
         $ExcelPath = Join-Path $TestDrive 'events.xlsx'

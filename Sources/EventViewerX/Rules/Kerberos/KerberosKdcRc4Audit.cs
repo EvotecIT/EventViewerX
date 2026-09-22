@@ -177,7 +177,7 @@ public sealed class KerberosKdcRc4Audit : EventRuleBase
         return string.Empty;
     }
 
-    private static (KerberosKdcRc4Issue Issue, KerberosKdcRc4Disposition Disposition) Classify(int eventId)
+    internal static (KerberosKdcRc4Issue Issue, KerberosKdcRc4Disposition Disposition) Classify(int eventId)
     {
         return eventId switch {
             201 => (KerberosKdcRc4Issue.ClientOnlySupportsInsecureEncryption, KerberosKdcRc4Disposition.AuditWarning),

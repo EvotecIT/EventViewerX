@@ -7,6 +7,38 @@ namespace EventViewerX.Portability.Tests;
 
 public sealed class TestSavedEventPortability {
     [Fact]
+    public void ExactSystemSelectorPrefilterPreservesPortableXPathResults() {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
+        var reader = new EvtxSavedEventReader();
+        SavedEventRecord[] all = reader.Read(new EventLogFileQuery(path) { Oldest = true }).ToArray();
+        long selectedId = Assert.IsType<long>(all[^1].RecordId);
+        string exact = $"*[System[EventRecordID={selectedId}]]";
+
+        SavedEventRecord selected = Assert.Single(reader.Read(new EventLogFileQuery(path) {
+            Oldest = true,
+            XPath = exact
+        }));
+        Assert.Equal(selectedId, selected.RecordId);
+        Assert.Equal(all[^1].ProviderName, selected.ProviderName);
+        Assert.Equal(all[^1].TimeCreatedUtc, selected.TimeCreatedUtc);
+
+        var matcher = new EvtxXPathMatcher(exact);
+        Assert.True(matcher.CanRejectBeforeRendering("1", 7040));
+        Assert.False(matcher.CanRejectBeforeRendering(selectedId.ToString(System.Globalization.CultureInfo.InvariantCulture), 7040));
+        Assert.False(new EvtxXPathMatcher($"*[System[(EventRecordID={selectedId} or EventID=7040)]]")
+            .CanRejectBeforeRendering("1", 1));
+
+        int selectedEventId = all[^1].EventId;
+        SavedEventRecord[] eventMatches = reader.Read(new EventLogFileQuery(path) {
+            Oldest = true,
+            XPath = $"*[System[EventID={selectedEventId}]]"
+        }).ToArray();
+        Assert.Equal(all.Count(record => record.EventId == selectedEventId), eventMatches.Length);
+        Assert.False(new EvtxXPathMatcher($"*[System[EventID={selectedEventId}]]")
+            .CanRejectBeforeRendering(null, 0));
+    }
+
+    [Fact]
     public void ManagedReaderRetainsAllParseableRecordsFromRetainedTruncatedFixture() {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples-Truncated.evtx");
         var diagnostics = new List<SavedEventReadDiagnostic>();

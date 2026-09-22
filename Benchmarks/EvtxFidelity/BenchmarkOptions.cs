@@ -4,7 +4,7 @@ using EventViewerX;
 internal sealed class BenchmarkOptions {
     internal const string Usage =
         "Usage: EventViewerX.EvtxFidelity <fixture.evtx> [maximum-events] [evtx-dump] " +
-        "[--read-mode <mode>] [--warmup <count>] [--iterations <count>] " +
+        "[--read-mode <mode>] [--xpath <expression>] [--warmup <count>] [--iterations <count>] " +
         "[--min-events-per-second <value>] [--max-bytes-per-event <value>] " +
         "[--minimum-identity-ratio <value>] [--minimum-exact-timestamp-ratio <value>] " +
         "[--output <path>]";
@@ -13,6 +13,7 @@ internal sealed class BenchmarkOptions {
     internal long MaximumEvents { get; init; }
     internal string? EvtxDumpPath { get; init; }
     internal EventReadMode ReadMode { get; init; } = EventReadMode.StructuredData;
+    internal string XPath { get; init; } = "*";
     internal int WarmupIterations { get; init; }
     internal int Iterations { get; init; } = 1;
     internal double? MinimumEventsPerSecond { get; init; }
@@ -30,6 +31,7 @@ internal sealed class BenchmarkOptions {
         long maximumEvents = 0;
         string? evtxDumpPath = null;
         EventReadMode readMode = EventReadMode.StructuredData;
+        string xpath = "*";
         int warmupIterations = 0;
         int iterations = 1;
         double? minimumEventsPerSecond = null;
@@ -61,6 +63,9 @@ internal sealed class BenchmarkOptions {
                         !Enum.IsDefined(typeof(EventReadMode), readMode)) {
                         throw new ArgumentException($"Unsupported read mode '{value}'.");
                     }
+                    break;
+                case "--xpath":
+                    xpath = value;
                     break;
                 case "--warmup":
                     warmupIterations = checked((int)ParseLong(value, "warmup", minimum: 0, maximum: 20));
@@ -113,6 +118,7 @@ internal sealed class BenchmarkOptions {
             EvtxDumpPath = NormalizeOptionalCommand(
                 evtxDumpPath ?? Environment.GetEnvironmentVariable("EVENTVIEWERX_EVTX_DUMP")),
             ReadMode = readMode,
+            XPath = xpath,
             WarmupIterations = warmupIterations,
             Iterations = iterations,
             MinimumEventsPerSecond = minimumEventsPerSecond,

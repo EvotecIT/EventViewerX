@@ -33,6 +33,7 @@ internal static partial class Program {
                 "report" => await ReportAsync(options).ConfigureAwait(false),
                 "measure" => await MeasureAsync(options).ConfigureAwait(false),
                 "detect" => await DetectAsync(options).ConfigureAwait(false),
+                "kerberos-impact" => await KerberosImpactAsync(options).ConfigureAwait(false),
                 "watch" => await WatchAsync(options).ConfigureAwait(false),
                 "store" => await StoreAsync(options).ConfigureAwait(false),
                 "collector" => Collector(options),
@@ -70,10 +71,27 @@ internal static partial class Program {
                     .ConfigureAwait(false);
                 return WriteJson(plan);
             }
+            if (options.Has("stream")) {
+                if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
+                    throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
+                }
+                EventStoreRowReadResult streamed = await new EventStore(storePath)
+                    .StreamRowsAsync(storedQuery, (row, _) => {
+                        Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row), JsonOptions));
+                        return Task.CompletedTask;
+                    }).ConfigureAwait(false);
+                if (!streamed.IsComplete) {
+                    Console.Error.WriteLine(streamed.CompletenessDiagnostic);
+                }
+                return 0;
+            }
             EventReport stored = await new EventStore(storePath)
                 .ReadReportAsync(storedQuery, options.Get("title"))
                 .ConfigureAwait(false);
             return WriteRows(ApplyOccurrenceGrouping(stored, options));
+        }
+        if (options.Has("stream")) {
+            throw new ArgumentException("--stream requires --store.");
         }
         if (options.Get("context-store") != null) {
             EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
@@ -301,6 +319,9 @@ internal static partial class Program {
 
     private static void ValidateQuerySource(CliArguments options, bool allowSummary) {
         bool stored = options.Get("store") != null;
+        if (options.Has("stream") && (options.Has("explain") || options.Get("write-store") != null)) {
+            throw new ArgumentException("--stream cannot be combined with --explain or --write-store.");
+        }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive target modes.");
         }
@@ -668,7 +689,7 @@ internal static partial class Program {
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
-                    "store", "write-store", "checkpoint", "context-store", "context-authorization",
+                    "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "report":
@@ -708,6 +729,10 @@ internal static partial class Program {
                     "maximum-observations", "maximum-groups", "maximum-state-observations", "maximum-state-bytes",
                     "write-findings-store", "jsonl", "report-html", "report-csv", "report-excel", "report-kind", "title",
                     "store", "coverage", "trace-jsonl");
+                break;
+            case "kerberos-impact":
+                options.ValidateAllowed("store", "start", "end", "since", "max",
+                    "maximum-groups", "maximum-evidence-per-group");
                 break;
             case "collector" when options.Subcommand == "create":
                 options.ValidateAllowed(
@@ -774,12 +799,13 @@ internal static partial class Program {
             "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream with --store for JSONL] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] [--sigma-profile strict|windows-sysmon-powershell] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain | --dry-run]\n" +
             "  evx detect --test-fixtures\n" +
             "  evx detect --pack-coverage [--pack FILE[,FILE]] [--include-built-in]\n" +
+            "  evx kerberos-impact --store FILE.db [--start TIMESTAMP] [--end TIMESTAMP] [--max N] [--maximum-groups N] [--maximum-evidence-per-group N]\n" +
             "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--outbox-maximum-batch-bytes N] [--outbox-maximum-bytes N] [--outbox-maximum-pending-batches N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +

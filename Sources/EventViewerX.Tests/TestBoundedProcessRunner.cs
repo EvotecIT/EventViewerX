@@ -19,8 +19,7 @@ public sealed class TestBoundedProcessRunner {
 
     [Fact]
     public void TerminatesProcessAfterTimeout() {
-        ProcessStartInfo startInfo = CreateCommand(
-            "ping -n 6 127.0.0.1 >nul");
+        ProcessStartInfo startInfo = CreateSleepingProcess();
         Stopwatch elapsed = Stopwatch.StartNew();
 
         Assert.Throws<TimeoutException>(() =>
@@ -34,8 +33,7 @@ public sealed class TestBoundedProcessRunner {
 
     [Fact]
     public void TerminatesProcessWhenCancelled() {
-        ProcessStartInfo startInfo = CreateCommand(
-            "ping -n 6 127.0.0.1 >nul");
+        ProcessStartInfo startInfo = CreateSleepingProcess();
         using var cancellation = new CancellationTokenSource(
             TimeSpan.FromMilliseconds(150));
 
@@ -53,6 +51,19 @@ public sealed class TestBoundedProcessRunner {
                            Environment.GetFolderPath(Environment.SpecialFolder.System),
                            "cmd.exe"),
             Arguments = "/d /c \"" + command + "\"",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+    }
+
+    private static ProcessStartInfo CreateSleepingProcess() {
+        return new ProcessStartInfo {
+            FileName = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell", "v1.0", "powershell.exe"),
+            Arguments = "-NoProfile -NonInteractive -Command Start-Sleep -Seconds 6",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,

@@ -11,12 +11,30 @@ internal sealed class EvtxXPathMatcher {
     private static readonly Regex SystemTimeComparison = new(
         "@SystemTime\\s*(?<operator>>=|<=|>|<|=)\\s*(?<quote>['\"])(?<value>[^'\"]+)\\k<quote>",
         RegexOptions.CultureInvariant);
+    private static readonly Regex ExactRecordId = new(
+        @"^\*\[System\[EventRecordID=(?<id>\d+)\]\]$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex ExactEventId = new(
+        @"^\*\[System\[EventID=(?<id>\d+)\]\]$",
+        RegexOptions.CultureInvariant);
     private static readonly EventXPathContext XPathContext = new();
     private readonly string _xpath;
     private readonly XPathExpression _expression;
+    private readonly long? _exactRecordId;
+    private readonly int? _exactEventId;
 
     internal EvtxXPathMatcher(string? xpath) {
         _xpath = string.IsNullOrWhiteSpace(xpath) ? "*" : xpath!.Trim();
+        Match recordIdMatch = ExactRecordId.Match(_xpath);
+        if (recordIdMatch.Success && long.TryParse(recordIdMatch.Groups["id"].Value,
+                NumberStyles.None, CultureInfo.InvariantCulture, out long recordId)) {
+            _exactRecordId = recordId;
+        }
+        Match eventIdMatch = ExactEventId.Match(_xpath);
+        if (eventIdMatch.Success && int.TryParse(eventIdMatch.Groups["id"].Value,
+                NumberStyles.None, CultureInfo.InvariantCulture, out int eventId)) {
+            _exactEventId = eventId;
+        }
         try {
             string portableXPath = SystemTimeComparison.Replace(_xpath, static match => {
                 string comparison = match.Groups["operator"].Value;
@@ -32,6 +50,16 @@ internal sealed class EvtxXPathMatcher {
                 "Use a standard XPath 1.0 expression or the Windows Eventing API.",
                 exception);
         }
+    }
+
+    /// <summary>Rejects only exact system selectors whose values were already parsed from the record XML by evtx.</summary>
+    internal bool CanRejectBeforeRendering(string? recordIdFromXml, int eventIdFromXml) {
+        if (_exactEventId.HasValue) {
+            return eventIdFromXml > 0 && eventIdFromXml != _exactEventId.Value;
+        }
+        return _exactRecordId.HasValue &&
+               long.TryParse(recordIdFromXml, NumberStyles.Integer, CultureInfo.InvariantCulture, out long recordId) &&
+               recordId != _exactRecordId.Value;
     }
 
     internal bool IsMatch(string xml) {

@@ -359,6 +359,39 @@ CREATE TABLE evx_checkpoints (
     }
 
     [Fact]
+    public async Task FailedRecoveryReplacementLeavesValidatedSnapshotAvailableForRetry() {
+        string source = CreateStorePath();
+        string recovery = CreateStorePath();
+        string destination = CreateStorePath();
+        try {
+            var store = new EventStore(source);
+            await store.WriteAsync(CreateReport((
+                new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc),
+                1,
+                "recoverable")));
+            await EventStore.CreateConsistentSnapshotAsync(source, recovery);
+            Directory.CreateDirectory(destination);
+
+            Assert.ThrowsAny<IOException>(() => EventStore.ReplaceFromRecoverySnapshot(recovery, destination));
+            Assert.True((await new EventStore(recovery).CheckIntegrityAsync()).IsHealthy);
+
+            Directory.Delete(destination);
+            EventStore.ReplaceFromRecoverySnapshot(recovery, destination);
+            Assert.True(File.Exists(recovery));
+            Assert.Equal("recoverable", Assert.Single((await new EventStore(destination)
+                .ReadReportAsync(new EventStoreQuery())).Rows).Values["User"]);
+        } finally {
+            DeleteStore(source);
+            DeleteStore(recovery);
+            if (Directory.Exists(destination)) {
+                Directory.Delete(destination);
+            } else {
+                DeleteStore(destination);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RetentionPrunesEventsAndFindingsIndependentlyAndReportsCompaction() {
         string path = CreateStorePath();
         try {
