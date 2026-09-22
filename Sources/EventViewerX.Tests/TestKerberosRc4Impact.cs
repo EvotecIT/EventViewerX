@@ -67,6 +67,20 @@ public sealed class TestKerberosRc4Impact {
         Assert.Contains("Collection did not finish", impact.CompletenessDiagnostic, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReportAnalysisTreatsDiagnosticOnlySourceAsIncomplete() {
+        EventReport source = EventReportEngine.CreateStored(
+            new[] { Row(201, "DC01", "client$", "svc", "one") },
+            new[] { EventReportSectionSchema.FromType(EventType.KerberosKdcRc4Audit) },
+            completenessDiagnostic: "The saved event reader stopped early.");
+
+        KerberosRc4ImpactReport impact = KerberosRc4ImpactEngine.Analyze(source);
+
+        Assert.False(source.ScanLimitReached);
+        Assert.False(impact.SelectedWindowComplete);
+        Assert.Contains("saved event reader stopped early", impact.CompletenessDiagnostic, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static EventReportRow Row(int eventId, string controller, string account, string service,
         string identity, string provider = "Kdcsvc") => new() {
         Type = nameof(EventType.KerberosKdcRc4Audit),

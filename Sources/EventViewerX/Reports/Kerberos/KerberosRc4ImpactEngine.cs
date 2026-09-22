@@ -25,7 +25,8 @@ public static class KerberosRc4ImpactEngine {
         EventReportCoverage[] failedSources = report.Coverage
             .Where(static coverage => !coverage.Succeeded)
             .ToArray();
-        bool sourceComplete = !report.ScanLimitReached && failedSources.Length == 0;
+        bool sourceComplete = !report.ScanLimitReached && failedSources.Length == 0 &&
+            string.IsNullOrWhiteSpace(report.CompletenessDiagnostic);
         string? failures = failedSources.Length == 0 ? null :
             $"{failedSources.Length} source query failed: " +
             string.Join("; ", failedSources.Take(10).Select(static coverage =>

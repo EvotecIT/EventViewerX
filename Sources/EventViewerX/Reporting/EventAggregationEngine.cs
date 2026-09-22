@@ -16,6 +16,7 @@ public static partial class EventAggregationEngine {
             throw new ArgumentNullException(nameof(report));
         }
         EventAggregationInputCompleteness completeness = report.ScanLimitReached ||
+            !string.IsNullOrWhiteSpace(report.CompletenessDiagnostic) ||
             report.Coverage.Any(static coverage => !coverage.Succeeded)
                 ? EventAggregationInputCompleteness.Incomplete
                 : EventAggregationInputCompleteness.Complete;
