@@ -150,6 +150,10 @@ public sealed class TestForwardedEventsQuerySafety {
             new[] { Create(DateTime.UtcNow, 500) },
             checkpoint: 100,
             maximumEvents: 2);
+        EventCheckpointBoundaryProbeResult reset = EventCheckpointBoundaryProbe.Find(
+            new[] { Create(DateTime.UtcNow, 50), Create(DateTime.UtcNow, 40), Create(DateTime.UtcNow, 30) },
+            checkpoint: 100,
+            maximumEvents: 2);
         EventCheckpointBoundaryProbeResult found = EventCheckpointBoundaryProbe.Find(
             new[] { Create(DateTime.UtcNow, 500), Create(DateTime.UtcNow, 100) },
             checkpoint: 100,
@@ -159,6 +163,8 @@ public sealed class TestForwardedEventsQuerySafety {
         Assert.Null(limited.BoundaryEvent);
         Assert.Equal(EventCheckpointBoundaryProbeState.ExhaustedWithoutMatch, exhausted.State);
         Assert.Null(exhausted.BoundaryEvent);
+        Assert.Equal(EventCheckpointBoundaryProbeState.CheckpointAboveObservedHead, reset.State);
+        Assert.Null(reset.BoundaryEvent);
         Assert.Equal(EventCheckpointBoundaryProbeState.Found, found.State);
         Assert.Equal(100, found.BoundaryEvent!.RecordId);
     }
