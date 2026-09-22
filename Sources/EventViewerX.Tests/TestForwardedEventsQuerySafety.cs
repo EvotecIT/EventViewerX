@@ -140,9 +140,32 @@ public sealed class TestForwardedEventsQuerySafety {
         Assert.False(ManagedEventFilter.CreatePredicate(filter)!(matching));
     }
 
-    private static EventObject Create(DateTime timeCreated) {
+    [Fact]
+    public void BoundedCheckpointProbeDistinguishesAMissFromAnExhaustiveSearch() {
+        EventCheckpointBoundaryProbeResult limited = EventCheckpointBoundaryProbe.Find(
+            new[] { Create(DateTime.UtcNow, 500), Create(DateTime.UtcNow, 400), Create(DateTime.UtcNow, 300) },
+            checkpoint: 100,
+            maximumEvents: 2);
+        EventCheckpointBoundaryProbeResult exhausted = EventCheckpointBoundaryProbe.Find(
+            new[] { Create(DateTime.UtcNow, 500) },
+            checkpoint: 100,
+            maximumEvents: 2);
+        EventCheckpointBoundaryProbeResult found = EventCheckpointBoundaryProbe.Find(
+            new[] { Create(DateTime.UtcNow, 500), Create(DateTime.UtcNow, 100) },
+            checkpoint: 100,
+            maximumEvents: 2);
+
+        Assert.Equal(EventCheckpointBoundaryProbeState.LimitReached, limited.State);
+        Assert.Null(limited.BoundaryEvent);
+        Assert.Equal(EventCheckpointBoundaryProbeState.ExhaustedWithoutMatch, exhausted.State);
+        Assert.Null(exhausted.BoundaryEvent);
+        Assert.Equal(EventCheckpointBoundaryProbeState.Found, found.State);
+        Assert.Equal(100, found.BoundaryEvent!.RecordId);
+    }
+
+    private static EventObject Create(DateTime timeCreated, long recordId = 42) {
         return new EventObject(
-            new SyntheticEventRecord(timeCreated),
+            new SyntheticEventRecord(timeCreated, recordId: recordId),
             "collector",
             EventReadMode.Metadata);
     }
@@ -150,13 +173,16 @@ public sealed class TestForwardedEventsQuerySafety {
     private sealed class SyntheticEventRecord : EventRecord {
         private readonly DateTime _timeCreated;
         private readonly string _xml;
+        private readonly long _recordId;
 
         internal SyntheticEventRecord(
             DateTime timeCreated,
-            string xml = "<Event />") {
+            string xml = "<Event />",
+            long recordId = 42) {
 
             _timeCreated = timeCreated;
             _xml = xml;
+            _recordId = recordId;
         }
 
         public override string ProviderName => "TestProvider";
@@ -179,7 +205,7 @@ public sealed class TestForwardedEventsQuerySafety {
         public override IList<EventProperty> Properties => Array.Empty<EventProperty>();
         public override DateTime? TimeCreated => _timeCreated;
         public override int? Qualifiers => null;
-        public override long? RecordId => 42;
+        public override long? RecordId => _recordId;
         public override byte? Version => 0;
         public override SecurityIdentifier UserId => null!;
         public override EventBookmark Bookmark => null!;

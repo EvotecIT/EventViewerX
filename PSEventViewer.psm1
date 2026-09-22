@@ -188,6 +188,22 @@ public sealed class PSEventViewerAssemblyLoadContext : AssemblyLoadContext {
             simple.StartsWith("Microsoft.PowerShell.", StringComparison.Ordinal)) {
             return null;
         }
+        if (simple == "System.Diagnostics.EventLog" ||
+            simple == "System.DirectoryServices" ||
+            simple == "System.Threading.AccessControl") {
+            // PowerShell's host supplies the platform-aware implementation. Build output
+            // can contain reference assemblies that report Windows APIs as unsupported.
+            foreach (Assembly hostAssembly in AssemblyLoadContext.Default.Assemblies) {
+                if (string.Equals(hostAssembly.GetName().Name, simple, StringComparison.OrdinalIgnoreCase)) {
+                    return hostAssembly;
+                }
+            }
+            try {
+                return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(simple));
+            } catch (FileNotFoundException) {
+                return null;
+            }
+        }
         string path = Path.Combine(directory, simple + ".dll");
         if (simple.StartsWith("System.", StringComparison.Ordinal)) {
             // Share a host assembly when it satisfies the requested version. A bundled
