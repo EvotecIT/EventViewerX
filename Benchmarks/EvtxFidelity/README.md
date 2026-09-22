@@ -39,6 +39,11 @@ external parser changed or any requested Windows reference iteration is missing.
 `Metadata`, `Message`, `StructuredData`, `RawXml`,
 `StructuredDataAndMessage`, and `Full` can be measured independently; do not
 compare unlike read modes as if they were equivalent work.
+Use `--xpath '*[System[EventRecordID=4108]]'` to measure an exact saved-record
+selection. The same XPath is applied to the Windows reference reader. Exact
+event ID and record ID selectors can reject nonmatching records using identity
+fields already parsed by the managed EVTX dependency before rendering XML a
+second time. Other XPath expressions still use the full portable matcher.
 The `--output` path must name a new file. Existing files are never overwritten,
 which protects forensic fixtures and their filesystem aliases.
 
@@ -58,6 +63,14 @@ fractional digits, so it does not expose the final 100-nanosecond digit until
 that upstream renderer is corrected.
 
 ## Current evidence
+
+On the retained 184-record `NamedFilterExamples.evtx` fixture, five measured
+`StructuredData` passes for one exact record ID reduced median portable
+allocation from 92.9 MB to 45.9 MB and median time from 27.7 ms to 11.9 ms.
+The selected record retained full identity and timestamp parity with Windows.
+The full-scan allocation was effectively unchanged at about 93.8 MB, so this
+result supports selective reads only and does not change the opt-in portable
+reader default.
 
 The clean 31.5 MB Security fixture contains 62,031 records. On the Windows
 validation host, the portable adapter preserved every record with 100 percent

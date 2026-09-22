@@ -2,11 +2,11 @@
 
 High-performance Windows Event Log tooling for .NET and PowerShell.
 
-> **4.0 development status:** the expanded API, CLI, detection, reporting,
-> storage, WEC, and portable-EVTX documentation below describes the current
-> source tree. Version 4.0 has not been published or released. The public
-> PowerShell Gallery and NuGet packages remain on their 3.x lines until the
-> separate 4.0 release decision is made.
+> **Release state:** PSEventViewer 4.0.0 is available on PowerShell Gallery,
+> and the five EventViewerX 4.0.0 libraries are available on NuGet. The
+> `EventViewerX.Cli` .NET tool and platform ZIPs have not been published.
+> CLI examples below describe the source-built command until that release lane
+> is available.
 
 PSEventViewer is the thin PowerShell surface. EventViewerX is the reusable C#
 engine underneath it. Live channels, remote sessions, WEC, provider messages,
@@ -115,15 +115,17 @@ Install-Module -Name PSEventViewer -Scope CurrentUser
 Import-Module PSEventViewer
 ```
 
-That command installs the current public 3.x module, not the unreleased 4.0
-source described by this branch. The 4.0 CLI and package set are source-only
-until a later release; do not use a speculative `4.0.0` package command.
+Update an older installed copy before using 4.0 features:
+
+```powershell
+Update-Module -Name PSEventViewer
+```
 
 The 4.0 source supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
 targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
-The CLI is also available as RID-specific release ZIPs. Use a
-framework-dependent ZIP when .NET 10 is installed, or `PortableCompat` when
-the target host needs the runtime bundled with the executable.
+The CLI project targets .NET 10. Its release configuration defines
+framework-dependent and runtime-bundled `PortableCompat` ZIPs, but those
+artifacts are not currently available from a public release.
 
 ## Documentation
 
@@ -863,8 +865,9 @@ exposes the same contract through `Show-EVXEvent -DrawerPlacement`.
 `Show-EVXEvent` can persist its already-normalized snapshot into a local
 SQLite store and later build typed reports or calendar summaries without
 rereading a month of event logs. Storage is optional and is owned by the
-`EventViewerX.Storage` package over DbaClientX; it does not add another query
-engine or another PowerShell cmdlet family.
+`EventViewerX.Storage` package over DbaClientX. Reports remain snapshots;
+`Get-EVXStoredEvent` streams individual history rows when a large result should
+not be held in memory.
 
 ```powershell
 $store = 'C:\ProgramData\EventViewerX\events.db'
@@ -886,7 +889,18 @@ Show-EVXEvent -FromStore $store -Type ADUserLogonFailed `
 Show-EVXEvent -FromStore $store -Type ActiveDirectoryAuthentication `
     -StartTime (Get-Date).AddMonths(-1) -SummaryPeriod Day `
     -HtmlPath .\Authentication-Daily.html -ExcelPath .\Authentication-Daily.xlsx
+
+# Stream rows to the PowerShell pipeline with explicit result and scan bounds.
+Get-EVXStoredEvent -Path $store -Type ActiveDirectoryAuthentication `
+    -StartTime (Get-Date).AddDays(-7) -MaxEvents 10000
 ```
+
+The source-built CLI provides `evx query --store events.db --stream` for
+JSON Lines output. A result or candidate limit emits an incomplete-read
+diagnostic. `Get-EVXKerberosImpact -FromStore $store` and source-built
+`evx kerberos-impact --store events.db` group KDCsvc 201-209 evidence by
+controller, account, service, and enforcement effect. They report observed
+requests; verify collection from every domain controller before changing policy.
 
 Writes, schema registration, and an optional checkpoint commit are one
 transaction. Repeated ingestion is idempotent. Typed/custom schema changes
@@ -902,10 +916,10 @@ escalation, incident assignment, fleet policy, or delivery credentials.
 ## Portable host and event-triggered automation
 
 The optional `evx` command is the low-startup, no-module host for Task Scheduler,
-event-triggered tasks, services, containers, and portable automation. Install it
-as the `EventViewerX.Cli` .NET tool or use a RID-specific release ZIP. The ZIPs
-ship as both a smaller framework-dependent build and a runtime-bundled
-`PortableCompat` build. Both provide `types`, `query`, `report`, `watch`,
+event-triggered tasks, services, containers, and portable automation. It is
+currently available from source builds. The release configuration prepares a
+smaller framework-dependent build and a runtime-bundled `PortableCompat`
+build for a future CLI release. The CLI provides `types`, `query`, `report`, `watch`,
 `store`, `collector`, and `provider` workflows over the same EventViewerX engines; they
 do not introduce a second query or reporting implementation.
 

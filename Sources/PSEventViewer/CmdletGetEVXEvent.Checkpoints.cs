@@ -476,8 +476,12 @@ public sealed partial class CmdletGetEVXEvent {
                                     checkpoint
                                 }
                             }),
-                        MaxEvents = 1,
-                        ReadMode =
+                         MaxEvents = 1,
+                         SavedEventReader = _resolvedSavedEventReader,
+                         SavedEventDiagnosticHandler = _resolvedSavedEventReader != null
+                             ? WriteSavedEventDiagnostic
+                             : null,
+                         ReadMode =
                             EventReadMode.Metadata
                     },
                     cancellationToken).FirstOrDefault()
@@ -501,6 +505,7 @@ public sealed partial class CmdletGetEVXEvent {
                 }
 
                 try {
+                    bool forwarded = string.Equals(log, "ForwardedEvents", StringComparison.OrdinalIgnoreCase);
                     EventObject? boundaryEvent = checkpoint > 0
                         ? EventLogEngine.ReadChannel(
                             new EventLogChannelQuery(log) {
@@ -510,16 +515,14 @@ public sealed partial class CmdletGetEVXEvent {
                                         .GetNetworkCredential(),
                                 Authentication =
                                     Authentication,
-                                XPath =
-                                    EventFilterCompiler
-                                        .BuildXPath(
-                                            new EventFilter {
-                                                RecordIds =
-                                                    new[] {
-                                                        checkpoint
-                                                    }
-                                            }),
-                                MaxEvents = 1,
+                                XPath = forwarded
+                                    ? "*"
+                                    : EventFilterCompiler.BuildXPath(
+                                        new EventFilter { RecordIds = new[] { checkpoint } }),
+                                Oldest = !forwarded,
+                                MaxEvents = forwarded
+                                    ? MaxEventsScanned > 0 ? MaxEventsScanned : 100_000
+                                    : 1,
                                 RemoteConnectionTimeoutMilliseconds =
                                     EffectiveRemoteConnectionTimeoutMilliseconds,
                                 RemoteReadTimeoutMilliseconds =
@@ -532,7 +535,7 @@ public sealed partial class CmdletGetEVXEvent {
                                     EventReadMode.Metadata
                             },
                             cancellationToken)
-                            .FirstOrDefault()
+                            .FirstOrDefault(eventObject => !forwarded || eventObject.RecordId == checkpoint)
                         : null;
                     EvaluateCheckpointBoundary(
                         checkpointKey,

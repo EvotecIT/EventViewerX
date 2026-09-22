@@ -5,7 +5,7 @@
         <Description>High-performance Windows Event Log query, typed projection, subscription, export, diagnostics, enrichment, and administration engine.</Description>
         <AssemblyName>EventViewerX</AssemblyName>
         <AssemblyTitle>EventViewerX</AssemblyTitle>
-        <VersionPrefix>4.0.0</VersionPrefix>
+        <VersionPrefix>4.0.1</VersionPrefix>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>

@@ -194,8 +194,7 @@ public static class EventReportEngine {
                     $"Stored row type '{row.Type}' must match exactly one homogeneous schema.",
                     nameof(rows));
             }
-            NormalizeStoredValues(row, matchingSchemas[0]);
-            EventValueNormalizationEngine.Populate(row);
+            NormalizeStoredRow(row, matchingSchemas[0]);
         }
         var sections = new List<EventReportSection>();
         foreach (EventReportSectionSchema schema in schemaSnapshot) {
@@ -311,6 +310,18 @@ public static class EventReportEngine {
                 static item => item.Value,
                 StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    /// <summary>Rehydrates one detached stored row using its persisted schema and canonical value normalization.</summary>
+    public static void NormalizeStoredRow(EventReportRow row, EventReportSectionSchema schema) {
+        if (row == null) {
+            throw new ArgumentNullException(nameof(row));
+        }
+        if (schema == null || !string.Equals(row.Type, schema.Name, StringComparison.OrdinalIgnoreCase)) {
+            throw new ArgumentException("Stored row type must match its schema.", nameof(schema));
+        }
+        NormalizeStoredValues(row, schema);
+        EventValueNormalizationEngine.Populate(row);
     }
 
     private static void NormalizeStoredValues(EventReportRow row, EventReportSectionSchema schema) {

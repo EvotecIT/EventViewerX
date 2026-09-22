@@ -327,21 +327,18 @@ presence. It does not prove each remote source's effective audit policy, so
 those checks remain `Unknown`; inspect effective policy on the source computers
 before accepting the deployment.
 
-### 3. Install and verify the compiled CLI
+### 3. Prepare for the compiled CLI release
 
-The PowerShell Gallery module does not install the `evx` command. For
-interactive use on a host with .NET 10, install the versioned .NET tool and
-verify it before continuing:
+The PowerShell Gallery module does not install the `evx` command. The
+`EventViewerX.Cli` tool package and platform ZIPs have not been published.
+Build the CLI from source for development and validate it with
+`dotnet run --project Sources/EventViewerX.Cli/EventViewerX.Cli.csproj -- version`.
+Do not schedule a production CLI task from an unavailable package or ZIP.
 
-```powershell
-dotnet tool install --global EventViewerX.Cli --version 4.0.0
-evx --version
-```
-
-A global tool is installed for the current user and may not be visible to a
-scheduled task identity. For Task Scheduler, services, or hosts without .NET
-10, deploy a release ZIP to an explicit machine path instead. Download the CLI
-ZIP and `SHA256SUMS.txt` from the matching
+A future global tool will be installed for the current user and may not be
+visible to a scheduled task identity. For Task Scheduler, services, or hosts
+without .NET 10, deploy a release ZIP to an explicit machine path after the
+CLI release. Download the CLI ZIP and `SHA256SUMS.txt` from the matching
 [EventViewerX release](https://github.com/EvotecIT/EventViewerX/releases) before
 registering a task. Choose `win-x64` for Intel/AMD Windows or `win-arm64` for
 Windows on Arm. Choose `FrameworkDependent` when the .NET 10 runtime is

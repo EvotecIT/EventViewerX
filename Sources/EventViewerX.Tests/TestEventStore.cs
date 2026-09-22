@@ -10,6 +10,46 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task StreamRowsPreservesStoredSelectionOrderAndReportsTruncation() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            await store.WriteAsync(CreateReport(
+                (new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc), 42, "alice"),
+                (new DateTime(2026, 8, 1, 2, 0, 0, DateTimeKind.Utc), 43, "bob"),
+                (new DateTime(2026, 8, 1, 3, 0, 0, DateTimeKind.Utc), 44, "bob")));
+            var query = new EventStoreQuery {
+                DefinitionNames = new[] { "StoredLogon" },
+                Predicate = EventPredicate.Compare("User", EventPredicateOperator.Equal, "bob"),
+                Oldest = true
+            };
+            var streamed = new List<EventReportRow>();
+            EventStoreRowReadResult complete = await store.StreamRowsAsync(query, (row, _) => {
+                streamed.Add(row);
+                return Task.CompletedTask;
+            });
+            EventReport report = await store.ReadReportAsync(query);
+
+            Assert.Equal(report.Rows.Select(static row => row.RecordId), streamed.Select(static row => row.RecordId));
+            Assert.Equal(report.EventsScanned, complete.EventsScanned);
+            Assert.Equal(report.Rows[0].NormalizedValues.Keys, streamed[0].NormalizedValues.Keys);
+            Assert.True(complete.IsComplete);
+            query.MaxEvents = 1;
+            streamed.Clear();
+            EventStoreRowReadResult limited = await store.StreamRowsAsync(query, (row, _) => {
+                streamed.Add(row);
+                return Task.CompletedTask;
+            });
+            Assert.Single(streamed);
+            Assert.Equal(1, limited.RowsRead);
+            Assert.True(limited.ScanLimitReached);
+            Assert.Contains("MaxEvents", limited.CompletenessDiagnostic, StringComparison.Ordinal);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
     public async Task RecordlessRowsWithDifferentSystemActivityMetadataRemainDistinct() {
         string path = CreateStorePath();
         try {
