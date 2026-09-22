@@ -50,27 +50,69 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task StreamRowsExcludesConcurrentNewDefinitionWithoutBlockingWriter() {
+    public async Task StreamRowsKeepsSnapshotDuringRetentionAndConcurrentNewDefinition() {
         string path = CreateStorePath();
         try {
             var store = new EventStore(path);
             DateTime start = new(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
             await store.WriteAsync(CreateReport(Enumerable.Range(1, 300)
-                .Select(index => (start.AddMinutes(index), (long)index, $"user-{index}"))
+                .Select(index => (start.AddMinutes(1), (long)index, $"user-{index}"))
                 .ToArray()));
+            var newestIds = new List<long?>();
+            EventStoreRowReadResult newest = await store.StreamRowsAsync(
+                new EventStoreQuery { MaxEvents = 260 },
+                (row, _) => {
+                    newestIds.Add(row.RecordId);
+                    return Task.CompletedTask;
+                });
+            Assert.Equal(Enumerable.Range(41, 260).Reverse().Select(static value => (long?)value), newestIds);
+            Assert.True(newest.ScanLimitReached);
+            Assert.Equal(261, newest.EventsScanned);
+
             int observed = 0;
+            var recordIds = new List<long?>();
             EventStoreRowReadResult result = await store.StreamRowsAsync(
                 new EventStoreQuery { Oldest = true },
-                async (_, _) => {
+                async (row, _) => {
+                    recordIds.Add(row.RecordId);
                     if (++observed == 1) {
+                        Assert.Equal(300, await store.PruneBeforeAsync(start.AddMinutes(2)));
                         await store.WriteAsync(CreateReportForDefinition(
-                            "NewStoredDefinition", (start.AddMinutes(301), 301L, "later")));
+                            "NewStoredDefinition", (start.AddMinutes(3), 301L, "later")));
                     }
                 });
 
             Assert.True(result.IsComplete);
             Assert.Equal(300, observed);
-            Assert.Equal(301, (await store.ReadReportAsync(new EventStoreQuery())).Rows.Count);
+            Assert.Equal(Enumerable.Range(1, 300).Select(static value => (long?)value), recordIds);
+            Assert.Equal("NewStoredDefinition",
+                Assert.Single((await store.ReadReportAsync(new EventStoreQuery())).Rows).Type);
+        } finally {
+            DeleteStore(path);
+        }
+    }
+
+    [Fact]
+    public async Task StreamRowsReleasesReadSnapshotAfterCancellation() {
+        string path = CreateStorePath();
+        try {
+            var store = new EventStore(path);
+            DateTime time = new(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc);
+            await store.WriteAsync(CreateReport((time, 1L, "alice")));
+            using var cancellation = new CancellationTokenSource();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.StreamRowsAsync(
+                new EventStoreQuery(),
+                (_, token) => {
+                    cancellation.Cancel();
+                    token.ThrowIfCancellationRequested();
+                    return Task.CompletedTask;
+                },
+                cancellation.Token));
+
+            Assert.Equal(1, await store.PruneBeforeAsync(time.AddMinutes(1)));
+            Assert.Equal(1, (await store.WriteAsync(CreateReportForDefinition(
+                "LaterDefinition", (time.AddMinutes(2), 2L, "later")))).Inserted);
         } finally {
             DeleteStore(path);
         }

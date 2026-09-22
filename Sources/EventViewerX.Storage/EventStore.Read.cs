@@ -298,12 +298,17 @@ public sealed partial class EventStore {
     private static QueryCommand BuildReadCommand(
         EventStoreQuery query,
         PredicatePushdownPolicy pushdown,
-        long? upperRowId = null) {
+        string? cursorTime = null,
+        long? cursorRowId = null,
+        bool includeRowId = false) {
 
         WhereCommand filter = BuildWhere(query, includePredicateNative: true, pushdown: pushdown);
-        if (upperRowId.HasValue) {
-            filter.Clauses.Add("rowid <= $streamUpperRowId");
-            filter.Parameters["$streamUpperRowId"] = upperRowId.Value;
+        if (cursorTime != null && cursorRowId.HasValue) {
+            string direction = query.Oldest ? ">" : "<";
+            filter.Clauses.Add($"(event_time_utc {direction} $streamCursorTime OR " +
+                $"(event_time_utc = $streamCursorTime AND rowid {direction} $streamCursorRowId))");
+            filter.Parameters["$streamCursorTime"] = cursorTime;
+            filter.Parameters["$streamCursorRowId"] = cursorRowId.Value;
         }
 
         bool requiresManagedFiltering = query.Predicate != null || RequiresManagedTextMatching(query);
@@ -313,8 +318,8 @@ public sealed partial class EventStore {
         string sql = @"SELECT definition_name, event_time_utc, event_id, record_id, provider,
 source_log, container_log, source_computer, collector_computer, level, level_value,
 activity_id, related_activity_id, process_id, thread_id, message, values_json, transport_kind,
-observation_identity, received_time_utc, processed_time_utc, inserted_utc
-FROM evx_events";
+observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
+            (includeRowId ? ", rowid" : string.Empty) + "\nFROM evx_events";
         if (filter.Clauses.Count > 0) {
             sql += " WHERE " + string.Join(" AND ", filter.Clauses);
         }
