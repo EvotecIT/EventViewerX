@@ -53,6 +53,7 @@ $moduleRelease = Get-Content -LiteralPath `
     ConvertFrom-Json
 if ($null -ne $moduleRelease.Tools -or
     $moduleRelease.GitHub.Publish -ne $true -or
+    [string]::IsNullOrWhiteSpace([string] $moduleRelease.GitHub.TokenFilePath) -or
     $moduleRelease.GitHub.TokenEnvName -ne 'GITHUB_TOKEN' -or
     $moduleRelease.GitHub.GenerateReleaseNotes -ne $true -or
     $moduleRelease.GitHub.TagTemplate -ne 'PSEventViewer-v{Version}') {
@@ -146,7 +147,7 @@ if (($publishOrder -join ',') -ne 'NuGet,PowerShellGallery') {
 }
 [pscustomobject] @{
     NuGetCredential = $nuGetKeyPath
-    GitHubCredential = 'GITHUB_TOKEN'
+    GitHubCredential = 'TokenFilePath or GITHUB_TOKEN'
     PowerShellGalleryCredential = $galleryKeyPath
     LocalRuntimeAndOutputExcluded = $true
     CliStagingIsolated = $true
