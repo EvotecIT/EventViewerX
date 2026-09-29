@@ -355,8 +355,7 @@
         ],
         "PublishOrder": [
           "NuGet",
-          "PowerShellGallery",
-          "GitHub"
+          "PowerShellGallery"
         ]
       }
     },
@@ -403,27 +402,6 @@
         "Verbose": false
       },
       "Type": "GalleryNuget"
-    },
-    {
-      "Configuration": {
-        "Destination": "GitHub",
-        "Tool": "Auto",
-        "ApiKey": "",
-        "Enabled": false,
-        "UserName": "EvotecIT",
-        "RepositoryName": "EventViewerX",
-        "Force": false,
-        "OverwriteTagName": "{ModuleName}-v{ModuleVersionWithPreRelease}",
-        "DoNotMarkAsPreRelease": false,
-        "GenerateReleaseNotes": true,
-        "ReuseExistingRelease": false,
-        "ReplaceExistingAssets": false,
-        "UseAsDependencyVersionSource": false,
-        "PublishRequiredModules": false,
-        "RequiredModuleSourceRepository": "PSGallery",
-        "Verbose": false
-      },
-      "Type": "GitHubNuget"
     },
     {
       "Type": "Gate",
