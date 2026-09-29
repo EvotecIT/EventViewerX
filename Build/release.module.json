@@ -38,5 +38,18 @@
         "TimeoutSeconds": 1800
       }
     ]
+  },
+  "GitHub": {
+    "Publish": true,
+    "VersionSource": "Module",
+    "Owner": "EvotecIT",
+    "Repository": "EventViewerX",
+    "TokenEnvName": "GITHUB_TOKEN",
+    "GenerateReleaseNotes": true,
+    "IsPreRelease": false,
+    "ReuseExistingRelease": false,
+    "ReplaceExistingAssets": false,
+    "TagTemplate": "PSEventViewer-v{Version}",
+    "ReleaseNameTemplate": "EventViewerX / PSEventViewer {Version}"
   }
 }

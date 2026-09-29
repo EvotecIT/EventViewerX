@@ -51,8 +51,12 @@ if (@($release.Module.ArtifactPaths | Where-Object { $_ -like '*EventViewerX.Cli
 $moduleRelease = Get-Content -LiteralPath `
     (Join-Path $RepositoryRoot 'Build\release.module.json') -Raw |
     ConvertFrom-Json
-if ($null -ne $moduleRelease.Tools -or $null -ne $moduleRelease.GitHub) {
-    throw 'The module release must not include CLI tools or a unified GitHub release.'
+if ($null -ne $moduleRelease.Tools -or
+    $moduleRelease.GitHub.Publish -ne $true -or
+    $moduleRelease.GitHub.TokenEnvName -ne 'GITHUB_TOKEN' -or
+    $moduleRelease.GitHub.GenerateReleaseNotes -ne $true -or
+    $moduleRelease.GitHub.TagTemplate -ne 'PSEventViewer-v{Version}') {
+    throw 'The module release must publish signed artifacts to GitHub with generated notes and no CLI tools.'
 }
 if ($moduleRelease.Module.IncludesPackages -ne $true -or
     [string] $moduleRelease.Module.ConfigPath -ne 'Build/module.json') {
@@ -132,13 +136,14 @@ if ([System.IO.Path]::IsPathRooted($galleryKeyPath) -or
 [array] $legacyGitHubSegments = @($moduleBuild.Segments | Where-Object {
     $_.Type -eq 'GitHubNuget'
 })
-if (@($legacyGitHubSegments | Where-Object {
-    $_.Configuration.Enabled -eq $true -or
-    -not [string]::IsNullOrWhiteSpace([string] $_.Configuration.ApiKeyFilePath)
-}).Count -ne 0) {
-    throw 'The legacy module GitHub lane must stay disabled and must not declare a token-file path.'
+if ($legacyGitHubSegments.Count -ne 0) {
+    throw 'The legacy module GitHub lane must be absent; the release coordinator owns GitHub publication.'
 }
-
+[array] $publishOrder = @($moduleBuild.Segments | Where-Object { $_.Type -eq 'Release' } |
+    ForEach-Object { $_.Configuration.PublishOrder })
+if (($publishOrder -join ',') -ne 'NuGet,PowerShellGallery') {
+    throw 'The module pipeline must publish only to NuGet and PowerShell Gallery.'
+}
 [pscustomobject] @{
     NuGetCredential = $nuGetKeyPath
     GitHubCredential = 'GITHUB_TOKEN'

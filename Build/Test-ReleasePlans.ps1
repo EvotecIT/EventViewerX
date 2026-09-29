@@ -18,8 +18,8 @@ if (@($modulePlan.ModuleAssets | Where-Object { $_ -like '*EventViewerX.Cli.*.nu
     throw 'The module/package release plan must exclude the EventViewerX.Cli .NET tool package.'
 }
 if ($null -ne $modulePlan.DotNetToolPlan -or
-    $modulePlan.ModulePlan.UnifiedGitHubRelease -eq $true) {
-    throw 'The module/package release plan must exclude standalone CLI and unified GitHub publication.'
+    $modulePlan.ModulePlan.UnifiedGitHubRelease -ne $true) {
+    throw 'The module/package release plan must include GitHub publication without standalone CLI assets.'
 }
 
 $fullPlan = & $buildAllPath -RunMode Plan

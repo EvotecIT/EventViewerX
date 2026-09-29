@@ -18,4 +18,29 @@ if ($RunMode -eq 'Plan') {
     $invokeSplat.Plan = $true
 }
 
-Invoke-PowerForgeRelease @invokeSplat
+$originalGitHubToken = $env:GITHUB_TOKEN
+$injectedGitHubToken = $false
+try {
+    if ($RunMode -eq 'Publish' -and [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+        $token = $env:GH_TOKEN
+        if ([string]::IsNullOrWhiteSpace($token) -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+            $token = & gh auth token 2>$null
+            if ($LASTEXITCODE -ne 0) { $token = $null }
+        }
+        if ([string]::IsNullOrWhiteSpace($token)) {
+            throw 'GitHub release publishing requires GITHUB_TOKEN, GH_TOKEN, or an authenticated gh CLI.'
+        }
+        $env:GITHUB_TOKEN = $token.Trim()
+        $injectedGitHubToken = $true
+    }
+
+    Invoke-PowerForgeRelease @invokeSplat
+} finally {
+    if ($injectedGitHubToken) {
+        if ($null -eq $originalGitHubToken) {
+            Remove-Item Env:GITHUB_TOKEN -ErrorAction SilentlyContinue
+        } else {
+            $env:GITHUB_TOKEN = $originalGitHubToken
+        }
+    }
+}

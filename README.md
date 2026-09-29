@@ -2,8 +2,8 @@
 
 High-performance Windows Event Log tooling for .NET and PowerShell.
 
-> **Release state:** PSEventViewer 4.0.0 is available on PowerShell Gallery,
-> and the five EventViewerX 4.0.0 libraries are available on NuGet. The
+> **Release state:** PSEventViewer 4.0.1 is available on PowerShell Gallery,
+> and the five EventViewerX 4.0.1 libraries are available on NuGet. The
 > `EventViewerX.Cli` .NET tool and platform ZIPs have not been published.
 > CLI examples below describe the source-built command until that release lane
 > is available.
@@ -1196,7 +1196,8 @@ Install or update PSPublishModule to the latest version before running the relea
 .\Build\Build-Module.ps1 -RunMode Build
 
 # Resolve the configured 4.0.X version, publish the EventViewerX libraries to
-# NuGet, and publish PSEventViewer to PowerShell Gallery.
+# NuGet and PSEventViewer to PowerShell Gallery, then create a GitHub release
+# with the signed packages, module archive, and generated release notes.
 .\Build\Build-Module.ps1 -RunMode Publish
 
 # Build the standalone CLI archives locally. This command does not upload them.
