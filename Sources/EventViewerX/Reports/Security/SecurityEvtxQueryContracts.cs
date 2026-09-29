@@ -7,7 +7,7 @@ namespace EventViewerX.Reports.Security;
 /// <summary>
 /// Common EVTX security report request.
 /// </summary>
-internal sealed class SecurityEvtxQueryRequest {
+public sealed class SecurityEvtxQueryRequest {
     /// <summary>
     /// EVTX file path.
     /// </summary>
@@ -47,7 +47,7 @@ internal sealed class SecurityEvtxQueryRequest {
 /// <summary>
 /// EVTX user-logons report query result.
 /// </summary>
-internal sealed class SecurityUserLogonsQueryResult {
+public sealed class SecurityUserLogonsQueryResult {
     /// <summary>
     /// Queried EVTX path.
     /// </summary>
@@ -162,7 +162,7 @@ internal sealed class SecurityUserLogonsQueryResult {
 /// <summary>
 /// EVTX failed-logons report query result.
 /// </summary>
-internal sealed class SecurityFailedLogonsQueryResult {
+public sealed class SecurityFailedLogonsQueryResult {
     /// <summary>
     /// Queried EVTX path.
     /// </summary>
@@ -297,7 +297,7 @@ internal sealed class SecurityFailedLogonsQueryResult {
 /// <summary>
 /// EVTX account-lockouts report query result.
 /// </summary>
-internal sealed class SecurityAccountLockoutsQueryResult {
+public sealed class SecurityAccountLockoutsQueryResult {
     /// <summary>
     /// Queried EVTX path.
     /// </summary>

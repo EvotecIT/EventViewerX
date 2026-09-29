@@ -5,7 +5,7 @@ namespace EventViewerX.Reports.Stats;
 /// <summary>
 /// Aggregated event counts for a single event level.
 /// </summary>
-internal sealed class EvtxLevelStats {
+public sealed class EvtxLevelStats {
     /// <summary>
     /// Creates a new level stats row.
     /// </summary>

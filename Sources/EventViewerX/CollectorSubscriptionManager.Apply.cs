@@ -24,6 +24,32 @@ public static partial class CollectorSubscriptionManager {
             cancellationToken);
     }
 
+    /// <summary>
+    /// Applies a validated local WEC subscription XML document and verifies its persisted state.
+    /// The document must identify the same subscription as <paramref name="name"/>.
+    /// </summary>
+    public static CollectorSubscriptionSnapshot ApplyCollectorSubscriptionXml(
+        string name,
+        string xml,
+        CancellationToken cancellationToken = default) {
+
+        if (string.IsNullOrWhiteSpace(name)) {
+            throw new ArgumentException("Subscription name cannot be empty.", nameof(name));
+        }
+        if (!CollectorSubscriptionXml.TryNormalize(xml, out CollectorSubscriptionXmlDetails? details, out string? error)) {
+            throw new ArgumentException(error ?? "Invalid collector subscription XML.", nameof(xml));
+        }
+        if (!string.Equals(details!.SubscriptionId, name.Trim(), StringComparison.OrdinalIgnoreCase)) {
+            throw new ArgumentException("Subscription XML must identify the requested subscription.", nameof(xml));
+        }
+        return ApplyCollectorSubscriptionXmlCore(
+            name.Trim(),
+            details.NormalizedXml,
+            static subscriptionName => GetCollectorSubscriptionSnapshot(subscriptionName),
+            RunWecUtil,
+            cancellationToken);
+    }
+
     internal static CollectorSubscriptionSnapshot ApplyCollectorSubscription(
         CollectorSubscriptionDefinition definition,
         Func<string, CollectorSubscriptionSnapshot?> snapshotResolver,
@@ -39,8 +65,21 @@ public static partial class CollectorSubscriptionManager {
         if (wecUtilRunner == null) {
             throw new ArgumentNullException(nameof(wecUtilRunner));
         }
-        string xml = definition.ToXml();
-        string name = definition.SubscriptionId.Trim();
+        return ApplyCollectorSubscriptionXmlCore(
+            definition.SubscriptionId.Trim(),
+            definition.ToXml(),
+            snapshotResolver,
+            wecUtilRunner,
+            cancellationToken);
+    }
+
+    private static CollectorSubscriptionSnapshot ApplyCollectorSubscriptionXmlCore(
+        string name,
+        string xml,
+        Func<string, CollectorSubscriptionSnapshot?> snapshotResolver,
+        Func<IReadOnlyList<string>, CancellationToken, string> wecUtilRunner,
+        CancellationToken cancellationToken) {
+
         bool exists = snapshotResolver(name) != null;
         string? previousXml = exists
             ? wecUtilRunner(new[] { "gs", name, "/f:xml" }, cancellationToken)
@@ -64,6 +103,22 @@ public static partial class CollectorSubscriptionManager {
                     throw new InvalidOperationException(
                         $"Collector subscription '{name}' did not retain the requested definition.");
                 }
+                CollectorSubscriptionSnapshot snapshot =
+                    snapshotResolver(name) ??
+                    throw new InvalidOperationException(
+                        $"Windows reported success but collector subscription '{name}' could not be read back.");
+                if (CollectorSubscriptionXml.TryNormalize(
+                        persistedXml,
+                        out CollectorSubscriptionXmlDetails? details,
+                        out _)) {
+                    snapshot.RawXml = details!.NormalizedXml;
+                    snapshot.HasXml = true;
+                    snapshot.Description = details.Description;
+                    snapshot.DestinationLog = details.DestinationLog;
+                    snapshot.Queries = details.Queries;
+                    snapshot.QueryCount = details.Queries.Count;
+                }
+                return snapshot;
             } catch (Exception applyException) {
                 Exception? rollbackException = TryRestoreSubscription(
                     name,
@@ -92,22 +147,6 @@ public static partial class CollectorSubscriptionManager {
             }
         }
 
-        CollectorSubscriptionSnapshot snapshot =
-            snapshotResolver(name) ??
-            throw new InvalidOperationException(
-                $"Windows reported success but collector subscription '{name}' could not be read back.");
-        if (CollectorSubscriptionXml.TryNormalize(
-                persistedXml!,
-                out CollectorSubscriptionXmlDetails? details,
-                out _)) {
-            snapshot.RawXml = details!.NormalizedXml;
-            snapshot.HasXml = true;
-            snapshot.Description = details.Description;
-            snapshot.DestinationLog = details.DestinationLog;
-            snapshot.Queries = details.Queries;
-            snapshot.QueryCount = details.Queries.Count;
-        }
-        return snapshot;
     }
 
     /// <summary>Writes a typed WEC definition to a UTF-8 XML file.</summary>

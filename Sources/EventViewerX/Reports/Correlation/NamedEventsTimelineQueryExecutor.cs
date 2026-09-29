@@ -574,6 +574,9 @@ internal static partial class NamedEventsTimelineQueryExecutor {
     }
 
     private static string ResolveTypeName(EventTypeRecord item) {
+        if (item is IEventRule rule) {
+            return ToSnakeCase(rule.Type.ToString());
+        }
         return Enum.TryParse<EventType>(item.TypeName, out var parsedNamedEvent)
             ? ToSnakeCase(parsedNamedEvent.ToString())
             : ToSnakeCase(item.TypeName);

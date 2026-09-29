@@ -5,7 +5,7 @@ namespace EventViewerX.Reports;
 /// <summary>
 /// Generic key/count row used by report aggregates for top-N result shaping.
 /// </summary>
-internal sealed class ReportTopRow {
+public sealed class ReportTopRow {
     /// <summary>
     /// Aggregate key payload (for example: <c>{ "user": "alice" }</c>).
     /// </summary>

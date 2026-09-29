@@ -3,7 +3,7 @@ namespace EventViewerX.Reports.Evtx;
 /// <summary>
 /// Canonical error kind produced by EVTX query execution.
 /// </summary>
-internal enum EvtxQueryFailureKind {
+public enum EvtxQueryFailureKind {
     /// <summary>Invalid request arguments.</summary>
     InvalidArgument,
     /// <summary>Target EVTX file was not found.</summary>
@@ -19,7 +19,7 @@ internal enum EvtxQueryFailureKind {
 /// <summary>
 /// Failure payload produced by EVTX query execution.
 /// </summary>
-internal sealed class EvtxQueryFailure {
+public sealed class EvtxQueryFailure {
     /// <summary>
     /// Gets or sets failure kind.
     /// </summary>

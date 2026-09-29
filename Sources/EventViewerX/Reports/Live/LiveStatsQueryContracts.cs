@@ -7,7 +7,7 @@ namespace EventViewerX.Reports.Live;
 /// <summary>
 /// Query contract for aggregating live event log statistics.
 /// </summary>
-internal sealed class LiveStatsQueryRequest {
+public sealed class LiveStatsQueryRequest {
     /// <summary>
     /// Log name (for example <c>Security</c>, <c>System</c>, <c>Application</c>).
     /// </summary>
@@ -73,7 +73,7 @@ internal sealed class LiveStatsQueryRequest {
 /// <summary>
 /// Canonical failure kinds produced by live stats queries.
 /// </summary>
-internal enum LiveStatsQueryFailureKind {
+public enum LiveStatsQueryFailureKind {
     /// <summary>
     /// Invalid request arguments.
     /// </summary>
@@ -107,7 +107,7 @@ internal enum LiveStatsQueryFailureKind {
 /// <summary>
 /// Failure payload produced by live stats queries.
 /// </summary>
-internal sealed class LiveStatsQueryFailure {
+public sealed class LiveStatsQueryFailure {
     /// <summary>
     /// Gets or sets failure kind.
     /// </summary>
@@ -122,7 +122,7 @@ internal sealed class LiveStatsQueryFailure {
 /// <summary>
 /// Top event ID count row.
 /// </summary>
-internal sealed class TopEventIdRow {
+public sealed class TopEventIdRow {
     /// <summary>
     /// Event ID.
     /// </summary>
@@ -137,7 +137,7 @@ internal sealed class TopEventIdRow {
 /// <summary>
 /// Top provider count row.
 /// </summary>
-internal sealed class TopProviderRow {
+public sealed class TopProviderRow {
     /// <summary>
     /// Provider name.
     /// </summary>
@@ -152,7 +152,7 @@ internal sealed class TopProviderRow {
 /// <summary>
 /// Top computer count row.
 /// </summary>
-internal sealed class TopComputerRow {
+public sealed class TopComputerRow {
     /// <summary>
     /// Computer name.
     /// </summary>
@@ -167,7 +167,7 @@ internal sealed class TopComputerRow {
 /// <summary>
 /// Query result for live stats reads.
 /// </summary>
-internal sealed class LiveStatsQueryResult {
+public sealed class LiveStatsQueryResult {
     /// <summary>
     /// Effective machine queried. The local machine name is used when no remote target was supplied.
     /// </summary>

@@ -5,16 +5,19 @@ namespace EventViewerX.Tests;
 
 public class TestPublicApiBoundary {
     [Fact]
-    public void ReportingImplementation_IsNotExported() {
-        string[] exportedReportingTypes = typeof(EventLogEngine)
+    public void ReportingExecutorsRemainInternalWhileQueryFacadesAreExported() {
+        Type[] exportedReportingTypes = typeof(EventLogEngine)
             .Assembly
             .GetExportedTypes()
             .Where(type => type.Namespace?.StartsWith("EventViewerX.Reports", StringComparison.Ordinal) == true)
-            .Select(type => type.FullName ?? type.Name)
-            .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(exportedReportingTypes);
+        Assert.Contains(typeof(EventViewerX.Reports.Live.LiveEventReportEngine), exportedReportingTypes);
+        Assert.Contains(typeof(EventViewerX.Reports.Inventory.EventCatalogReportEngine), exportedReportingTypes);
+        Assert.Contains(typeof(EventViewerX.Reports.Stats.EvtxStatisticsEngine), exportedReportingTypes);
+        Assert.Contains(typeof(EventViewerX.Reports.Security.SecurityEvtxSummaryEngine), exportedReportingTypes);
+        Assert.Contains(typeof(EventViewerX.Reports.Correlation.EventTypeCorrelationEngine), exportedReportingTypes);
+        Assert.DoesNotContain(exportedReportingTypes, type => type.Name.EndsWith("Executor", StringComparison.Ordinal));
     }
 
     [Fact]
