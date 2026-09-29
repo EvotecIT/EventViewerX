@@ -105,7 +105,7 @@ public class TestEvtxQueryExecutor {
             };
 
         bool success =
-            EvtxStatsQueryExecutor.TryBuild(
+            EvtxStatisticsEngine.TryQuery(
                 request,
                 out _,
                 out EvtxQueryFailure? failure);

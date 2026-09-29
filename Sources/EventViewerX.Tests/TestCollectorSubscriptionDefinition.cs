@@ -5,6 +5,18 @@ namespace EventViewerX.Tests;
 
 public class TestCollectorSubscriptionDefinition {
     [Fact]
+    public void RawXmlApplyRejectsDifferentSubscriptionBeforeWrite() {
+        CollectorSubscriptionDefinition definition = CreateDefinition("OwnedSubscription");
+        string xml = definition.ToXml();
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            CollectorSubscriptionManager.ApplyCollectorSubscriptionXml(
+                "OtherSubscription", xml));
+
+        Assert.Contains("identify the requested subscription", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CollectorReadinessDoesNotInventStateFindingsAfterInspectionErrors() {
         IReadOnlyList<string> issues =
             CollectorSubscriptionManager.GetConfirmedReadinessIssues(
@@ -533,6 +545,35 @@ public class TestCollectorSubscriptionDefinition {
             "state is unknown",
             exception.Message,
             StringComparison.Ordinal);
+        Assert.Equal(1, deleteCount);
+    }
+
+    [Fact]
+    public void ApplyRollsBackWhenFinalSnapshotIsNotVisible() {
+        CollectorSubscriptionDefinition definition = CreateDefinition("CreateSnapshotMissing");
+        string persisted = definition.ToXml();
+        int deleteCount = 0;
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            CollectorSubscriptionManager.ApplyCollectorSubscription(
+                definition,
+                _ => null,
+                (arguments, _) => {
+                    switch (arguments[0]) {
+                        case "cs":
+                            return string.Empty;
+                        case "gs":
+                            return persisted;
+                        case "ds":
+                            deleteCount++;
+                            return string.Empty;
+                        default:
+                            throw new InvalidOperationException("Unexpected WEC operation.");
+                    }
+                },
+                CancellationToken.None));
+
+        Assert.Contains("could not be read back", exception.Message, StringComparison.Ordinal);
         Assert.Equal(1, deleteCount);
     }
 

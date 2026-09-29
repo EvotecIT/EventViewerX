@@ -7,7 +7,7 @@ namespace EventViewerX.Tests;
 public class TestNamedEventsTimelineQueryExecutor {
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenNamedEventsMissing() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest());
 
         Assert.Null(result);
@@ -18,7 +18,7 @@ public class TestNamedEventsTimelineQueryExecutor {
 
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenTimeRangeInvalid() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest {
                 EventType = new[] { EventType.ADUserLogon },
                 StartTimeUtc = new DateTime(2026, 2, 20, 11, 0, 0, DateTimeKind.Utc),
@@ -33,7 +33,7 @@ public class TestNamedEventsTimelineQueryExecutor {
 
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenTimePeriodCombinedWithRange() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest {
                 EventType = new[] { EventType.ADUserLogon },
                 TimePeriod = TimePeriod.Last1Hour,
@@ -48,7 +48,7 @@ public class TestNamedEventsTimelineQueryExecutor {
 
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenCorrelationKeyInvalid() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest {
                 EventType = new[] { EventType.ADUserLogon },
                 CorrelationKeys = new[] { "invalid_dimension" }
@@ -62,7 +62,7 @@ public class TestNamedEventsTimelineQueryExecutor {
 
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenEventIdsContainNonPositiveValues() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest {
                 EventType = new[] { EventType.ADUserLogon },
                 EventIds = new[] { 4624, 0 }
@@ -76,7 +76,7 @@ public class TestNamedEventsTimelineQueryExecutor {
 
     [Fact]
     public async Task TryBuildAsync_ShouldFailWhenCandidateScanLimitIsNegative() {
-        var (result, failure) = await NamedEventsTimelineQueryExecutor.TryBuildAsync(
+        var (result, failure) = await EventTypeCorrelationEngine.TryQueryAsync(
             new NamedEventsTimelineQueryRequest {
                 EventType = new[] { EventType.ADUserLogon },
                 MaxEventsScanned = -1
@@ -95,6 +95,16 @@ public class TestNamedEventsTimelineQueryExecutor {
         Assert.True(parsed);
         Assert.Equal(DateTimeKind.Utc, utc.Kind);
         Assert.Equal(new DateTime(2026, 2, 20, 12, 34, 56, DateTimeKind.Utc), utc);
+    }
+
+    [Fact]
+    public void TimelineUsesCanonicalRuleIdentityWhenTypeNameIsLegacyAlias() {
+        var rule = (AliasStatusRule)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(AliasStatusRule));
+        rule.SetTypeName("ADUsersStatus");
+        MethodInfo method = typeof(NamedEventsTimelineQueryExecutor).GetMethod(
+            "ResolveTypeName", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        Assert.Equal("ad_user_status", method.Invoke(null, new object[] { rule }));
     }
 
     [Fact]
@@ -215,5 +225,14 @@ public class TestNamedEventsTimelineQueryExecutor {
 
         public string Who => "alice";
         public EventObject? DuplicateEvent => null;
+    }
+
+    private sealed class AliasStatusRule : EventRuleBase {
+        private AliasStatusRule(EventObject source) : base(source) { }
+        public override List<int> EventIds => new() { 4722 };
+        public override string LogName => "Security";
+        public override EventType Type => EventType.ADUserStatus;
+        public override bool CanHandle(EventObject source) => true;
+        public void SetTypeName(string name) => TypeName = name;
     }
 }

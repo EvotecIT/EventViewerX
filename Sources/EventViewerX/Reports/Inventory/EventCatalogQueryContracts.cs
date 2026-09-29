@@ -5,7 +5,7 @@ namespace EventViewerX.Reports.Inventory;
 /// <summary>
 /// Shared request for event log catalog queries.
 /// </summary>
-internal sealed class EventCatalogQueryRequest {
+public sealed class EventCatalogQueryRequest {
     /// <summary>
     /// Optional target machine name. When null/empty, local machine is used.
     /// </summary>
@@ -30,7 +30,7 @@ internal sealed class EventCatalogQueryRequest {
 /// <summary>
 /// Canonical error kinds produced by event catalog queries.
 /// </summary>
-internal enum EventCatalogFailureKind {
+public enum EventCatalogFailureKind {
     /// <summary>
     /// Invalid request arguments.
     /// </summary>
@@ -60,7 +60,7 @@ internal enum EventCatalogFailureKind {
 /// <summary>
 /// Failure payload produced by event catalog queries.
 /// </summary>
-internal sealed class EventCatalogFailure {
+public sealed class EventCatalogFailure {
     /// <summary>
     /// Gets or sets failure kind.
     /// </summary>
@@ -75,7 +75,7 @@ internal sealed class EventCatalogFailure {
 /// <summary>
 /// Event log channel row.
 /// </summary>
-internal sealed class EventChannelRow {
+public sealed class EventChannelRow {
     /// <summary>
     /// Channel name.
     /// </summary>
@@ -85,7 +85,7 @@ internal sealed class EventChannelRow {
 /// <summary>
 /// Event provider row.
 /// </summary>
-internal sealed class EventProviderRow {
+public sealed class EventProviderRow {
     /// <summary>
     /// Provider name.
     /// </summary>
@@ -95,7 +95,7 @@ internal sealed class EventProviderRow {
 /// <summary>
 /// Query result for channel listing.
 /// </summary>
-internal sealed class EventChannelListResult {
+public sealed class EventChannelListResult {
     /// <summary>
     /// Returned channel count.
     /// </summary>
@@ -115,7 +115,7 @@ internal sealed class EventChannelListResult {
 /// <summary>
 /// Query result for provider listing.
 /// </summary>
-internal sealed class EventProviderListResult {
+public sealed class EventProviderListResult {
     /// <summary>
     /// Returned provider count.
     /// </summary>

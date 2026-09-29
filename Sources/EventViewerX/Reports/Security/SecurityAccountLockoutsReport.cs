@@ -36,7 +36,7 @@ internal sealed class SecurityAccountLockoutsReport {
 /// <summary>
 /// Sample row for a single 4740 event.
 /// </summary>
-internal sealed class SecurityAccountLockoutSample {
+public sealed class SecurityAccountLockoutSample {
     /// <summary>Event time (UTC), or null when the source record has no timestamp.</summary>
     public DateTime? TimeCreatedUtc { get; set; }
     /// <summary>Event ID (typically 4740).</summary>

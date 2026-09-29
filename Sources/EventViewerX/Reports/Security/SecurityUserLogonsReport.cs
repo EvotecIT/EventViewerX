@@ -43,7 +43,7 @@ internal sealed class SecurityUserLogonsReport {
 /// <summary>
 /// Sample row for a single logon-related event.
 /// </summary>
-internal sealed class SecurityUserLogonSample {
+public sealed class SecurityUserLogonSample {
     /// <summary>Event time (UTC), or null when the source record has no timestamp.</summary>
     public DateTime? TimeCreatedUtc { get; set; }
     /// <summary>Event ID.</summary>

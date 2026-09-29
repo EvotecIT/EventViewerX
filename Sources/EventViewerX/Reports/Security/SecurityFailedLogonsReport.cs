@@ -48,7 +48,7 @@ internal sealed class SecurityFailedLogonsReport {
 /// <summary>
 /// Sample row for a single 4625 event.
 /// </summary>
-internal sealed class SecurityFailedLogonSample {
+public sealed class SecurityFailedLogonSample {
     /// <summary>Event time (UTC), or null when the source record has no timestamp.</summary>
     public DateTime? TimeCreatedUtc { get; set; }
     /// <summary>Event ID (typically 4625).</summary>
