@@ -81,6 +81,9 @@ public partial class EventObject {
     /// <summary>Security identifier associated with the event.</summary>
     public SecurityIdentifier? UserId { get; }
 
+    /// <summary>Security identifier text, available on every supported platform.</summary>
+    public string? UserIdText { get; }
+
     /// <summary>
     /// Bookmark that can be used to resume a query. Metadata-only snapshots omit bookmarks to preserve
     /// the low-allocation path; set IncludeBookmark on the query when a native bookmark is required.
@@ -269,6 +272,7 @@ public partial class EventObject {
             RelatedActivityId = eventRecord.RelatedActivityId;
             ActivityId = eventRecord.ActivityId;
             UserId = eventRecord.UserId;
+            UserIdText = UserId?.Value;
             Bookmark = includeBookmark
                 ? eventRecord.Bookmark
                 : null;

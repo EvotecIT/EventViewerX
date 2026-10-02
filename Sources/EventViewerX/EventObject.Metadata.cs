@@ -99,6 +99,7 @@ public partial class EventObject {
         ActivityId = ToGuid(values[14]);
         RelatedActivityId = ToGuid(values[15]);
         UserId = values[16] as SecurityIdentifier;
+        UserIdText = UserId?.Value;
         Version = ToByte(values[17]);
         Bookmark = bookmark;
         Properties = Array.Empty<EventPropertyValue>();
@@ -312,6 +313,7 @@ public partial class EventObject {
         ActivityId = metadata.ActivityId;
         RelatedActivityId = metadata.RelatedActivityId;
         UserId = metadata.UserId;
+        UserIdText = metadata.UserIdText;
         Version = metadata.Version;
         Bookmark = bookmark;
         Properties = properties;

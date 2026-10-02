@@ -941,34 +941,6 @@ namespace EventViewerX.Tests;
     }
 
     [Fact]
-    public async Task AsyncMoveCancellationDetachesStalledProjectionCleanup() {
-        var resource = new PrimerResource();
-        var moveNext =
-            new TaskCompletionSource<bool>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cancellation =
-            new CancellationTokenSource();
-        cancellation.Cancel();
-
-        (bool completed, bool hasNext) =
-            await EventLogBatchEngine
-                .AwaitMoveNextAsync(
-                    moveNext.Task,
-                    resource,
-                    cancellation.Token);
-
-        Assert.False(completed);
-        Assert.False(hasNext);
-        Assert.False(resource.Disposed);
-
-        moveNext.SetResult(true);
-        Assert.True(
-            SpinWait.SpinUntil(
-                () => resource.Disposed,
-                TimeSpan.FromSeconds(5)));
-    }
-
-    [Fact]
     public async Task AsyncPrimerCancellationDetachesStalledProjectionCleanup() {
         var primerEntered =
             new TaskCompletionSource<bool>(

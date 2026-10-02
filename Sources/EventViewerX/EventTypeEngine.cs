@@ -37,11 +37,7 @@ public static partial class EventTypeEngine {
             EventTypeCatalog.CompileProjectionPlan(query.Types);
         IReadOnlyList<EventType> resolvedTypes =
             projectionPlan.ExpandedTypes;
-        EventPredicate? exactPredicate = query.Predicate == null
-            ? null
-            : EventPredicateBuilder
-                .ForTypes(resolvedTypes)
-                .Normalize(query.Predicate);
+        EventPredicatePlan? predicatePlan = CreateQueryPredicatePlan(query, resolvedTypes);
         IReadOnlyList<EventSourceDefinition> eventSources =
             RestrictSources(
                 EventTypeCatalog.GetSources(
@@ -53,14 +49,6 @@ public static partial class EventTypeEngine {
             yield break;
         }
 
-        bool managedOnlyPredicate = !string.IsNullOrWhiteSpace(query.CollectorLogName);
-        EventPredicatePlan? predicatePlan = exactPredicate == null
-            ? null
-            : managedOnlyPredicate
-                ? EventPredicatePlanner.PlanManagedOnly(
-                    exactPredicate,
-                    "ForwardedEvents uses the Windows Server 2025 safe '*' reader, so typed filtering is bounded and managed.")
-                : EventPredicatePlanner.Plan(exactPredicate);
         info.PredicatePlan = predicatePlan;
         Func<EventTypeRecord, bool>? typedPredicate = predicatePlan?.ManagedPredicate == null
             ? null

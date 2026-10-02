@@ -63,11 +63,14 @@ public sealed partial class CmdletGetEVXEvent {
             ContinueOnRemoteFailure = ContinueOnError.IsPresent || (targets?.Count ?? 0) > 1
         };
         var execution = new GroupPolicyAuditQueryExecutionInfo();
+        if (ExecutionInfo != null) {
+            ExecutionInfo.Value = execution;
+        }
         await foreach (GroupPolicyAuditRecord record in GroupPolicyAuditEngine.ReadAsync(
                            query,
                            execution,
                            CancelToken)) {
-            WriteObject(record);
+            WriteObjectWithBackpressure(record);
         }
         WriteNamedTargetFailures(execution.TargetFailures);
     }

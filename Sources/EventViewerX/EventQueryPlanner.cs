@@ -2,6 +2,24 @@ namespace EventViewerX;
 
 /// <summary>Resolves high-level event sources and builds one native, bounded query batch.</summary>
 public static class EventQueryPlanner {
+    /// <summary>Resolves and explains every source and native partition without reading events.</summary>
+    public static EventQueryExplanation Explain(EventQueryDefinition definition,
+        CancellationToken cancellationToken = default) => Explain(CreateBatch(definition, cancellationToken));
+
+    /// <summary>Explains an already resolved batch and any managed stages supplied by its consumer.</summary>
+    public static EventQueryExplanation Explain(EventLogBatchQuery batch,
+        IEnumerable<string>? managedStages = null, long candidateLimit = 0, long? resultLimit = null) {
+        if (batch == null) {
+            throw new ArgumentNullException(nameof(batch));
+        }
+        EventLogBatchQuery resolved = EventLogBatchConsolidator.Consolidate(batch);
+        if (candidateLimit < 0 || resultLimit < 0) {
+            throw new ArgumentOutOfRangeException(candidateLimit < 0 ? nameof(candidateLimit) : nameof(resultLimit));
+        }
+        return new EventQueryExplanation(resolved, (managedStages ?? Array.Empty<string>()).ToArray(),
+            candidateLimit: candidateLimit, resultLimit: resultLimit);
+    }
+
     /// <summary>Builds a reusable native query batch from a high-level definition.</summary>
     public static EventLogBatchQuery CreateBatch(
         EventQueryDefinition definition,

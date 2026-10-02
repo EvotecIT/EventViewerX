@@ -10,10 +10,17 @@ public sealed partial class EventStore {
     /// Keyset pages hold only a bounded number of rows on every supported target.
     /// The caller receives a completion summary only after every delivered row has been handled.
     /// </summary>
-    public async Task<EventStoreRowReadResult> StreamRowsAsync(
+    public Task<EventStoreRowReadResult> StreamRowsAsync(
         EventStoreQuery query,
         Func<EventReportRow, CancellationToken, Task> onRow,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken = default) =>
+        StreamRowsCoreAsync(query, onRow, onSchemas: null, cancellationToken);
+
+    private async Task<EventStoreRowReadResult> StreamRowsCoreAsync(
+        EventStoreQuery query,
+        Func<EventReportRow, CancellationToken, Task> onRow,
+        Action<IReadOnlyList<EventReportSectionSchema>>? onSchemas,
+        CancellationToken cancellationToken) {
 
         if (query == null) {
             throw new ArgumentNullException(nameof(query));
@@ -40,6 +47,10 @@ public sealed partial class EventStore {
                 snapshot.DefinitionSchemas,
                 cancellationToken).ConfigureAwait(false);
             snapshot.Predicate = NormalizeStoredPredicate(snapshot.Predicate, schemaContext.Schemas);
+            Func<IReadOnlyDictionary<string, object?>, bool>? matches = snapshot.Predicate == null
+                ? null
+                : EventPredicateEvaluator.CompileFields(snapshot.Predicate);
+            onSchemas?.Invoke(schemaContext.Schemas);
             int candidateLimit = BuildReadCommand(snapshot, schemaContext.Pushdown).CandidateLimit;
             long scanned = 0;
             long delivered = 0;
@@ -57,7 +68,7 @@ public sealed partial class EventStore {
                 IReadOnlyList<(EventReportRow Row, string CursorTime, long CursorRowId)> page =
                     await session.QueryAsListAsync(
                         command.Sql + " LIMIT $pageLimit;",
-                        record => (MapEventRow(record, schemaContext.ByName),
+                        record => (MapEventRow(record, schemaContext),
                             record.GetString(1), record.GetInt64(22)),
                         parameters,
                         cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -87,8 +98,7 @@ public sealed partial class EventStore {
                 }
                 scanned++;
                 if (!MatchesDirectTextSelection(snapshot, row) ||
-                    snapshot.Predicate != null &&
-                    !EventPredicateEvaluator.Matches(snapshot.Predicate, row.ToPredicateDictionary())) {
+                    matches != null && !matches(row.ToPredicateDictionary())) {
                     return true;
                 }
                 if (snapshot.MaxEvents > 0 && delivered >= snapshot.MaxEvents) {

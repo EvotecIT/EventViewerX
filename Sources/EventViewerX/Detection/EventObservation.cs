@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Linq.Expressions;
 using System.Reflection;
 
 namespace EventViewerX;
@@ -216,18 +215,8 @@ public sealed class EventObservation {
                 !string.Equals(property.Name, nameof(EventTypeRecord.Message), StringComparison.Ordinal));
         IEnumerable<MemberInfo> fields = type.GetFields(flags);
         return properties.Concat(fields)
-            .Select(member => new TypedMemberAccessor(member.Name, CreateTypedMemberGetter(type, member)))
+            .Select(member => new TypedMemberAccessor(member.Name, EventMemberAccessor.CreateGetter<EventTypeRecord>(member)))
             .ToArray();
-    }
-
-    private static Func<EventTypeRecord, object?> CreateTypedMemberGetter(Type type, MemberInfo member) {
-        ParameterExpression record = Expression.Parameter(typeof(EventTypeRecord), "record");
-        UnaryExpression typed = Expression.Convert(record, type);
-        Expression access = member is PropertyInfo property
-            ? Expression.Property(typed, property)
-            : Expression.Field(typed, (FieldInfo)member);
-        UnaryExpression boxed = Expression.Convert(access, typeof(object));
-        return Expression.Lambda<Func<EventTypeRecord, object?>>(boxed, record).Compile();
     }
 
     private sealed class TypedMemberAccessor {

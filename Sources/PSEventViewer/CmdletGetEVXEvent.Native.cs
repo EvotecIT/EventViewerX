@@ -9,13 +9,25 @@ public sealed partial class CmdletGetEVXEvent {
         List<object>? results) {
 
         EventLogBatchQuery batch = CreateNativeBatch();
-        foreach (EventObject eventObject in EventLogBatchEngine.Read(
-                     batch,
-                     cancellationToken)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            ProcessEventResult(eventObject, results);
-            if (OutputLimitReached) {
-                break;
+        EventQueryExecutionInfo? info = ExecutionInfo == null ? null : new EventQueryExecutionInfo();
+        if (ExecutionInfo != null) {
+            ExecutionInfo.Value = info;
+        }
+        long delivered = 0;
+        try {
+            foreach (EventObject eventObject in info == null
+                ? EventLogBatchEngine.Read(batch, cancellationToken)
+                : EventLogBatchEngine.Read(batch, info, cancellationToken)) {
+                cancellationToken.ThrowIfCancellationRequested();
+                delivered++;
+                ProcessEventResult(eventObject, results, info);
+                if (OutputLimitReached) {
+                    break;
+                }
+            }
+        } finally {
+            if (info != null) {
+                info.EventsEmitted = delivered - info.ManagedRejections;
             }
         }
     }

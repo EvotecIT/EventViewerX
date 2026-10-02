@@ -17,7 +17,7 @@ New-BenchmarkSuite 'event-projection' -OutputRoot (Join-Path $repositoryRoot 'Ig
         })
     Set-BenchmarkPolicy -Warmup 1 -Iterations 3 -Order Rotated -OutlierMode None
     Set-BenchmarkProfile Current -Cleanup Always
-    Add-BenchmarkMetadata Contract 'Identical specialized typed results; only selection-plan reuse differs'
+    Add-BenchmarkMetadata Contract 'Specialized typed identity and checksum; report and observation lanes also validate metadata and members'
 
     Set-BenchmarkSetup {
         param($case, $run)
@@ -27,20 +27,27 @@ New-BenchmarkSuite 'event-projection' -OutputRoot (Join-Path $repositoryRoot 'Ig
     Add-BenchmarkEngine CompilePerEvent {
         Add-BenchmarkOperation Project {
             param($case, $run)
-            $stopwatch = [Diagnostics.Stopwatch]::StartNew()
             $run.Result = [EventViewerX.Benchmarks.EventProjectionBenchmarkFixture]::RunCompilePerEvent($run.State)
-            $stopwatch.Stop()
-            $run.ElapsedMilliseconds = $stopwatch.Elapsed.TotalMilliseconds
         }
     }
 
     Add-BenchmarkEngine ReusablePlan {
         Add-BenchmarkOperation Project {
             param($case, $run)
-            $stopwatch = [Diagnostics.Stopwatch]::StartNew()
             $run.Result = [EventViewerX.Benchmarks.EventProjectionBenchmarkFixture]::RunReusablePlan($run.State)
-            $stopwatch.Stop()
-            $run.ElapsedMilliseconds = $stopwatch.Elapsed.TotalMilliseconds
+        }
+    }
+
+    Add-BenchmarkEngine ReportMembers {
+        Add-BenchmarkOperation Project {
+            param($case, $run)
+            $run.Result = [EventViewerX.Benchmarks.EventProjectionBenchmarkFixture]::RunReportMembers($run.State)
+        }
+    }
+    Add-BenchmarkEngine ObservationMembers {
+        Add-BenchmarkOperation Project {
+            param($case, $run)
+            $run.Result = [EventViewerX.Benchmarks.EventProjectionBenchmarkFixture]::RunObservationMembers($run.State)
         }
     }
 
@@ -58,7 +65,7 @@ New-BenchmarkSuite 'event-projection' -OutputRoot (Join-Path $repositoryRoot 'Ig
 
     Add-BenchmarkMetric EventsPerSecond {
         param($case, $run)
-        [Math]::Round($case.EventCount / ($run.ElapsedMilliseconds / 1000), 2)
+        [Math]::Round($case.EventCount / ($run.DurationMs / 1000), 2)
     }
     Add-BenchmarkMetric ProjectedEvents { param($case, $run) [int] $run.ProjectedCount }
     Add-BenchmarkMetric ProjectedType { param($case, $run) [string] $run.ProjectedType }

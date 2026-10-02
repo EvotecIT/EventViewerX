@@ -65,10 +65,7 @@ internal sealed class EventDeliveryDeduplicator {
                 eventObject.MachineName ?? string.Empty,
                 containerLog ?? string.Empty,
                 eventObject.RecordId,
-                eventObject.RecordId.HasValue
-                    ? string.Empty
-                    : EventCheckpointBoundaryIdentity
-                        .Create(eventObject));
+                EventCheckpointBoundaryIdentity.Create(eventObject));
         }
 
         public bool Equals(

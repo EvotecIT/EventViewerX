@@ -22,7 +22,8 @@ internal readonly struct NativeEventMetadata {
         string logName,
         string machineName,
         SecurityIdentifier? userId,
-        byte? version) {
+        byte? version,
+        string? userIdText = null) {
 
         ProviderName = providerName;
         ProviderId = providerId;
@@ -41,6 +42,7 @@ internal readonly struct NativeEventMetadata {
         LogName = logName;
         MachineName = machineName;
         UserId = userId;
+        UserIdText = userId?.Value ?? userIdText?.Trim().ToUpperInvariant();
         Version = version;
     }
 
@@ -61,5 +63,6 @@ internal readonly struct NativeEventMetadata {
     internal string LogName { get; }
     internal string MachineName { get; }
     internal SecurityIdentifier? UserId { get; }
+    internal string? UserIdText { get; }
     internal byte? Version { get; }
 }

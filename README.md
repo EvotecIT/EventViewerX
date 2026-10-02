@@ -357,6 +357,33 @@ New-EVXFilter -Type ADUserLogonFailed `
 Common metadata is pushed into Windows Event Log or indexed SQLite columns;
 the complete predicate is always verified against the normalized typed row.
 
+`Get-EVXEvent -Explain` returns an `EventQueryExplanation` for raw, built-in,
+and custom queries, with or without `-Where`. Its `Sources` show resolved channels
+or files, native XPath/QueryList partitions, read mode, and source limits.
+`ManagedStages`, `CandidateLimit`, and `ResultLimit` describe the remaining work.
+Typed predicate details remain available through `PredicatePlan` and the
+forwarding `NativeFilter`, `ManagedPredicate`, and `Steps` properties.
+Code that checked the old `Get-EVXEvent -Explain` result type should accept
+`EventQueryExplanation`; `New-EVXFilter -Explain` retains its predicate-only result.
+
+```powershell
+Get-EVXEvent -Path .\Security.evtx -EventId 4624 -MaxEvents 100 -Explain
+
+$execution = $null
+Get-EVXEvent -LogName System -MaxEvents 100 -ReadMode Metadata `
+    -ExecutionInfo ([ref] $execution)
+$execution
+```
+
+Raw queries return `EventQueryExecutionInfo`: candidate reads, accepted output,
+managed rejections, source failures, priming/read time, completion, and cancellation.
+Async C# batch reads also report current and peak buffered output, including one
+pending producer write. Duration includes time waiting for the consumer; source
+read duration is cumulative and concurrent reads may overlap. Early pipeline
+termination leaves `Completed` false. Typed, custom, and persistent Group Policy
+queries return their existing domain-specific execution information. C# callers
+pass a fresh diagnostics instance to `EventLogBatchEngine.Read` or `ReadAsync`.
+
 The predicate model is portable JSON. Generate it from the discoverable
 builder instead of hand-authoring a provider hashtable, then use the same file
 from the low-startup CLI:
@@ -689,8 +716,23 @@ adds DbaClientX-backed SQLite history. Reporting and storage are optional
 consumers: an event stream can go directly from `Get-EVXEvent` into detection.
 Materialized C# and PowerShell evaluation normalizes input into deterministic
 event-time order before correlation, so the normal newest-first event-log output
-is safe. The lower-level streaming API intentionally avoids buffering; callers
-using it must provide chronological input.
+is safe. The lower-level streaming API evaluates immediately by default and
+expects chronological input. C# callers can opt into bounded event-time ordering:
+
+```csharp
+var options = new EventDetectionEngineOptions(
+    new EventTimeOrderingOptions(TimeSpan.FromSeconds(30),
+        maximumBufferedObservations: 4096,
+        maximumBufferedBytes: 16L * 1024 * 1024));
+```
+
+Pass these options to `EventDetectionEngine.Stream` or `StreamAsync`. The watermark
+follows the largest observed timestamp minus the reorder window. Older observations
+produce an incomplete-evaluation finding and are skipped; use
+`EventLateArrivalPolicy.Throw` to stop instead. Count and estimated-byte limits also
+produce incomplete-evaluation findings when observations cannot be retained.
+Finite streams flush their remaining buffered observations when input completes.
+Idle streams wait for event-time progress; this option adds no wall-clock timer.
 
 ```powershell
 # Run the built-in native packs without storage.
@@ -905,6 +947,23 @@ requests; verify collection from every domain controller before changing policy.
 Writes, schema registration, and an optional checkpoint commit are one
 transaction. Repeated ingestion is idempotent. Typed/custom schema changes
 fail closed while old rows exist; generic provider payloads remain dynamic.
+
+C# collectors can persist an `IAsyncEnumerable<EventReportRow>` without materializing
+the entire report. Supply its section schemas and a bounded transaction size:
+
+```csharp
+EventStoreIngestionResult result = await store.WriteStreamAsync(
+    rows, schemas, batchSize: 256, cancellationToken: cancellationToken);
+```
+
+`WriteStreamAsync` snapshots schemas before enumeration and revalidates them in
+each transaction. It awaits each commit before reading another batch. An optional
+`checkpointFactory` derives a checkpoint from the current batch; supply the
+previously observed `expectedCheckpoint` to protect against competing collectors.
+Each following batch compares against the exact checkpoint committed by its
+predecessor. `EventStoreWriteResult.Checkpoint` and the ingestion result expose that
+durable value. Committed batches survive a later source failure or cancellation;
+the active batch rolls back, and overlapping replay remains idempotent.
 Stored composite selectors expand to their leaf definitions, so the same
 `-Type ActiveDirectoryAuthentication` selector works against live channels,
 ForwardedEvents, and retained history. Direct and WEC copies of the same

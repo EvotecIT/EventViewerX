@@ -76,11 +76,13 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
 
         foreach (EvtxLiteralRecordReader.LiteralEvtxRecord source in
                  EvtxLiteralRecordReader.Read(stream, cancellationToken)) {
-            if (!matcher.IsMatch(source.Xml)) {
+            var document = SavedEventXmlProjector.ParseDocument(source.Xml);
+            if (!matcher.IsMatch(document)) {
                 continue;
             }
             SavedEventRecord record = SavedEventXmlProjector.Create(
                 source.Xml,
+                document,
                 source.RecordNumber,
                 source.TimestampUtc);
             record.FileOffset = source.FileOffset;
@@ -113,11 +115,13 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                     $"EVTX record {source.RecordNumber} could not be rendered without weakening fidelity.",
                     exception);
             }
-            if (!matcher.IsMatch(xml)) {
+            var document = SavedEventXmlProjector.ParseDocument(xml);
+            if (!matcher.IsMatch(document)) {
                 continue;
             }
             SavedEventRecord record = SavedEventXmlProjector.Create(
                 xml,
+                document,
                 source.RecordNumber,
                 source.Timestamp.UtcDateTime);
             record.FileOffset = GetFileOffset(source);

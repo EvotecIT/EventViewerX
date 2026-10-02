@@ -1,4 +1,6 @@
 using EventViewerX.Native;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace EventViewerX;
 
@@ -11,6 +13,10 @@ public sealed class SavedEventRecord {
     public string ProviderName { get; set; } = string.Empty;
     /// <summary>Native event identifier.</summary>
     public int EventId { get; set; }
+    /// <summary>Optional qualifiers for the event identifier.</summary>
+    public ushort? Qualifiers { get; set; }
+    /// <summary>Optional security identifier text from System/Security.</summary>
+    public string? UserId { get; set; }
     /// <summary>Record identifier within the original channel.</summary>
     public long? RecordId { get; set; }
     /// <summary>Original source channel.</summary>
@@ -64,7 +70,7 @@ public sealed class SavedEventRecord {
             ProviderName,
             ProviderId,
             EventId,
-            qualifiers: null,
+            Qualifiers,
             Level,
             Task,
             Opcode,
@@ -77,8 +83,11 @@ public sealed class SavedEventRecord {
             ThreadId,
             Channel,
             Computer,
-            userId: null,
-            Version);
+            userId: !string.IsNullOrEmpty(UserId) && RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? new SecurityIdentifier(UserId)
+                : null,
+            Version,
+            userIdText: UserId);
         var message = new NativeEventMessage(
             metadata,
             Message,
@@ -105,8 +114,13 @@ public sealed class SavedEventRecord {
             EventReadMode.Full => new EventObject(new NativeEventFull(message, structured), sourcePath, sourcePath),
             _ => throw new ArgumentOutOfRangeException(nameof(readMode))
         };
-        foreach (KeyValuePair<string, string> item in Data) {
-            result.Data[item.Key] = item.Value;
+        if (readMode == EventReadMode.Full) {
+            // Full fidelity still decodes attachments from XML before overlaying parser values.
+            foreach (KeyValuePair<string, string> item in Data) {
+                result.Data[item.Key] = item.Value;
+            }
+        } else {
+            result.InitializeSavedPayload(Data);
         }
         result.QuerySourceKind = EventLogQuerySourceKind.File;
         return result;

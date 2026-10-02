@@ -438,20 +438,16 @@ internal static class EventReportProjectionFactory {
     }
 
     private sealed class ReportMember {
-        private readonly FieldInfo? _field;
-        private readonly PropertyInfo? _property;
+        private readonly Func<object, object?> _getValue;
 
         internal ReportMember(MemberInfo member) {
-            _field = member as FieldInfo;
-            _property = member as PropertyInfo;
+            _getValue = EventMemberAccessor.CreateGetter<object>(member);
             Name = member.Name;
-            ValueType = _field?.FieldType ?? _property!.PropertyType;
+            ValueType = member is FieldInfo field ? field.FieldType : ((PropertyInfo)member).PropertyType;
         }
 
         internal string Name { get; }
         internal Type ValueType { get; }
-        internal object? GetValue(object instance) => _field != null
-            ? _field.GetValue(instance)
-            : _property!.GetValue(instance);
+        internal object? GetValue(object instance) => _getValue(instance);
     }
 }

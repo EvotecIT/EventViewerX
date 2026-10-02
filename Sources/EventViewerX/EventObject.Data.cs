@@ -6,6 +6,13 @@ namespace EventViewerX {
     public partial class EventObject {
         private static readonly string[] NewLineSeparators = { "\r\n", "\n" };
 
+        internal void InitializeSavedPayload(IReadOnlyDictionary<string, string> values) {
+            _data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, string> value in values) {
+                _data[value.Key] = value.Value;
+            }
+        }
+
         private void EnsurePayloadParsed() {
             if (_payloadParsed) {
                 return;

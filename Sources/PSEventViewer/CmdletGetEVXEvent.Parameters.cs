@@ -4,6 +4,10 @@ using System.Xml;
 namespace PSEventViewer;
 
 public sealed partial class CmdletGetEVXEvent {
+    /// <para>Receives execution counters and completion details through a PowerShell reference.</para>
+    [Parameter]
+    public PSReference? ExecutionInfo { get; set; }
+
     /// <summary>
     /// Culture used when provider resources do not contain MessageCulture.
     /// Get-EVXEvent requests en-US by default, then falls back to the current UI culture

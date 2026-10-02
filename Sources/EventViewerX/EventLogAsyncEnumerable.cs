@@ -10,6 +10,7 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
     private readonly Func<CancellationToken, IEnumerable<EventObject>> _source;
     private readonly int _bufferCapacity;
     private readonly CancellationToken _cancellationToken;
+    private readonly EventQueryExecutionInfo? _executionInfo;
 
     /// <summary>
     /// Creates a bounded event stream without starting its source.
@@ -17,7 +18,8 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
     internal EventLogAsyncEnumerable(
         Func<CancellationToken, IEnumerable<EventObject>> source,
         int bufferCapacity,
-        CancellationToken cancellationToken) {
+        CancellationToken cancellationToken,
+        EventQueryExecutionInfo? executionInfo = null) {
 
         _source = source ?? throw new ArgumentNullException(nameof(source));
         if (bufferCapacity <= 0 || bufferCapacity > 4096) {
@@ -28,6 +30,7 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
 
         _bufferCapacity = bufferCapacity;
         _cancellationToken = cancellationToken;
+        _executionInfo = executionInfo;
     }
 
     /// <inheritdoc />
@@ -37,7 +40,8 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
             _source,
             _bufferCapacity,
             _cancellationToken,
-            cancellationToken);
+            cancellationToken,
+            _executionInfo);
 
     private sealed class Enumerator : IAsyncEnumerator<EventObject> {
         private readonly Func<CancellationToken, IEnumerable<EventObject>>
@@ -47,6 +51,7 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
         private readonly CancellationTokenSource _stop;
         private readonly Channel<EventObject> _channel;
         private readonly SemaphoreSlim _moveGate = new(1, 1);
+        private readonly EventQueryExecutionInfo? _executionInfo;
         private Task? _producer;
         private int _disposed;
 
@@ -54,9 +59,11 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
             Func<CancellationToken, IEnumerable<EventObject>> source,
             int bufferCapacity,
             CancellationToken streamCancellationToken,
-            CancellationToken enumerationCancellationToken) {
+            CancellationToken enumerationCancellationToken,
+            EventQueryExecutionInfo? executionInfo) {
 
             _source = source;
+            _executionInfo = executionInfo;
             _consumerCancellationToken = SelectConsumerCancellationToken(
                 streamCancellationToken,
                 enumerationCancellationToken,
@@ -100,6 +107,7 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
                                .ConfigureAwait(false)) {
                         if (_channel.Reader.TryRead(
                                 out EventObject? eventObject)) {
+                            _executionInfo?.ReleaseBufferedEvent();
                             _consumerCancellationToken
                                 .ThrowIfCancellationRequested();
                             Current = eventObject;
@@ -135,6 +143,9 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
             _consumerLink?.Dispose();
             _consumerLink = null;
             await _moveGate.WaitAsync().ConfigureAwait(false);
+            while (_channel.Reader.TryRead(out _)) {
+                _executionInfo?.ReleaseBufferedEvent();
+            }
             _moveGate.Release();
             DisposeCancellationWhenProducerStops();
         }
@@ -152,9 +163,14 @@ internal sealed class EventLogAsyncEnumerable : IAsyncEnumerable<EventObject> {
         private async Task ProduceAsync() {
             try {
                 foreach (EventObject eventObject in _source(_stop.Token)) {
-                    await _channel.Writer.WriteAsync(
-                        eventObject,
-                        _stop.Token).ConfigureAwait(false);
+                    _stop.Token.ThrowIfCancellationRequested();
+                    _executionInfo?.BufferEvent();
+                    try {
+                        await _channel.Writer.WriteAsync(eventObject, _stop.Token).ConfigureAwait(false);
+                    } catch {
+                        _executionInfo?.ReleaseBufferedEvent();
+                        throw;
+                    }
                 }
                 _channel.Writer.TryComplete();
             } catch (OperationCanceledException)

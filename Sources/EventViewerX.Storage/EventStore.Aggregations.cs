@@ -273,7 +273,7 @@ public sealed partial class EventStore {
                 };
                 IReadOnlyList<EventReportRow> candidates = await transaction.QueryAsListAsync(
                     command.Sql + " LIMIT $pageLimit OFFSET $pageOffset;",
-                    record => MapEventRow(record, schemaContext.ByName),
+                    record => MapEventRow(record, schemaContext),
                     pageParameters,
                     cancellationToken: token).ConfigureAwait(false);
                 if (candidates.Count == 0) {

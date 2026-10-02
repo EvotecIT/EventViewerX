@@ -160,6 +160,7 @@ public sealed partial class EventStore {
                     CreateEventParameters(row, definitionName, updatedAt),
                     token).ConfigureAwait(false);
             }
+            EventStoreCheckpoint? committedCheckpoint = null;
             if (checkpointSnapshot != null) {
                 EventStoreCheckpoint storedCheckpoint = await ResolveCheckpointIdentityAsync(
                     transaction,
@@ -178,8 +179,10 @@ public sealed partial class EventStore {
                         ["$updated"] = updatedAt
                     },
                     token).ConfigureAwait(false);
+                storedCheckpoint.UpdatedAtUtc = ParseUtc(updatedAt);
+                committedCheckpoint = SnapshotCheckpoint(storedCheckpoint);
             }
-            return new EventStoreWriteResult(rows.Length, inserted, checkpointSnapshot != null);
+            return new EventStoreWriteResult(rows.Length, inserted, checkpointSnapshot != null, committedCheckpoint);
         }, cancellationToken).ConfigureAwait(false);
     }
 
