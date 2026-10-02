@@ -95,7 +95,9 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadChannel(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => new[] { new EventQuerySourceExplanation(EventLogQuerySourceKind.Channel,
+                            snapshot.LogName, snapshot.MachineName, snapshot.XPath, snapshot.ReadMode, snapshot.MaxEvents) });
                 })
                 .ToArray();
         EventSourceSnapshot[] files =
@@ -112,7 +114,9 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadFile(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => new[] { new EventQuerySourceExplanation(EventLogQuerySourceKind.File,
+                            snapshot.Path, null, snapshot.XPath, snapshot.ReadMode, snapshot.MaxEvents) });
                 })
                 .ToArray();
         EventLogStructuredQuery[] structuredSources =
@@ -135,7 +139,10 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadStructured(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => snapshot.ResolveSources().Select(source => new EventQuerySourceExplanation(
+                            source.Kind, source.Source, snapshot.MachineName, snapshot.QueryXml,
+                            snapshot.ReadMode, snapshot.MaxEvents)).ToArray());
                 })
                 .ToArray();
         EventSourceSnapshot[] all = channels
@@ -418,17 +425,20 @@ public static partial class EventLogBatchEngine {
             string source,
             string? machineName,
             bool oldest,
-            Func<CancellationToken, IEnumerable<EventObject>> open) {
+            Func<CancellationToken, IEnumerable<EventObject>> open,
+            Func<EventQuerySourceExplanation[]> explain) {
 
             Source = source;
             MachineName = machineName;
             Oldest = oldest;
             Open = open;
+            Explain = explain;
         }
 
         internal string Source { get; }
         internal string? MachineName { get; }
         internal bool Oldest { get; }
+        internal Func<EventQuerySourceExplanation[]> Explain { get; }
         internal Func<CancellationToken, IEnumerable<EventObject>> Open {
             get;
         }

@@ -620,7 +620,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
                 managedStages.Add($"Provider wildcard verification ({_managedProviderPatterns.Length} patterns)");
             }
             if (UsesCheckpoint) {
-                managedStages.Add("Checkpoint boundary verification");
+                managedStages.Add("Checkpoint generation and boundary verification deferred until execution");
             }
             WriteObject(EventQueryPlanner.Explain(explainedBatch, managedStages,
                 candidateLimit: MaxEventsScanned, resultLimit: MaxEvents));

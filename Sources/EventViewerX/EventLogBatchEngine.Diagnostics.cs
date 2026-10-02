@@ -4,6 +4,11 @@ using System.Runtime.CompilerServices;
 namespace EventViewerX;
 
 public static partial class EventLogBatchEngine {
+    internal static IReadOnlyList<EventQuerySourceExplanation> ExplainSources(EventLogBatchQuery query) {
+        EventLogBatchExecutionPlan plan = CreateExecutionPlan(query);
+        return Array.AsReadOnly(plan.Sources.SelectMany(static source => source.Explain()).ToArray());
+    }
+
     /// <summary>Reads a batch and records candidate, failure, timing, and completion diagnostics.</summary>
     public static IEnumerable<EventObject> Read(EventLogBatchQuery query, EventQueryExecutionInfo executionInfo,
         CancellationToken cancellationToken = default) {

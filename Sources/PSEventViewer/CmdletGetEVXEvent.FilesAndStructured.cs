@@ -154,6 +154,10 @@ public sealed partial class CmdletGetEVXEvent {
     private EventFilter ExpandOfflineProviderPatterns(
             EventFilter filter,
             string path) {
+        if (Explain.IsPresent) {
+            throw new PSArgumentException(
+                "Offline provider wildcard expansion requires reading events. Use explicit provider names with -Explain.");
+        }
 
         string[] patterns = NormalizeRequiredValues(
             filter.ProviderNames ??

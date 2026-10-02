@@ -12,11 +12,10 @@ public static class EventQueryPlanner {
         if (batch == null) {
             throw new ArgumentNullException(nameof(batch));
         }
-        EventLogBatchQuery resolved = EventLogBatchConsolidator.Consolidate(batch);
         if (candidateLimit < 0 || resultLimit < 0) {
             throw new ArgumentOutOfRangeException(candidateLimit < 0 ? nameof(candidateLimit) : nameof(resultLimit));
         }
-        return new EventQueryExplanation(resolved, (managedStages ?? Array.Empty<string>()).ToArray(),
+        return new EventQueryExplanation(batch, (managedStages ?? Array.Empty<string>()).ToArray(),
             candidateLimit: candidateLimit, resultLimit: resultLimit);
     }
 

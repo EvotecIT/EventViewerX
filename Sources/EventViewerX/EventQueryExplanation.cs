@@ -5,14 +5,7 @@ public sealed class EventQueryExplanation {
     internal EventQueryExplanation(EventLogBatchQuery? batch, IReadOnlyList<string> managedStages,
         EventPredicatePlan? predicatePlan = null, long candidateLimit = 0, long? resultLimit = null) {
         Sources = batch == null ? Array.Empty<EventQuerySourceExplanation>() :
-            Array.AsReadOnly(batch.ChannelQueries.Select(static query => new EventQuerySourceExplanation(
-                EventLogQuerySourceKind.Channel, query.LogName, query.MachineName, query.XPath, query.ReadMode, query.MaxEvents))
-            .Concat(batch.FileQueries.Select(static query => new EventQuerySourceExplanation(
-                EventLogQuerySourceKind.File, query.Path, null, query.XPath, query.ReadMode, query.MaxEvents)))
-            .Concat(batch.StructuredQueries.SelectMany(static query => query.ResolveSources().Select(source =>
-                new EventQuerySourceExplanation(source.Kind, source.Source, query.MachineName,
-                    query.QueryXml, query.ReadMode, query.MaxEvents))))
-            .ToArray());
+            EventLogBatchEngine.ExplainSources(batch);
         ManagedStages = Array.AsReadOnly(managedStages.ToArray());
         MaxEvents = batch?.MaxEvents ?? 0;
         MaxConcurrency = batch?.MaxConcurrency ?? 0;

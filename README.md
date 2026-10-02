@@ -365,6 +365,9 @@ Typed predicate details remain available through `PredicatePlan` and the
 forwarding `NativeFilter`, `ManagedPredicate`, and `Steps` properties.
 Code that checked the old `Get-EVXEvent -Explain` result type should accept
 `EventQueryExplanation`; `New-EVXFilter -Explain` retains its predicate-only result.
+Checkpoint generation/boundary validation is deferred to execution. Offline
+wildcard suppression that requires enumerating provider names needs explicit
+provider names for `-Explain`; persistent Group Policy context also requires execution.
 
 ```powershell
 Get-EVXEvent -Path .\Security.evtx -EventId 4624 -MaxEvents 100 -Explain

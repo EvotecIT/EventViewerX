@@ -341,7 +341,9 @@ public sealed partial class CmdletGetEVXEvent {
     }
 
     private void PrepareRecordProcessing(CancellationToken token) {
-        PrepareCheckpointBounds(token);
+        if (!Explain.IsPresent) {
+            PrepareCheckpointBounds(token);
+        }
     }
 
     private bool TrackCheckpointProgress(EventObject eventObject) {

@@ -3,6 +3,28 @@ using Xunit;
 namespace EventViewerX.Tests;
 
 public sealed class TestQueryDiagnostics {
+    [Theory]
+    [InlineData(EventReadMode.Metadata)]
+    [InlineData(EventReadMode.Message)]
+    public void BatchExplanationPreservesIndependentReadersAndEffectiveSourceLimits(EventReadMode secondMode) {
+        string path = Path.GetTempFileName();
+        try {
+            var reader = new DiagnosticReader();
+            var batch = EventLogBatchQuery.ForFiles(new[] {
+                new EventLogFileQuery(path) { SavedEventReader = reader, Oldest = true },
+                new EventLogFileQuery(path) { SavedEventReader = reader, Oldest = true, ReadMode = secondMode }
+            });
+            batch.MaxEvents = 4;
+            EventQueryExplanation plan = EventQueryPlanner.Explain(batch);
+            Assert.Equal(2, plan.Sources.Count);
+            Assert.All(plan.Sources, static source => Assert.Equal(4, source.MaxEvents));
+            Assert.Equal(secondMode, plan.Sources[1].ReadMode);
+            Assert.Equal(4, EventLogBatchEngine.Read(batch).Count());
+        } finally {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void DeclarativeExplanationResolvesProjectionAndLimitsWithoutReadingEvents() {
         var definition = new EventDefinition {

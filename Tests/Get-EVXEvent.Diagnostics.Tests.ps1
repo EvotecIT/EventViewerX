@@ -1,4 +1,22 @@
 Describe 'Resolved event query plans and execution diagnostics' {
+    It 'explains a populated checkpoint without reading or rewriting an invalid event file' {
+        $path = Join-Path $TestDrive 'checkpoint-empty.evtx'
+        $checkpoint = Join-Path $TestDrive 'explain-checkpoint.json'
+        [IO.File]::WriteAllBytes($path, [byte[]] @())
+        @{ 'explain-checkpoint' = [long] 7 } | ConvertTo-Json |
+            Set-Content -LiteralPath $checkpoint -Encoding UTF8
+        $before = [IO.File]::ReadAllText($checkpoint)
+        $plan = Get-EVXEvent -Path $path -RecordIdFile $checkpoint -RecordIdKey 'explain-checkpoint' -Explain
+        $plan.Sources.Count | Should -BeGreaterThan 0
+        [IO.File]::ReadAllText($checkpoint) | Should -Be $before
+    }
+
+    It 'rejects offline wildcard suppression explanation before scanning event contents' {
+        $path = Join-Path $TestDrive 'suppression-empty.evtx'
+        [IO.File]::WriteAllBytes($path, [byte[]] @())
+        { Get-EVXEvent -FilterHashtable @{ Path = $path; SuppressHashFilter = @{ ProviderName = 'Audit*' } } -Explain } |
+            Should -Throw '*explicit provider names*'
+    }
     It 'explains a raw channel query with consumer result and scan limits' {
         $plan = Get-EVXEvent -LogName System -MaxEvents 3 -MaxEventsScanned 10 -Explain
         $plan.Sources.Count | Should -BeGreaterThan 0

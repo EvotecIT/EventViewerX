@@ -114,8 +114,8 @@ public sealed class SavedEventRecord {
             EventReadMode.Full => new EventObject(new NativeEventFull(message, structured), sourcePath, sourcePath),
             _ => throw new ArgumentOutOfRangeException(nameof(readMode))
         };
-        if (readMode == EventReadMode.Full) {
-            // Full fidelity still decodes attachments from XML before overlaying parser values.
+        if (readMode == EventReadMode.Full || !string.IsNullOrEmpty(RawXml)) {
+            // XML projection retains derived fields and attachments before parser values overlay it.
             foreach (KeyValuePair<string, string> item in Data) {
                 result.Data[item.Key] = item.Value;
             }
