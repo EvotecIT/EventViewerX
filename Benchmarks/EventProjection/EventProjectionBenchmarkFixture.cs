@@ -1,4 +1,5 @@
 using EventViewerX.Native;
+using EventViewerX.Reporting;
 
 namespace EventViewerX.Benchmarks;
 
@@ -57,6 +58,29 @@ public static class EventProjectionBenchmarkFixture {
     /// <summary>Projects events through one immutable, precompiled selection plan.</summary>
     public static EventProjectionBenchmarkResult RunReusablePlan(EventProjectionBenchmarkState state) =>
         Run(state, static current => EventTypeCatalog.CreateEventRule(current.Source, current.Plan));
+
+    /// <summary>Projects typed report members through the cached report plan.</summary>
+    public static EventProjectionBenchmarkResult RunReportMembers(EventProjectionBenchmarkState state) =>
+        Run(state, static current => {
+            var record = (EventTypeRecord)EventTypeCatalog.CreateEventRule(current.Source, current.Plan)!;
+            EventReportRow row = EventReportProjectionFactory.Create(record).Row;
+            if (row.RecordId != current.Source.RecordId || row.Values.Count == 0) {
+                throw new InvalidOperationException("Typed report metadata or members were lost.");
+            }
+            return record;
+        });
+
+    /// <summary>Projects typed observation members through cached accessors.</summary>
+    public static EventProjectionBenchmarkResult RunObservationMembers(EventProjectionBenchmarkState state) =>
+        Run(state, static current => {
+            var record = (EventTypeRecord)EventTypeCatalog.CreateEventRule(current.Source, current.Plan)!;
+            EventObservation observation = EventObservation.Create(current.Source, record);
+            if (observation.RecordId != current.Source.RecordId ||
+                !Equals(observation.Fields["TargetUserName"], "alice")) {
+                throw new InvalidOperationException("Observation metadata or payload was lost.");
+            }
+            return record;
+        });
 
     private static EventProjectionBenchmarkResult Run(
         EventProjectionBenchmarkState state,

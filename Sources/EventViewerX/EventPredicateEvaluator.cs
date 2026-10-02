@@ -138,6 +138,9 @@ public static class EventPredicateEvaluator {
             ? ToPowerShellWildcardRegex(expectedValues[0] ?? string.Empty)
             : expectedValues[0] ?? string.Empty;
         RegexOptions options = RegexOptions.CultureInvariant | RegexOptions.Compiled;
+        if (comparison == EventPredicateOperator.MatchesWildcard) {
+            options |= RegexOptions.Singleline;
+        }
         if (ignoreCase) {
             options |= RegexOptions.IgnoreCase;
         }
@@ -193,12 +196,12 @@ public static class EventPredicateEvaluator {
                 candidate.GetIndexParameters().Length == 0 &&
                 string.Equals(candidate.Name, field, StringComparison.OrdinalIgnoreCase));
         if (property != null) {
-            return instance => property.GetValue(instance, null);
+            return EventMemberAccessor.CreateGetter<object>(property);
         }
         FieldInfo? member = type.GetFields(BindingFlags.Instance | BindingFlags.Public)
             .FirstOrDefault(candidate => string.Equals(candidate.Name, field, StringComparison.OrdinalIgnoreCase));
         return member != null
-            ? instance => member.GetValue(instance)
+            ? EventMemberAccessor.CreateGetter<object>(member)
             : _ => MissingValue.Instance;
     }
 
@@ -277,7 +280,7 @@ public static class EventPredicateEvaluator {
                 return Regex.IsMatch(
                     ToText(actual),
                     ToPowerShellWildcardRegex(expectedValue ?? string.Empty),
-                    RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None),
+                    RegexOptions.CultureInvariant | RegexOptions.Singleline | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None),
                     RegexTimeout);
             case EventPredicateOperator.MatchesRegex:
                 return Regex.IsMatch(
@@ -358,7 +361,7 @@ public static class EventPredicateEvaluator {
     }
 
     private static string ToPowerShellWildcardRegex(string pattern) {
-        var result = new StringBuilder("^");
+        var result = new StringBuilder("\\A");
         for (int index = 0; index < pattern.Length; index++) {
             char current = pattern[index];
             if (current == '`' && index + 1 < pattern.Length) {
@@ -378,7 +381,7 @@ public static class EventPredicateEvaluator {
             }
             result.Append(Regex.Escape(current.ToString()));
         }
-        return result.Append('$').ToString();
+        return result.Append("\\z").ToString();
     }
 
     private static bool TryAppendWildcardCharacterClass(
@@ -418,6 +421,9 @@ public static class EventPredicateEvaluator {
     }
 
     private static int CompareOrdered(object actual, string? expected, bool ignoreCase) {
+        if (actual is string text) {
+            return string.Compare(text, expected, TextComparison(ignoreCase));
+        }
         object? converted = ConvertExpected(expected, actual.GetType(), ignoreCase);
         if (actual is DateTime actualDateTime && converted is DateTime expectedDateTime) {
             return actualDateTime.ToUniversalTime().CompareTo(expectedDateTime.ToUniversalTime());

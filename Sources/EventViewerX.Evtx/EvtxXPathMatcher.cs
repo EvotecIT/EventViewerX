@@ -63,16 +63,14 @@ internal sealed class EvtxXPathMatcher {
     }
 
     internal bool IsMatch(string xml) {
+        return _xpath == "*" || IsMatch(SavedEventXmlProjector.ParseDocument(xml));
+    }
+
+    internal bool IsMatch(XDocument document) {
         if (_xpath == "*") {
             return true;
         }
         try {
-            using var stringReader = new StringReader(xml);
-            using XmlReader reader = XmlReader.Create(stringReader, new XmlReaderSettings {
-                DtdProcessing = DtdProcessing.Prohibit,
-                XmlResolver = null
-            });
-            XDocument document = XDocument.Load(reader, LoadOptions.None);
             if (document.Root == null) {
                 return false;
             }

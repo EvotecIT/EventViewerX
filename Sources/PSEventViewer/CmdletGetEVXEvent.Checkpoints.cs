@@ -341,7 +341,9 @@ public sealed partial class CmdletGetEVXEvent {
     }
 
     private void PrepareRecordProcessing(CancellationToken token) {
-        PrepareCheckpointBounds(token);
+        if (!Explain.IsPresent) {
+            PrepareCheckpointBounds(token);
+        }
     }
 
     private bool TrackCheckpointProgress(EventObject eventObject) {
@@ -618,6 +620,9 @@ public sealed partial class CmdletGetEVXEvent {
     /// Saves the highest contiguously processed record ID to <see cref="RecordIdFile"/> when processing completes.
     /// </summary>
     protected override Task EndProcessingAsync() {
+        if (Explain.IsPresent) {
+            return Task.CompletedTask;
+        }
         if (!string.IsNullOrEmpty(RecordIdFile) &&
             (_highestRecordIds.Count > 0 || _resetCheckpointKeys.Count > 0 || _checkpointBoundaryMigrations.Count > 0)) {
             var updates = new List<EventCheckpointUpdate>(

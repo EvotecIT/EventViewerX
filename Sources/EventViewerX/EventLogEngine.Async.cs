@@ -66,9 +66,11 @@ public static partial class EventLogEngine {
     internal static IAsyncEnumerable<EventObject> ReadAsync(
         Func<CancellationToken, IEnumerable<EventObject>> source,
         int bufferCapacity,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        EventQueryExecutionInfo? executionInfo = null) =>
         new EventLogAsyncEnumerable(
             source,
             bufferCapacity,
-            cancellationToken);
+            cancellationToken,
+            executionInfo);
 }

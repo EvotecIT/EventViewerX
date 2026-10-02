@@ -7,6 +7,19 @@ namespace EventViewerX.Portability.Tests;
 
 public sealed class TestSavedEventPortability {
     [Fact]
+    public void SavedXmlPreservesPortableSecurityMetadata() {
+        const string xml = "<Event><System><Provider Name='Audit'/><EventID Qualifiers='16384'>1</EventID>" +
+            "<TimeCreated SystemTime='2026-10-01T12:00:00Z'/><EventRecordID>7</EventRecordID>" +
+            "<Channel>Application</Channel><Computer>HostA</Computer><Security UserID='S-1-5-18'/></System></Event>";
+        SavedEventRecord saved = SavedEventXmlProjector.Create(xml);
+        Assert.Equal((ushort)16384, saved.Qualifiers);
+        Assert.Equal("S-1-5-18", saved.UserId);
+        EventObject projected = saved.ToEventObject("fixture.evtx", EventReadMode.Metadata);
+        Assert.Equal("16384", projected.Qualifiers);
+        Assert.Equal("S-1-5-18", projected.UserIdText);
+    }
+
+    [Fact]
     public void ExactSystemSelectorPrefilterPreservesPortableXPathResults() {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "NamedFilterExamples.evtx");
         var reader = new EvtxSavedEventReader();

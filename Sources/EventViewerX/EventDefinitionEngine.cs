@@ -6,7 +6,7 @@ using System.Net;
 namespace EventViewerX;
 
 /// <summary>Executes validated declarative definitions through the shared native batch engine.</summary>
-public static class EventDefinitionEngine {
+public static partial class EventDefinitionEngine {
     private static readonly Dictionary<string, PropertyInfo> MetadataProperties = typeof(EventObject)
         .GetProperties(BindingFlags.Instance | BindingFlags.Public)
         .Where(static property => property.CanRead && property.GetIndexParameters().Length == 0)

@@ -21,7 +21,8 @@ public static partial class EventLogBatchEngine {
     }
 
     private static EventLogBatchExecutionPlan CreateExecutionPlan(
-        EventLogBatchQuery query) {
+        EventLogBatchQuery query,
+        EventQueryExecutionInfo? executionInfo = null) {
 
         if (query == null) {
             throw new ArgumentNullException(nameof(query));
@@ -50,7 +51,8 @@ public static partial class EventLogBatchEngine {
             query.MaxEvents,
             query.MaxConcurrency,
             query.ContinueOnError,
-            failureHandler);
+            failureHandler,
+            executionInfo);
     }
 
     private static void ValidateConcurrency(int maxConcurrency) {
@@ -93,7 +95,9 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadChannel(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => new[] { new EventQuerySourceExplanation(EventLogQuerySourceKind.Channel,
+                            snapshot.LogName, snapshot.MachineName, snapshot.XPath, snapshot.ReadMode, snapshot.MaxEvents) });
                 })
                 .ToArray();
         EventSourceSnapshot[] files =
@@ -110,7 +114,9 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadFile(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => new[] { new EventQuerySourceExplanation(EventLogQuerySourceKind.File,
+                            snapshot.Path, null, snapshot.XPath, snapshot.ReadMode, snapshot.MaxEvents) });
                 })
                 .ToArray();
         EventLogStructuredQuery[] structuredSources =
@@ -133,7 +139,10 @@ public static partial class EventLogBatchEngine {
                         cancellationToken =>
                             EventLogEngine.ReadStructured(
                                 snapshot,
-                                cancellationToken));
+                                cancellationToken),
+                        () => snapshot.ResolveSources().Select(source => new EventQuerySourceExplanation(
+                            source.Kind, source.Source, snapshot.MachineName, snapshot.QueryXml,
+                            snapshot.ReadMode, snapshot.MaxEvents)).ToArray());
                 })
                 .ToArray();
         EventSourceSnapshot[] all = channels
@@ -172,13 +181,27 @@ public static partial class EventLogBatchEngine {
         EventLogBatchExecutionPlan plan,
         CancellationToken cancellationToken) {
 
+        var primingTimer = System.Diagnostics.Stopwatch.StartNew();
         EventSourceCursor?[] primed =
             PrimeSourcesSynchronously(
                 plan.Sources,
                 plan.MaxConcurrency,
                 plan.ContinueOnError,
                 plan.FailureHandler,
-                cancellationToken);
+                cancellationToken,
+                plan.ExecutionInfo);
+        if (plan.ExecutionInfo != null) {
+            plan.ExecutionInfo.PrimingDuration = primingTimer.Elapsed;
+        }
+        foreach (EventObject item in ReadPrimed(plan, primed, cancellationToken)) {
+            yield return item;
+        }
+    }
+
+    private static IEnumerable<EventObject> ReadPrimed(
+        EventLogBatchExecutionPlan plan,
+        EventSourceCursor?[] primed,
+        CancellationToken cancellationToken) {
         var cursors = primed
             .Where(static cursor => cursor != null)
             .Cast<EventSourceCursor>()
@@ -222,7 +245,8 @@ public static partial class EventLogBatchEngine {
         int maxConcurrency,
         bool continueOnError,
         Action<EventLogQueryFailure>? failureHandler,
-        CancellationToken cancellationToken) {
+        CancellationToken cancellationToken,
+        EventQueryExecutionInfo? executionInfo) {
 
         return PrimeConcurrently<EventSourceCursor>(
             sources.Length,
@@ -241,7 +265,8 @@ public static partial class EventLogBatchEngine {
                         continueOnError,
                         failureHandler,
                         sourceLifetime.Token,
-                        sourceLifetime);
+                        sourceLifetime,
+                        executionInfo);
                 } catch {
                     sourceLifetime.Dispose();
                     throw;
@@ -290,7 +315,8 @@ public static partial class EventLogBatchEngine {
         bool continueOnError,
         Action<EventLogQueryFailure>? failureHandler,
         CancellationToken cancellationToken,
-        CancellationTokenSource? sourceLifetime = null) {
+        CancellationTokenSource? sourceLifetime = null,
+        EventQueryExecutionInfo? executionInfo = null) {
 
         try {
             return new EventSourceCursor(
@@ -298,8 +324,12 @@ public static partial class EventLogBatchEngine {
                 source,
                 source.Open(cancellationToken)
                     .GetEnumerator(),
-                sourceLifetime);
+                sourceLifetime,
+                executionInfo);
+        } catch (OperationCanceledException) {
+            throw;
         } catch (Exception exception) {
+            executionInfo?.RecordFailure();
             if (!continueOnError) {
                 throw;
             }
@@ -323,6 +353,7 @@ public static partial class EventLogBatchEngine {
         } catch (OperationCanceledException) {
             throw;
         } catch (Exception exception) {
+            cursor.ExecutionInfo?.RecordFailure();
             if (!continueOnError) {
                 throw;
             }
@@ -394,17 +425,20 @@ public static partial class EventLogBatchEngine {
             string source,
             string? machineName,
             bool oldest,
-            Func<CancellationToken, IEnumerable<EventObject>> open) {
+            Func<CancellationToken, IEnumerable<EventObject>> open,
+            Func<EventQuerySourceExplanation[]> explain) {
 
             Source = source;
             MachineName = machineName;
             Oldest = oldest;
             Open = open;
+            Explain = explain;
         }
 
         internal string Source { get; }
         internal string? MachineName { get; }
         internal bool Oldest { get; }
+        internal Func<EventQuerySourceExplanation[]> Explain { get; }
         internal Func<CancellationToken, IEnumerable<EventObject>> Open {
             get;
         }
@@ -417,7 +451,8 @@ public static partial class EventLogBatchEngine {
             long maxEvents,
             int maxConcurrency,
             bool continueOnError,
-            Action<EventLogQueryFailure>? failureHandler) {
+            Action<EventLogQueryFailure>? failureHandler,
+            EventQueryExecutionInfo? executionInfo) {
 
             Sources = sources;
             Oldest = oldest;
@@ -425,6 +460,7 @@ public static partial class EventLogBatchEngine {
             MaxConcurrency = maxConcurrency;
             ContinueOnError = continueOnError;
             FailureHandler = failureHandler;
+            ExecutionInfo = executionInfo;
         }
 
         internal EventSourceSnapshot[] Sources { get; }
@@ -433,6 +469,7 @@ public static partial class EventLogBatchEngine {
         internal int MaxConcurrency { get; }
         internal bool ContinueOnError { get; }
         internal Action<EventLogQueryFailure>? FailureHandler { get; }
+        internal EventQueryExecutionInfo? ExecutionInfo { get; }
     }
 
     private sealed class EventSourceCursor : IDisposable {
@@ -444,20 +481,31 @@ public static partial class EventLogBatchEngine {
             int index,
             EventSourceSnapshot source,
             IEnumerator<EventObject> enumerator,
-            CancellationTokenSource? sourceLifetime = null) {
+            CancellationTokenSource? sourceLifetime = null,
+            EventQueryExecutionInfo? executionInfo = null) {
 
             Index = index;
             Source = source;
             _enumerator = enumerator;
             _sourceLifetime = sourceLifetime;
+            ExecutionInfo = executionInfo;
         }
 
         internal int Index { get; }
         internal EventSourceSnapshot Source { get; }
+        internal EventQueryExecutionInfo? ExecutionInfo { get; }
         internal EventObject Current => _enumerator.Current;
 
         internal bool MoveNext() {
-            if (_enumerator.MoveNext()) {
+            long started = ExecutionInfo == null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
+            bool moved;
+            try {
+                moved = _enumerator.MoveNext();
+            } finally {
+                ExecutionInfo?.RecordSourceRead(started);
+            }
+            if (moved) {
+                ExecutionInfo?.RecordNativeEvent();
                 return true;
             }
             Dispose();

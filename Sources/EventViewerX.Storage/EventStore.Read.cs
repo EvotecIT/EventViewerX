@@ -165,116 +165,39 @@ public sealed partial class EventStore {
         string? title = null,
         CancellationToken cancellationToken = default) {
 
-        if (query == null) {
-            throw new ArgumentNullException(nameof(query));
-        }
-        EnsureInitialized();
-        EventStoreQuery snapshot = query.Snapshot();
-        using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
-        await using SQLiteAsyncSession session = await sqlite
-            .OpenSessionAsync(Path, cancellationToken)
-            .ConfigureAwait(false);
-        return await session.RunInTransactionAsync(async (transaction, token) => {
-            StoredSchemaContext schemaContext = await ReadSchemaContextAsync(
-                transaction,
-                snapshot.ResolveDefinitionNames(),
-                snapshot.DefinitionSchemas,
-                token).ConfigureAwait(false);
-            snapshot.Predicate = NormalizeStoredPredicate(snapshot.Predicate, schemaContext.Schemas);
-            QueryCommand command = BuildReadCommand(snapshot, schemaContext.Pushdown);
-            var rows = new List<EventReportRow>();
-            long scanned = 0;
-            long offset = 0;
-            bool scanLimitReached = false;
-            bool resultLimitReached = false;
-            bool completed = false;
-            while (!completed) {
-                long remainingCandidates = command.CandidateLimit > 0
-                    ? command.CandidateLimit - scanned
-                    : long.MaxValue;
-                long pageLimit = command.CandidateLimit > 0
-                    ? Math.Min(StoredReadPageSize, remainingCandidates + 1)
-                    : snapshot.MaxEvents > 0
-                        ? Math.Min(StoredReadPageSize, GetResultProbeLimit(snapshot.MaxEvents, rows.Count))
-                        : StoredReadPageSize;
-                if (pageLimit <= 0) {
-                    break;
-                }
-                var pageParameters = new Dictionary<string, object?>(command.Parameters) {
-                    ["$pageLimit"] = pageLimit,
-                    ["$pageOffset"] = offset
+        var rows = new List<EventReportRow>();
+        IReadOnlyList<EventReportSectionSchema> selectedSchemas = Array.Empty<EventReportSectionSchema>();
+        EventStoreRowReadResult result = await StreamRowsCoreAsync(
+            query,
+            (row, _) => {
+                rows.Add(row);
+                return Task.CompletedTask;
+            },
+            schemas => selectedSchemas = schemas,
+            cancellationToken).ConfigureAwait(false);
+        var populatedDefinitions = new HashSet<string>(
+            rows.Select(static row => row.Type), StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<EventReportSectionSchema> schemas = rows.Count == 0
+            ? selectedSchemas
+            : selectedSchemas.Where(schema => populatedDefinitions.Contains(schema.Name)).ToArray();
+        EventReportCoverage[] coverage = rows
+            .GroupBy(static row => row.CollectorComputer + "\0" + row.SourceLog, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => {
+                EventReportRow first = group.First();
+                return new EventReportCoverage {
+                    MachineName = first.CollectorComputer,
+                    LogName = first.SourceLog,
+                    Succeeded = true,
+                    Status = "Stored",
+                    Detail = string.Empty
                 };
-                IReadOnlyList<EventReportRow> candidates = await transaction.QueryAsListAsync(
-                    command.Sql + " LIMIT $pageLimit OFFSET $pageOffset;",
-                    record => MapEventRow(record, schemaContext.ByName),
-                    pageParameters,
-                    cancellationToken: token).ConfigureAwait(false);
-                if (candidates.Count == 0) {
-                    break;
-                }
-                offset += candidates.Count;
-                foreach (EventReportRow row in candidates) {
-                    token.ThrowIfCancellationRequested();
-                    if (command.CandidateLimit > 0 && scanned >= command.CandidateLimit) {
-                        scanLimitReached = true;
-                        completed = true;
-                        break;
-                    }
-                    scanned++;
-                    if (!MatchesDirectTextSelection(snapshot, row)) {
-                        continue;
-                    }
-                    if (snapshot.Predicate != null &&
-                        !EventPredicateEvaluator.Matches(snapshot.Predicate, row.ToPredicateDictionary())) {
-                        continue;
-                    }
-                    if (snapshot.MaxEvents > 0 && rows.Count >= snapshot.MaxEvents) {
-                        resultLimitReached = true;
-                        completed = true;
-                        break;
-                    }
-                    rows.Add(row);
-                }
-                if (candidates.Count < pageLimit) {
-                    break;
-                }
-            }
-
-            string[] definitionNames = rows.Select(static row => row.Type)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            HashSet<string> populatedDefinitions = new(definitionNames, StringComparer.OrdinalIgnoreCase);
-            IReadOnlyList<EventReportSectionSchema> schemas = rows.Count == 0
-                ? schemaContext.Schemas
-                : schemaContext.Schemas
-                    .Where(schema => populatedDefinitions.Contains(schema.Name))
-                    .ToArray();
-            EventReportCoverage[] coverage = rows
-                .GroupBy(static row => row.CollectorComputer + "\0" + row.SourceLog, StringComparer.OrdinalIgnoreCase)
-                .Select(static group => {
-                    EventReportRow first = group.First();
-                    return new EventReportCoverage {
-                        MachineName = first.CollectorComputer,
-                        LogName = first.SourceLog,
-                        Succeeded = true,
-                        Status = "Stored",
-                        Detail = string.Empty
-                    };
-                }).ToArray();
-            return EventReportEngine.CreateStored(
-                rows,
-                schemas,
-                title,
-                coverage,
-                eventsScanned: scanned,
-                scanLimitReached: scanLimitReached || resultLimitReached,
-                completenessDiagnostic: CreateReadCompletenessDiagnostic(
-                    snapshot.MaxEvents,
-                    scanLimitReached,
-                    resultLimitReached));
-        }, cancellationToken).ConfigureAwait(false);
+            }).ToArray();
+        return EventReportEngine.CreateStored(
+            rows, schemas, title, coverage,
+            eventsScanned: result.EventsScanned,
+            scanLimitReached: result.ScanLimitReached,
+            completenessDiagnostic: result.CompletenessDiagnostic);
     }
-
     private static string? CreateReadCompletenessDiagnostic(
         long maximum,
         bool scanLimitReached,
@@ -447,10 +370,11 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
 
     private static EventReportRow MapEventRow(
         IDataRecord record,
-        IReadOnlyDictionary<string, EventReportSectionSchema> schemas) {
+        StoredSchemaContext context) {
 
         string definitionName = record.GetString(0);
-        schemas.TryGetValue(definitionName, out EventReportSectionSchema? schema);
+        context.ByName.TryGetValue(definitionName, out EventReportSectionSchema? schema);
+        context.DeclaredTypes.TryGetValue(definitionName, out IReadOnlyDictionary<string, Type>? declaredTypes);
         return new EventReportRow {
             Type = definitionName,
             TimeCreated = ParseUtc(record.GetString(1)),
@@ -468,7 +392,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             ProcessId = record.IsDBNull(13) ? null : record.GetInt32(13),
             ThreadId = record.IsDBNull(14) ? null : record.GetInt32(14),
             Message = record.GetString(15),
-            Values = DeserializeValues(record.GetString(16), schema),
+            Values = DeserializeValues(record.GetString(16), schema, declaredTypes),
             SourceKind = record.GetInt32(17) == 2
                 ? EventLogQuerySourceKind.File
                 : EventLogQuerySourceKind.Channel,
@@ -501,7 +425,8 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
 
     private static IReadOnlyDictionary<string, object?> DeserializeValues(
         string json,
-        EventReportSectionSchema? schema) {
+        EventReportSectionSchema? schema,
+        IReadOnlyDictionary<string, Type>? declaredTypes) {
 
         Dictionary<string, JsonElement>? values = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, JsonOptions);
         if (values == null) {
@@ -513,10 +438,9 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
                 static item => ConvertGenericJson(item.Value),
                 StringComparer.OrdinalIgnoreCase);
         }
-        IReadOnlyDictionary<string, Type> declaredTypes = CreateDeclaredTypes(schema);
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (KeyValuePair<string, JsonElement> item in values) {
-            result[item.Key] = declaredTypes.TryGetValue(item.Key, out Type? declaredType) && declaredType != typeof(object)
+            result[item.Key] = declaredTypes != null && declaredTypes.TryGetValue(item.Key, out Type? declaredType) && declaredType != typeof(object)
                 ? ConvertDeclaredJson(item.Value, declaredType, schema!.Name, item.Key)
                 : ConvertJson(item.Value);
         }
@@ -764,10 +688,15 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             ByName = schemas.ToDictionary(
                 static schema => schema.Name,
                 StringComparer.OrdinalIgnoreCase);
+            DeclaredTypes = schemas.ToDictionary(
+                static schema => schema.Name,
+                static schema => CreateDeclaredTypes(schema),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         internal IReadOnlyList<EventReportSectionSchema> Schemas { get; }
         internal IReadOnlyDictionary<string, EventReportSectionSchema> ByName { get; }
+        internal IReadOnlyDictionary<string, IReadOnlyDictionary<string, Type>> DeclaredTypes { get; }
         internal PredicatePushdownPolicy Pushdown { get; }
     }
 }

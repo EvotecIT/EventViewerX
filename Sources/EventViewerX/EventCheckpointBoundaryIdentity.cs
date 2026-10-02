@@ -26,7 +26,7 @@ public static class EventCheckpointBoundaryIdentity {
             NormalizeSource(eventObject.MachineName),
             eventObject.ActivityId?.ToString("D"),
             eventObject.RelatedActivityId?.ToString("D"),
-            eventObject.UserId?.Value,
+            eventObject.UserIdText,
             eventObject.ProcessId?.ToString(CultureInfo.InvariantCulture),
             eventObject.ThreadId?.ToString(CultureInfo.InvariantCulture),
             eventObject.Version?.ToString(CultureInfo.InvariantCulture),

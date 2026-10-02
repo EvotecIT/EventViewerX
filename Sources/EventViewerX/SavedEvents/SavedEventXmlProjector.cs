@@ -15,26 +15,40 @@ public static class SavedEventXmlProjector {
         long? fallbackRecordId = null,
         DateTime? fallbackTimeCreatedUtc = null) {
 
+        return Create(xml, ParseDocument(xml), fallbackRecordId, fallbackTimeCreatedUtc);
+    }
+
+    internal static XDocument ParseDocument(string xml) {
+
         if (string.IsNullOrWhiteSpace(xml)) {
             throw new ArgumentException("Event XML cannot be null or empty.", nameof(xml));
         }
-        XDocument document;
         try {
             using var textReader = new StringReader(xml);
             using XmlReader reader = XmlReader.Create(textReader, new XmlReaderSettings {
                 DtdProcessing = DtdProcessing.Prohibit,
                 XmlResolver = null
             });
-            document = XDocument.Load(reader, LoadOptions.None);
+            return XDocument.Load(reader, LoadOptions.None);
         } catch (XmlException exception) {
             throw new InvalidDataException("The parser produced invalid event XML.", exception);
         }
+    }
+
+    internal static SavedEventRecord Create(
+        string xml,
+        XDocument document,
+        long? fallbackRecordId = null,
+        DateTime? fallbackTimeCreatedUtc = null) {
+
         XElement system = document.Descendants().FirstOrDefault(Is("System")) ??
             throw new InvalidDataException("Event XML does not contain a System element.");
         XElement? provider = system.Elements().FirstOrDefault(Is("Provider"));
         XElement? correlation = system.Elements().FirstOrDefault(Is("Correlation"));
         XElement? execution = system.Elements().FirstOrDefault(Is("Execution"));
         XElement? timeCreated = system.Elements().FirstOrDefault(Is("TimeCreated"));
+        XElement? eventId = system.Elements().FirstOrDefault(Is("EventID"));
+        XElement? security = system.Elements().FirstOrDefault(Is("Security"));
         var data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AddEventData(document, data);
         AddUserData(document, data);
@@ -43,6 +57,9 @@ public static class SavedEventXmlProjector {
             ProviderName = Attribute(provider, "Name"),
             ProviderId = GuidValue(Attribute(provider, "Guid")),
             EventId = RequiredInt(ElementValue(system, "EventID"), "EventID"),
+            Qualifiers = ushort.TryParse(Attribute(eventId, "Qualifiers"), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out ushort qualifiers) ? qualifiers : null,
+            UserId = Attribute(security, "UserID") is string userId && userId.Length > 0 ? userId : null,
             RecordId = LongValue(ElementValue(system, "EventRecordID")) ?? fallbackRecordId,
             Channel = ElementValue(system, "Channel"),
             Computer = ElementValue(system, "Computer"),

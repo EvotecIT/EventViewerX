@@ -4,7 +4,11 @@ This PowerForge benchmark compares the compatibility path that compiles typed
 rule selection for every event with the immutable `EventTypeProjectionPlan`
 used by the core engine, watcher, CLI, and PowerShell surfaces. Both engines
 process the same specialized NTLMv1 event and must produce the same CLR type,
-event count, and deterministic checksum.
+event count, and deterministic checksum. `ReportMembers` and `ObservationMembers`
+add report and detection member projection to the reusable-plan path and verify
+their metadata and payload. Compare each of those lanes with the same lane from
+a baseline checkout; their additional work makes them different workloads from
+plain typed projection. PowerForge owns timing, warmup, and rotated sample order.
 
 ```powershell
 .\Invoke-EventProjectionBenchmark.ps1 -EventCount 1000,10000 -IterationCount 3

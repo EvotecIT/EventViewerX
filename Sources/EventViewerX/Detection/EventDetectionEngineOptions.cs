@@ -2,6 +2,18 @@ namespace EventViewerX;
 
 /// <summary>Safety bounds for one stateful detection execution.</summary>
 public sealed class EventDetectionEngineOptions {
+    /// <summary>Creates a bounded execution with an explicit live event-time ordering policy.</summary>
+    public EventDetectionEngineOptions(EventTimeOrderingOptions eventTimeOrdering,
+        long maximumObservations = 1_000_000, int maximumGroups = 25_000,
+        int maximumStateObservations = 250_000, long maximumStateBytes = 256L * 1024 * 1024,
+        int maximumCandidateRules = 10_000, EventDetectionCoverage? coverage = null)
+        : this(maximumObservations, maximumGroups, maximumStateObservations,
+            maximumStateBytes, maximumCandidateRules, coverage) {
+        EventTimeOrdering = eventTimeOrdering ?? throw new ArgumentNullException(nameof(eventTimeOrdering));
+    }
+
+    /// <summary>Optional bounded live event-time ordering. Null evaluates observations immediately.</summary>
+    public EventTimeOrderingOptions? EventTimeOrdering { get; }
     /// <summary>Creates an immutable validated detection execution contract.</summary>
     public EventDetectionEngineOptions(
         long maximumObservations = 1_000_000,
@@ -56,6 +68,13 @@ public sealed class EventDetectionEngineOptionsBuilder {
     private long _maximumStateBytes = 256L * 1024L * 1024L;
     private int _maximumCandidateRules = 10_000;
     private EventDetectionCoverage? _coverage;
+    private EventTimeOrderingOptions? _eventTimeOrdering;
+
+    /// <summary>Sets the bounded live event-time ordering policy.</summary>
+    public EventDetectionEngineOptionsBuilder WithEventTimeOrdering(EventTimeOrderingOptions? value) {
+        _eventTimeOrdering = value;
+        return this;
+    }
 
     /// <summary>Sets the maximum observations accepted by one evaluator.</summary>
     public EventDetectionEngineOptionsBuilder WithMaximumObservations(long value) {
@@ -94,11 +113,12 @@ public sealed class EventDetectionEngineOptionsBuilder {
     }
 
     /// <summary>Builds an immutable validated execution contract.</summary>
-    public EventDetectionEngineOptions Build() => new(
+    public EventDetectionEngineOptions Build() => _eventTimeOrdering == null ? new(
         _maximumObservations,
         _maximumGroups,
         _maximumStateObservations,
         _maximumStateBytes,
         _maximumCandidateRules,
-        _coverage);
+        _coverage) : new(_eventTimeOrdering, _maximumObservations, _maximumGroups,
+            _maximumStateObservations, _maximumStateBytes, _maximumCandidateRules, _coverage);
 }
