@@ -11,8 +11,9 @@ public static class EventLogArchive {
     }
 
     /// <summary>
-    /// Adds provider metadata and localized message resources to an EVTX file
-    /// previously created by the Windows Event Log export API.
+    /// Archives provider metadata and localized messages beside an EVTX file
+    /// previously created by the Windows Event Log export API. Keep its LocaleMetaData
+    /// directory alongside the log when copying the archive to another computer.
     /// </summary>
     public static void ArchiveResources(
         string path,

@@ -87,7 +87,7 @@ internal sealed class WindowsEventFileQueryLease : IDisposable {
         string temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
             "EventViewerX-NativeQuery-" + Guid.NewGuid().ToString("N"));
-        string nativePath = Path.Combine(temporaryDirectory, "source.evtx");
+        string nativePath = Path.Combine(temporaryDirectory, Path.GetFileName(sourcePath));
         var linkedFiles =
             new List<(string DestinationPath, string SourcePath)>();
         try {

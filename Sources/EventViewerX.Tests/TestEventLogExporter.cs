@@ -218,6 +218,7 @@ public sealed class TestEventLogExporter {
         using var cancellation = new CancellationTokenSource();
         using var started = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
+        string stagedDirectory = string.Empty;
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         Assert.Throws<OperationCanceledException>(() =>
@@ -227,6 +228,7 @@ public sealed class TestEventLogExporter {
                 computeSha256: false,
                 cancellation.Token,
                 temporaryPath => {
+                    stagedDirectory = Path.GetDirectoryName(temporaryPath)!;
                     using var stream = new FileStream(
                         temporaryPath,
                         FileMode.CreateNew,
@@ -243,18 +245,14 @@ public sealed class TestEventLogExporter {
             stopwatch.Elapsed < TimeSpan.FromSeconds(5),
             $"Cancellation took {stopwatch.Elapsed.TotalMilliseconds:F0} ms.");
         Assert.Equal("preserve-me", File.ReadAllText(outputPath));
-        Assert.Single(Directory.GetFiles(
-            fixture.DirectoryPath,
-            ".existing.evtx.*.tmp.evtx"));
+        Assert.True(Directory.Exists(stagedDirectory));
 
         release.Set();
         Assert.True(
             SpinWait.SpinUntil(
-                () => Directory.GetFiles(
-                    fixture.DirectoryPath,
-                    ".existing.evtx.*.tmp.evtx").Length == 0,
+                () => !Directory.Exists(stagedDirectory),
                 TimeSpan.FromSeconds(5)),
-            "The canceled native export did not remove its temporary file after the worker stopped.");
+            "The canceled native export did not remove its staged log and resources after the worker stopped.");
     }
 
     [Fact]

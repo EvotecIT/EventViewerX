@@ -22,7 +22,7 @@ public static class EventLogExporter {
     /// <param name="overwrite">Whether an existing destination may be replaced after a successful export.</param>
     /// <param name="cancellationToken">Token used to cancel enumeration and leave the existing destination unchanged.</param>
     /// <param name="computeSha256">Whether to hash the completed temporary output before atomic promotion.</param>
-    /// <param name="archiveResources">Whether native EVTX output should embed provider resources for portable message rendering.</param>
+    /// <param name="archiveResources">Whether to archive companion provider resources in LocaleMetaData for portable message rendering. Keep that directory alongside the EVTX.</param>
     /// <returns>Count, size, and SHA-256 for the completed output.</returns>
     public static EventExportResult ExportFile(
         EventLogFileQuery query,
@@ -74,7 +74,7 @@ public static class EventLogExporter {
     /// <param name="overwrite">Whether an existing destination may be replaced after a successful export.</param>
     /// <param name="cancellationToken">Token used to cancel enumeration and leave the existing destination unchanged.</param>
     /// <param name="computeSha256">Whether to hash the completed temporary output before atomic promotion.</param>
-    /// <param name="archiveResources">Whether native EVTX output should embed provider resources for portable message rendering.</param>
+    /// <param name="archiveResources">Whether to archive companion provider resources in LocaleMetaData for portable message rendering. Keep that directory alongside the EVTX.</param>
     /// <returns>Count, size, and SHA-256 for the completed output.</returns>
     public static EventExportResult ExportChannel(
         EventLogChannelQuery query,
@@ -238,9 +238,8 @@ public static class EventLogExporter {
                 $"Output file '{destination}' already exists.");
         }
 
-        string temporaryPath = Path.Combine(
-            directory,
-            $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp.evtx");
+        var bundle = new WindowsEventArchiveBundle(destination);
+        string temporaryPath = bundle.EventLogPath;
         bool cleanupDeferred = false;
         try {
             cancellationToken.ThrowIfCancellationRequested();
@@ -251,17 +250,21 @@ public static class EventLogExporter {
                             export(temporaryPath);
                             return true;
                         } catch {
-                            DeleteTemporaryFile(temporaryPath);
+                            bundle.Cleanup();
                             throw;
                         }
                     },
                     int.MaxValue,
                     $"Native EVTX export to '{destination}' did not complete.",
                     cancellationToken,
-                    _ => DeleteTemporaryFile(temporaryPath));
+                    _ => bundle.Cleanup(),
+                    operationAccepted: () => cleanupDeferred = true);
+                cleanupDeferred = false;
             } catch (OperationCanceledException)
                 when (cancellationToken.IsCancellationRequested) {
-                cleanupDeferred = true;
+                throw;
+            } catch {
+                cleanupDeferred = false;
                 throw;
             }
             cancellationToken.ThrowIfCancellationRequested();
@@ -271,7 +274,7 @@ public static class EventLogExporter {
                 ? ComputeSha256(temporaryPath, cancellationToken)
                 : null;
             cancellationToken.ThrowIfCancellationRequested();
-            PromoteTemporaryFile(temporaryPath, destination, overwrite);
+            bundle.Publish(includeEventLog: true, overwrite, cancellationToken);
             return new EventExportResult(
                 destination,
                 EventExportFormat.Evtx,
@@ -280,7 +283,7 @@ public static class EventLogExporter {
                 sha256);
         } finally {
             if (!cleanupDeferred) {
-                DeleteTemporaryFile(temporaryPath);
+                bundle.Cleanup();
             }
         }
     }
@@ -352,22 +355,7 @@ public static class EventLogExporter {
         string temporaryPath,
         string destination,
         bool overwrite) {
-
-        if (!overwrite) {
-            File.Move(temporaryPath, destination);
-            return;
-        }
-
-        if (File.Exists(destination)) {
-            File.Replace(temporaryPath, destination, null);
-            return;
-        }
-
-        try {
-            File.Move(temporaryPath, destination);
-        } catch (IOException) when (File.Exists(destination)) {
-            File.Replace(temporaryPath, destination, null);
-        }
+        FilePublication.Promote(temporaryPath, destination, overwrite);
     }
 
     private static long WriteFile(

@@ -3,13 +3,13 @@ using System.Globalization;
 namespace PSEventViewer;
 
 /// <summary>
-/// <para type="synopsis">Archives provider resources into exported EVTX files.</para>
-/// <para type="description">Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.</para>
+/// <para type="synopsis">Archives provider resources beside exported EVTX files.</para>
+/// <para type="description">Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.</para>
 /// </summary>
 /// <example>
 ///   <summary>Archive English provider resources</summary>
 ///   <code>Update-EVXLogArchive -Path C:\Exports\Security.evtx -Culture en-US</code>
-///   <para>Updates the exported log in place through EvtArchiveExportedLog.</para>
+///   <para>Archives message resources through EvtArchiveExportedLog while preserving the exported log.</para>
 /// </example>
 [Cmdlet(
     VerbsData.Update,
@@ -45,7 +45,7 @@ public sealed class CmdletUpdateEVXLogArchive : AsyncPSCmdlet {
                     path.Trim('"', '\''));
             if (!ShouldProcess(
                     absolutePath,
-                    "Archive provider resources into EVTX")) {
+                    "Archive companion provider resources")) {
                 continue;
             }
             EventLogArchive.ArchiveResources(

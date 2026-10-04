@@ -450,6 +450,22 @@ promote it only after success. Cancellation or a corrupt input does not replace
 an existing destination. Use `-SkipHash` only when another layer already
 validates integrity.
 
+Native EVTX message resources are companion files in `LocaleMetaData`, rather
+than embedded messages in the EVTX. Keep that directory alongside the exported
+log when copying it to another computer. `Update-EVXLogArchive` archives resources
+for an existing native export while preserving its EVTX bytes. Native export
+stages the log and resources with the final log basename, then publishes the
+completed files while holding ownership of that destination across processes.
+Replacing an EVTX retires its old locale companions, including when the new
+export omits resources. Adding resources to an unchanged EVTX keeps its other
+locales. Neighboring archives keep their companion files.
+
+A publication failure restores attempted replacements and retired companions.
+File replacement keeps a native recovery copy; if recovery itself fails, the
+exception identifies the retained recovery file or directory. These guarantees
+cover reported operation failures, rather than an abrupt process or machine
+shutdown between file operations.
+
 ## Checkpoints, bookmarks, and real-time events
 
 ```powershell

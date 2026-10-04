@@ -6,9 +6,9 @@ schema: 2.0.0
 ---
 # Update-EVXLogArchive
 ## SYNOPSIS
-Archives provider resources into exported EVTX files.
+Archives provider resources beside exported EVTX files.
 
-Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.
+Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.
 
 ## SYNTAX
 ### __AllParameterSets
@@ -17,9 +17,9 @@ Update-EVXLogArchive [-Path] <string[]> [-Culture <cultureinfo>] [-WhatIf] [-Con
 ```
 
 ## DESCRIPTION
-Archives provider resources into exported EVTX files.
+Archives provider resources beside exported EVTX files.
 
-Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.
+Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.
 
 ## EXAMPLES
 
@@ -28,7 +28,7 @@ Makes a Windows-native EVTX export self-contained for message rendering on compu
 Update-EVXLogArchive -Path C:\Exports\Security.evtx -Culture en-US
 ```
 
-Updates the exported log in place through EvtArchiveExportedLog.
+Archives message resources through EvtArchiveExportedLog while preserving the exported log.
 
 ## PARAMETERS
 

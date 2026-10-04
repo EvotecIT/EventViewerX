@@ -91,25 +91,7 @@ public static class EventProviderDefinitionJson {
         string fullPath,
         bool overwrite) {
 
-        if (!overwrite) {
-            File.Move(temporaryPath, fullPath);
-            return;
-        }
-        if (File.Exists(fullPath)) {
-            File.Replace(
-                temporaryPath,
-                fullPath,
-                null);
-            return;
-        }
-        try {
-            File.Move(temporaryPath, fullPath);
-        } catch (IOException) when (File.Exists(fullPath)) {
-            File.Replace(
-                temporaryPath,
-                fullPath,
-                null);
-        }
+        FilePublication.Promote(temporaryPath, fullPath, overwrite);
     }
 
     internal static void DeleteTemporaryBestEffort(

@@ -380,11 +380,7 @@ public static class EventCheckpointStore {
         string temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try {
             File.WriteAllText(temporaryPath, contents);
-            if (File.Exists(path)) {
-                File.Replace(temporaryPath, path, null);
-            } else {
-                File.Move(temporaryPath, path);
-            }
+            FilePublication.Promote(temporaryPath, path, overwrite: true);
         } finally {
             DeleteTemporaryBestEffort(
                 temporaryPath,
