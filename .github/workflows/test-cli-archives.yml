@@ -25,7 +25,7 @@ jobs:
             os: windows-2025
           - runtime: win-arm64
             os: windows-11-arm
-            git-path: 'C:\Program Files\Git\clangarm64\bin\git.exe'
+            git-path: 'C:\Program Files\Git\cmd\git.exe'
           - runtime: linux-x64
             os: ubuntu-24.04
           - runtime: linux-arm64
@@ -62,28 +62,6 @@ jobs:
         run: |
           git status --short
           dotnet --version
-          if ($env:POWERFORGE_GIT_PATH) {
-            $signature = Get-AuthenticodeSignature -LiteralPath $env:POWERFORGE_GIT_PATH
-            $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($env:POWERFORGE_GIT_PATH)
-            [pscustomobject] @{
-              Path = $env:POWERFORGE_GIT_PATH
-              SignatureStatus = $signature.Status.ToString()
-              Signer = $signature.SignerCertificate.Subject
-              ProductName = $version.ProductName
-              OriginalFilename = $version.OriginalFilename
-            } | ConvertTo-Json -Compress | Write-Output
-            fsutil hardlink list $env:POWERFORGE_GIT_PATH
-            $plan = ./Build/Build-Cli.ps1 -RunMode Plan -Runtimes '${{ matrix.runtime }}'
-            $assembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PowerForge' }
-            $type = $assembly.GetType('PowerForge.DotNetPublishPipelineRunner')
-            $flags = [Reflection.BindingFlags] 'NonPublic,Static'
-            try {
-              $resolved = $type.GetMethod('ResolveRunGitExecutablePath', $flags).Invoke($null, @())
-              Write-Output "PowerForge trusted Git: $resolved"
-            } catch {
-              throw $_.Exception.InnerException
-            }
-          }
           ./Build/Test-NativeCliArchives.ps1 -RuntimeIdentifier '${{ matrix.runtime }}' `
             -WorkRoot (Join-Path $env:RUNNER_TEMP 'evx-native-archives') `
             -EvidencePath (Join-Path $env:RUNNER_TEMP 'evx-native-evidence/qualification.json')
