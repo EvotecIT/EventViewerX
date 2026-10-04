@@ -1,0 +1,166 @@
+{
+  "Path": "C:\\Support\\GitHub\\_worktrees\\EventViewerX-portable-evtx\\Tests\\Logs\\NamedFilterExamples.evtx",
+  "FileBytes": 1118208,
+  "FileSha256": "C8865C325C89875604D62339D0AE72FB0E1040FC034770D3FCE05A8425A3A383",
+  "FixtureIntegrity": {
+    "Before": {
+      "Bytes": 1118208,
+      "Sha256": "C8865C325C89875604D62339D0AE72FB0E1040FC034770D3FCE05A8425A3A383"
+    },
+    "After": {
+      "Bytes": 1118208,
+      "Sha256": "C8865C325C89875604D62339D0AE72FB0E1040FC034770D3FCE05A8425A3A383"
+    },
+    "Stable": true,
+    "Error": null
+  },
+  "MaximumEvents": 0,
+  "ReadMode": "StructuredData",
+  "XPath": "*",
+  "WarmupIterations": 1,
+  "Iterations": 3,
+  "MinimumIdentityMatchRatio": 1,
+  "MinimumExactTimestampRatio": 1,
+  "Runtime": ".NET 10.0.12",
+  "OperatingSystem": "Microsoft Windows 10.0.26300",
+  "Architecture": "X64",
+  "EventViewerXEvtxVersion": "4.0.1\u002Bfcf463507f257d931d096e4b62f0d1d918d147bd",
+  "ParserDependencyVersion": "1.5.2\u002B3d4051feec552302189a80d0eba113924d4e7ced",
+  "EvtxDumpExecutable": null,
+  "EvtxDumpExecutableIntegrity": {
+    "Before": null,
+    "After": null,
+    "Stable": null,
+    "Error": null
+  },
+  "Portable": {
+    "Iterations": [
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 23.2828,
+        "AllocatedBytes": 56593760,
+        "EventsPerSecond": 7902.829556582542,
+        "BytesPerEvent": 307574.7826086957
+      },
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 24.4785,
+        "AllocatedBytes": 56593760,
+        "EventsPerSecond": 7516.800457544376,
+        "BytesPerEvent": 307574.7826086957
+      },
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 23.2473,
+        "AllocatedBytes": 56593760,
+        "EventsPerSecond": 7914.897644027479,
+        "BytesPerEvent": 307574.7826086957
+      }
+    ],
+    "Median": {
+      "Count": 184,
+      "ElapsedMilliseconds": 23.2828,
+      "AllocatedBytes": 56593760,
+      "EventsPerSecond": 7902.829556582542,
+      "BytesPerEvent": 307574.7826086957
+    }
+  },
+  "EvtxDump": null,
+  "Windows": {
+    "Iterations": [
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 4.2788,
+        "AllocatedBytes": 541792,
+        "EventsPerSecond": 43002.711040478636,
+        "BytesPerEvent": 2944.521739130435
+      },
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 3.5171,
+        "AllocatedBytes": 542080,
+        "EventsPerSecond": 52315.8283813369,
+        "BytesPerEvent": 2946.086956521739
+      },
+      {
+        "Count": 184,
+        "ElapsedMilliseconds": 3.4522,
+        "AllocatedBytes": 542080,
+        "EventsPerSecond": 53299.3453449974,
+        "BytesPerEvent": 2946.086956521739
+      }
+    ],
+    "Median": {
+      "Count": 184,
+      "ElapsedMilliseconds": 3.5171,
+      "AllocatedBytes": 542080,
+      "EventsPerSecond": 52315.8283813369,
+      "BytesPerEvent": 2946.086956521739
+    }
+  },
+  "WindowsReferenceComplete": true,
+  "WindowsError": null,
+  "Fidelity": {
+    "Iterations": [
+      {
+        "WindowsRecords": 184,
+        "PortableRecords": 184,
+        "ComparedRecords": 184,
+        "IdentityMatches": 184,
+        "IdentityMatchRatio": 1,
+        "EventIdMatchRatio": 1,
+        "ProviderMatchRatio": 1,
+        "ChannelMatchRatio": 1,
+        "ComputerMatchRatio": 1,
+        "TimestampMatchRatio": 1,
+        "TimestampExactMatchRatio": 1,
+        "MissingPortableRecords": 0,
+        "ExtraPortableRecords": 0
+      },
+      {
+        "WindowsRecords": 184,
+        "PortableRecords": 184,
+        "ComparedRecords": 184,
+        "IdentityMatches": 184,
+        "IdentityMatchRatio": 1,
+        "EventIdMatchRatio": 1,
+        "ProviderMatchRatio": 1,
+        "ChannelMatchRatio": 1,
+        "ComputerMatchRatio": 1,
+        "TimestampMatchRatio": 1,
+        "TimestampExactMatchRatio": 1,
+        "MissingPortableRecords": 0,
+        "ExtraPortableRecords": 0
+      },
+      {
+        "WindowsRecords": 184,
+        "PortableRecords": 184,
+        "ComparedRecords": 184,
+        "IdentityMatches": 184,
+        "IdentityMatchRatio": 1,
+        "EventIdMatchRatio": 1,
+        "ProviderMatchRatio": 1,
+        "ChannelMatchRatio": 1,
+        "ComputerMatchRatio": 1,
+        "TimestampMatchRatio": 1,
+        "TimestampExactMatchRatio": 1,
+        "MissingPortableRecords": 0,
+        "ExtraPortableRecords": 0
+      }
+    ],
+    "MinimumIdentityMatchRatio": 1,
+    "MinimumExactTimestampMatchRatio": 1,
+    "MaximumMissingPortableRecords": 0,
+    "MaximumExtraPortableRecords": 0
+  },
+  "EvtxDumpFidelity": null,
+  "PerformanceBudget": {
+    "Configured": false,
+    "Passed": true,
+    "MinimumEventsPerSecond": null,
+    "MaximumBytesPerEvent": null,
+    "Failures": []
+  },
+  "Diagnostics": [],
+  "EvtxDumpDiagnostics": []
+}
