@@ -23,7 +23,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>

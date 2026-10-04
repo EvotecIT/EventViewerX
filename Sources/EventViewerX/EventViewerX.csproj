@@ -27,8 +27,8 @@
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
         <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
-        <PackageReference Include="System.Text.Json" Version="10.0.11" />
-        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
+        <PackageReference Include="System.Text.Json" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.12" />
         <PackageReference Include="System.Threading.Channels" Version="10.0.11" />
         <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
         <Reference Include="System.IO.Compression" />

@@ -55,7 +55,7 @@ public static class EventReportEmailRenderer {
     }
 
     private static List<Dictionary<string, object?>> ProjectEmailRows(EventReportSection section, int maximumRows) {
-        EventReportPresentationSection presentation = EventReportPresentationProjection.Create(section);
+        EventReportPresentationSection presentation = EventReportPresentationProjection.Create(section, maximumRows);
         EventReportPresentationColumn[] columns = presentation.PrimaryColumns
             .Take(5)
             .ToArray();

@@ -74,8 +74,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.56.0",
-        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
+        "resolved": "1.1.0",
+        "contentHash": "jSDGXPlzm7d5ZY+2YDYQ6TwlO352GnV230vnQBSIkKvfqD16QMbOSmNGNqCQSjI00C1TtoxU3BxFlz3okRiaVg=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -273,7 +273,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }
@@ -281,8 +281,8 @@
       "eventviewerx.reporting": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.56.0, )",
+          "EventViewerX": "[4.0.1, )",
+          "HtmlForgeX": "[1.1.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -292,7 +292,7 @@
         "type": "Project",
         "dependencies": {
           "DBAClientX.SQLite": "[1.0.8, )",
-          "EventViewerX": "[4.0.0, )"
+          "EventViewerX": "[4.0.1, )"
         }
       }
     },
@@ -372,8 +372,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "0.56.0",
-        "contentHash": "bKqH8vz5IQnLzoNttlVgqCsyX4vbCJ3zL8O+4B5L8tNGZpZlf++gQ1SU7bfvGsusvSyfK4tsh4WiCwSEIFtwnA=="
+        "resolved": "1.1.0",
+        "contentHash": "jSDGXPlzm7d5ZY+2YDYQ6TwlO352GnV230vnQBSIkKvfqD16QMbOSmNGNqCQSjI00C1TtoxU3BxFlz3okRiaVg=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -582,7 +582,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }
@@ -590,8 +590,8 @@
       "eventviewerx.reporting": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
-          "HtmlForgeX": "[0.56.0, )",
+          "EventViewerX": "[4.0.1, )",
+          "HtmlForgeX": "[1.1.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -601,7 +601,7 @@
         "type": "Project",
         "dependencies": {
           "DBAClientX.SQLite": "[1.0.8, )",
-          "EventViewerX": "[4.0.0, )"
+          "EventViewerX": "[4.0.1, )"
         }
       }
     }

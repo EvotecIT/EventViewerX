@@ -21,7 +21,7 @@ public static class EventReportHtmlRenderer {
         document.Head.Title = report.Title;
         EventReportPresentationSection[] sections = report.Sections
             .Where(static section => section.Rows.Count > 0)
-            .Select(EventReportPresentationProjection.Create)
+            .Select(static section => EventReportPresentationProjection.Create(section))
             .ToArray();
         var dashboard = new MonitoringDashboard()
             .Brand("EventViewerX")
@@ -59,17 +59,17 @@ public static class EventReportHtmlRenderer {
         bool isComplete = EventReportSummary.Create(report).IsComplete;
         page.AddMetric(metric => metric.Title("Events").Value(report.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
-            .Change($"{sections.Count:N0} populated type{(sections.Count == 1 ? string.Empty : "s")}"));
+            .Description($"{sections.Count:N0} populated type{(sections.Count == 1 ? string.Empty : "s")}"));
         page.AddMetric(metric => metric.Title("Sources").Value(report.Coverage.Count.ToString("N0"))
             .Icon(TablerIconType.Server).State(failures == 0 ? MonitoringHealthState.Healthy : MonitoringHealthState.Warning)
-            .Change(failures == 0 ? "All sources responded" : $"{failures:N0} failed"));
+            .Description(failures == 0 ? "All sources responded" : $"{failures:N0} failed"));
         page.AddMetric(metric => metric.Title("Query time").Value($"{report.QueryDuration.TotalSeconds:N2}s")
             .Icon(TablerIconType.Bolt).State(MonitoringHealthState.Healthy)
-            .Change($"{report.EventsScanned:N0} candidates scanned"));
+            .Description($"{report.EventsScanned:N0} candidates scanned"));
         page.AddMetric(metric => metric.Title("Completeness").Value(isComplete ? "Complete" : "Incomplete")
             .Icon(isComplete ? TablerIconType.ShieldCheck : TablerIconType.AlertTriangle)
             .State(isComplete ? MonitoringHealthState.Healthy : MonitoringHealthState.Warning)
-            .Change(report.CompletenessDiagnostic ??
+            .Description(report.CompletenessDiagnostic ??
                     (report.ScanLimitReached
                         ? "More matching candidates may exist"
                         : failures > 0
@@ -111,14 +111,14 @@ public static class EventReportHtmlRenderer {
         DateTime? last = section.Section.Rows.Count == 0 ? null : section.Section.Rows.Max(static row => row.TimeCreated);
         page.AddMetric(metric => metric.Title("Matching events").Value(section.Section.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
-            .Change(section.Section.Kind == EventReportSectionKind.Generic ? "Generic event records" : "Typed domain records"));
+            .Description(section.Section.Kind == EventReportSectionKind.Generic ? "Generic event records" : "Typed domain records"));
         page.AddMetric(metric => metric.Title("First event").Value(first?.ToString("yyyy-MM-dd HH:mm") ?? "None")
-            .Icon(TablerIconType.Clock).State(MonitoringHealthState.Healthy).Change("Oldest match"));
+            .Icon(TablerIconType.Clock).State(MonitoringHealthState.Healthy).Description("Oldest match"));
         page.AddMetric(metric => metric.Title("Latest event").Value(last?.ToString("yyyy-MM-dd HH:mm") ?? "None")
-            .Icon(TablerIconType.Activity).State(MonitoringHealthState.Healthy).Change("Newest match"));
+            .Icon(TablerIconType.Activity).State(MonitoringHealthState.Healthy).Description("Newest match"));
         page.AddMetric(metric => metric.Title("Visible fields").Value(section.PrimaryColumns.Count.ToString("N0"))
             .Icon(TablerIconType.Table).State(MonitoringHealthState.Healthy)
-            .Change($"{section.Columns.Count:N0} populated fields available"));
+            .Description($"{section.Columns.Count:N0} populated fields available"));
 
         var explorer = new MonitoringRecordExplorer()
             .SavedView(section.Section.Kind == EventReportSectionKind.Generic ? "Event essentials" : "Domain essentials")
@@ -169,10 +169,10 @@ public static class EventReportHtmlRenderer {
         int healthy = report.Coverage.Count(static item => item.Succeeded);
         int failed = report.Coverage.Count - healthy;
         page.AddMetric(metric => metric.Title("Healthy sources").Value(healthy.ToString("N0"))
-            .Icon(TablerIconType.ShieldCheck).State(MonitoringHealthState.Healthy).Change("Query completed"));
+            .Icon(TablerIconType.ShieldCheck).State(MonitoringHealthState.Healthy).Description("Query completed"));
         page.AddMetric(metric => metric.Title("Failed sources").Value(failed.ToString("N0"))
             .Icon(TablerIconType.AlertTriangle).State(failed == 0 ? MonitoringHealthState.Healthy : MonitoringHealthState.Critical)
-            .Change(failed == 0 ? "No isolated failures" : "Review source details"));
+            .Description(failed == 0 ? "No isolated failures" : "Review source details"));
 
         var explorer = new MonitoringRecordExplorer()
             .SavedView("Source health")

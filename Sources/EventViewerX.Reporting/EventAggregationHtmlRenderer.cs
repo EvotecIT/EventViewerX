@@ -48,13 +48,13 @@ public static class EventAggregationHtmlRenderer {
     private static void BuildPage(MonitoringPage page, EventAggregationResult result) {
         page.AddMetric(metric => metric.Title("Groups").Value(result.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.Stack2).State(result.AggregationComplete ? MonitoringHealthState.Healthy : MonitoringHealthState.Critical)
-            .Change(result.AggregationComplete ? "Within configured bounds" : "Rows withheld"));
+            .Description(result.AggregationComplete ? "Within configured bounds" : "Rows withheld"));
         page.AddMetric(metric => metric.Title("Source rows").Value(result.InputRows.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(result.InputCompleteness == EventAggregationInputCompleteness.Complete
                 ? MonitoringHealthState.Healthy : MonitoringHealthState.Warning)
-            .Change(result.InputCompleteness.ToString()));
+            .Description(result.InputCompleteness.ToString()));
         page.AddMetric(metric => metric.Title("Execution").Value(result.ExecutionMode.ToString())
-            .Icon(TablerIconType.Database).State(MonitoringHealthState.Healthy).Change("Shared semantic contract"));
+            .Icon(TablerIconType.Database).State(MonitoringHealthState.Healthy).Description("Shared semantic contract"));
 
         EventAggregationChartData? chart = EventAggregationChartProjection.Create(result);
         if (chart != null) {

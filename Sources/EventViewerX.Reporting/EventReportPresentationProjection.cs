@@ -17,12 +17,14 @@ internal static class EventReportPresentationProjection {
         "Time Created", "Event ID", "Level", "Source Computer", "Message", "Source Log"
     };
 
-    internal static EventReportPresentationSection Create(EventReportSection section) {
+    internal static EventReportPresentationSection Create(EventReportSection section) => Create(section, int.MaxValue);
+
+    internal static EventReportPresentationSection Create(EventReportSection section, int maximumRows) {
         if (section == null) {
             throw new ArgumentNullException(nameof(section));
         }
 
-        List<Dictionary<string, object?>> projected = EventReportTableProjection.Project(section);
+        List<Dictionary<string, object?>> projected = EventReportTableProjection.Project(section, maximumRows);
         string[] priorities = section.Kind == EventReportSectionKind.Generic
             ? GenericPriorities
             : TypedPriorities;
@@ -108,12 +110,17 @@ internal static class EventReportPresentationProjection {
         IReadOnlyList<string> priorities,
         int sourceIndex) {
 
-        string[] values = rows
-            .Select(row => row.TryGetValue(column.Name, out object? value)
-                ? FormatValue(value)
-                : string.Empty)
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
+        string? firstValue = null;
+        bool isConstant = true;
+        foreach (Dictionary<string, object?> row in rows) {
+            string text = row.TryGetValue(column.Name, out object? value) ? FormatValue(value) : string.Empty;
+            if (string.IsNullOrWhiteSpace(text)) { continue; }
+            if (firstValue == null) { firstValue = text; }
+            else if (!string.Equals(firstValue, text, StringComparison.OrdinalIgnoreCase)) {
+                isConstant = false;
+                break;
+            }
+        }
         int priority = IndexOf(priorities, column.DisplayName);
         if (priority < 0) {
             priority = priorities.Count + sourceIndex;
@@ -124,8 +131,8 @@ internal static class EventReportPresentationProjection {
             displayName,
             sourceIndex,
             priority,
-            values.Length > 0,
-            values.Length > 0 && values.Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() == 1);
+            firstValue != null,
+            firstValue != null && isConstant);
     }
 
     private static bool TryFormattedValue(

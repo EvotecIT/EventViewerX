@@ -1,0 +1,54 @@
+name: Test Packed Artifacts
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['README.md', 'Docs/**']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.112'
+
+jobs:
+  cli-package:
+    name: 'CLI tool (${{ matrix.os }})'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Install package validation owner
+        shell: pwsh
+        run: Install-Module PSPublishModule -MinimumVersion 3.0.151 -Scope CurrentUser -Force -AllowClobber
+      - name: Pack and validate the CLI tool
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'evx-cli-packages'
+          dotnet pack Sources/EventViewerX.Cli/EventViewerX.Cli.csproj --configuration Release --output $packageRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./Build/Test-CliPackage.ps1 -PackageRoot $packageRoot
+
+  module-package:
+    name: 'PowerShell ZIP (5.1 and 7)'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Install package validation owner
+        shell: pwsh
+        run: Install-Module PSPublishModule -MinimumVersion 3.0.151 -Scope CurrentUser -Force -AllowClobber
+      - name: Build and validate the module ZIP
+        shell: pwsh
+        run: |
+          Import-Module PSPublishModule -ErrorAction Stop
+          $version = (Import-PowerShellDataFile ./PSEventViewer.psd1).ModuleVersion
+          Invoke-ModuleBuild -ConfigPath ./Build/module.json -RunMode Build -ModuleVersion $version -NoSign -IncludeProjectPackages:$false -NoInteractive -StagingPath (Join-Path $env:RUNNER_TEMP 'evx-module-stage')
+          ./Build/Test-ModulePackage.ps1 -ModuleArchive (Join-Path $PWD "Artefacts/Packed/PSEventViewer.v$version.zip") -Version $version
