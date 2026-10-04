@@ -1,0 +1,53 @@
+{
+  "Contract": "Deterministic generic rows; fixture generation excluded; HTML retains all rows; email displays the first 25.",
+  "Phase": "Published Email 2.0.0 with mobile stacked layout",
+  "SourceRevision": "2c4904dff24deb130c4da5fa1fa3e5fc4f79ca67",
+  "SourceWorktreeClean": true,
+  "HtmlForgeXVersion": "1.1.0",
+  "HtmlForgeXEmailVersion": "2.0.0",
+  "ConfiguredSdkVersion": "10.0.112",
+  "Runtime": ".NET 10.0.12",
+  "OSArchitecture": "X64",
+  "ProcessArchitecture": "X64",
+  "ProcessorAffinityRequested": "0xFFFF",
+  "PriorityRequested": "BelowNormal",
+  "WarmupCount": 1,
+  "IterationCount": 3,
+  "RunOrder": "Rotated",
+  "SampleCount": 12,
+  "FailureCount": 0,
+  "Metrics": [
+    {
+      "Scenario": "Email-1000",
+      "Metrics": {
+        "RenderMs": 11.871733333333333,
+        "RendererAllocatedBytes": 11899384.0,
+        "OutputBytes": 215215.0
+      }
+    },
+    {
+      "Scenario": "Email-10000",
+      "Metrics": {
+        "RenderMs": 25.666633333333333,
+        "RendererAllocatedBytes": 11899581.333333334,
+        "OutputBytes": 215219.0
+      }
+    },
+    {
+      "Scenario": "Html-1000",
+      "Metrics": {
+        "RenderMs": 84.9825,
+        "RendererAllocatedBytes": 147577709.33333334,
+        "OutputBytes": 2961045.0
+      }
+    },
+    {
+      "Scenario": "Html-10000",
+      "Metrics": {
+        "RenderMs": 540.5117333333334,
+        "RendererAllocatedBytes": 1156132952.0,
+        "OutputBytes": 16569102.0
+      }
+    }
+  ]
+}
