@@ -22,3 +22,26 @@ The email change limits projection to the rows actually displayed. Its allocatio
 The HTML renderer still projects and renders every event. Its allocation improvement is small, and the 10,000-event output is about 16.6 MB. These measurements do not establish an HTML throughput improvement or a bound on large interactive reports. Timing results are observations from a potentially busy development host, not release performance guarantees.
 
 The before snapshot uses the unchanged renderer at commit `7793aa5997bf016b0f56c33e8ae01abd68846ccd`. The after snapshot includes bounded email projection, single-pass constant-column classification, and HtmlForgeX 1.1.0 for descriptive dashboard captions. The email dependency remains HtmlForgeX.Email 1.6.0 in both measurements.
+
+## Current mobile email baseline
+
+`after-mobile.json` records the same fixture with published HtmlForgeX.Email
+2.0.0 and mobile stacked records at commit
+`2c4904dff24deb130c4da5fa1fa3e5fc4f79ca67`. All twelve measured samples pass.
+The runner uses one warmup, three measured iterations and rotated case order,
+with processor affinity `0xFFFF` and BelowNormal priority requested.
+
+| Case | Mean renderer allocated bytes | Output bytes |
+| --- | ---: | ---: |
+| Email, 1,000 events | 11,899,384 | 215,215 |
+| Email, 10,000 events | 11,899,581 | 215,219 |
+| HTML, 1,000 events | 147,577,709 | 2,961,045 |
+| HTML, 10,000 events | 1,156,132,952 | 16,569,102 |
+
+Email allocation stays approximately constant as the input grows because the
+digest still displays 25 records. The newer dependency and stacked presentation
+produce more markup and allocate more than the historical 1.6 fixture above.
+Use this baseline when measuring the current presentation; the two dependency
+versions and output layouts do not form a comparison of projection changes alone.
+Full-detail HTML still renders every retained record and needs explicit input
+bounds for large investigations.

@@ -9,11 +9,12 @@ belong in the repository's releases, pull requests and capability guides.
 
 | Capability | Owner | User path |
 | --- | --- | --- |
-| Local, remote, WEC and saved-EVTX queries; typed definitions and normalization | EventViewerX core | C#, `Get-EVXEvent`, `evx query` |
+| Local, remote, WEC and saved-EVTX queries; streaming, typed definitions and normalization | EventViewerX core | C#, `Get-EVXEvent`, `evx query` |
 | Native packs, Sigma compilation, bounded correlation and finding provenance | Core and EventViewerX.Detection | `Invoke-EVXDetection`, CLI detection, shared plans |
 | Aggregation, occurrence grouping, timelines and Group Policy context | Core contracts | `Measure-EVXEvent`, report pipelines and context stores |
 | Durable SQLite history, findings, checkpoints and retention | EventViewerX.Storage over DbaClientX | `Show-EVXEvent -StorePath`, store query and integrity commands |
 | HTML, Excel, CSV and compact email | EventViewerX.Reporting over HtmlForgeX and OfficeIMO | `Show-EVXEvent`, reusable snapshots and renderers |
+| Export privacy profiles and verifiable evidence bundles | EventViewerX core reporting contracts | Detached exports, pseudonyms and bundle manifests |
 | PowerShell and CLI hosting | Thin PSEventViewer and EventViewerX.Cli adapters | Consistent bounded queries and operational evidence |
 | Build, packages, release qualification and performance orchestration | PowerForge/PSPublishModule | Build configurations, artifact checks and benchmark gates |
 | Portable saved-EVTX parsing | EventViewerX.Evtx | Explicit portable file mode; live Windows channels retain native APIs |
@@ -26,38 +27,20 @@ grouping and normalization add views without silently deleting observations.
 
 ## Active improvement backlog
 
-The 2026-10-04 assessment produced the following reviewable changes. Open PRs
-represent source candidates; they do not establish a published package or an
-installed runtime. Merge and release gates apply separately.
+Current source includes historical replay and occurrence guarantees, visible
+completion evidence, streaming and read modes, indexed checkpoints, bounded
+distinct correlation, portable EVTX allocation improvements, export privacy and
+evidence bundles, packed-artifact CI, and responsive compact email. The remaining
+work concerns release delivery, further full-report measurement and legacy
+conversations.
 
-- [ ] Settle historical replay, occurrence multiplicity and completion evidence
-  ([#131](https://github.com/EvotecIT/EventViewerX/pull/131)).
-- [ ] Settle source-query streaming and read-mode parity
-  ([#132](https://github.com/EvotecIT/EventViewerX/pull/132), depends on #131).
-- [ ] Settle checkpoint lookup allocation
-  ([#134](https://github.com/EvotecIT/EventViewerX/pull/134)).
-- [ ] Settle archive resource handling, cancellation and atomic publication
-  ([#135](https://github.com/EvotecIT/EventViewerX/pull/135)).
-- [ ] Settle distinct-value correlation state and its comparable performance
-  proof ([#136](https://github.com/EvotecIT/EventViewerX/pull/136)).
-- [ ] Settle portable EVTX fidelity and allocation
-  ([#137](https://github.com/EvotecIT/EventViewerX/pull/137)).
-- [ ] Settle export privacy policies and verifiable evidence bundles
-  ([#138](https://github.com/EvotecIT/EventViewerX/pull/138), depends on #132).
-- [ ] Settle packed CLI and PowerShell ZIP qualification in ordinary CI
-  ([#139](https://github.com/EvotecIT/EventViewerX/pull/139)).
-- [ ] Qualify compact email presentation work and full-report column analysis
-  against comparable workloads and rendered output.
-- [ ] Qualify standalone CLI archives on their declared platform and architecture
-  matrix before publication. Normal tool-install proof covers Windows/Linux;
-  it does not replace ARM64 or macOS runtime qualification.
+- [ ] Profile full-detail HTML reports on representative large investigations.
+  Preserve snapshot behavior and measure rendering allocation separately from
+  bounded email digests.
 - [ ] Publish approved artifacts only after signing, package identity,
   installation and runtime checks pass and publication is authorized.
 - [ ] Reconcile [legacy issue dispositions](Docs/Legacy-Issue-Triage.md) with
   current reports before closing or transferring conversations.
-
-Remove settled PR items after their behavior is integrated. Keep current user
-paths in guides and contracts, rather than retaining completed milestone lists.
 
 ## Quality and performance gates
 
@@ -76,6 +59,12 @@ identities, ordering, field values, completion evidence and runtime settings.
 Keep allocation and scale evidence separate from noisy workstation timing.
 [Performance gates](Docs/Performance-Gates.md) describe the controlled suites;
 timing-sensitive gates do not belong in an uncontrolled CI smoke test.
+
+Qualify each standalone CLI archive on its declared operating system and
+architecture before publication. A successful build or a tool installation on
+another architecture does not establish native archive runtime behavior.
+Keep archive hashes and source identity with the query, ingestion, reload and
+integrity evidence for the release candidate.
 
 Interactive full-detail reports retain their selected rows. Use explicit
 collection limits, aggregation and bounded snapshots for large investigations;
