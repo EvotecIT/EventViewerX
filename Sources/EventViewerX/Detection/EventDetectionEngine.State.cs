@@ -14,10 +14,10 @@ public static partial class EventDetectionEngine {
                 Release(item.Value.Observations);
                 _thresholdStates.Remove(item.Key);
             }
-            foreach (KeyValuePair<StateKey, ThresholdState> item in _distinctStates
+            foreach (KeyValuePair<StateKey, DistinctState> item in _distinctStates
                          .Where(item => item.Value.ExpiresUtc < current)
                          .ToArray()) {
-                Release(item.Value.Observations);
+                ReleaseDistinctState(item.Value);
                 _distinctStates.Remove(item.Key);
             }
             foreach (KeyValuePair<StateKey, TemporalState> item in _temporalStates
@@ -338,12 +338,6 @@ public static partial class EventDetectionEngine {
                     $"Stateful rule '{rule.Definition.RuleId}' could not evaluate required grouping field '{field}'."));
             }
             return false;
-        }
-
-        private static string ResolveGroupValue(string field, EventObservation observation) {
-            return TryResolveFieldValue(field, observation, out string value)
-                ? value
-                : string.Empty;
         }
 
         private static bool TryResolveFieldValue(

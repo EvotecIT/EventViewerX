@@ -58,3 +58,28 @@ for catching large regressions but are not release performance claims. The
 allocation deltas are deterministic enough to preserve as an engineering
 baseline. Release evidence must use the normal BenchmarkDotNet job and the same
 1K, 10K, 100K, and 1M matrix.
+
+`DetectionDistinctBenchmarks` measures 1,000 and 10,000 observations containing
+either one or 1,000 repeated source-address values, below the configured
+distinct threshold. Setup proves that every input was consumed without a
+finding or incomplete result. The indexed state retains the latest observation
+for each case-insensitive value and prunes an ordered expiry list. Ordered
+arrivals and duplicate updates avoid regrouping the entire event window;
+out-of-order insertion still scans the distinct entries to preserve event-time
+ordering.
+
+On the recorded .NET 10 short-run comparison, the 10,000-event single-value
+burst fell from 1,145.88 MB to 3,519.13 KB allocated per execution. The
+1,000-value case fell from 2,615.15 MB to 3,509.48 KB. Mean operation times
+changed from 2.545 s and 4.208 s to 10.58 ms and 11.50 ms respectively.
+These are development comparisons on an active workstation, with three warmups
+and three measured iterations; they are not release throughput guarantees.
+Both runs used logical-processor mask `0xFFFF` on the same 32-thread
+Ryzen 9 9950X3D2 host and its High performance power plan. The retained
+`distinct-before.csv` and `distinct-after.csv` contain the generated results.
+
+```powershell
+dotnet run --project .\EventViewerX.DetectionBenchmarks.csproj -c Release -- `
+    --filter "*DetectionDistinctBenchmarks*" --job Short --noOverwrite `
+    --artifacts .\Ignore\Distinct
+```
