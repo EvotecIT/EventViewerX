@@ -63,7 +63,26 @@ jobs:
           git status --short
           dotnet --version
           if ($env:POWERFORGE_GIT_PATH) {
-            Get-AuthenticodeSignature -LiteralPath $env:POWERFORGE_GIT_PATH | Select-Object Path, Status
+            $signature = Get-AuthenticodeSignature -LiteralPath $env:POWERFORGE_GIT_PATH
+            $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($env:POWERFORGE_GIT_PATH)
+            [pscustomobject] @{
+              Path = $env:POWERFORGE_GIT_PATH
+              SignatureStatus = $signature.Status.ToString()
+              Signer = $signature.SignerCertificate.Subject
+              ProductName = $version.ProductName
+              OriginalFilename = $version.OriginalFilename
+            } | ConvertTo-Json -Compress | Write-Output
+            fsutil hardlink list $env:POWERFORGE_GIT_PATH
+            $plan = ./Build/Build-Cli.ps1 -RunMode Plan -Runtimes '${{ matrix.runtime }}'
+            $assembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PowerForge' }
+            $type = $assembly.GetType('PowerForge.DotNetPublishPipelineRunner')
+            $flags = [Reflection.BindingFlags] 'NonPublic,Static'
+            try {
+              $resolved = $type.GetMethod('ResolveRunGitExecutablePath', $flags).Invoke($null, @())
+              Write-Output "PowerForge trusted Git: $resolved"
+            } catch {
+              throw $_.Exception.InnerException
+            }
           }
           ./Build/Test-NativeCliArchives.ps1 -RuntimeIdentifier '${{ matrix.runtime }}' `
             -WorkRoot (Join-Path $env:RUNNER_TEMP 'evx-native-archives') `
