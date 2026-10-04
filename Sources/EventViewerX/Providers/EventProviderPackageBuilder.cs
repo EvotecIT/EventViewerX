@@ -242,29 +242,7 @@ public static class EventProviderPackageBuilder {
         string finalPath,
         bool overwrite) {
 
-        if (File.Exists(finalPath)) {
-            if (!overwrite) {
-                throw new IOException(
-                    $"Provider package '{finalPath}' already exists.");
-            }
-            File.Replace(
-                temporaryPath,
-                finalPath,
-                null);
-        } else {
-            try {
-                File.Move(
-                    temporaryPath,
-                    finalPath);
-            } catch (IOException) when (
-                overwrite &&
-                File.Exists(finalPath)) {
-                File.Replace(
-                    temporaryPath,
-                    finalPath,
-                    null);
-            }
-        }
+        FilePublication.Promote(temporaryPath, finalPath, overwrite);
     }
 
     private static EventProviderDefinition LoadBaseline(string path) {

@@ -355,22 +355,7 @@ public static class EventLogExporter {
         string temporaryPath,
         string destination,
         bool overwrite) {
-
-        if (!overwrite) {
-            File.Move(temporaryPath, destination);
-            return;
-        }
-
-        if (File.Exists(destination)) {
-            File.Replace(temporaryPath, destination, null);
-            return;
-        }
-
-        try {
-            File.Move(temporaryPath, destination);
-        } catch (IOException) when (File.Exists(destination)) {
-            File.Replace(temporaryPath, destination, null);
-        }
+        FilePublication.Promote(temporaryPath, destination, overwrite);
     }
 
     private static long WriteFile(

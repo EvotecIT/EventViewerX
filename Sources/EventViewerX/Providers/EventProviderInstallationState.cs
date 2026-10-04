@@ -48,11 +48,7 @@ internal static class EventProviderInstallationStore {
                     state,
                     EventProviderDefinitionJson.SerializerOptions),
                 new UTF8Encoding(false));
-            if (File.Exists(path)) {
-                File.Replace(temporary, path, null);
-            } else {
-                File.Move(temporary, path);
-            }
+            FilePublication.Promote(temporary, path, overwrite: true);
         } finally {
             try {
                 if (File.Exists(temporary)) {

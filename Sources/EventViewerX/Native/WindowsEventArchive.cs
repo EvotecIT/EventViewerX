@@ -41,6 +41,7 @@ internal static class WindowsEventArchive {
         cancellationToken.ThrowIfCancellationRequested();
         string absolutePath = FileSystemPathIdentity.GetFullPath(
             path.Trim().Trim('"', '\''));
+        using var ownership = FilePublication.AcquireOwnership(absolutePath, cancellationToken);
         // Keep the original stable while resources are derived from its staged snapshot.
         using var sourceLock = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var bundle = new WindowsEventArchiveBundle(absolutePath);
