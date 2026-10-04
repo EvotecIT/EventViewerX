@@ -14,12 +14,6 @@
           "Mailozaurr.MicrosoftGraph": "3.0.0"
         }
       },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "IBf7lbovvjGWVWXZX5cJ/cO0WXbId0Zq4BuSeT94mGZuOAP66oMeH9PTBZ9Jpp3Jb6jtK0qm/NyUbPRo1gC/wQ=="
-      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -436,7 +430,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }
@@ -444,14 +438,14 @@
       "eventviewerx.evtx": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "evtx": "[1.5.2, )"
         }
       },
       "eventviewerx.reporting": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "HtmlForgeX": "[0.56.0, )",
           "HtmlForgeX.Email": "[1.6.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
@@ -462,7 +456,7 @@
         "type": "Project",
         "dependencies": {
           "DBAClientX.SQLite": "[1.0.8, )",
-          "EventViewerX": "[4.0.0, )"
+          "EventViewerX": "[4.0.1, )"
         }
       }
     },

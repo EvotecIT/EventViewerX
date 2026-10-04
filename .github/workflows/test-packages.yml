@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOTNET_VERSION: '10.0.111'
+  DOTNET_VERSION: '10.0.112'
 
 jobs:
   cli-package:
