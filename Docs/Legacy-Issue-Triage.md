@@ -35,9 +35,9 @@ permissions, retained input and current result.
 | [#17](https://github.com/EvotecIT/EventViewerX/issues/17), table success/failure detail | Current reports expose source coverage, failure diagnostics, scan bounds and completion evidence; readiness distinguishes unavailable proof. | Demonstrate complete, empty, failed-source and capped examples. An empty table alone is not proof of successful exhaustive collection. |
 
 The package checks validate installed module/tool behavior independently of
-development imports. The history, streaming and evidence-export changes in the
-active roadmap carry additional completion and occurrence guarantees; their
-source candidates and published delivery state must be assessed separately.
+development imports. History, streaming and evidence exports preserve completion
+and occurrence guarantees. Assess the installed package separately from current
+source when reproducing a legacy report.
 
 Use [the roadmap](../ROADMAP.md) for central storage, branding and extension
 decisions. Use a current retained fixture and focused regression proof for a
