@@ -1,0 +1,54 @@
+{
+  "Source": "before",
+  "Affinity": "0xFFFF",
+  "Priority": "BelowNormal",
+  "WarmupCount": 1,
+  "IterationCount": 3,
+  "Fixture": "Deterministic generic rows; generation excluded",
+  "Summary": [
+    {
+      "Scenario": "Email-1000",
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "Metrics": {
+        "RenderMs": 6.421833333333333,
+        "RendererAllocatedBytes": 4919752.0,
+        "OutputBytes": 97957.0
+      }
+    },
+    {
+      "Scenario": "Email-10000",
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "Metrics": {
+        "RenderMs": 23.839566666666666,
+        "RendererAllocatedBytes": 21767960.0,
+        "OutputBytes": 97961.0
+      }
+    },
+    {
+      "Scenario": "Html-1000",
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "Metrics": {
+        "RenderMs": 84.72109999999999,
+        "RendererAllocatedBytes": 147869973.33333334,
+        "OutputBytes": 2950734.0
+      }
+    },
+    {
+      "Scenario": "Html-10000",
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "Metrics": {
+        "RenderMs": 374.4087666666666,
+        "RendererAllocatedBytes": 1159374592.0,
+        "OutputBytes": 16558791.0
+      }
+    }
+  ]
+}

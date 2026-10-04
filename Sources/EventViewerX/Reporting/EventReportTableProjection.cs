@@ -51,11 +51,14 @@ internal static class EventReportTableProjection {
         return columns;
     }
 
-    internal static List<Dictionary<string, object?>> Project(EventReportSection section) {
+    internal static List<Dictionary<string, object?>> Project(EventReportSection section) => Project(section, int.MaxValue);
+
+    internal static List<Dictionary<string, object?>> Project(EventReportSection section, int maximumRows) {
         if (section == null) {
             throw new ArgumentNullException(nameof(section));
         }
-        return section.Rows.Select(row => ProjectRow(section, row)).ToList();
+        if (maximumRows < 0) { throw new ArgumentOutOfRangeException(nameof(maximumRows)); }
+        return section.Rows.Take(maximumRows).Select(row => ProjectRow(section, row)).ToList();
     }
 
     internal static IReadOnlyDictionary<string, string> CreateUniqueDisplayNames(
