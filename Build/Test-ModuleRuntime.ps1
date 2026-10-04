@@ -25,8 +25,17 @@ if ($events.Count -ne 3 -or @($writtenReport.Rows).Count -ne 3 -or @($readReport
 }
 if ($writtenReport.Rows[0].EventId -ne 7040 -or $writtenReport.Rows[0].RecordId -ne 37 -or
     $writtenReport.Rows[0].Values['param1'] -ne 'SmsRouter' -or
-    @(Compare-Object -ReferenceObject @($writtenReport.Rows.RecordId) -DifferenceObject @($readReport.Rows.RecordId)).Count -ne 0) {
-    throw 'The module did not preserve the retained fixture identity and payload through storage.'
+    @(Compare-Object -ReferenceObject @($events.RecordId) -DifferenceObject @($writtenReport.Rows.RecordId)).Count -ne 0) {
+    throw 'The module did not query the expected retained fixture identities and payload.'
+}
+foreach ($writtenRow in $writtenReport.Rows) {
+    [array] $matches = @($readReport.Rows | Where-Object { $_.RecordId -eq $writtenRow.RecordId })
+    if ($matches.Count -ne 1 -or $matches[0].EventId -ne $writtenRow.EventId -or
+        $matches[0].SourceComputer -cne $writtenRow.SourceComputer -or
+        $matches[0].SourceLog -cne $writtenRow.SourceLog -or
+        $matches[0].Values['param1'] -cne $writtenRow.Values['param1']) {
+        throw 'The module did not preserve each retained fixture identity and payload through storage.'
+    }
 }
 
 [pscustomobject] @{
