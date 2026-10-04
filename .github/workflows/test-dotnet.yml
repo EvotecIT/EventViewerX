@@ -8,8 +8,6 @@ on:
       - 'README.md'
       - 'Docs/**'
   pull_request:
-    branches:
-      - master
   workflow_dispatch:  # 👈 enables manual triggering
 
 env:
@@ -28,7 +26,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.111'
+          dotnet-version: '10.0.112'
 
       - name: Restore portability tests
         run: dotnet restore Sources/EventViewerX.Portability.Tests/EventViewerX.Portability.Tests.csproj
@@ -49,7 +47,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        dotnet-version: ['10.0.111']
+        dotnet-version: ['10.0.112']
     steps:
       - name: Checkout code
         uses: actions/checkout@v7

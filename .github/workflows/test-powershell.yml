@@ -8,12 +8,10 @@ on:
       - 'README.md'
       - 'Docs/**'
   pull_request:
-    branches:
-      - master
   workflow_dispatch:  # 👈 enables manual triggering
 
 env:
-  DOTNET_VERSION: '10.0.111'
+  DOTNET_VERSION: '10.0.112'
   BUILD_CONFIGURATION: 'Debug'
 
 jobs:
