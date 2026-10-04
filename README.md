@@ -863,7 +863,8 @@ Only a very wide generic provider payload may be collapsed into `Details`;
 typed and custom definitions always retain their declared columns.
 
 `-EmailPackage` returns `Subject`, responsive `Html`, `PlainText`, inline
-resources, attachments, and estimated size. That transport-neutral object can
+resources, attachments, and estimated size. Email event rows use columns on
+wide screens and labeled records on compact screens. That transport-neutral object can
 be handed to Mailozaurr, Microsoft Graph, TeamsX/PSTeams, or another delivery
 adapter without making those modules dependencies of PSEventViewer. The
 portable `evx.exe` includes Mailozaurr and can deliver directly from a JSON
