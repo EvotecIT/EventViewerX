@@ -7,7 +7,7 @@ public static partial class EventDetectionEngine {
         private readonly EventDetectionPlan _plan;
         private readonly EventDetectionEngineOptions _options;
         private readonly Dictionary<StateKey, ThresholdState> _thresholdStates = new();
-        private readonly Dictionary<StateKey, ThresholdState> _distinctStates = new();
+        private readonly Dictionary<StateKey, DistinctState> _distinctStates = new();
         private readonly Dictionary<StateKey, TemporalState> _temporalStates = new();
         private readonly List<EventDetectionFinding> _findings = new();
         private readonly int[] _matchingStepIndexes;
@@ -110,59 +110,6 @@ public static partial class EventDetectionEngine {
             Release(state.Observations);
             state.Observations.Clear();
             _thresholdStates.Remove(key);
-        }
-
-        private void ProcessDistinct(
-            EventDetectionPlan.CompiledRule rule,
-            EventObservation observation,
-            ICollection<EventDetectionFinding> findings) {
-
-            string distinctBy = rule.Definition.DistinctBy!;
-            if (!TryResolveFieldValue(distinctBy, observation, out _)) {
-                string diagnosticKey = rule.Definition.RuleId + "\n" + distinctBy;
-                if (_missingDistinctFieldsReported.Add(diagnosticKey)) {
-                    findings.Add(CreateIncomplete(
-                        observation,
-                        $"Distinct-value rule '{rule.Definition.RuleId}' could not evaluate required field '{distinctBy}'."));
-                }
-                return;
-            }
-            if (!TryResolveGroupValue(rule, observation, findings, out string groupValue)) {
-                return;
-            }
-            var key = new StateKey(rule.Definition.RuleId, groupValue);
-            if (!_distinctStates.TryGetValue(key, out ThresholdState? state)) {
-                if (!CanCreateState(observation, findings)) {
-                    return;
-                }
-                state = new ThresholdState();
-                _distinctStates.Add(key, state);
-            }
-            state.ExpiresUtc = Later(state.ExpiresUtc, observation.EventTimeUtc + rule.Definition.Window);
-            TrackStateExpiry(state.ExpiresUtc);
-            PruneWindow(state.Observations, observation.EventTimeUtc, rule.Definition.Window);
-            if (!CanRetainObservation(observation, findings)) {
-                return;
-            }
-            InsertChronologically(state.Observations, observation);
-            Retain(observation);
-            PruneWindow(
-                state.Observations,
-                state.Observations[state.Observations.Count - 1].EventTimeUtc,
-                rule.Definition.Window);
-            EventObservation[] evidence = state.Observations
-                .GroupBy(item => ResolveGroupValue(distinctBy, item), StringComparer.OrdinalIgnoreCase)
-                .Select(static group => group.Last())
-                .Take(rule.Definition.Threshold)
-                .OrderBy(static item => item.EventTimeUtc)
-                .ToArray();
-            if (evidence.Length < rule.Definition.Threshold) {
-                return;
-            }
-            findings.Add(CreateFinding(rule, evidence, groupValue));
-            Release(state.Observations);
-            state.Observations.Clear();
-            _distinctStates.Remove(key);
         }
 
         private void ProcessTemporal(
