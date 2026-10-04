@@ -1032,11 +1032,17 @@ evx query --path .\Security.evtx --stream --read-mode StructuredData `
 evx query --type ADUserLogonFailed --collector WEC01 --since 01:00:00 `
     --stream --read-mode StructuredData --max-candidates 250000 `
     --summary-file .\failed-logons-summary.json --require-complete
+evx query --path .\Security.evtx --portable-evtx --oldest --stream `
+    --read-mode StructuredData --summary-file .\portable-query-summary.json
 ```
 
-Rows use the same field contract and query order as snapshot output. The core
-reader retains bounded buffers and a cursor for each source; the report layer
-retains section schemas and completion evidence. A multi-source query primes its
+Rows use the same field contract and query order as snapshot output. The report
+layer retains section schemas and completion evidence. Native readers retain
+bounded buffers and a cursor for each source. Portable streaming requires
+`--oldest`: portable newest-first readers buffer matching input before delivering
+rows, and result/candidate limits do not remove that retention for typed or custom
+queries. Custom reader implementations can also buffer their input.
+A multi-source query primes its
 sources before it can establish merge order. The CLI awaits row output and
 observes Ctrl+C during reading. A failed or canceled stream can have partial rows
 on standard output; it does not write a fresh completion summary.
@@ -1071,7 +1077,9 @@ EventReportSummary summary = await EventReportEngine.StreamRowsAsync(
 ```
 
 The callback's section supplies its field contract and has an empty `Rows`
-collection. Each callback is awaited before delivering another row. Cancellation
+collection. Generic section columns describe common metadata; dynamic provider
+fields are available in `row.Values`. Snapshot sections can expand their table
+columns from retained rows. Each callback is awaited before delivering another row. Cancellation
 and consumer failures propagate; completion evidence is returned only after the
 query has finished or declared a limit. See the
 [streaming benchmark](Benchmarks/EventReportStreaming/README.md) for a reproducible

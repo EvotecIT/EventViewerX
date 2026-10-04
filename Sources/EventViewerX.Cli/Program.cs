@@ -228,11 +228,15 @@ internal static partial class Program {
         return query;
     }
 
-    private static async Task WriteStoreIfRequestedAsync(EventReport report, CliArguments options) {
+    private static async Task WriteStoreIfRequestedAsync(
+        EventReport report,
+        CliArguments options,
+        CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested();
         if (options.Get("write-store") is not string path) {
             return;
         }
-        EventStoreWriteResult result = await new EventStore(path).WriteAsync(report).ConfigureAwait(false);
+        EventStoreWriteResult result = await new EventStore(path).WriteAsync(report, cancellationToken: cancellationToken).ConfigureAwait(false);
         Console.Error.WriteLine(
             $"Stored {result.Inserted} new rows; skipped {result.Duplicates} duplicates in {Path.GetFullPath(path)}.");
     }
@@ -250,6 +254,9 @@ internal static partial class Program {
             }
             if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
                 throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
+            }
+            if ((options.Has("portable-evtx") || options.Get("portable-evtx-executable") != null) && !options.Has("oldest")) {
+                throw new ArgumentException("Portable EVTX --stream requires --oldest because newest-first portable readers buffer the matching source before delivering rows.");
             }
         }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
@@ -573,14 +580,17 @@ internal static partial class Program {
         return 0;
     }
 
-    private static int WriteRows(EventReport report, CliArguments options) {
+    private static int WriteRows(EventReport report, CliArguments options, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested();
         var sectionsByRow = new Dictionary<EventReportRow, EventReportSection>();
         foreach (EventReportSection section in report.Sections) {
             foreach (EventReportRow row in section.Rows) {
+                cancellationToken.ThrowIfCancellationRequested();
                 sectionsByRow[row] = section;
             }
         }
         foreach (EventReportRow row in report.Rows) {
+            cancellationToken.ThrowIfCancellationRequested();
             sectionsByRow.TryGetValue(
                 row,
                 out EventReportSection? section);
@@ -588,7 +598,7 @@ internal static partial class Program {
                 EventReportJsonProjection.Project(row, section);
             Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
         }
-        return CompleteQuery(EventReportSummary.Create(report), options);
+        return CompleteQuery(EventReportSummary.Create(report), options, cancellationToken);
     }
 
     private static EventType[] ParseTypes(IEnumerable<string> values) => values.Select(value =>

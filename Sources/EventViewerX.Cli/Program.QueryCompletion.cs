@@ -27,7 +27,8 @@ internal static partial class Program {
         }
     }
 
-    private static int CompleteQuery(EventReportSummary summary, CliArguments options) {
+    private static int CompleteQuery(EventReportSummary summary, CliArguments options, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.IsNullOrWhiteSpace(summary.CompletenessDiagnostic)) {
             Console.Error.WriteLine(summary.CompletenessDiagnostic);
         } else if (summary.ScanLimitReached) {
@@ -39,6 +40,7 @@ internal static partial class Program {
             }
         }
         if (options.Get("summary-file") is string summaryPath) {
+            cancellationToken.ThrowIfCancellationRequested();
             string destination = Path.GetFullPath(summaryPath);
             string? directory = Path.GetDirectoryName(destination);
             if (directory != null) {

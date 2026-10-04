@@ -24,26 +24,27 @@ internal static partial class Program {
             }
             if (options.Has("stream")) {
                 EventStoreRowReadResult streamed = await new EventStore(storePath)
-                    .StreamRowsAsync(storedQuery, (row, _) => {
+                    .StreamRowsAsync(storedQuery, (row, rowToken) => {
+                        rowToken.ThrowIfCancellationRequested();
                         Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row), JsonOptions));
                         return Task.CompletedTask;
                     }, token).ConfigureAwait(false);
                 return CompleteQuery(new EventReportSummary(streamed.RowsRead, streamed.EventsScanned,
-                    streamed.ScanLimitReached, streamed.CompletenessDiagnostic), options);
+                    streamed.ScanLimitReached, streamed.CompletenessDiagnostic), options, token);
             }
             EventReport stored = await new EventStore(storePath)
                 .ReadReportAsync(storedQuery, options.Get("title"), token)
                 .ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(stored, options), options);
+            return WriteRows(ApplyOccurrenceGrouping(stored, options), options, token);
         }
         if (options.Get("context-store") != null) {
-            EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
-            await WriteStoreIfRequestedAsync(contextual, options).ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(contextual, options), options);
+            EventReport contextual = await QueryGroupPolicyReportAsync(options, token).ConfigureAwait(false);
+            await WriteStoreIfRequestedAsync(contextual, options, token).ConfigureAwait(false);
+            return WriteRows(ApplyOccurrenceGrouping(contextual, options), options, token);
         }
         EventReportRequest request = CreateRequest(options);
         CollectionCheckpointContext? checkpoint =
-            await PrepareCollectionCheckpointAsync(request, options)
+            await PrepareCollectionCheckpointAsync(request, options, token)
                 .ConfigureAwait(false);
         if (options.Has("explain")) {
             EventPredicate predicate = request.Predicate ??
@@ -66,21 +67,22 @@ internal static partial class Program {
             return WriteJson(plan);
         }
         if (options.Has("stream")) {
-            EventReportSummary summary = await EventReportEngine.StreamRowsAsync(request, (row, section, _) => {
+            EventReportSummary summary = await EventReportEngine.StreamRowsAsync(request, (row, section, rowToken) => {
+                rowToken.ThrowIfCancellationRequested();
                 Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row, section), JsonOptions));
                 return Task.CompletedTask;
             }, token).ConfigureAwait(false);
-            return CompleteQuery(summary, options);
+            return CompleteQuery(summary, options, token);
         }
         EventReport report = await EventReportEngine.QueryAsync(request, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         if (checkpoint != null) {
-            await WriteCheckpointedStoreAsync(report, checkpoint)
+            await WriteCheckpointedStoreAsync(report, checkpoint, token)
                 .ConfigureAwait(false);
         } else {
-            await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
+            await WriteStoreIfRequestedAsync(report, options, token).ConfigureAwait(false);
         }
-        return WriteRows(ApplyOccurrenceGrouping(report, options), options);
+        return WriteRows(ApplyOccurrenceGrouping(report, options), options, token);
     }
 
     private sealed class ConsoleQueryCancellation : IDisposable {

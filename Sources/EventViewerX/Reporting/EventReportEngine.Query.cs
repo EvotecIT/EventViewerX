@@ -4,8 +4,11 @@ public static partial class EventReportEngine {
     /// <summary>
     /// Delivers normalized rows in source query order without retaining the result set.
     /// Each callback is awaited before delivering another row. The section supplies the row's field contract;
-    /// its Rows collection is empty and does not accumulate streamed rows. Source cursors and existing bounded
-    /// reader buffers remain owned by the query engine. Completion evidence is returned only after successful
+    /// its Rows collection is empty and does not accumulate streamed rows. Generic section columns describe
+    /// common metadata; dynamic provider fields are available in row.Values rather than an expanded table schema.
+    /// Source cursors and reader buffers remain owned by the query engine. Reader implementations can buffer
+    /// input; portable EVTX readers require Oldest = true for incremental delivery without reverse buffering.
+    /// Completion evidence is returned only after successful
     /// exhaustion or a declared limit; cancellation and callback failures propagate without a success summary.
     /// </summary>
     public static Task<EventReportSummary> StreamRowsAsync(
