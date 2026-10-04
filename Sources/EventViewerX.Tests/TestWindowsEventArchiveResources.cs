@@ -1,4 +1,5 @@
 using EventViewerX.Native;
+using System.Security.AccessControl;
 using Xunit;
 
 namespace EventViewerX.Tests;
@@ -52,6 +53,16 @@ public sealed class TestWindowsEventArchiveResources {
         string oldResource = Path.Combine(metadata, "Export_1041.MTA");
         File.WriteAllText(path, "old log");
         File.WriteAllText(oldResource, "old Japanese messages");
+        File.WriteAllText(oldResource + ":evidence", "attached evidence");
+        var resourceInfo = new FileInfo(oldResource);
+        FileSecurity resourceAccess = resourceInfo.GetAccessControl();
+        resourceAccess.SetAccessRuleProtection(isProtected: true, preserveInheritance: true);
+        resourceInfo.SetAccessControl(resourceAccess);
+        string expectedAccess = resourceInfo.GetAccessControl().GetSecurityDescriptorSddlForm(
+            AccessControlSections.Access | AccessControlSections.Owner | AccessControlSections.Group);
+        var expectedTime = new DateTime(2026, 10, 3, 12, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(oldResource, expectedTime);
+        File.SetCreationTimeUtc(oldResource, expectedTime);
         var bundle = new WindowsEventArchiveBundle(path);
         try {
             File.WriteAllText(bundle.EventLogPath, "new log without resources");
@@ -60,6 +71,11 @@ public sealed class TestWindowsEventArchiveResources {
             }
             Assert.Equal("old log", File.ReadAllText(path));
             Assert.Equal("old Japanese messages", File.ReadAllText(oldResource));
+            Assert.Equal("attached evidence", File.ReadAllText(oldResource + ":evidence"));
+            Assert.Equal(expectedAccess, new FileInfo(oldResource).GetAccessControl().GetSecurityDescriptorSddlForm(
+                AccessControlSections.Access | AccessControlSections.Owner | AccessControlSections.Group));
+            Assert.Equal(expectedTime, File.GetLastWriteTimeUtc(oldResource));
+            Assert.Equal(expectedTime, File.GetCreationTimeUtc(oldResource));
         } finally {
             bundle.Cleanup();
             Directory.Delete(root, recursive: true);

@@ -58,7 +58,9 @@ internal sealed class WindowsEventArchiveBundle {
                     string backupDirectory = Path.Combine(DirectoryPath, "rollback");
                     Directory.CreateDirectory(backupDirectory);
                     string backup = Path.Combine(backupDirectory, index.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    CopyFile(file.Destination, backup, cancellationToken);
+                    if (file.Source != null) {
+                        CopyFile(file.Destination, backup, cancellationToken);
+                    }
                     files[index] = (file.Source, file.Destination, backup);
                 }
                 CreateOutputDirectory(Path.GetDirectoryName(file.Destination)!, createdDirectories);
@@ -69,7 +71,9 @@ internal sealed class WindowsEventArchiveBundle {
             foreach (var file in files) {
                 attempted++;
                 if (file.Source == null) {
-                    File.Delete(file.Destination);
+                    // Preserve the original file's streams, ACLs and timestamps.
+                    // Its rollback path is reserved in preflight, but is not a byte copy.
+                    File.Move(file.Destination, file.Backup!);
                 } else {
                     FilePublication.Promote(file.Source, file.Destination, overwrite);
                 }
@@ -82,7 +86,13 @@ internal sealed class WindowsEventArchiveBundle {
             for (int index = attempted - 1; index >= 0; index--) {
                 var file = files[index];
                 try {
-                    if (file.Backup != null) {
+                    if (file.Source == null) {
+                        if (file.Backup != null && File.Exists(file.Backup)) {
+                            File.Move(file.Backup, file.Destination);
+                        } else if (!File.Exists(file.Destination)) {
+                            throw new IOException($"Retired resource '{file.Destination}' could not be located for recovery.");
+                        }
+                    } else if (file.Backup != null) {
                         if (!ContentsEqual(file.Backup, file.Destination)) {
                             FilePublication.Promote(file.Backup, file.Destination, overwrite: true);
                         }
