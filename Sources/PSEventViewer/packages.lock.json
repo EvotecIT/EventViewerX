@@ -132,8 +132,8 @@
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
-        "resolved": "1.6.0",
-        "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+        "resolved": "2.0.0",
+        "contentHash": "Fy0ptkKRCU7xpYQhibOXmH/0FE2Gl1z1urhfPzjI6yHx6TQSSF9SL9A0JoFe6g2Uv1OL+FuC2VLhP20Txubn8Q=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
@@ -460,7 +460,7 @@
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
           "HtmlForgeX": "[1.1.0, )",
-          "HtmlForgeX.Email": "[1.6.0, )",
+          "HtmlForgeX.Email": "[2.0.0, )",
           "Microsoft.Bcl.AsyncInterfaces": "[10.0.12, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -655,8 +655,8 @@
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
-        "resolved": "1.6.0",
-        "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+        "resolved": "2.0.0",
+        "contentHash": "Fy0ptkKRCU7xpYQhibOXmH/0FE2Gl1z1urhfPzjI6yHx6TQSSF9SL9A0JoFe6g2Uv1OL+FuC2VLhP20Txubn8Q=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
@@ -923,7 +923,7 @@
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
           "HtmlForgeX": "[1.1.0, )",
-          "HtmlForgeX.Email": "[1.6.0, )",
+          "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
         }
@@ -1055,8 +1055,8 @@
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
-        "resolved": "1.6.0",
-        "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+        "resolved": "2.0.0",
+        "contentHash": "Fy0ptkKRCU7xpYQhibOXmH/0FE2Gl1z1urhfPzjI6yHx6TQSSF9SL9A0JoFe6g2Uv1OL+FuC2VLhP20Txubn8Q=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
@@ -1231,7 +1231,7 @@
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
           "HtmlForgeX": "[1.1.0, )",
-          "HtmlForgeX.Email": "[1.6.0, )",
+          "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
         }
@@ -1341,8 +1341,8 @@
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
-        "resolved": "1.6.0",
-        "contentHash": "rTdRRLrHBvBKhLcjFlxeVtIGJSQ4bo4NcmspMPGgyN6ZKasd8r1TAjfITMJR7fm/bEGyQnmdh3DrxILG6DvsPg=="
+        "resolved": "2.0.0",
+        "contentHash": "Fy0ptkKRCU7xpYQhibOXmH/0FE2Gl1z1urhfPzjI6yHx6TQSSF9SL9A0JoFe6g2Uv1OL+FuC2VLhP20Txubn8Q=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
@@ -1533,7 +1533,7 @@
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
           "HtmlForgeX": "[1.1.0, )",
-          "HtmlForgeX.Email": "[1.6.0, )",
+          "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
         }
