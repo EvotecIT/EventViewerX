@@ -77,6 +77,28 @@ public sealed class TestEventEvidenceBundle {
     }
 
     [Fact]
+    public void VerificationRejectsOversizedOrInconsistentCentralDirectoriesBeforeReadingEntries() {
+        using var output = new MemoryStream();
+        EventEvidenceBundle.Write(CreateReport(), output);
+        byte[] original = output.ToArray();
+        int end = original.Length - 22; // The writer does not add an archive comment.
+        Assert.Equal(0x06054b50u, BitConverter.ToUInt32(original, end));
+        foreach (string change in new[] { "entry-count", "directory-size", "directory-offset" }) {
+            byte[] malformed = (byte[])original.Clone();
+            if (change == "entry-count") {
+                BitConverter.GetBytes(ushort.MaxValue).CopyTo(malformed, end + 8);
+                BitConverter.GetBytes(ushort.MaxValue).CopyTo(malformed, end + 10);
+            } else if (change == "directory-size") {
+                BitConverter.GetBytes(65537u).CopyTo(malformed, end + 12);
+            } else {
+                BitConverter.GetBytes(uint.MaxValue).CopyTo(malformed, end + 16);
+            }
+            using var input = new MemoryStream(malformed);
+            Assert.Throws<InvalidDataException>(() => EventEvidenceBundle.Verify(input));
+        }
+    }
+
+    [Fact]
     public void WritingAndVerificationEnforceContentBoundsAndCancellationWithoutOwningStreams() {
         using var output = new MemoryStream();
         using var oversized = new MemoryStream(new byte[1024 * 1024]);

@@ -94,6 +94,10 @@ public static class EventReportPrivacy {
         if (value == null) { return null; }
         string text = value is DateTime date ? date.ToString("O", CultureInfo.InvariantCulture)
             : value is DateTimeOffset offset ? offset.ToString("O", CultureInfo.InvariantCulture)
+            // General numeric formatting differs between .NET Framework and modern .NET,
+            // and can collapse distinct floating-point values. Encode their exact IEEE bits.
+            : value is double number ? BitConverter.DoubleToInt64Bits(number).ToString("X16", CultureInfo.InvariantCulture)
+            : value is float single ? BitConverter.ToInt32(BitConverter.GetBytes(single), 0).ToString("X8", CultureInfo.InvariantCulture)
             : Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
         byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(field.ToLowerInvariant() + "\0" + value.GetType().FullName + "\0" + text));
         return "hmac-sha256:" + BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();

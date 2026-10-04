@@ -40,7 +40,7 @@ Nested objects and collections require an explicit scalar projection rather than
 an implicit serialization of all their contents.
 
 ```powershell
-$policy.PseudonymizedValueFields = @('Who')
+$policy.PseudonymizedValueFields = [string[]] @('Who')
 $policy.PseudonymizeSourceIdentities = $true
 $key = [IO.File]::ReadAllBytes('.\report-key.bin')
 $export = $report | Show-EVXEvent -Privacy $policy -PseudonymizationKey $key -PassThru
