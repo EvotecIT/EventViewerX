@@ -784,6 +784,12 @@ set is not reported as complete when required telemetry is absent.
 
 ## Typed reports, Excel, HTML, and email
 
+[Privacy policies and evidence exports](Docs/Evidence-Exports.md) describe detached
+payload omission and keyed pseudonymization, original-history preservation, and
+portable bundles with normalized rows, schemas, completion evidence and checksums.
+`Show-EVXEvent -Privacy` and `evx report --privacy` use the same core policy;
+`evx bundle verify` checks the bundle inventory without extracting files.
+
 `Show-EVXEvent` is the single report command. It can query a built-in `-Type`,
 a custom `-Definition`, a generic `-LogName`, an offline `-Path`, or consume
 existing pipeline objects. It performs the query once and creates every chosen

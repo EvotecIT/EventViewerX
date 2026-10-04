@@ -18390,7 +18390,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
           <maml:name>InputObject</maml:name>
           <maml:description>
-            <maml:para>Existing EventObject or EventTypeRecord values. No source query is performed.</maml:para>
+            <maml:para>Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
           <dev:type>
@@ -18455,6 +18455,30 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
             <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -18787,6 +18811,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -19266,6 +19314,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ProviderName</maml:name>
           <maml:description>
@@ -19274,6 +19334,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -19789,6 +19861,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
           <maml:name>StartTime</maml:name>
           <maml:description>
@@ -20094,6 +20190,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -20473,6 +20593,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
           <maml:name>StartTime</maml:name>
           <maml:description>
@@ -20780,7 +20924,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
       <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
         <maml:name>InputObject</maml:name>
         <maml:description>
-          <maml:para>Existing EventObject or EventTypeRecord values. No source query is performed.</maml:para>
+          <maml:para>Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
         <dev:type>
@@ -20933,6 +21077,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Privacy</maml:name>
+        <maml:description>
+          <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+        <dev:type>
+          <maml:name>EventReportPrivacyOptions</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>ProviderName</maml:name>
         <maml:description>
@@ -20941,6 +21097,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>PseudonymizationKey</maml:name>
+        <maml:description>
+          <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+        <dev:type>
+          <maml:name>Byte[]</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>

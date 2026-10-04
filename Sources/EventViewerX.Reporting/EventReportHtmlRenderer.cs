@@ -56,7 +56,7 @@ public static class EventReportHtmlRenderer {
         IReadOnlyList<EventReportPresentationSection> sections) {
 
         int failures = report.Coverage.Count(static item => !item.Succeeded);
-        bool isComplete = !report.ScanLimitReached && failures == 0;
+        bool isComplete = EventReportSummary.Create(report).IsComplete;
         page.AddMetric(metric => metric.Title("Events").Value(report.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
             .Change($"{sections.Count:N0} populated type{(sections.Count == 1 ? string.Empty : "s")}"));

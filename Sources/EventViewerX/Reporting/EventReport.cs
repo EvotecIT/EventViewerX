@@ -35,4 +35,12 @@ public sealed class EventReport {
     public bool ScanLimitReached { get; }
     /// <summary>Specific reason the report is not exhaustive, when one is available.</summary>
     public string? CompletenessDiagnostic { get; }
+
+    /// <summary>Creates a report with a new title while retaining the existing rows, sections and query evidence.</summary>
+    /// <remarks>The new report shares the existing row, section and coverage collections.</remarks>
+    public EventReport WithTitle(string title) {
+        if (string.IsNullOrWhiteSpace(title)) { throw new ArgumentException("A report title is required.", nameof(title)); }
+        return new EventReport(title.Trim(), GeneratedAt, QueryDuration, Rows, Sections,
+            Coverage, EventsScanned, ScanLimitReached, CompletenessDiagnostic);
+    }
 }
