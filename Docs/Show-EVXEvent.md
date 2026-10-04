@@ -157,7 +157,7 @@ Accept wildcard characters: False
 ```
 
 ### -CsvPath
-Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.
+Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.
 
 ```yaml
 Type: String

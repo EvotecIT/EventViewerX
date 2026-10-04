@@ -969,8 +969,15 @@ durable value. Committed batches survive a later source failure or cancellation;
 the active batch rolls back, and overlapping replay remains idempotent.
 Stored composite selectors expand to their leaf definitions, so the same
 `-Type ActiveDirectoryAuthentication` selector works against live channels,
-ForwardedEvents, and retained history. Direct and WEC copies of the same
-source event share one provenance identity instead of inflating summaries.
+ForwardedEvents, and retained history. History preserves direct and WEC transport
+observations separately, including distinct records with identical timestamps and
+payloads. Re-importing an exact observation remains idempotent. Use explicit
+occurrence grouping when combining transport copies for an analysis.
+Re-import retained source data to recover observations omitted by earlier
+cross-transport ingestion; a store cannot reconstruct rows it never retained.
+Stateful historical detection replays selected retained history from its beginning
+to preserve evidence consumed by earlier findings. Candidate and observation bounds
+apply to that replay; an exhausted bound produces an incomplete result.
 Use `evx store prune --path events.db --before 2026-01-01T00:00:00Z` for an
 explicit retention boundary. EventViewerX intentionally does not own alert
 escalation, incident assignment, fleet policy, or delivery credentials.
@@ -1008,6 +1015,19 @@ evx report --store C:\EVX\events.db --type ADUserLogonFailed `
     --summary Day --html C:\Reports\FailedLogons-Daily.html
 evx store prune --path C:\EVX\events.db --before 2026-01-01T00:00:00Z
 ```
+
+Query output is JSONL event rows. Queries write bounds and source failures to
+standard error. Use `--summary-file query.json` to retain a versioned summary with
+row and candidate counts, coverage, and `IsComplete`; use `--require-complete` to
+return exit code 2 when the selected input is incomplete. This also works with
+stored `--stream` queries. Exit code 1 indicates a command failure and 130 indicates
+cancellation. Keep the summary path separate from input EVTX and history files.
+
+Single CSV exports write a companion `file.csv.metadata.json` containing the same
+completion summary and the CSV SHA-256. Keep both files when sharing an export and
+verify the checksum before trusting the metadata. A CSV and its companion are
+separate files; use the ZIP export when one atomic artifact is required. ZIP
+manifests also include the completion summary, even when a coverage table is omitted.
 
 Each watcher outbox delivery is published as one completed batch directory
 containing `report.html`, `email.html`, `email.txt`, and `batch.json`. A stable

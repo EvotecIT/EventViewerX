@@ -162,7 +162,9 @@ public sealed class TestEventDefinitionAndReporting {
             Assert.StartsWith("User,Computer", File.ReadAllText(customCsv), StringComparison.Ordinal);
         } finally {
             File.Delete(typedCsv);
+            File.Delete(typedCsv + ".metadata.json");
             File.Delete(customCsv);
+            File.Delete(customCsv + ".metadata.json");
         }
     }
 
@@ -240,6 +242,7 @@ public sealed class TestEventDefinitionAndReporting {
         } finally {
             File.Delete(workbook);
             File.Delete(csv);
+            File.Delete(csv + ".metadata.json");
         }
 
         EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
@@ -439,6 +442,7 @@ public sealed class TestEventDefinitionAndReporting {
         } finally {
             File.Delete(workbook);
             File.Delete(csv);
+            File.Delete(csv + ".metadata.json");
         }
     }
 
@@ -672,6 +676,7 @@ public sealed class TestEventDefinitionAndReporting {
             Assert.Contains("Status Raw (2)", header, StringComparison.Ordinal);
         } finally {
             File.Delete(path);
+            File.Delete(path + ".metadata.json");
         }
     }
 

@@ -452,18 +452,7 @@ SELECT
      $definition, $time, $eventId, $recordId, $provider,
      $sourceLog, $containerLog, $sourceComputer, $collectorComputer, $level,
      $levelValue, $activityId, $relatedActivityId, $processId, $threadId, $message, $values,
-     COALESCE($received, $inserted), COALESCE($processed, $inserted), $inserted
-WHERE $transportKind = 2 OR NOT EXISTS (
-    SELECT 1
-    FROM evx_events
-    WHERE original_event_key = $originalKey
-      AND transport_kind IN (0, 1)
-      AND (
-          transport_kind <> $transportKind
-          OR ($transportKind = 1 AND
-              collector_computer <> $collectorComputer COLLATE NOCASE)
-      )
-);";
+     COALESCE($received, $inserted), COALESCE($processed, $inserted), $inserted;";
 
     private const string UpsertCheckpointSql = @"
 INSERT INTO evx_checkpoints

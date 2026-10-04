@@ -604,7 +604,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task OriginalEventIdentityDeduplicatesDirectAndCollectorTransport() {
+    public async Task OriginalEventIdentityPreservesDirectAndCollectorTransport() {
         string path = CreateStorePath();
         try {
             DateTime time = new(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc);
@@ -619,10 +619,10 @@ public sealed partial class TestEventStore {
             EventReport report = await store.ReadReportAsync(new EventStoreQuery());
 
             Assert.Equal(1, forwarded.Inserted);
-            Assert.Equal(0, direct.Inserted);
-            Assert.Equal(1, direct.Duplicates);
+            Assert.Equal(1, direct.Inserted);
+            Assert.Equal(0, direct.Duplicates);
             Assert.Equal(1, distinct.Inserted);
-            Assert.Equal(2, report.Rows.Count);
+            Assert.Equal(3, report.Rows.Count);
         } finally {
             DeleteStore(path);
         }
@@ -653,7 +653,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task OriginalEventIdentityDeduplicatesDifferentCollectors() {
+    public async Task OriginalEventIdentityPreservesDifferentCollectors() {
         string path = CreateStorePath();
         try {
             DateTime time = new(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc);
@@ -666,9 +666,9 @@ public sealed partial class TestEventStore {
             EventReport stored = await store.ReadReportAsync(new EventStoreQuery());
 
             Assert.Equal(1, first.Inserted);
-            Assert.Equal(0, second.Inserted);
-            Assert.Equal(1, second.Duplicates);
-            Assert.Single(stored.Rows);
+            Assert.Equal(1, second.Inserted);
+            Assert.Equal(0, second.Duplicates);
+            Assert.Equal(2, stored.Rows.Count);
         } finally {
             DeleteStore(path);
         }
@@ -706,7 +706,7 @@ public sealed partial class TestEventStore {
     }
 
     [Fact]
-    public async Task OriginalEventIdentityDeduplicatesSelfForwardedCollectorCopies() {
+    public async Task OriginalEventIdentityPreservesSelfForwardedCollectorCopies() {
         string path = CreateStorePath();
         try {
             DateTime time = new(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc);
@@ -729,9 +729,9 @@ public sealed partial class TestEventStore {
             EventReport stored = await store.ReadReportAsync(new EventStoreQuery());
 
             Assert.Equal(1, forwarded.Inserted);
-            Assert.Equal(0, direct.Inserted);
-            Assert.Equal(1, direct.Duplicates);
-            Assert.Single(stored.Rows);
+            Assert.Equal(1, direct.Inserted);
+            Assert.Equal(0, direct.Duplicates);
+            Assert.Equal(2, stored.Rows.Count);
         } finally {
             DeleteStore(path);
         }

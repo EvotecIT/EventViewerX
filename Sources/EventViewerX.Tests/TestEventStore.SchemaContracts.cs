@@ -276,6 +276,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             Assert.StartsWith("Who", File.ReadAllText(csv), StringComparison.Ordinal);
         } finally {
             File.Delete(csv);
+            File.Delete(csv + ".metadata.json");
             DeleteStore(path);
         }
     }
@@ -351,6 +352,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             DeleteStore(path);
             if (File.Exists(csv)) {
                 File.Delete(csv);
+                File.Delete(csv + ".metadata.json");
             }
         }
     }
@@ -387,6 +389,7 @@ CREATE TABLE evx_events (future_only TEXT NOT NULL);");
             DeleteStore(path);
             if (File.Exists(csv)) {
                 File.Delete(csv);
+                File.Delete(csv + ".metadata.json");
             }
         }
     }

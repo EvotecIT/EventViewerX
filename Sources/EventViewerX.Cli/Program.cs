@@ -59,6 +59,7 @@ internal static partial class Program {
 
     private static async Task<int> QueryAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: false);
+        ValidateQuerySummaryPath(options);
         ValidateOccurrenceOptions(options);
         if (options.Get("store") is string storePath) {
             EventStoreQuery storedQuery = CreateStoreQuery(options);
@@ -80,15 +81,13 @@ internal static partial class Program {
                         Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row), JsonOptions));
                         return Task.CompletedTask;
                     }).ConfigureAwait(false);
-                if (!streamed.IsComplete) {
-                    Console.Error.WriteLine(streamed.CompletenessDiagnostic);
-                }
-                return 0;
+                return CompleteQuery(new EventReportSummary(streamed.RowsRead, streamed.EventsScanned,
+                    streamed.ScanLimitReached, streamed.CompletenessDiagnostic), options);
             }
             EventReport stored = await new EventStore(storePath)
                 .ReadReportAsync(storedQuery, options.Get("title"))
                 .ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(stored, options));
+            return WriteRows(ApplyOccurrenceGrouping(stored, options), options);
         }
         if (options.Has("stream")) {
             throw new ArgumentException("--stream requires --store.");
@@ -96,7 +95,7 @@ internal static partial class Program {
         if (options.Get("context-store") != null) {
             EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
             await WriteStoreIfRequestedAsync(contextual, options).ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(contextual, options));
+            return WriteRows(ApplyOccurrenceGrouping(contextual, options), options);
         }
         EventReportRequest request = CreateRequest(options);
         CollectionCheckpointContext? checkpoint =
@@ -129,7 +128,7 @@ internal static partial class Program {
         } else {
             await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
         }
-        return WriteRows(ApplyOccurrenceGrouping(report, options));
+        return WriteRows(ApplyOccurrenceGrouping(report, options), options);
     }
 
     private static async Task<int> ReportAsync(CliArguments options) {
@@ -642,7 +641,7 @@ internal static partial class Program {
         return 0;
     }
 
-    private static int WriteRows(EventReport report) {
+    private static int WriteRows(EventReport report, CliArguments options) {
         var sectionsByRow = new Dictionary<EventReportRow, EventReportSection>();
         foreach (EventReportSection section in report.Sections) {
             foreach (EventReportRow row in section.Rows) {
@@ -657,7 +656,7 @@ internal static partial class Program {
                 EventReportJsonProjection.Project(row, section);
             Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
         }
-        return 0;
+        return CompleteQuery(EventReportSummary.Create(report), options);
     }
 
     private static EventType[] ParseTypes(IEnumerable<string> values) => values.Select(value =>
@@ -689,7 +688,7 @@ internal static partial class Program {
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
-                    "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream",
+                    "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream", "summary-file", "require-complete",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "report":
@@ -799,7 +798,7 @@ internal static partial class Program {
             "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream with --store for JSONL] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream with --store for JSONL] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] [--sigma-profile strict|windows-sysmon-powershell] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain | --dry-run]\n" +

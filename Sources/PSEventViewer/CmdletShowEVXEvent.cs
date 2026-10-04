@@ -208,7 +208,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter]
     public string? ExcelPath { get; set; }
 
-    /// <summary>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</summary>
+    /// <summary>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</summary>
     [Parameter]
     public string? CsvPath { get; set; }
 
