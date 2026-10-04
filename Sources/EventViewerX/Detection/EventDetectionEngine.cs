@@ -119,23 +119,33 @@ public static partial class EventDetectionEngine {
     public static IEnumerable<EventDetectionFinding> Stream(
         IEnumerable<EventObservation> observations,
         EventDetectionPlan plan,
-        EventDetectionEngineOptions? options = null) {
+        EventDetectionEngineOptions? options = null) => StreamCore(observations, plan, options, default);
+
+    private static IEnumerable<EventDetectionFinding> StreamCore(
+        IEnumerable<EventObservation> observations,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options,
+        CancellationToken cancellationToken) {
 
         if (observations == null) {
             throw new ArgumentNullException(nameof(observations));
         }
-        var evaluator = new Evaluator(plan, options);
+        var evaluator = new Evaluator(plan, options, cancellationToken);
         foreach (EventObservation observation in observations) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (observation == null) {
                 throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
             }
             foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return finding;
             }
         }
         foreach (EventDetectionFinding finding in evaluator.Complete()) {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return finding;
         }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     /// <summary>Streams findings from an asynchronous live or offline observation source.</summary>
@@ -148,14 +158,16 @@ public static partial class EventDetectionEngine {
         if (observations == null) {
             throw new ArgumentNullException(nameof(observations));
         }
-        var evaluator = new Evaluator(plan, options);
+        var evaluator = new Evaluator(plan, options, cancellationToken);
         await foreach (EventObservation observation in observations
             .WithCancellation(cancellationToken)
             .ConfigureAwait(false)) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (observation == null) {
                 throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
             }
             foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return finding;
             }
         }
@@ -163,6 +175,7 @@ public static partial class EventDetectionEngine {
             cancellationToken.ThrowIfCancellationRequested();
             yield return finding;
         }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     /// <summary>Projects an asynchronous raw event stream once and emits findings as they occur.</summary>
@@ -181,8 +194,9 @@ public static partial class EventDetectionEngine {
         EventTypeProjectionPlan? projectionPlan = plan.RequiredEventTypes.Count == 0
             ? null
             : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
-        var evaluator = new Evaluator(plan, options);
+        var evaluator = new Evaluator(plan, options, cancellationToken);
         await foreach (EventObject source in events.WithCancellation(cancellationToken).ConfigureAwait(false)) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (source == null) {
                 throw new ArgumentException("Events cannot contain null values.", nameof(events));
             }
@@ -191,6 +205,7 @@ public static partial class EventDetectionEngine {
                 : EventTypeCatalog.CreateEventRule(source, projectionPlan);
             EventObservation observation = EventObservation.Create(source, typed);
             foreach (EventDetectionFinding finding in evaluator.Process(observation)) {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return finding;
             }
         }
@@ -198,24 +213,35 @@ public static partial class EventDetectionEngine {
             cancellationToken.ThrowIfCancellationRequested();
             yield return finding;
         }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     /// <summary>Materializes a bounded observation dry run for diagnostics and tests.</summary>
     public static EventDetectionExecutionResult Evaluate(
         IEnumerable<EventObservation> observations,
         EventDetectionPlan plan,
-        EventDetectionEngineOptions? options = null) {
+        EventDetectionEngineOptions? options = null) => Evaluate(observations, plan, options, default);
+
+    /// <summary>Materializes a bounded dry run with cancellation during collection, sorting, and rule evaluation.</summary>
+    public static EventDetectionExecutionResult Evaluate(
+        IEnumerable<EventObservation> observations,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options,
+        CancellationToken cancellationToken) {
 
         if (observations == null) {
             throw new ArgumentNullException(nameof(observations));
         }
-        EventObservation[] snapshot = SnapshotBounded(observations, options?.MaximumObservations ?? 1_000_000);
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+        EventObservation[] snapshot = SnapshotBounded(observations, options?.MaximumObservations ?? 1_000_000, cancellationToken);
         if (snapshot.Any(static observation => observation == null)) {
             throw new ArgumentException("Observations cannot contain null values.", nameof(observations));
         }
-        Array.Sort(snapshot, CompareObservations);
+        SortCancellable(snapshot, CompareObservations, cancellationToken);
         EventDetectionCoverage coverage = options?.Coverage?.Snapshot() ?? EventDetectionCoverage.Unknown();
-        EventDetectionFinding[] findings = Stream(snapshot, plan, options).ToArray();
+        EventDetectionFinding[] findings = StreamCore(snapshot, plan, options, cancellationToken).ToArray();
         return new EventDetectionExecutionResult(
             GetEvaluatedItems(snapshot, options?.MaximumObservations ?? 1_000_000),
             findings,
@@ -226,26 +252,37 @@ public static partial class EventDetectionEngine {
     public static EventDetectionExecutionResult Evaluate(
         IEnumerable<EventObject> events,
         EventDetectionPlan plan,
-        EventDetectionEngineOptions? options = null) {
+        EventDetectionEngineOptions? options = null) => Evaluate(events, plan, options, default);
+
+    /// <summary>Projects raw events and evaluates a bounded dry run with cancellation between processing steps.</summary>
+    public static EventDetectionExecutionResult Evaluate(
+        IEnumerable<EventObject> events,
+        EventDetectionPlan plan,
+        EventDetectionEngineOptions? options,
+        CancellationToken cancellationToken) {
 
         if (events == null) {
             throw new ArgumentNullException(nameof(events));
         }
-        EventObject[] snapshot = SnapshotBounded(events, options?.MaximumObservations ?? 1_000_000);
+        if (plan == null) {
+            throw new ArgumentNullException(nameof(plan));
+        }
+        EventObject[] snapshot = SnapshotBounded(events, options?.MaximumObservations ?? 1_000_000, cancellationToken);
         if (snapshot.Any(static source => source == null)) {
             throw new ArgumentException("Events cannot contain null values.", nameof(events));
         }
-        Array.Sort(snapshot, CompareEvents);
+        SortCancellable(snapshot, CompareEvents, cancellationToken);
         EventTypeProjectionPlan? projectionPlan = plan.RequiredEventTypes.Count == 0
             ? null
             : EventTypeCatalog.CompileProjectionPlan(plan.RequiredEventTypes);
         EventObservation[] observations = snapshot.Select(source => {
+            cancellationToken.ThrowIfCancellationRequested();
             EventTypeRecord? typed = projectionPlan == null
                 ? null
                 : EventTypeCatalog.CreateEventRule(source, projectionPlan);
             return EventObservation.Create(source, typed);
         }).ToArray();
-        EventDetectionFinding[] findings = Stream(observations, plan, options).ToArray();
+        EventDetectionFinding[] findings = StreamCore(observations, plan, options, cancellationToken).ToArray();
         return new EventDetectionExecutionResult(
             GetEvaluatedItems(observations, options?.MaximumObservations ?? 1_000_000),
             findings,
@@ -259,18 +296,41 @@ public static partial class EventDetectionEngine {
         return snapshot.Take(checked((int)maximumObservations)).ToArray();
     }
 
-    private static T[] SnapshotBounded<T>(IEnumerable<T> source, long maximumObservations) {
+    private static T[] SnapshotBounded<T>(IEnumerable<T> source, long maximumObservations, CancellationToken cancellationToken) {
         if (maximumObservations < 0) {
             throw new ArgumentOutOfRangeException(nameof(maximumObservations));
         }
         var snapshot = new List<T>();
+        cancellationToken.ThrowIfCancellationRequested();
         foreach (T item in source) {
+            cancellationToken.ThrowIfCancellationRequested();
             snapshot.Add(item);
             if (maximumObservations > 0 && snapshot.Count > maximumObservations) {
                 break;
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
         return snapshot.ToArray();
+    }
+
+    private static void SortCancellable<T>(T[] items, Comparison<T> comparison, CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!cancellationToken.CanBeCanceled) {
+            Array.Sort(items, comparison);
+            return;
+        }
+        try {
+            Array.Sort(items, (left, right) => {
+                cancellationToken.ThrowIfCancellationRequested();
+                return comparison(left, right);
+            });
+        } catch (InvalidOperationException exception) when (
+            exception.InnerException is OperationCanceledException && cancellationToken.IsCancellationRequested) {
+            // Array.Sort wraps comparer exceptions. Preserve the cancellation contract.
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static int CompareObservations(EventObservation? left, EventObservation? right) {

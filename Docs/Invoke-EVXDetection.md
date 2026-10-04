@@ -39,7 +39,7 @@ Evaluates the built-in native packs and emits findings as typed objects. Materia
 Invoke-EVXDetection -FromStore C:\Data\events.db -StartTime (Get-Date).AddHours(-1) -Coverage $coverage
 ```
 
-Loads the requested window plus the plan's required stateful lookback and emits only findings that end in the requested window.
+Replays the selected retained history from its beginning for stateful rules, preserving evidence consumed by earlier findings. Emits matched findings ending in the requested window and retains incomplete diagnostics. Candidate and observation bounds apply to the whole replay.
 
 ### EXAMPLE 3
 ```powershell
@@ -282,7 +282,7 @@ Accept wildcard characters: False
 ```
 
 ### -StartTime
-UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.
+UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.
 
 ```yaml
 Type: DateTime

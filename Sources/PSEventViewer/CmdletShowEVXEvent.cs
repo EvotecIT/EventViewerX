@@ -86,7 +86,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter(ParameterSetName = "Store")]
     public string[]? ProviderName { get; set; }
 
-    /// <summary>Existing EventObject or EventTypeRecord values. No source query is performed.</summary>
+    /// <summary>Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.</summary>
     [Parameter(Mandatory = true, ValueFromPipeline = true, ParameterSetName = "Input")]
     public object? InputObject { get; set; }
 
@@ -208,7 +208,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     [Parameter]
     public string? ExcelPath { get; set; }
 
-    /// <summary>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</summary>
+    /// <summary>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</summary>
     [Parameter]
     public string? CsvPath { get; set; }
 
@@ -219,6 +219,14 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     /// <summary>Returns a responsive transport-neutral email package for Mailozaurr.</summary>
     [Parameter]
     public SwitchParameter EmailPackage { get; set; }
+
+    /// <para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</para>
+    [Parameter]
+    public EventReportPrivacyOptions? Privacy { get; set; }
+
+    /// <para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</para>
+    [Parameter]
+    public byte[]? PseudonymizationKey { get; set; }
 
     /// <summary>Opens generated files with the registered desktop applications.</summary>
     [Parameter]
@@ -261,6 +269,13 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
     /// <inheritdoc />
     protected override async Task EndProcessingAsync() {
         ValidateContextAuthorizationSelection();
+        if (Privacy == null && PseudonymizationKey != null) {
+            throw new PSArgumentException("PseudonymizationKey requires a Privacy policy.");
+        }
+        if (Privacy != null) {
+            EventReportPrivacy.Apply(EventReportEngine.CreateStored(Array.Empty<EventReportRow>(),
+                new[] { EventReportSectionSchema.CreateGeneric() }), Privacy, PseudonymizationKey, CancelToken);
+        }
         EventOccurrenceOptions? occurrenceOptions = null;
         if (DuplicateMode != EventDuplicateMode.None) {
             if (!Enum.IsDefined(typeof(EventDuplicateMode), DuplicateMode)) {
@@ -290,7 +305,9 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
         EventReport report;
         EventAggregationResult? aggregation = null;
         if (ParameterSetName == "Input") {
-            if (_input.Count == 1 && _input[0] is EventAggregationResult aggregationResult) {
+            if (_input.Count == 1 && _input[0] is EventReport snapshot) {
+                report = string.IsNullOrWhiteSpace(Title) ? snapshot : snapshot.WithTitle(Title!);
+            } else if (_input.Count == 1 && _input[0] is EventAggregationResult aggregationResult) {
                 aggregation = aggregationResult;
                 report = EventAggregationReportFactory.Create(aggregationResult, Title);
             } else {
@@ -459,6 +476,11 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
                 nameof(StorePath));
         }
 
+        EventReport historyReport = report;
+        if (Privacy != null) {
+            report = EventReportPrivacy.Apply(report, Privacy, PseudonymizationKey, CancelToken);
+            aggregation = null;
+        }
         bool hasDestination = !string.IsNullOrWhiteSpace(HtmlPath) ||
                               !string.IsNullOrWhiteSpace(ExcelPath) ||
                               !string.IsNullOrWhiteSpace(CsvPath) ||
@@ -499,7 +521,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
         }
         if (!string.IsNullOrWhiteSpace(StorePath)) {
             var store = new EventStore(StorePath!);
-            EventStoreWriteResult stored = await store.WriteAsync(report, cancellationToken: CancelToken).ConfigureAwait(false);
+            EventStoreWriteResult stored = await store.WriteAsync(historyReport, cancellationToken: CancelToken).ConfigureAwait(false);
             WriteVerbose($"Stored {stored.Inserted} new rows and skipped {stored.Duplicates} duplicates.");
             WriteObject(store.Path);
         }
@@ -507,7 +529,7 @@ public sealed class CmdletShowEVXEvent : AsyncPSCmdlet {
             WriteObject(await EventReportEmailRenderer.RenderAsync(report).ConfigureAwait(false));
         }
         if (PassThru.IsPresent) {
-            WriteObject(occurrences ?? (object?)aggregation ?? report);
+            WriteObject(Privacy != null ? report : occurrences ?? (object?)aggregation ?? report);
         }
     }
 

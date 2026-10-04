@@ -114,12 +114,13 @@ public sealed class SavedEventRecord {
             EventReadMode.Full => new EventObject(new NativeEventFull(message, structured), sourcePath, sourcePath),
             _ => throw new ArgumentOutOfRangeException(nameof(readMode))
         };
-        if (readMode == EventReadMode.Full || !string.IsNullOrEmpty(RawXml)) {
+        bool readsStructuredData = readMode is EventReadMode.StructuredData or EventReadMode.StructuredDataAndMessage or EventReadMode.Full or EventReadMode.RawXml;
+        if (readsStructuredData && (readMode == EventReadMode.Full || !string.IsNullOrEmpty(RawXml))) {
             // XML projection retains derived fields and attachments before parser values overlay it.
             foreach (KeyValuePair<string, string> item in Data) {
                 result.Data[item.Key] = item.Value;
             }
-        } else {
+        } else if (readsStructuredData) {
             result.InitializeSavedPayload(Data);
         }
         result.QuerySourceKind = EventLogQuerySourceKind.File;

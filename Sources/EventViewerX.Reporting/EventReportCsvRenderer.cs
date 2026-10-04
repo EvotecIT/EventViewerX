@@ -6,10 +6,11 @@ using OfficeIMO.CSV;
 namespace EventViewerX.Reporting;
 
 /// <summary>Writes homogeneous typed CSV files and deterministic multi-schema ZIP bundles.</summary>
-public static class EventReportCsvRenderer {
+public static partial class EventReportCsvRenderer {
     /// <summary>
     /// Saves one homogeneous section as CSV, or saves multiple typed sections as a ZIP bundle.
     /// A multi-section report requires a .zip destination so unrelated schemas never share one table.
+    /// A single CSV also writes path + ".metadata.json" with coverage, completion evidence, and the CSV SHA-256.
     /// </summary>
     public static string Save(
         EventReport report,
@@ -43,25 +44,30 @@ public static class EventReportCsvRenderer {
         }
         return bundle
             ? SaveBundle(report, fullPath, options)
-            : SaveSingle(report.Sections[0], fullPath, options);
+            : SaveSingle(report, fullPath, options);
     }
 
     private static string SaveSingle(
-        EventReportSection section,
+        EventReport report,
         string fullPath,
         EventReportCsvOptions options) {
 
         string temporaryPath = CreateTemporaryPath(fullPath);
+        string metadataPath = fullPath + ".metadata.json";
+        string temporaryMetadataPath = CreateTemporaryPath(metadataPath);
         try {
             using (CsvRowWriter writer = CsvRowWriter.CreateFile(
                        temporaryPath,
                        options.CreateSaveOptions())) {
-                WriteSection(writer, section);
+                WriteSection(writer, report.Sections[0]);
             }
+            WriteSingleMetadata(report, temporaryPath, fullPath, temporaryMetadataPath);
             MoveIntoPlace(temporaryPath, fullPath);
+            MoveIntoPlace(temporaryMetadataPath, metadataPath);
             return fullPath;
         } finally {
             TryDelete(temporaryPath);
+            TryDelete(temporaryMetadataPath);
         }
     }
 
@@ -137,6 +143,7 @@ public static class EventReportCsvRenderer {
                     report.EventsScanned,
                     report.ScanLimitReached,
                     report.CompletenessDiagnostic,
+                    Summary = EventReportSummary.Create(report),
                     Sections = sectionFiles.Select(static item => new {
                         item.Section.Name,
                         item.Section.DisplayName,

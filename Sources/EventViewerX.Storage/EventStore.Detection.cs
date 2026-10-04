@@ -12,12 +12,10 @@ public sealed partial class EventStore {
         if (query == null) {
             throw new ArgumentNullException(nameof(query));
         }
-        EventReport report = await ReadReportAsync(query, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        var observations = new List<EventObservation>(report.Rows.Count);
+        var observations = new List<EventObservation>();
         bool legacyIdentity = false;
-        foreach (EventReportRow row in report.Rows) {
-            cancellationToken.ThrowIfCancellationRequested();
+        EventStoreRowReadResult read = await StreamRowsAsync(query, (row, token) => {
+            token.ThrowIfCancellationRequested();
             EventObject source = RestoreSource(row);
             string identity = row.ObservationIdentity;
             if (string.IsNullOrWhiteSpace(identity)) {
@@ -37,22 +35,24 @@ public sealed partial class EventStore {
                 row.Values,
                 received,
                 processed));
-        }
-        string? diagnostic = report.CompletenessDiagnostic;
+            return Task.CompletedTask;
+        }, cancellationToken).ConfigureAwait(false);
+        string? diagnostic = read.CompletenessDiagnostic;
         if (legacyIdentity) {
             const string legacy = "One or more legacy rows predate durable observation identities; deterministic fallback identities were reconstructed from retained metadata.";
             diagnostic = string.IsNullOrWhiteSpace(diagnostic) ? legacy : diagnostic + " " + legacy;
         }
         return new EventStoreObservationReadResult(
             observations,
-            report.EventsScanned,
-            report.ScanLimitReached,
+            read.EventsScanned,
+            read.ScanLimitReached,
             diagnostic);
     }
 
     /// <summary>
-    /// Evaluates a stored historical window and automatically loads the preceding stateful rule window so
-    /// threshold and temporal correlation survive process restarts.
+    /// Evaluates a stored historical window. Stateful rules replay the selected retained history from its
+    /// beginning so previously consumed threshold and temporal evidence retains its continuous-run meaning.
+    /// Query and evaluator bounds apply to replay input; exhausting a bound makes collection incomplete.
     /// </summary>
     public async Task<EventDetectionExecutionResult> EvaluateDetectionAsync(
         EventStoreQuery query,
@@ -69,9 +69,16 @@ public sealed partial class EventStore {
         EventStoreQuery historical = query.Snapshot();
         DateTime? resultStart = historical.StartTime;
         if (resultStart.HasValue && plan.MaximumStatefulWindow > TimeSpan.Zero) {
-            historical.StartTime = SubtractClamped(
-                resultStart.Value,
-                plan.MaximumStatefulWindow);
+            historical.StartTime = null;
+        }
+        long maximumObservations = options?.MaximumObservations ?? 1_000_000;
+        // Retain at most one extra observation so the evaluator can report its own
+        // bound without materializing a potentially unlimited history first.
+        if (maximumObservations > 0 && maximumObservations < long.MaxValue) {
+            long replayLimit = maximumObservations + 1;
+            historical.MaxEvents = historical.MaxEvents > 0
+                ? Math.Min(historical.MaxEvents, replayLimit)
+                : replayLimit;
         }
         historical.Oldest = true;
         ApplySafeDetectionSelectors(historical, plan);
@@ -84,13 +91,15 @@ public sealed partial class EventStore {
             });
         }
         var engineOptions = new EventDetectionEngineOptions(
-            options?.MaximumObservations ?? 1_000_000,
+            maximumObservations,
             options?.MaximumGroups ?? 25_000,
             options?.MaximumStateObservations ?? 250_000,
             options?.MaximumStateBytes ?? 256L * 1024L * 1024L,
             options?.MaximumCandidateRules ?? 10_000,
             coverage);
-        EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(read.Observations, plan, engineOptions);
+        EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(
+            read.Observations, plan, engineOptions, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         EventDetectionFinding[] selected = resultStart.HasValue
             ? evaluated.Findings.Where(finding =>
                 finding.Status != EventDetectionFindingStatus.Matched ||
@@ -152,11 +161,6 @@ public sealed partial class EventStore {
             ? perType.SelectMany(static ids => ids).Distinct().ToArray()
             : Array.Empty<int>();
     }
-
-    private static DateTime SubtractClamped(DateTime value, TimeSpan duration) =>
-        value.Ticks <= duration.Ticks
-            ? new DateTime(DateTime.MinValue.Ticks, value.Kind)
-            : value - duration;
 
     private static EventObject RestoreSource(EventReportRow row) {
         var metadata = new NativeEventMetadata(

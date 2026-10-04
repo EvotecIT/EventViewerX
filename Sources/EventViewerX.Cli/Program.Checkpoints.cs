@@ -7,7 +7,10 @@ internal static partial class Program {
     private static async Task<CollectionCheckpointContext?>
         PrepareCollectionCheckpointAsync(
             EventReportRequest request,
-            CliArguments options) {
+            CliArguments options,
+            CancellationToken cancellationToken = default) {
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         string? consumer = options.Get("checkpoint");
         if (consumer == null) {
@@ -45,8 +48,9 @@ internal static partial class Program {
         EventStoreCheckpoint? saved = await store.GetCheckpointAsync(
             consumer,
             computer,
-            container).ConfigureAwait(false);
-        EventLogRecordRange range = ReadRecordRange(target, container);
+            container,
+            cancellationToken).ConfigureAwait(false);
+        EventLogRecordRange range = ReadRecordRange(target, container, cancellationToken);
         saved?.ValidateAvailableRange(
             range.OldestRecordId,
             range.NewestRecordId);
@@ -60,7 +64,8 @@ internal static partial class Program {
                 bookmarkXml = ReadCheckpointBookmark(
                     target,
                     container,
-                    saved.RecordId.Value);
+                    saved.RecordId.Value,
+                    cancellationToken);
             }
             if (!string.IsNullOrWhiteSpace(bookmarkXml)) {
                 string resolvedBookmarkXml = bookmarkXml!;
@@ -89,16 +94,19 @@ internal static partial class Program {
 
     private static EventLogRecordRange ReadRecordRange(
         string? machineName,
-        string logName) {
+        string logName,
+        CancellationToken cancellationToken = default) {
 
         EventObject? oldest = ReadBoundaryEvent(
             machineName,
             logName,
-            oldest: true);
+            oldest: true,
+            cancellationToken);
         EventObject? newest = ReadBoundaryEvent(
             machineName,
             logName,
-            oldest: false);
+            oldest: false,
+            cancellationToken);
         if ((oldest == null) != (newest == null)) {
             throw new InvalidDataException(
                 $"The retained record range for '{logName}' on '{NormalizeCheckpointComputer(machineName)}' changed while it was inspected; retry collection before advancing the checkpoint.");
@@ -120,7 +128,8 @@ internal static partial class Program {
     private static EventObject? ReadBoundaryEvent(
         string? machineName,
         string logName,
-        bool oldest) {
+        bool oldest,
+        CancellationToken cancellationToken = default) {
 
         EventObject? boundary = EventLogEngine.ReadChannel(
             new EventLogChannelQuery(logName) {
@@ -132,14 +141,15 @@ internal static partial class Program {
                 IncludeBookmark = true,
                 RemoteConnectionTimeoutMilliseconds = 5000,
                 RemoteReadTimeoutMilliseconds = 5000
-            }).FirstOrDefault();
+            }, cancellationToken).FirstOrDefault();
         return boundary;
     }
 
     private static string ReadCheckpointBookmark(
         string? machineName,
         string logName,
-        long recordId) {
+        long recordId,
+        CancellationToken cancellationToken = default) {
 
         EventObject? boundary = EventLogEngine.ReadChannel(
             new EventLogChannelQuery(logName) {
@@ -151,7 +161,7 @@ internal static partial class Program {
                 IncludeBookmark = true,
                 RemoteConnectionTimeoutMilliseconds = 5000,
                 RemoteReadTimeoutMilliseconds = 5000
-            }).FirstOrDefault();
+            }, cancellationToken).FirstOrDefault();
         if (boundary?.RecordId != recordId ||
             string.IsNullOrWhiteSpace(boundary.BookmarkXml)) {
             throw new InvalidDataException(
@@ -167,11 +177,15 @@ internal static partial class Program {
 
     private static async Task WriteCheckpointedStoreAsync(
         EventReport report,
-        CollectionCheckpointContext context) {
+        CollectionCheckpointContext context,
+        CancellationToken cancellationToken = default) {
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         EventLogRecordRange currentRange = ReadRecordRange(
             context.MachineName,
-            context.NextCheckpoint.Container);
+            context.NextCheckpoint.Container,
+            cancellationToken);
         context.SavedCheckpoint?.ValidateAvailableRange(
             currentRange.OldestRecordId,
             currentRange.NewestRecordId);
@@ -214,7 +228,8 @@ internal static partial class Program {
             .WriteAsync(
                 report,
                 context.NextCheckpoint,
-                context.SavedCheckpoint)
+                context.SavedCheckpoint,
+                cancellationToken)
             .ConfigureAwait(false);
         Console.Error.WriteLine(
             $"Stored {result.Inserted} new rows; skipped {result.Duplicates} duplicates and committed checkpoint '{context.NextCheckpoint.Consumer}' at record {context.NextCheckpoint.RecordId?.ToString() ?? "<empty>"} in {Path.GetFullPath(context.Store.Path)}.");

@@ -13,7 +13,7 @@ namespace PSEventViewer;
 /// <example>
 ///   <summary>Evaluate restart-safe historical correlation</summary>
 ///   <code>Invoke-EVXDetection -FromStore C:\Data\events.db -StartTime (Get-Date).AddHours(-1) -Coverage $coverage</code>
-///   <para>Loads the requested window plus the plan's required stateful lookback and emits only findings that end in the requested window.</para>
+///   <para>Replays the selected retained history from its beginning for stateful rules, preserving evidence consumed by earlier findings. Emits matched findings ending in the requested window and retains incomplete diagnostics. Candidate and observation bounds apply to the whole replay.</para>
 /// </example>
 /// <example>
 ///   <summary>Apply environment tuning</summary>
@@ -41,7 +41,7 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
     [Parameter]
     public string? FromStore { get; set; }
 
-    /// <summary>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</summary>
+    /// <summary>UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.</summary>
     [Parameter]
     public DateTime? StartTime { get; set; }
 
@@ -170,7 +170,7 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
             maximumStateBytes: MaximumStateBytes,
             coverage: effectiveCoverage);
         EventDetectionExecutionResult execution = storePath == null
-            ? EventDetectionEngine.Evaluate(_events, plan, options)
+            ? EventDetectionEngine.Evaluate(_events, plan, options, CancelToken)
             : await new EventStore(storePath).EvaluateDetectionAsync(
                 new EventStoreQuery {
                     StartTime = StartTime,

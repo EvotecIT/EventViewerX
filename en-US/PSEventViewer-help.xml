@@ -2624,6 +2624,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -2639,7 +2651,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -3048,10 +3060,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -3534,6 +3570,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -3549,7 +3597,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -4086,6 +4134,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -4101,7 +4161,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -4665,6 +4725,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -4680,7 +4752,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -5132,6 +5204,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -5147,7 +5231,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -5568,10 +5652,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6023,10 +6131,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6379,10 +6511,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6820,6 +6976,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>ExecutionInfo</maml:name>
+        <maml:description>
+          <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+        <dev:type>
+          <maml:name>PSReference</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
         <maml:name>ExpandData</maml:name>
         <maml:description>
@@ -6835,7 +7003,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Explain</maml:name>
         <maml:description>
-          <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+          <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
@@ -10952,7 +11120,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>StartTime</maml:name>
           <maml:description>
-            <maml:para>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</maml:para>
+            <maml:para>UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
           <dev:type>
@@ -11172,7 +11340,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>StartTime</maml:name>
         <maml:description>
-          <maml:para>UTC or local lower boundary for historical findings. Stateful lookback is loaded automatically.</maml:para>
+          <maml:para>UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
         <dev:type>
@@ -11252,7 +11420,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <maml:title>Evaluate restart-safe historical correlation</maml:title>
         <dev:code>Invoke-EVXDetection -FromStore C:\Data\events.db -StartTime (Get-Date).AddHours(-1) -Coverage $coverage</dev:code>
         <dev:remarks>
-          <maml:para>Loads the requested window plus the plan's required stateful lookback and emits only findings that end in the requested window.</maml:para>
+          <maml:para>Replays the selected retained history from its beginning for stateful rules, preserving evidence consumed by earlier findings. Emits matched findings ending in the requested window and retains incomplete diagnostics. Candidate and observation bounds apply to the whole replay.</maml:para>
         </dev:remarks>
       </command:example>
       <command:example>
@@ -18140,7 +18308,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -18222,7 +18390,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
           <maml:name>InputObject</maml:name>
           <maml:description>
-            <maml:para>Existing EventObject or EventTypeRecord values. No source query is performed.</maml:para>
+            <maml:para>Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
           <dev:type>
@@ -18287,6 +18455,30 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
             <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -18388,7 +18580,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -18624,6 +18816,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ResolveDns</maml:name>
           <maml:description>
             <maml:para>Enriches typed IP-address properties through DnsClientX.</maml:para>
@@ -18851,7 +19067,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -19098,6 +19314,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ProviderName</maml:name>
           <maml:description>
@@ -19106,6 +19334,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
           <dev:type>
             <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -19386,7 +19626,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -19621,6 +19861,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
           <maml:name>StartTime</maml:name>
           <maml:description>
@@ -19707,7 +19971,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -19930,6 +20194,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
           <maml:name>StartTime</maml:name>
           <maml:description>
@@ -20058,7 +20346,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>CsvPath</maml:name>
           <maml:description>
-            <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+            <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -20305,6 +20593,30 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Privacy</maml:name>
+          <maml:description>
+            <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventReportPrivacyOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>PseudonymizationKey</maml:name>
+          <maml:description>
+            <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+          <dev:type>
+            <maml:name>Byte[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="DateFrom">
           <maml:name>StartTime</maml:name>
           <maml:description>
@@ -20470,7 +20782,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>CsvPath</maml:name>
         <maml:description>
-          <maml:para>Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
+          <maml:para>Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
         <dev:type>
@@ -20612,7 +20924,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
       <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
         <maml:name>InputObject</maml:name>
         <maml:description>
-          <maml:para>Existing EventObject or EventTypeRecord values. No source query is performed.</maml:para>
+          <maml:para>Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
         <dev:type>
@@ -20765,6 +21077,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Privacy</maml:name>
+        <maml:description>
+          <maml:para>Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventReportPrivacyOptions</command:parameterValue>
+        <dev:type>
+          <maml:name>EventReportPrivacyOptions</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>ProviderName</maml:name>
         <maml:description>
@@ -20773,6 +21097,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
         <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
         <dev:type>
           <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>PseudonymizationKey</maml:name>
+        <maml:description>
+          <maml:para>Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Byte[]</command:parameterValue>
+        <dev:type>
+          <maml:name>Byte[]</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>

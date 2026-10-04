@@ -69,7 +69,9 @@ internal static partial class Program {
         return written ? 0 : WriteJson(result);
     }
 
-    private static Task<EventReport> QueryGroupPolicyReportAsync(CliArguments options) {
+    private static Task<EventReport> QueryGroupPolicyReportAsync(
+        CliArguments options,
+        CancellationToken cancellationToken = default) {
         var query = new GroupPolicyAuditQuery {
             ContextStore = new SqliteEventContextStore(options.Require("context-store")),
             AuthorizationContext = options.Get("context-authorization"),
@@ -86,7 +88,7 @@ internal static partial class Program {
         if (options.Get("since") is string since) {
             query.StartTime = DateTime.Now.Subtract(TimeSpan.Parse(since, CultureInfo.InvariantCulture));
         }
-        return GroupPolicyAuditReportEngine.QueryAsync(query, options.Get("title"));
+        return GroupPolicyAuditReportEngine.QueryAsync(query, options.Get("title"), cancellationToken);
     }
 
     private static EventReport ApplyOccurrenceGrouping(EventReport report, CliArguments options) {

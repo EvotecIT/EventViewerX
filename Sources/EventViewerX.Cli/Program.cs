@@ -31,6 +31,7 @@ internal static partial class Program {
             return options.Command switch {
                 "query" => await QueryAsync(options).ConfigureAwait(false),
                 "report" => await ReportAsync(options).ConfigureAwait(false),
+                "bundle" => VerifyEvidenceBundle(options),
                 "measure" => await MeasureAsync(options).ConfigureAwait(false),
                 "detect" => await DetectAsync(options).ConfigureAwait(false),
                 "kerberos-impact" => await KerberosImpactAsync(options).ConfigureAwait(false),
@@ -55,147 +56,6 @@ internal static partial class Program {
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
-    }
-
-    private static async Task<int> QueryAsync(CliArguments options) {
-        ValidateQuerySource(options, allowSummary: false);
-        ValidateOccurrenceOptions(options);
-        if (options.Get("store") is string storePath) {
-            EventStoreQuery storedQuery = CreateStoreQuery(options);
-            if (options.Has("explain")) {
-                if (storedQuery.Predicate == null) {
-                    throw new ArgumentException("--explain requires --where.");
-                }
-                EventStoreQueryPlan plan = await new EventStore(storePath)
-                    .PlanAsync(storedQuery)
-                    .ConfigureAwait(false);
-                return WriteJson(plan);
-            }
-            if (options.Has("stream")) {
-                if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
-                    throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
-                }
-                EventStoreRowReadResult streamed = await new EventStore(storePath)
-                    .StreamRowsAsync(storedQuery, (row, _) => {
-                        Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row), JsonOptions));
-                        return Task.CompletedTask;
-                    }).ConfigureAwait(false);
-                if (!streamed.IsComplete) {
-                    Console.Error.WriteLine(streamed.CompletenessDiagnostic);
-                }
-                return 0;
-            }
-            EventReport stored = await new EventStore(storePath)
-                .ReadReportAsync(storedQuery, options.Get("title"))
-                .ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(stored, options));
-        }
-        if (options.Has("stream")) {
-            throw new ArgumentException("--stream requires --store.");
-        }
-        if (options.Get("context-store") != null) {
-            EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
-            await WriteStoreIfRequestedAsync(contextual, options).ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(contextual, options));
-        }
-        EventReportRequest request = CreateRequest(options);
-        CollectionCheckpointContext? checkpoint =
-            await PrepareCollectionCheckpointAsync(request, options)
-                .ConfigureAwait(false);
-        if (options.Has("explain")) {
-            EventPredicate predicate = request.Predicate ??
-                throw new ArgumentException("--explain requires --where.");
-            if (request.Types != null && request.Types.Count > 0) {
-                predicate = EventPredicateBuilder.ForTypes(request.Types).Normalize(predicate);
-            }
-            EventPredicatePlan plan = request.Definition != null
-                ? EventDefinitionEngine.PlanPredicate(
-                    request.Definition,
-                    predicate,
-                    request.Collectors != null && request.Collectors.Count > 0
-                        ? "ForwardedEvents"
-                        : null)
-                : request.Collectors != null && request.Collectors.Count > 0
-                    ? EventPredicatePlanner.PlanManaged(
-                        predicate,
-                        "ForwardedEvents uses the Windows Server 2025 safe '*' reader, so typed filtering is bounded and managed.")
-                    : EventPredicatePlanner.Plan(predicate);
-            return WriteJson(plan);
-        }
-        EventReport report = await EventReportEngine.QueryAsync(request).ConfigureAwait(false);
-        if (checkpoint != null) {
-            await WriteCheckpointedStoreAsync(report, checkpoint)
-                .ConfigureAwait(false);
-        } else {
-            await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
-        }
-        return WriteRows(ApplyOccurrenceGrouping(report, options));
-    }
-
-    private static async Task<int> ReportAsync(CliArguments options) {
-        ValidateQuerySource(options, allowSummary: true);
-        ValidateOccurrenceOptions(options);
-        EventReport report;
-        if (options.Get("store") is string storePath) {
-            var store = new EventStore(storePath);
-            EventStoreQuery query = CreateStoreQuery(options);
-            report = options.Get("summary") is string summary
-                ? await store.CreateSummaryReportAsync(
-                    query,
-                    ParseSummaryPeriod(summary),
-                    options.Get("title")).ConfigureAwait(false)
-                : await store.ReadReportAsync(query, options.Get("title")).ConfigureAwait(false);
-        } else {
-            report = options.Get("context-store") != null
-                ? await QueryGroupPolicyReportAsync(options).ConfigureAwait(false)
-                : await EventReportEngine.QueryAsync(CreateRequest(options)).ConfigureAwait(false);
-            await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
-        }
-        report = ApplyOccurrenceGrouping(report, options);
-        bool written = false;
-        EventEmailPackage? emailPackage = null;
-        if (options.Get("html") is string html) {
-            var htmlOptions = new EventReportHtmlOptions {
-                RecordDrawerPlacement = ParseDrawerPlacement(options.Get("drawer-placement"))
-            };
-            Console.WriteLine(EventReportHtmlRenderer.Save(report, html, htmlOptions));
-            written = true;
-        }
-        if (options.Get("excel") is string excel) {
-            Console.WriteLine(EventReportExcelRenderer.Save(report, excel));
-            written = true;
-        }
-        if (options.Get("csv") is string csv) {
-            Console.WriteLine(EventReportCsvRenderer.Save(report, csv));
-            written = true;
-        }
-        if (options.Get("email-html") is string emailHtml) {
-            emailPackage = await EventReportEmailRenderer.RenderAsync(report, options.GetInt("email-rows", 25)).ConfigureAwait(false);
-            string fullPath = Path.GetFullPath(emailHtml);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.WriteAllTextAsync(fullPath, emailPackage.Html, new UTF8Encoding(false)).ConfigureAwait(false);
-            await File.WriteAllTextAsync(Path.ChangeExtension(fullPath, ".txt"), emailPackage.PlainText, new UTF8Encoding(false)).ConfigureAwait(false);
-            Console.WriteLine(fullPath);
-            written = true;
-        }
-        if (options.Get("mail-profile") is string mailProfile) {
-            emailPackage ??= await EventReportEmailRenderer.RenderAsync(report, options.GetInt("email-rows", 25)).ConfigureAwait(false);
-            SmtpNotificationProfile profile = SmtpNotificationProfile.Load(mailProfile);
-            Mailozaurr.SmtpResult result = await profile.SendAsync(emailPackage, report.Title).ConfigureAwait(false);
-            Console.WriteLine(JsonSerializer.Serialize(new {
-                Delivered = result.Status,
-                profile.DryRun,
-                result.Server,
-                result.Port,
-                result.MessageId,
-                result.TimeToExecute
-            }, JsonOptions));
-            written = true;
-        }
-        if (!written) {
-            throw new ArgumentException("report requires --html, --excel, --csv, --email-html, or --mail-profile.");
-        }
-        return 0;
     }
 
     private static async Task<int> StoreAsync(CliArguments options) {
@@ -303,11 +163,15 @@ internal static partial class Program {
         return query;
     }
 
-    private static async Task WriteStoreIfRequestedAsync(EventReport report, CliArguments options) {
+    private static async Task WriteStoreIfRequestedAsync(
+        EventReport report,
+        CliArguments options,
+        CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested();
         if (options.Get("write-store") is not string path) {
             return;
         }
-        EventStoreWriteResult result = await new EventStore(path).WriteAsync(report).ConfigureAwait(false);
+        EventStoreWriteResult result = await new EventStore(path).WriteAsync(report, cancellationToken: cancellationToken).ConfigureAwait(false);
         Console.Error.WriteLine(
             $"Stored {result.Inserted} new rows; skipped {result.Duplicates} duplicates in {Path.GetFullPath(path)}.");
     }
@@ -319,8 +183,16 @@ internal static partial class Program {
 
     private static void ValidateQuerySource(CliArguments options, bool allowSummary) {
         bool stored = options.Get("store") != null;
-        if (options.Has("stream") && (options.Has("explain") || options.Get("write-store") != null)) {
-            throw new ArgumentException("--stream cannot be combined with --explain or --write-store.");
+        if (options.Has("stream")) {
+            if (options.Has("explain") || options.Get("write-store") != null || options.Get("context-store") != null || options.Get("checkpoint") != null) {
+                throw new ArgumentException("--stream cannot be combined with --explain, --write-store, --checkpoint, or --context-store.");
+            }
+            if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
+                throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
+            }
+            if ((options.Has("portable-evtx") || options.Get("portable-evtx-executable") != null) && !options.Has("oldest")) {
+                throw new ArgumentException("Portable EVTX --stream requires --oldest because newest-first portable readers buffer the matching source before delivering rows.");
+            }
         }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive target modes.");
@@ -346,9 +218,9 @@ internal static partial class Program {
             }
             if (options.Get("preset") != null || options.Get("definition") != null || options.Get("log") != null ||
                 options.Get("where") != null || options.GetMany("event-id").Length > 0 ||
-                options.GetMany("record-id").Length > 0 || options.Has("resolve-dns") || options.Get("checkpoint") != null) {
+                options.GetMany("record-id").Length > 0 || options.Has("resolve-dns") || options.Has("read-mode") || options.Get("checkpoint") != null) {
                 throw new ArgumentException(
-                    "--context-store cannot be combined with --preset, --definition, --log, --where, --event-id, --record-id, --resolve-dns, or --checkpoint.");
+                    "--context-store cannot be combined with --preset, --definition, --log, --where, --event-id, --record-id, --resolve-dns, --read-mode, or --checkpoint.");
             }
         } else if (options.Get("context-authorization") != null) {
             throw new ArgumentException("--context-authorization requires --context-store.");
@@ -377,9 +249,9 @@ internal static partial class Program {
             throw new ArgumentException(
                 "--checkpoint is only valid for live collector ingestion with --write-store.");
         }
-        if (stored && (options.Has("resolve-dns") || options.Has("concurrency"))) {
+        if (stored && (options.Has("resolve-dns") || options.Has("concurrency") || options.Has("read-mode"))) {
             throw new ArgumentException(
-                "--resolve-dns and --concurrency are live event-source options and cannot be combined with --store.");
+                "--resolve-dns, --concurrency, and --read-mode are live event-source options and cannot be combined with --store.");
         }
         if (!stored && (options.Get("definition-name") != null || options.Get("source") != null ||
                         options.Get("provider") != null || options.Get("summary") != null)) {
@@ -459,6 +331,7 @@ internal static partial class Program {
         request.MaxCandidates = options.GetLong("max-candidates");
         request.MaxConcurrency = options.GetInt("concurrency", 8);
         request.Oldest = options.Has("oldest");
+        request.ReadMode = ParseEnum(options.Get("read-mode"), EventReadMode.StructuredDataAndMessage, "--read-mode");
         request.ResolveDns = options.Has("resolve-dns");
         request.Title = options.Get("title");
         request.Predicate = CombinePredicates(preset?.Predicate, ParsePredicate(options.Get("where")));
@@ -642,14 +515,17 @@ internal static partial class Program {
         return 0;
     }
 
-    private static int WriteRows(EventReport report) {
+    private static int WriteRows(EventReport report, CliArguments options, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested();
         var sectionsByRow = new Dictionary<EventReportRow, EventReportSection>();
         foreach (EventReportSection section in report.Sections) {
             foreach (EventReportRow row in section.Rows) {
+                cancellationToken.ThrowIfCancellationRequested();
                 sectionsByRow[row] = section;
             }
         }
         foreach (EventReportRow row in report.Rows) {
+            cancellationToken.ThrowIfCancellationRequested();
             sectionsByRow.TryGetValue(
                 row,
                 out EventReportSection? section);
@@ -657,7 +533,7 @@ internal static partial class Program {
                 EventReportJsonProjection.Project(row, section);
             Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
         }
-        return 0;
+        return CompleteQuery(EventReportSummary.Create(report), options, cancellationToken);
     }
 
     private static EventType[] ParseTypes(IEnumerable<string> values) => values.Select(value =>
@@ -678,7 +554,7 @@ internal static partial class Program {
     }
 
     private static void ValidateOptions(CliArguments options) {
-        if (options.Subcommand.Length > 0 && options.Command is not ("collector" or "provider" or "store")) {
+        if (options.Subcommand.Length > 0 && options.Command is not ("collector" or "provider" or "store" or "bundle")) {
             throw new ArgumentException(
                 $"Unexpected argument '{options.Subcommand}'. The {options.Command} command does not accept a subcommand.");
         }
@@ -688,17 +564,18 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
-                    "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
+                    "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream", "summary-file", "require-complete",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "report":
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
                     "html", "excel", "csv", "email-html", "mail-profile", "email-rows", "drawer-placement", "where",
                     "store", "write-store", "summary", "context-store", "context-authorization",
+                    "privacy", "privacy-key-file", "retain-fields", "pseudonymize-fields", "bundle", "bundle-max-bytes", "summary-file", "require-complete",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
             case "measure":
@@ -706,7 +583,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "store", "explain",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "store", "explain",
                     "group-by", "bucket", "timezone", "measure", "top", "top-scope", "ranking-measure",
                     "window-start", "window-end", "maximum-groups", "maximum-distinct", "maximum-state-bytes",
                     "html", "excel", "csv", "context-store", "context-authorization",
@@ -777,6 +654,9 @@ internal static partial class Program {
             case "store" when options.Subcommand == "reset-checkpoint":
                 options.ValidateAllowed("path", "consumer", "computer", "container");
                 break;
+            case "bundle" when options.Subcommand == "verify":
+                options.ValidateAllowed("path", "max-bytes");
+                break;
             case "types":
                 options.ValidateAllowed("type", "definition");
                 break;
@@ -799,8 +679,9 @@ internal static partial class Program {
             "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream with --store for JSONL] [--explain] [--since 01:00:00] [--max N]\n" +
-            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream for JSONL without retaining rows] [--read-mode Metadata|Message|StructuredData|StructuredDataAndMessage|Full] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--summary Hour|Day|Week|Month] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --bundle FILE.zip | --mail-profile FILE) [--privacy omit|pseudonymize [--privacy-key-file FILE (32 binary bytes)] [--retain-fields FIELD[,FIELD]] [--pseudonymize-fields FIELD[,FIELD]]] [--summary-file FILE.json] [--require-complete] [--drawer-placement Auto|Top|Right]\n" +
+            "  evx bundle verify --path FILE.zip [--max-bytes N]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] [--sigma-profile strict|windows-sysmon-powershell] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain | --dry-run]\n" +
             "  evx detect --test-fixtures\n" +

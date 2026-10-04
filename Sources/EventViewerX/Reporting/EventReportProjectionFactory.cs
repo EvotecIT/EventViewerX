@@ -5,6 +5,14 @@ namespace EventViewerX.Reporting;
 
 internal static class EventReportProjectionFactory {
     private static readonly ConcurrentDictionary<(Type RecordType, EventType EventType), TypedProjectionPlan> TypedPlans = new();
+    private static readonly EventReportSectionDefinition GenericSection = new(
+            "Generic",
+            "Generic",
+            "Events",
+            "Raw Windows Event Log records with provider and channel metadata.",
+            EventReportSectionKind.Generic,
+            EventReportTableProjection.BuildGenericColumns(Array.Empty<EventReportRow>()));
+
     private static readonly EventReportSectionDefinition GroupPolicyAuditSection = CreateSectionDefinition(
         EventReportSectionKind.Custom,
         "GroupPolicyAudit",
@@ -320,13 +328,7 @@ internal static class EventReportProjectionFactory {
         return new[] { CreateGenericDefinition() };
     }
 
-    internal static EventReportSectionDefinition CreateGenericDefinition() => new(
-            "Generic",
-            "Generic",
-            "Events",
-            "Raw Windows Event Log records with provider and channel metadata.",
-            EventReportSectionKind.Generic,
-            EventReportTableProjection.BuildGenericColumns(Array.Empty<EventReportRow>()));
+    internal static EventReportSectionDefinition CreateGenericDefinition() => GenericSection;
 
     internal static EventReportSectionDefinition CreateSectionDefinition(
         EventReportSectionKind kind,

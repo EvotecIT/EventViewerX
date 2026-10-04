@@ -15,32 +15,32 @@ Typed and custom definitions render only their domain fields. Composite types ke
 ## SYNTAX
 ### Input (Default)
 ```powershell
-Show-EVXEvent -InputObject <Object> [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent -InputObject <Object> [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Type
 ```powershell
-Show-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-ResolveDns] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-ResolveDns] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Store
 ```powershell
-Show-EVXEvent [-FromStore] <string> [-Type <EventType[]>] [-LogName <string>] [-Definition <Object>] [-Where <Object>] [-EventId <int[]>] [-EventRecordId <long[]>] [-SourceComputer <string[]>] [-ProviderName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-Oldest] [-SummaryPeriod <EventStoreSummaryPeriod>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent [-FromStore] <string> [-Type <EventType[]>] [-LogName <string>] [-Definition <Object>] [-Where <Object>] [-EventId <int[]>] [-EventRecordId <long[]>] [-SourceComputer <string[]>] [-ProviderName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-Oldest] [-SummaryPeriod <EventStoreSummaryPeriod>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Log
 ```powershell
-Show-EVXEvent [-LogName] <string> [-EventId <int[]>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent [-LogName] <string> [-EventId <int[]>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Path
 ```powershell
-Show-EVXEvent [-Path] <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent [-Path] <string[]> [-EventId <int[]>] [-EventRecordId <long[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxConcurrency <int>] [-Oldest] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ### Definition
 ```powershell
-Show-EVXEvent [-Definition] <Object> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
+Show-EVXEvent [-Definition] <Object> [-Path <string[]>] [-Where <Object>] [-EventRecordId <long[]>] [-MachineName <string[]>] [-Collector <string[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-MaxConcurrency <int>] [-Oldest] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-Title <string>] [-HtmlPath <string>] [-DrawerPlacement <MonitoringRecordDrawerPlacement>] [-ExcelPath <string>] [-CsvPath <string>] [-StorePath <string>] [-EmailPackage] [-Privacy <EventReportPrivacyOptions>] [-PseudonymizationKey <byte[]>] [-Open] [-PassThru] [-DuplicateMode <EventDuplicateMode>] [-OccurrenceWindow <timespan>] [-MaximumOccurrenceObservations <int>] [-MaximumOccurrenceGroups <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -157,7 +157,7 @@ Accept wildcard characters: False
 ```
 
 ### -CsvPath
-Homogeneous CSV path, or a .zip bundle path when the report contains multiple typed schemas.
+Homogeneous CSV path with a .metadata.json companion containing completion evidence and the CSV checksum, or a .zip bundle path when the report contains multiple typed schemas.
 
 ```yaml
 Type: String
@@ -333,7 +333,7 @@ Accept wildcard characters: False
 ```
 
 ### -InputObject
-Existing EventObject or EventTypeRecord values. No source query is performed.
+Existing EventObject or EventTypeRecord values, or one EventReport snapshot or EventAggregationResult. No source query is performed.
 
 ```yaml
 Type: Object
@@ -540,12 +540,44 @@ Accept pipeline input: True (ByPropertyName)
 Accept wildcard characters: False
 ```
 
+### -Privacy
+Creates a detached export using an explicit payload omission or pseudonymization policy. StorePath retains the original snapshot.
+
+```yaml
+Type: EventReportPrivacyOptions
+Parameter Sets: Input, Type, Store, Log, Path, Definition
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ProviderName
 Provider names used to filter stored rows.
 
 ```yaml
 Type: String[]
 Parameter Sets: Store
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -PseudonymizationKey
+Key of at least 32 bytes for the Privacy policy's keyed fields. Keep the key outside reports and bundles.
+
+```yaml
+Type: Byte[]
+Parameter Sets: Input, Type, Store, Log, Path, Definition
 Aliases: None
 Possible values:
 

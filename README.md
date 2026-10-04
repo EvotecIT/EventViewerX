@@ -784,6 +784,12 @@ set is not reported as complete when required telemetry is absent.
 
 ## Typed reports, Excel, HTML, and email
 
+[Privacy policies and evidence exports](Docs/Evidence-Exports.md) describe detached
+payload omission and keyed pseudonymization, original-history preservation, and
+portable bundles with normalized rows, schemas, completion evidence and checksums.
+`Show-EVXEvent -Privacy` and `evx report --privacy` use the same core policy;
+`evx bundle verify` checks the bundle inventory without extracting files.
+
 `Show-EVXEvent` is the single report command. It can query a built-in `-Type`,
 a custom `-Definition`, a generic `-LogName`, an offline `-Path`, or consume
 existing pipeline objects. It performs the query once and creates every chosen
@@ -969,8 +975,15 @@ durable value. Committed batches survive a later source failure or cancellation;
 the active batch rolls back, and overlapping replay remains idempotent.
 Stored composite selectors expand to their leaf definitions, so the same
 `-Type ActiveDirectoryAuthentication` selector works against live channels,
-ForwardedEvents, and retained history. Direct and WEC copies of the same
-source event share one provenance identity instead of inflating summaries.
+ForwardedEvents, and retained history. History preserves direct and WEC transport
+observations separately, including distinct records with identical timestamps and
+payloads. Re-importing an exact observation remains idempotent. Use explicit
+occurrence grouping when combining transport copies for an analysis.
+Re-import retained source data to recover observations omitted by earlier
+cross-transport ingestion; a store cannot reconstruct rows it never retained.
+Stateful historical detection replays selected retained history from its beginning
+to preserve evidence consumed by earlier findings. Candidate and observation bounds
+apply to that replay; an exhausted bound produces an incomplete result.
 Use `evx store prune --path events.db --before 2026-01-01T00:00:00Z` for an
 explicit retention boundary. EventViewerX intentionally does not own alert
 escalation, incident assignment, fleet policy, or delivery credentials.
@@ -1008,6 +1021,81 @@ evx report --store C:\EVX\events.db --type ADUserLogonFailed `
     --summary Day --html C:\Reports\FailedLogons-Daily.html
 evx store prune --path C:\EVX\events.db --before 2026-01-01T00:00:00Z
 ```
+
+Query output is JSONL event rows. Queries write bounds and source failures to
+standard error. Use `--summary-file query.json` to retain a versioned summary with
+row and candidate counts, coverage, and `IsComplete`; use `--require-complete` to
+return exit code 2 when the selected input is incomplete. This also works with
+`--stream` queries over channels, files, and stored history. Exit code 1 indicates a command failure and 130 indicates
+cancellation. Keep the summary path separate from input EVTX and history files.
+
+Use `--stream` to deliver each normalized row as it arrives without retaining the
+selected window in a report snapshot:
+
+```powershell
+evx query --path .\Security.evtx --stream --read-mode StructuredData `
+    --max 100000 --summary-file .\query-summary.json --require-complete
+evx query --type ADUserLogonFailed --collector WEC01 --since 01:00:00 `
+    --stream --read-mode StructuredData --max-candidates 250000 `
+    --summary-file .\failed-logons-summary.json --require-complete
+evx query --path .\Security.evtx --portable-evtx --oldest --stream `
+    --read-mode StructuredData --summary-file .\portable-query-summary.json
+```
+
+Rows use the same field contract and query order as snapshot output. The report
+layer retains section schemas and completion evidence. Native readers retain
+bounded buffers and a cursor for each source. Portable streaming requires
+`--oldest`: portable newest-first readers buffer matching input before delivering
+rows, and result/candidate limits do not remove that retention for typed or custom
+queries. Custom reader implementations can also buffer their input.
+A multi-source query primes its
+sources before it can establish merge order. The CLI awaits row output and
+observes Ctrl+C during reading. A failed or canceled stream can have partial rows
+on standard output; it does not write a fresh completion summary.
+
+`--stream` requires `--duplicates None` and cannot accompany `--explain`,
+`--write-store`, `--checkpoint`, or `--context-store`. Those operations require
+their snapshot or transactional contract. Streaming history uses the payload
+already retained in the store; `--read-mode` applies to channel and file sources.
+
+The default read mode is `StructuredDataAndMessage`. Select `StructuredData` to
+skip provider-message formatting; `Message` and fields derived from the message
+are then unavailable. Generic queries also accept `Metadata` and `Message`.
+Typed and custom projections require `StructuredData`,
+`StructuredDataAndMessage`, or `Full`. Raw XML uses the raw event reader because
+normalized rows do not retain XML. `Full` materializes additional provider data
+and attachments before projecting report rows. `--max 0` remains unlimited;
+`--max-candidates` bounds typed/custom candidates and stored scans, while generic
+channel/file queries use `--max` to bound their results.
+
+The core API exposes the same streaming contract for .NET consumers:
+
+```csharp
+var request = EventReportRequest.ForFiles("Security.evtx");
+request.ReadMode = EventReadMode.StructuredData;
+EventReportSummary summary = await EventReportEngine.StreamRowsAsync(
+    request,
+    async (row, section, token) => {
+        string json = JsonSerializer.Serialize(EventReportJsonProjection.Project(row, section));
+        await writer.WriteLineAsync(json.AsMemory(), token);
+    },
+    cancellationToken);
+```
+
+The callback's section supplies its field contract and has an empty `Rows`
+collection. Generic section columns describe common metadata; dynamic provider
+fields are available in `row.Values`. Snapshot sections can expand their table
+columns from retained rows. Each callback is awaited before delivering another row. Cancellation
+and consumer failures propagate; completion evidence is returned only after the
+query has finished or declared a limit. See the
+[streaming benchmark](Benchmarks/EventReportStreaming/README.md) for a reproducible
+snapshot/stream retention comparison.
+
+Single CSV exports write a companion `file.csv.metadata.json` containing the same
+completion summary and the CSV SHA-256. Keep both files when sharing an export and
+verify the checksum before trusting the metadata. A CSV and its companion are
+separate files; use the ZIP export when one atomic artifact is required. ZIP
+manifests also include the completion summary, even when a coverage table is omitted.
 
 Each watcher outbox delivery is published as one completed batch directory
 containing `report.html`, `email.html`, `email.txt`, and `batch.json`. A stable

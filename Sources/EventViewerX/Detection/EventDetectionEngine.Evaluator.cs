@@ -6,6 +6,7 @@ public static partial class EventDetectionEngine {
     private sealed partial class Evaluator {
         private readonly EventDetectionPlan _plan;
         private readonly EventDetectionEngineOptions _options;
+        private readonly CancellationToken _cancellationToken;
         private readonly Dictionary<StateKey, ThresholdState> _thresholdStates = new();
         private readonly Dictionary<StateKey, ThresholdState> _distinctStates = new();
         private readonly Dictionary<StateKey, TemporalState> _temporalStates = new();
@@ -21,9 +22,10 @@ public static partial class EventDetectionEngine {
         private readonly HashSet<string> _missingDistinctFieldsReported = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _missingGroupFieldsReported = new(StringComparer.OrdinalIgnoreCase);
 
-        internal Evaluator(EventDetectionPlan plan, EventDetectionEngineOptions? options) {
+        internal Evaluator(EventDetectionPlan plan, EventDetectionEngineOptions? options, CancellationToken cancellationToken = default) {
             _plan = plan ?? throw new ArgumentNullException(nameof(plan));
             _options = SnapshotOptions(options);
+            _cancellationToken = cancellationToken;
             _matchingStepIndexes = new int[plan.CompiledRules
                 .Select(static rule => rule.Steps.Length)
                 .DefaultIfEmpty(0)
@@ -31,6 +33,7 @@ public static partial class EventDetectionEngine {
         }
 
         private List<EventDetectionFinding> ProcessOrdered(EventObservation observation) {
+            _cancellationToken.ThrowIfCancellationRequested();
             _findings.Clear();
             EvictExpiredStates(observation.EventTimeUtc);
 
@@ -43,6 +46,7 @@ public static partial class EventDetectionEngine {
                 return findings;
             }
             for (int candidateIndex = 0; candidateIndex < candidates.Length; candidateIndex++) {
+                _cancellationToken.ThrowIfCancellationRequested();
                 EventDetectionPlan.CompiledRule rule = candidates[candidateIndex];
                 try {
                     if (!rule.Matches(observation) || rule.IsSuppressed(observation)) {
@@ -63,10 +67,12 @@ public static partial class EventDetectionEngine {
                             ProcessTemporal(rule, observation, findings);
                             break;
                     }
-                } catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException) {
+                } catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException &&
+                    !(exception is OperationCanceledException && _cancellationToken.IsCancellationRequested)) {
                     findings.Add(CreateError(rule, observation, exception));
                 }
             }
+            _cancellationToken.ThrowIfCancellationRequested();
             return findings;
         }
 
