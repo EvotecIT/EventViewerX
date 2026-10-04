@@ -1,0 +1,622 @@
+{
+  "Contract": "Ten reads of the final Unicode identity; population excluded",
+  "Phase": "before",
+  "RunId": "20261004-165406-9078ad0d",
+  "StartedUtc": "2026-10-04T18:54:06.1585224+02:00",
+  "FinishedUtc": "2026-10-04T18:54:12.7927638+02:00",
+  "ProcessorAffinity": "All 32 logical processors",
+  "Priority": "Normal",
+  "Warmup": 1,
+  "Iterations": 3,
+  "Order": "Rotated",
+  "Summary": [
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 57.1157,
+      "MeanMs": 57.5859,
+      "MinMs": 50.8511,
+      "MaxMs": 64.7909,
+      "P95Ms": 64.02337999999999,
+      "P99Ms": 64.637396,
+      "StdDevMs": 6.981785018174072,
+      "StdErrMs": 4.030935459666897,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 52.4307,
+        "EngineAllocatedBytes": 1426960.0
+      }
+    },
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 37.5245,
+      "MeanMs": 70.95176666666667,
+      "MinMs": 30.0485,
+      "MaxMs": 145.2823,
+      "P95Ms": 134.50651999999997,
+      "P99Ms": 143.127144,
+      "StdDevMs": 64.48056903605405,
+      "StdErrMs": 37.22787389046606,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 63.63353333333333,
+        "EngineAllocatedBytes": 411706.6666666667
+      }
+    },
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 91.6368,
+      "MeanMs": 90.11356666666667,
+      "MinMs": 72.1322,
+      "MaxMs": 106.5717,
+      "P95Ms": 105.07821,
+      "P99Ms": 106.273002,
+      "StdDevMs": 17.27020468620258,
+      "StdErrMs": 9.970957324538995,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 83.7359,
+        "EngineAllocatedBytes": 8627280.0
+      }
+    },
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 43.0024,
+      "MeanMs": 60.4211,
+      "MinMs": 38.5332,
+      "MaxMs": 99.7277,
+      "P95Ms": 94.05517,
+      "P99Ms": 98.593194,
+      "StdDevMs": 34.11378079061305,
+      "StdErrMs": 19.695600522536328,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 41.5057,
+        "EngineAllocatedBytes": 3292773.3333333335
+      }
+    },
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 380.4381,
+      "MeanMs": 396.0355,
+      "MinMs": 354.7981,
+      "MaxMs": 452.8703,
+      "P95Ms": 445.62708,
+      "P99Ms": 451.421656,
+      "StdDevMs": 50.86254288059141,
+      "StdErrMs": 29.365502823778336,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 389.09310000000005,
+        "EngineAllocatedBytes": 83685928.0
+      }
+    },
+    {
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "SampleCount": 3,
+      "FailureCount": 0,
+      "Status": "Succeeded",
+      "MedianMs": 211.1123,
+      "MeanMs": 237.70076666666668,
+      "MinMs": 195.8159,
+      "MaxMs": 306.1741,
+      "P95Ms": 296.66792,
+      "P99Ms": 304.272864,
+      "StdDevMs": 59.790827027005854,
+      "StdErrMs": 34.52025007911218,
+      "OutlierCount": 0,
+      "FailureReasons": {},
+      "Metrics": {
+        "LookupMs": 216.26260000000002,
+        "EngineAllocatedBytes": 33112336.0
+      }
+    }
+  ],
+  "Samples": [
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 37.5245,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 28.3931,
+        "EngineAllocatedBytes": 413040.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 64.7909,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 58.7512,
+        "EngineAllocatedBytes": 1432560.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 99.7277,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 51.1246,
+        "EngineAllocatedBytes": 3293440.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 106.5717,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 99.0005,
+        "EngineAllocatedBytes": 8632880.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 306.1741,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 300.8891,
+        "EngineAllocatedBytes": 33112000.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 0,
+      "Status": 0,
+      "DurationMs": 452.8703,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 445.9104,
+        "EngineAllocatedBytes": 83687832.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 91.6368,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 83.5569,
+        "EngineAllocatedBytes": 8626480.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 43.0024,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 38.185,
+        "EngineAllocatedBytes": 3293440.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 354.7981,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 347.7942,
+        "EngineAllocatedBytes": 83681840.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 211.1123,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 156.1177,
+        "EngineAllocatedBytes": 33115008.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 57.1157,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 51.0642,
+        "EngineAllocatedBytes": 1426160.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 1,
+      "Status": 0,
+      "DurationMs": 30.0485,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 23.3929,
+        "EngineAllocatedBytes": 411040.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 195.8159,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 191.781,
+        "EngineAllocatedBytes": 33110000.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-10000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 380.4381,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "10000"
+      },
+      "Metrics": {
+        "LookupMs": 373.5747,
+        "EngineAllocatedBytes": 83688112.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 145.2823,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 139.1146,
+        "EngineAllocatedBytes": 411040.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-100",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 50.8511,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "100"
+      },
+      "Metrics": {
+        "LookupMs": 47.4767,
+        "EngineAllocatedBytes": 1422160.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Retained",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 38.5332,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 35.2075,
+        "EngineAllocatedBytes": 3291440.0
+      }
+    },
+    {
+      "RunId": "20261004-165406-9078ad0d",
+      "Suite": "event-checkpoints",
+      "Scenario": "Checkpoints-1000",
+      "Operation": "Lookup",
+      "Engine": "Reopened",
+      "Host": "Core-7.6.6",
+      "Os": "Windows",
+      "RunMode": "standard",
+      "Iteration": 2,
+      "Status": 0,
+      "DurationMs": 72.1322,
+      "AllocatedBytes": null,
+      "WorkingSetDeltaBytes": null,
+      "OutputMetric": null,
+      "Reason": "",
+      "Variables": {
+        "CheckpointCount": "1000"
+      },
+      "Metrics": {
+        "LookupMs": 68.6503,
+        "EngineAllocatedBytes": 8622480.0
+      }
+    }
+  ]
+}
