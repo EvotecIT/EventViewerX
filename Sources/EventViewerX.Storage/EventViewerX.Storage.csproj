@@ -30,6 +30,7 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
   </ItemGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
