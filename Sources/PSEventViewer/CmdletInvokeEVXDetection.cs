@@ -170,7 +170,7 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
             maximumStateBytes: MaximumStateBytes,
             coverage: effectiveCoverage);
         EventDetectionExecutionResult execution = storePath == null
-            ? EventDetectionEngine.Evaluate(_events, plan, options)
+            ? EventDetectionEngine.Evaluate(_events, plan, options, CancelToken)
             : await new EventStore(storePath).EvaluateDetectionAsync(
                 new EventStoreQuery {
                     StartTime = StartTime,

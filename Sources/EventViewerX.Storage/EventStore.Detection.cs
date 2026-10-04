@@ -98,7 +98,7 @@ public sealed partial class EventStore {
             options?.MaximumCandidateRules ?? 10_000,
             coverage);
         EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(
-            ReadCancellableObservations(read.Observations, cancellationToken), plan, engineOptions);
+            read.Observations, plan, engineOptions, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         EventDetectionFinding[] selected = resultStart.HasValue
             ? evaluated.Findings.Where(finding =>
@@ -160,16 +160,6 @@ public sealed partial class EventStore {
         return perType.All(static ids => ids.Length > 0)
             ? perType.SelectMany(static ids => ids).Distinct().ToArray()
             : Array.Empty<int>();
-    }
-
-    private static IEnumerable<EventObservation> ReadCancellableObservations(
-        IEnumerable<EventObservation> observations,
-        CancellationToken cancellationToken) {
-
-        foreach (EventObservation observation in observations) {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return observation;
-        }
     }
 
     private static EventObject RestoreSource(EventReportRow row) {
