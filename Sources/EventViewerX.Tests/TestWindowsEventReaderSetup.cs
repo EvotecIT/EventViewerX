@@ -108,6 +108,7 @@ public sealed class TestWindowsEventReaderSetup {
                 string nativePath = Assert.IsType<string>(lease.Query.Path);
                 nativeDirectory = Path.GetDirectoryName(nativePath)!;
                 Assert.NotEqual(sourcePath, nativePath);
+                Assert.Equal(Path.GetFileName(sourcePath), Path.GetFileName(nativePath));
                 Assert.Equal(
                     "message resources",
                     File.ReadAllText(Path.Combine(

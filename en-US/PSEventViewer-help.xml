@@ -350,8 +350,9 @@
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ArchiveResources</maml:name>
           <maml:description>
-            <maml:para>Embeds provider resources into a native EVTX export so messages can be rendered&#xD;
-on computers where the original providers are not installed.</maml:para>
+            <maml:para>Archives provider resources in the adjacent LocaleMetaData directory so messages&#xD;
+can be rendered on computers where the original providers are not installed.&#xD;
+Keep that directory alongside the exported EVTX when copying it.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -626,8 +627,9 @@ already provides integrity validation.</maml:para>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ArchiveResources</maml:name>
           <maml:description>
-            <maml:para>Embeds provider resources into a native EVTX export so messages can be rendered&#xD;
-on computers where the original providers are not installed.</maml:para>
+            <maml:para>Archives provider resources in the adjacent LocaleMetaData directory so messages&#xD;
+can be rendered on computers where the original providers are not installed.&#xD;
+Keep that directory alongside the exported EVTX when copying it.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -980,8 +982,9 @@ already provides integrity validation.</maml:para>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ArchiveResources</maml:name>
           <maml:description>
-            <maml:para>Embeds provider resources into a native EVTX export so messages can be rendered&#xD;
-on computers where the original providers are not installed.</maml:para>
+            <maml:para>Archives provider resources in the adjacent LocaleMetaData directory so messages&#xD;
+can be rendered on computers where the original providers are not installed.&#xD;
+Keep that directory alongside the exported EVTX when copying it.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -1322,8 +1325,9 @@ already provides integrity validation.</maml:para>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ArchiveResources</maml:name>
           <maml:description>
-            <maml:para>Embeds provider resources into a native EVTX export so messages can be rendered&#xD;
-on computers where the original providers are not installed.</maml:para>
+            <maml:para>Archives provider resources in the adjacent LocaleMetaData directory so messages&#xD;
+can be rendered on computers where the original providers are not installed.&#xD;
+Keep that directory alongside the exported EVTX when copying it.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -1564,8 +1568,9 @@ already provides integrity validation.</maml:para>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>ArchiveResources</maml:name>
         <maml:description>
-          <maml:para>Embeds provider resources into a native EVTX export so messages can be rendered&#xD;
-on computers where the original providers are not installed.</maml:para>
+          <maml:para>Archives provider resources in the adjacent LocaleMetaData directory so messages&#xD;
+can be rendered on computers where the original providers are not installed.&#xD;
+Keep that directory alongside the exported EVTX when copying it.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
@@ -2624,6 +2629,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -2639,7 +2656,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -3048,10 +3065,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -3534,6 +3575,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -3549,7 +3602,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -4086,6 +4139,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -4101,7 +4166,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -4665,6 +4730,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -4680,7 +4757,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -5132,6 +5209,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
@@ -5147,7 +5236,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Explain</maml:name>
           <maml:description>
-            <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -5568,10 +5657,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6023,10 +6136,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6379,10 +6516,34 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ExecutionInfo</maml:name>
+          <maml:description>
+            <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+          <dev:type>
+            <maml:name>PSReference</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
           <maml:name>ExpandData</maml:name>
           <maml:description>
             <maml:para>Expands event data into individual properties.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Explain</maml:name>
+          <maml:description>
+            <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -6820,6 +6981,18 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>ExecutionInfo</maml:name>
+        <maml:description>
+          <maml:para>Receives execution counters and completion details through a PowerShell reference.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">PSReference</command:parameterValue>
+        <dev:type>
+          <maml:name>PSReference</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Expand">
         <maml:name>ExpandData</maml:name>
         <maml:description>
@@ -6835,7 +7008,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Explain</maml:name>
         <maml:description>
-          <maml:para>Returns the native/managed predicate plan without querying event sources.</maml:para>
+          <maml:para>Returns resolved sources, native filters, managed stages, and limits without reading events.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
@@ -25135,13 +25308,13 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
       <command:verb>Update</command:verb>
       <command:noun>EVXLogArchive</command:noun>
       <maml:description>
-        <maml:para>Archives provider resources into exported EVTX files.</maml:para>
-        <maml:para>Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.</maml:para>
+        <maml:para>Archives provider resources beside exported EVTX files.</maml:para>
+        <maml:para>Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.</maml:para>
       </maml:description>
     </command:details>
     <maml:description>
-      <maml:para>Archives provider resources into exported EVTX files.</maml:para>
-      <maml:para>Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.</maml:para>
+      <maml:para>Archives provider resources beside exported EVTX files.</maml:para>
+      <maml:para>Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.</maml:para>
     </maml:description>
     <command:syntax>
       <command:syntaxItem parameterSetName="__AllParameterSets">
@@ -25222,7 +25395,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <maml:title>Archive English provider resources</maml:title>
         <dev:code>Update-EVXLogArchive -Path C:\Exports\Security.evtx -Culture en-US</dev:code>
         <dev:remarks>
-          <maml:para>Updates the exported log in place through EvtArchiveExportedLog.</maml:para>
+          <maml:para>Archives message resources through EvtArchiveExportedLog while preserving the exported log.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>

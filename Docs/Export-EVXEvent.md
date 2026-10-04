@@ -69,8 +69,9 @@ Uses the bounded native remote reader and avoids a PowerShell object-to-file pip
 ## PARAMETERS
 
 ### -ArchiveResources
-Embeds provider resources into a native EVTX export so messages can be rendered
-on computers where the original providers are not installed.
+Archives provider resources in the adjacent LocaleMetaData directory so messages
+can be rendered on computers where the original providers are not installed.
+Keep that directory alongside the exported EVTX when copying it.
 
 ```yaml
 Type: SwitchParameter

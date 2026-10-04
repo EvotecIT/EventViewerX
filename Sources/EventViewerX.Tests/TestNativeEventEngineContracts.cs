@@ -908,6 +908,11 @@ public sealed class TestNativeEventEngineContracts {
                 EventLogArchive.GetInformation(
                     outputPath);
             Assert.True(information.RecordCount > 0);
+            string metadata = Path.Combine(directory, "LocaleMetaData");
+            Assert.True(Directory.Exists(metadata));
+            Assert.Contains(Directory.EnumerateFiles(metadata), resource =>
+                Path.GetFileName(resource).StartsWith("archived_", StringComparison.OrdinalIgnoreCase) ||
+                Path.GetFileName(resource).StartsWith("archived.evtx_", StringComparison.OrdinalIgnoreCase));
         } finally {
             Directory.Delete(directory, recursive: true);
         }

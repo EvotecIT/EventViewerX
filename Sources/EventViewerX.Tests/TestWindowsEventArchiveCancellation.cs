@@ -112,6 +112,7 @@ public sealed class TestWindowsEventArchiveCancellation {
                 Directory.EnumerateFiles(
                     root,
                     "*.archive.evtx"));
+            Assert.Empty(Directory.EnumerateDirectories(root));
         } finally {
             if (Directory.Exists(root)) {
                 Directory.Delete(
@@ -165,11 +166,7 @@ public sealed class TestWindowsEventArchiveCancellation {
             release.Set();
             Assert.True(
                 SpinWait.SpinUntil(
-                    () => Directory
-                        .EnumerateFiles(
-                            root,
-                            "*.archive.evtx")
-                        .Count() == 0,
+                    () => !Directory.EnumerateDirectories(root).Any(),
                     TimeSpan.FromSeconds(5)));
             Assert.Equal(
                 original,

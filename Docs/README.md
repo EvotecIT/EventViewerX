@@ -229,9 +229,9 @@ Unregisters an EventViewerX-managed custom event provider.
 Removes the active manifest registration. Package and schema files are retained by default so archived EVTX records remain renderable and the provider can be restored; use RemoveFiles only when that history is no longer required.
 
 ### [Update-EVXLogArchive](Update-EVXLogArchive.md)
-Archives provider resources into exported EVTX files.
+Archives provider resources beside exported EVTX files.
 
-Makes a Windows-native EVTX export self-contained for message rendering on computers that do not have the source provider installed.
+Creates localized message resources in the adjacent LocaleMetaData directory. Keep that directory alongside the EVTX when copying the archive to computers that do not have the source provider installed.
 
 ### [Write-EVXEvent](Write-EVXEvent.md)
 Writes classic Event Log entries or registered manifest/ETW events.

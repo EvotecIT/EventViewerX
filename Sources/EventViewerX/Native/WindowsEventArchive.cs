@@ -41,11 +41,10 @@ internal static class WindowsEventArchive {
         cancellationToken.ThrowIfCancellationRequested();
         string absolutePath = FileSystemPathIdentity.GetFullPath(
             path.Trim().Trim('"', '\''));
-        string directory =
-            Path.GetDirectoryName(absolutePath)!;
-        string temporaryPath = Path.Combine(
-            directory,
-            $".{Path.GetFileName(absolutePath)}.{Guid.NewGuid():N}.archive.evtx");
+        // Keep the original stable while resources are derived from its staged snapshot.
+        using var sourceLock = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var bundle = new WindowsEventArchiveBundle(absolutePath);
+        string temporaryPath = bundle.EventLogPath;
         bool nativeWorkerOwnsTemporaryFile = false;
         try {
             (copyFile ?? CopyFile)(
@@ -66,16 +65,14 @@ internal static class WindowsEventArchive {
                             fileQuery.CommitWrite(cancellationToken);
                             return true;
                         } catch {
-                            DeleteTemporaryArchive(
-                                temporaryPath);
+                            bundle.Cleanup();
                             throw;
                         }
                     },
                     int.MaxValue,
                     $"Provider resources could not be archived into '{absolutePath}'.",
                     cancellationToken,
-                    _ => DeleteTemporaryArchive(
-                        temporaryPath),
+                    _ => bundle.Cleanup(),
                     operationAccepted: () =>
                         nativeWorkerOwnsTemporaryFile = true);
                 nativeWorkerOwnsTemporaryFile = false;
@@ -87,30 +84,12 @@ internal static class WindowsEventArchive {
                 throw;
             }
             cancellationToken.ThrowIfCancellationRequested();
-            EventLogExporter.PromoteTemporaryFile(
-                temporaryPath,
-                absolutePath,
-                overwrite: true);
+            // Windows archives messages in companion MTA files; it does not modify the EVTX.
+            bundle.Publish(includeEventLog: false, overwrite: true, cancellationToken);
         } finally {
             if (!nativeWorkerOwnsTemporaryFile) {
-                DeleteTemporaryArchive(
-                    temporaryPath);
+                bundle.Cleanup();
             }
-        }
-    }
-
-    private static void DeleteTemporaryArchive(
-        string temporaryPath) {
-
-        try {
-            if (File.Exists(temporaryPath)) {
-                File.Delete(temporaryPath);
-            }
-        } catch (IOException) {
-            // A canceled native archive retains ownership until its worker
-            // finishes and invokes this cleanup again.
-        } catch (UnauthorizedAccessException) {
-            // Preserve the authoritative native archive failure.
         }
     }
 
