@@ -1,0 +1,194 @@
+[
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-1000",
+    "operation": "Read",
+    "engine": "Snapshot",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "1000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 55.5406,
+    "meanMs": 56.6454,
+    "minMs": 53.8945,
+    "maxMs": 60.5011,
+    "p95Ms": 60.00505,
+    "p99Ms": 60.40189,
+    "stdDevMs": 3.4390737372147178,
+    "stdErrMs": 1.9855501479438897,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 5.2916,
+      "QueryMs": 5.465033333333333,
+      "ReadAtFirstRow": 1000,
+      "EngineAllocatedBytes": 5736738.666666667,
+      "RetainedManagedBytes": 952074.6666666666
+    }
+  },
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-1000",
+    "operation": "Read",
+    "engine": "Stream",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "1000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 68.754,
+    "meanMs": 65.23316666666666,
+    "minMs": 54.9344,
+    "maxMs": 72.0111,
+    "p95Ms": 71.68539,
+    "p99Ms": 71.945958,
+    "stdDevMs": 9.066455825918604,
+    "stdErrMs": 5.2345207116899575,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 0.4784333333333333,
+      "QueryMs": 6.1645,
+      "ReadAtFirstRow": 66,
+      "EngineAllocatedBytes": 5602682.666666667,
+      "RetainedManagedBytes": 3077.3333333333335
+    }
+  },
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-10000",
+    "operation": "Read",
+    "engine": "Snapshot",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "10000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 143.8686,
+    "meanMs": 140.97853333333333,
+    "minMs": 111.083,
+    "maxMs": 167.984,
+    "p95Ms": 165.57246,
+    "p99Ms": 167.50169200000002,
+    "stdDevMs": 28.56038014896394,
+    "stdErrMs": 16.489343167162374,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 81.29426666666667,
+      "QueryMs": 81.78750000000001,
+      "ReadAtFirstRow": 10000,
+      "EngineAllocatedBytes": 57687333.333333336,
+      "RetainedManagedBytes": 9441282.666666666
+    }
+  },
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-10000",
+    "operation": "Read",
+    "engine": "Stream",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "10000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 108.8853,
+    "meanMs": 118.37896666666667,
+    "minMs": 90.3882,
+    "maxMs": 155.8634,
+    "p95Ms": 151.16559,
+    "p99Ms": 154.92383800000002,
+    "stdDevMs": 33.75422542206137,
+    "stdErrMs": 19.48801113371444,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 0.49216666666666664,
+      "QueryMs": 65.19853333333334,
+      "ReadAtFirstRow": 66,
+      "EngineAllocatedBytes": 56255642.666666664,
+      "RetainedManagedBytes": 514.6666666666666
+    }
+  },
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-100000",
+    "operation": "Read",
+    "engine": "Snapshot",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "100000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 1070.9454,
+    "meanMs": 1284.1805,
+    "minMs": 680.372,
+    "maxMs": 2101.2241,
+    "p95Ms": 1998.1962299999998,
+    "p99Ms": 2080.6185259999997,
+    "stdDevMs": 734.0347937411482,
+    "stdErrMs": 423.7951857610033,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 1161.5609,
+      "QueryMs": 1165.8371666666667,
+      "ReadAtFirstRow": 100000,
+      "EngineAllocatedBytes": 572955517.3333334,
+      "RetainedManagedBytes": 94414872
+    }
+  },
+  {
+    "suite": "event-report-streaming",
+    "scenario": "Rows-100000",
+    "operation": "Read",
+    "engine": "Stream",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "EventCount": "100000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 716.6684,
+    "meanMs": 744.745,
+    "minMs": 486.0089,
+    "maxMs": 1031.5577,
+    "p95Ms": 1000.0687700000001,
+    "p99Ms": 1025.259914,
+    "stdDevMs": 273.8559747312993,
+    "stdErrMs": 158.110820730303,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "FirstRowMs": 0.5070333333333333,
+      "QueryMs": 682.6274666666667,
+      "ReadAtFirstRow": 66,
+      "EngineAllocatedBytes": 561813688,
+      "RetainedManagedBytes": 40309.333333333336
+    }
+  }
+]

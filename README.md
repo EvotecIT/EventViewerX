@@ -1020,8 +1020,62 @@ Query output is JSONL event rows. Queries write bounds and source failures to
 standard error. Use `--summary-file query.json` to retain a versioned summary with
 row and candidate counts, coverage, and `IsComplete`; use `--require-complete` to
 return exit code 2 when the selected input is incomplete. This also works with
-stored `--stream` queries. Exit code 1 indicates a command failure and 130 indicates
+`--stream` queries over channels, files, and stored history. Exit code 1 indicates a command failure and 130 indicates
 cancellation. Keep the summary path separate from input EVTX and history files.
+
+Use `--stream` to deliver each normalized row as it arrives without retaining the
+selected window in a report snapshot:
+
+```powershell
+evx query --path .\Security.evtx --stream --read-mode StructuredData `
+    --max 100000 --summary-file .\query-summary.json --require-complete
+evx query --type ADUserLogonFailed --collector WEC01 --since 01:00:00 `
+    --stream --read-mode StructuredData --max-candidates 250000 `
+    --summary-file .\failed-logons-summary.json --require-complete
+```
+
+Rows use the same field contract and query order as snapshot output. The core
+reader retains bounded buffers and a cursor for each source; the report layer
+retains section schemas and completion evidence. A multi-source query primes its
+sources before it can establish merge order. The CLI awaits row output and
+observes Ctrl+C during reading. A failed or canceled stream can have partial rows
+on standard output; it does not write a fresh completion summary.
+
+`--stream` requires `--duplicates None` and cannot accompany `--explain`,
+`--write-store`, `--checkpoint`, or `--context-store`. Those operations require
+their snapshot or transactional contract. Streaming history uses the payload
+already retained in the store; `--read-mode` applies to channel and file sources.
+
+The default read mode is `StructuredDataAndMessage`. Select `StructuredData` to
+skip provider-message formatting; `Message` and fields derived from the message
+are then unavailable. Generic queries also accept `Metadata` and `Message`.
+Typed and custom projections require `StructuredData`,
+`StructuredDataAndMessage`, or `Full`. Raw XML uses the raw event reader because
+normalized rows do not retain XML. `Full` materializes additional provider data
+and attachments before projecting report rows. `--max 0` remains unlimited;
+`--max-candidates` bounds typed/custom candidates and stored scans, while generic
+channel/file queries use `--max` to bound their results.
+
+The core API exposes the same streaming contract for .NET consumers:
+
+```csharp
+var request = EventReportRequest.ForFiles("Security.evtx");
+request.ReadMode = EventReadMode.StructuredData;
+EventReportSummary summary = await EventReportEngine.StreamRowsAsync(
+    request,
+    async (row, section, token) => {
+        string json = JsonSerializer.Serialize(EventReportJsonProjection.Project(row, section));
+        await writer.WriteLineAsync(json.AsMemory(), token);
+    },
+    cancellationToken);
+```
+
+The callback's section supplies its field contract and has an empty `Rows`
+collection. Each callback is awaited before delivering another row. Cancellation
+and consumer failures propagate; completion evidence is returned only after the
+query has finished or declared a limit. See the
+[streaming benchmark](Benchmarks/EventReportStreaming/README.md) for a reproducible
+snapshot/stream retention comparison.
 
 Single CSV exports write a companion `file.csv.metadata.json` containing the same
 completion summary and the CSV SHA-256. Keep both files when sharing an export and

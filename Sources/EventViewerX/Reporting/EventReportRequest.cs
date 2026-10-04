@@ -31,6 +31,12 @@ public sealed class EventReportRequest {
     /// <summary>Optional parser-neutral reader used for every saved-event path.</summary>
     public ISavedEventReader? SavedEventReader { get; set; }
 
+    /// <summary>
+    /// Provider data read for each event. StructuredData avoids message rendering; Metadata and Message
+    /// are available for generic queries. RawXml is not supported by normalized report rows.
+    /// </summary>
+    public EventReadMode ReadMode { get; set; } = EventReadMode.StructuredDataAndMessage;
+
     /// <summary>Optional corruption and fidelity diagnostic sink for saved-event paths.</summary>
     public Action<SavedEventReadDiagnostic>? SavedEventDiagnosticHandler { get; set; }
 
@@ -141,6 +147,16 @@ public sealed class EventReportRequest {
             throw new InvalidOperationException(
                 "EventIds are available only for generic LogName or standalone Paths queries because typed definitions own source event IDs. " +
                 "Use a typed EventId predicate to further restrict typed events.");
+        }
+        EventReadModeValidation.EnsureDefined(ReadMode, nameof(ReadMode));
+        if (ReadMode == EventReadMode.RawXml) {
+            throw new InvalidOperationException("RawXml requires the raw event reader because normalized report rows do not retain XML.");
+        }
+        if ((hasTypes || hasDefinition) && ReadMode is EventReadMode.Metadata or EventReadMode.Message) {
+            throw new InvalidOperationException("Typed and custom projections require StructuredData, StructuredDataAndMessage, or Full.");
+        }
+        if (!hasTypes && !hasDefinition && MaxCandidates > 0) {
+            throw new InvalidOperationException("MaxCandidates requires a typed or custom query; use MaxEvents to bound generic results.");
         }
         Predicate?.Validate();
         Definition?.Validate();

@@ -57,80 +57,6 @@ internal static partial class Program {
         }
     }
 
-    private static async Task<int> QueryAsync(CliArguments options) {
-        ValidateQuerySource(options, allowSummary: false);
-        ValidateQuerySummaryPath(options);
-        ValidateOccurrenceOptions(options);
-        if (options.Get("store") is string storePath) {
-            EventStoreQuery storedQuery = CreateStoreQuery(options);
-            if (options.Has("explain")) {
-                if (storedQuery.Predicate == null) {
-                    throw new ArgumentException("--explain requires --where.");
-                }
-                EventStoreQueryPlan plan = await new EventStore(storePath)
-                    .PlanAsync(storedQuery)
-                    .ConfigureAwait(false);
-                return WriteJson(plan);
-            }
-            if (options.Has("stream")) {
-                if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
-                    throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
-                }
-                EventStoreRowReadResult streamed = await new EventStore(storePath)
-                    .StreamRowsAsync(storedQuery, (row, _) => {
-                        Console.WriteLine(JsonSerializer.Serialize(EventReportJsonProjection.Project(row), JsonOptions));
-                        return Task.CompletedTask;
-                    }).ConfigureAwait(false);
-                return CompleteQuery(new EventReportSummary(streamed.RowsRead, streamed.EventsScanned,
-                    streamed.ScanLimitReached, streamed.CompletenessDiagnostic), options);
-            }
-            EventReport stored = await new EventStore(storePath)
-                .ReadReportAsync(storedQuery, options.Get("title"))
-                .ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(stored, options), options);
-        }
-        if (options.Has("stream")) {
-            throw new ArgumentException("--stream requires --store.");
-        }
-        if (options.Get("context-store") != null) {
-            EventReport contextual = await QueryGroupPolicyReportAsync(options).ConfigureAwait(false);
-            await WriteStoreIfRequestedAsync(contextual, options).ConfigureAwait(false);
-            return WriteRows(ApplyOccurrenceGrouping(contextual, options), options);
-        }
-        EventReportRequest request = CreateRequest(options);
-        CollectionCheckpointContext? checkpoint =
-            await PrepareCollectionCheckpointAsync(request, options)
-                .ConfigureAwait(false);
-        if (options.Has("explain")) {
-            EventPredicate predicate = request.Predicate ??
-                throw new ArgumentException("--explain requires --where.");
-            if (request.Types != null && request.Types.Count > 0) {
-                predicate = EventPredicateBuilder.ForTypes(request.Types).Normalize(predicate);
-            }
-            EventPredicatePlan plan = request.Definition != null
-                ? EventDefinitionEngine.PlanPredicate(
-                    request.Definition,
-                    predicate,
-                    request.Collectors != null && request.Collectors.Count > 0
-                        ? "ForwardedEvents"
-                        : null)
-                : request.Collectors != null && request.Collectors.Count > 0
-                    ? EventPredicatePlanner.PlanManaged(
-                        predicate,
-                        "ForwardedEvents uses the Windows Server 2025 safe '*' reader, so typed filtering is bounded and managed.")
-                    : EventPredicatePlanner.Plan(predicate);
-            return WriteJson(plan);
-        }
-        EventReport report = await EventReportEngine.QueryAsync(request).ConfigureAwait(false);
-        if (checkpoint != null) {
-            await WriteCheckpointedStoreAsync(report, checkpoint)
-                .ConfigureAwait(false);
-        } else {
-            await WriteStoreIfRequestedAsync(report, options).ConfigureAwait(false);
-        }
-        return WriteRows(ApplyOccurrenceGrouping(report, options), options);
-    }
-
     private static async Task<int> ReportAsync(CliArguments options) {
         ValidateQuerySource(options, allowSummary: true);
         ValidateOccurrenceOptions(options);
@@ -318,8 +244,13 @@ internal static partial class Program {
 
     private static void ValidateQuerySource(CliArguments options, bool allowSummary) {
         bool stored = options.Get("store") != null;
-        if (options.Has("stream") && (options.Has("explain") || options.Get("write-store") != null)) {
-            throw new ArgumentException("--stream cannot be combined with --explain or --write-store.");
+        if (options.Has("stream")) {
+            if (options.Has("explain") || options.Get("write-store") != null || options.Get("context-store") != null || options.Get("checkpoint") != null) {
+                throw new ArgumentException("--stream cannot be combined with --explain, --write-store, --checkpoint, or --context-store.");
+            }
+            if (ParseEnum(options.Get("duplicates"), EventDuplicateMode.None, "--duplicates") != EventDuplicateMode.None) {
+                throw new ArgumentException("--stream requires --duplicates None because occurrence grouping retains the selected window.");
+            }
         }
         if (options.GetMany("machine").Length > 0 && options.GetMany("collector").Length > 0) {
             throw new ArgumentException("--machine and --collector are mutually exclusive target modes.");
@@ -345,9 +276,9 @@ internal static partial class Program {
             }
             if (options.Get("preset") != null || options.Get("definition") != null || options.Get("log") != null ||
                 options.Get("where") != null || options.GetMany("event-id").Length > 0 ||
-                options.GetMany("record-id").Length > 0 || options.Has("resolve-dns") || options.Get("checkpoint") != null) {
+                options.GetMany("record-id").Length > 0 || options.Has("resolve-dns") || options.Has("read-mode") || options.Get("checkpoint") != null) {
                 throw new ArgumentException(
-                    "--context-store cannot be combined with --preset, --definition, --log, --where, --event-id, --record-id, --resolve-dns, or --checkpoint.");
+                    "--context-store cannot be combined with --preset, --definition, --log, --where, --event-id, --record-id, --resolve-dns, --read-mode, or --checkpoint.");
             }
         } else if (options.Get("context-authorization") != null) {
             throw new ArgumentException("--context-authorization requires --context-store.");
@@ -376,9 +307,9 @@ internal static partial class Program {
             throw new ArgumentException(
                 "--checkpoint is only valid for live collector ingestion with --write-store.");
         }
-        if (stored && (options.Has("resolve-dns") || options.Has("concurrency"))) {
+        if (stored && (options.Has("resolve-dns") || options.Has("concurrency") || options.Has("read-mode"))) {
             throw new ArgumentException(
-                "--resolve-dns and --concurrency are live event-source options and cannot be combined with --store.");
+                "--resolve-dns, --concurrency, and --read-mode are live event-source options and cannot be combined with --store.");
         }
         if (!stored && (options.Get("definition-name") != null || options.Get("source") != null ||
                         options.Get("provider") != null || options.Get("summary") != null)) {
@@ -458,6 +389,7 @@ internal static partial class Program {
         request.MaxCandidates = options.GetLong("max-candidates");
         request.MaxConcurrency = options.GetInt("concurrency", 8);
         request.Oldest = options.Has("oldest");
+        request.ReadMode = ParseEnum(options.Get("read-mode"), EventReadMode.StructuredDataAndMessage, "--read-mode");
         request.ResolveDns = options.Has("resolve-dns");
         request.Title = options.Get("title");
         request.Predicate = CombinePredicates(preset?.Predicate, ParsePredicate(options.Get("where")));
@@ -687,7 +619,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "explain",
                     "store", "write-store", "checkpoint", "context-store", "context-authorization", "stream", "summary-file", "require-complete",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
                 break;
@@ -695,7 +627,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
                     "html", "excel", "csv", "email-html", "mail-profile", "email-rows", "drawer-placement", "where",
                     "store", "write-store", "summary", "context-store", "context-authorization",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
@@ -705,7 +637,7 @@ internal static partial class Program {
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
-                    "max-candidates", "concurrency", "oldest", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "store", "explain",
+                    "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title", "where", "store", "explain",
                     "group-by", "bucket", "timezone", "measure", "top", "top-scope", "ranking-measure",
                     "window-start", "window-end", "maximum-groups", "maximum-distinct", "maximum-state-bytes",
                     "html", "excel", "csv", "context-store", "context-authorization",
@@ -798,7 +730,7 @@ internal static partial class Program {
             "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
-            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream with --store for JSONL] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
+            "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream for JSONL without retaining rows] [--read-mode Metadata|Message|StructuredData|StructuredDataAndMessage|Full] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--summary Hour|Day|Week|Month] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --mail-profile FILE) [--drawer-placement Auto|Top|Right]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] [--sigma-profile strict|windows-sysmon-powershell] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain | --dry-run]\n" +
