@@ -13,47 +13,47 @@ Supports local and remote logs, built-in event types, custom JSON definitions, r
 ## SYNTAX
 ### TypedFilter (Default)
 ```powershell
-Get-EVXEvent -Filter <Object> [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent -Filter <Object> [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Explain] [-Describe] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Channel
 ```powershell
-Get-EVXEvent [-LogName] <string[]> [[-EventId] <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-Force] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-LogName] <string[]> [[-EventId] <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-Force] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Path
 ```powershell
-Get-EVXEvent -Path <string[]> [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventId <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-ProviderName <string[]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent -Path <string[]> [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventId <int[]>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-ProviderName <string[]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-Describe] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-FilterXPath <string>] [-Filter <Object>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Type
 ```powershell
-Get-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-Type] <EventType[]> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-ContextStorePath <string>] [-ContextAuthorization <string>] [-Where <Object>] [-Explain] [-Describe] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Preset
 ```powershell
-Get-EVXEvent [-Preset] <EventMonitoringPreset> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-Preset] <EventMonitoringPreset> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ResolveDns] [-DnsTimeoutMs <int>] [-DnsMaxConcurrency <int>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Definition
 ```powershell
-Get-EVXEvent -Definition <Object> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent -Definition <Object> [-Path <string[]>] [-PortableEvtx] [-PortableEvtxExecutable <string>] [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Collector <List[string]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Where <Object>] [-Explain] [-Describe] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-ContinueOnError] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Provider
 ```powershell
-Get-EVXEvent [[-EventId] <int[]>] -ProviderName <string[]> [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-Filter <Object>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-Force] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [[-EventId] <int[]>] -ProviderName <string[]> [-EventRecordId <long[]>] [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-Keywords <long[]>] [-Level <Level[]>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-TimePeriod <TimePeriod>] [-UserId <string[]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Filter <Object>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-Force] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Hashtable
 ```powershell
-Get-EVXEvent [-FilterHashtable] <hashtable[]> [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-TolerateQueryErrors] [-Force] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-FilterHashtable] <hashtable[]> [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-NamedDataFilter <hashtable>] [-NamedDataExcludeFilter <hashtable>] [-DisableParallel] [-Explain] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-TolerateQueryErrors] [-Force] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ### Xml
 ```powershell
-Get-EVXEvent [-FilterXml] <xml> [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-TolerateQueryErrors] [-IncludeBookmark] [<CommonParameters>]
+Get-EVXEvent [-FilterXml] <xml> [-RecordIdFile <string>] [-RecordIdKey <string>] [-MachineName <List[string]>] [-MessageRegex <regex>] [-MaxConcurrency <int>] [-MaxEvents <long>] [-MaxEventsScanned <long>] [-ReadMode <EventReadMode>] [-MessageCulture <cultureinfo>] [-SessionTimeoutMs <int>] [-BufferCapacity <int>] [-ExpandData] [-Oldest] [-DisableParallel] [-Explain] [-ExecutionInfo <ref>] [-FallbackMessageCulture <cultureinfo>] [-Credential <pscredential>] [-Authentication <EventLogAuthentication>] [-BookmarkXml <string>] [-BookmarkOffset <long>] [-IgnoreStaleBookmark] [-ContinueOnError] [-TolerateQueryErrors] [-IncludeBookmark] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -404,6 +404,22 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -ExecutionInfo
+Receives execution counters and completion details through a PowerShell reference.
+
+```yaml
+Type: PSReference
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ExpandData
 Expands event data into individual properties.
 
@@ -421,11 +437,11 @@ Accept wildcard characters: False
 ```
 
 ### -Explain
-Returns the native/managed predicate plan without querying event sources.
+Returns resolved sources, native filters, managed stages, and limits without reading events.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: TypedFilter, Path, Type, Preset, Definition
+Parameter Sets: TypedFilter, Channel, Path, Type, Preset, Definition, Provider, Hashtable, Xml
 Aliases: None
 Possible values:
 
