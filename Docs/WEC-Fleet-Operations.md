@@ -1,8 +1,5 @@
 # Windows Event Collector fleet operations
 
-This document describes the current 4.0 source tree. Version 4.0 is not yet
-published or released.
-
 EventViewerX treats Windows Event Collector as an evidence transport, not as a
 single healthy/unhealthy switch. Fleet readiness needs five separate proofs:
 desired subscription configuration, source authorization, runtime enrollment,

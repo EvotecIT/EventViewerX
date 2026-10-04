@@ -2,12 +2,6 @@
 
 High-performance Windows Event Log tooling for .NET and PowerShell.
 
-> **Release state:** PSEventViewer 4.0.1 is available on PowerShell Gallery,
-> and the five EventViewerX 4.0.1 libraries are available on NuGet. The
-> `EventViewerX.Cli` .NET tool and platform ZIPs have not been published.
-> CLI examples below describe the source-built command until that release lane
-> is available.
-
 PSEventViewer is the thin PowerShell surface. EventViewerX is the reusable C#
 engine underneath it. Live channels, remote sessions, WEC, provider messages,
 and Windows configuration use the Windows Event Log APIs. Saved EVTX files can
@@ -133,8 +127,8 @@ Update-Module -Name PSEventViewer
 The 4.0 source supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
 targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
 The CLI project targets .NET 10. Its release configuration defines
-framework-dependent and runtime-bundled `PortableCompat` ZIPs, but those
-artifacts are not currently available from a public release.
+framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
+[CLI commands](#portable-host-and-event-triggered-automation) for source builds and qualified artifact installation.
 
 ## Documentation
 
@@ -142,6 +136,9 @@ artifacts are not currently available from a public release.
   explicit Active Directory discovery, direct versus WEC collection, audit
   policy, permissions, firewall, and a complete scheduled daily AD-change
   report.
+- [Five investigation workflows](Docs/Investigation-Workflows.md): lockouts,
+  authentication modernization, Group Policy, collector health, saved EVTX, and
+  automation that preserves incomplete-input evidence.
 - [PowerShell guide](Docs/PowerShell-Guide.md): local, remote, offline, large
   logs, export, checkpoints, watchers, administration, WEC, script recovery,
   and writes.
@@ -172,8 +169,8 @@ artifacts are not currently available from a public release.
 - [Migrating to 4.0](Docs/Migration-4.0.md): replace legacy schedules safely,
   use presets, aggregation, persistent Group Policy context, and interpret
   completeness evidence.
-- [Roadmap](ROADMAP.md): the 4.0 release gate, active contracts, and deliberately
-  deferred product decisions.
+- [Roadmap](ROADMAP.md): current capability ownership, the active backlog, and
+  product decisions that need a separate operating model.
 - [Documentation index](Docs/README.md),
   [event query benchmark contract](Benchmarks/EventLogParsing/README.md), and
   [local history benchmark contract](Benchmarks/EventStore/README.md).
@@ -1017,9 +1014,9 @@ escalation, incident assignment, fleet policy, or delivery credentials.
 
 The optional `evx` command is the low-startup, no-module host for Task Scheduler,
 event-triggered tasks, services, containers, and portable automation. It is
-currently available from source builds. The release configuration prepares a
-smaller framework-dependent build and a runtime-bundled `PortableCompat`
-build for a future CLI release. The CLI provides `types`, `query`, `report`, `watch`,
+available from source builds or qualified tool packages and platform archives.
+The release configuration defines a smaller framework-dependent build and a
+runtime-bundled `PortableCompat` build. The CLI provides `types`, `query`, `report`, `watch`,
 `store`, `collector`, and `provider` workflows over the same EventViewerX engines; they
 do not introduce a second query or reporting implementation.
 
