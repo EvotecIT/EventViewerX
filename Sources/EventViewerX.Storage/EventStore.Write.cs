@@ -197,15 +197,22 @@ public sealed partial class EventStore {
             string.IsNullOrWhiteSpace(container)) {
             throw new ArgumentException("Consumer, computer, and container are required.");
         }
+        string normalizedConsumer = consumer.Trim();
+        string normalizedComputer = computer.Trim();
+        string normalizedContainer = container.Trim();
         EnsureInitialized();
         using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
-        IReadOnlyList<EventStoreCheckpoint> rows = await session.QueryAsListAsync(
+        IReadOnlyList<EventStoreCheckpoint?> rows = await session.QueryAsListAsync(
             @"SELECT consumer, computer, container, record_id, bookmark_xml, updated_utc
               FROM evx_checkpoints;",
-            static record => new EventStoreCheckpoint {
+            record => !string.Equals(record.GetString(0), normalizedConsumer, StringComparison.OrdinalIgnoreCase) ||
+                      !string.Equals(record.GetString(1), normalizedComputer, StringComparison.OrdinalIgnoreCase) ||
+                      !string.Equals(record.GetString(2), normalizedContainer, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : new EventStoreCheckpoint {
                 Consumer = record.GetString(0),
                 Computer = record.GetString(1),
                 Container = record.GetString(2),
@@ -218,10 +225,7 @@ public sealed partial class EventStore {
             },
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return rows
-            .Where(row =>
-                string.Equals(row.Consumer, consumer.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(row.Computer, computer.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(row.Container, container.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OfType<EventStoreCheckpoint>()
             .OrderByDescending(static row => row.UpdatedAtUtc)
             .FirstOrDefault();
     }
