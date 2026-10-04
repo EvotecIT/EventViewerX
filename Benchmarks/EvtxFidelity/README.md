@@ -64,6 +64,35 @@ that upstream renderer is corrected.
 
 ## Current evidence
 
+Direct projection from the managed parser's public BinXML node removes an
+extra XML formatting pass for template records. The lossless renderer also
+reuses the parser's existing chunk context for nested templates. On the retained
+184-record fixture, three measured `StructuredData` full scans reduced allocation
+from 93,988,048 to 56,593,760 bytes, about 40%. The recorded time medians were
+24.5 ms and 23.3 ms; timing varied on the active validation host. The before/after JSON
+files beside this document retain all iterations, fixture hashes, and runtime
+details. This small-fixture result does not establish large-file throughput
+or satisfy the production allocation gate.
+
+All six read modes and an exact-record filter retained full identity and exact
+timestamp parity with Windows. A separate contract compares every normalized
+metadata property and payload field against the dependency's existing renderer
+for all 184 records. Original substitution bytes separately prove special
+characters, tabs, CRLF, literal entity text, Unicode format characters, and
+supplementary Unicode preservation, including exact payload XPath matches.
+The portability suite passes on Windows and Ubuntu.
+Raw XML is compact and retains its original namespace instead of removing
+namespace declarations after formatting; callers should use namespace-aware
+XML queries or normalized fields. Literal WEC records keep their existing
+reader path.
+
+The adapter isolates the approved parser's node representation. The pinned
+version exposes its template and substitution properties on an internal node
+type and keeps the chunk context private; the renderer validates these members
+explicitly and reports a rendering error if that shape changes. It never falls
+back to the dependency's lossy XML formatter. Invalid XML text is rejected with
+the existing record diagnostic rather than silently rewritten.
+
 On the retained 184-record `NamedFilterExamples.evtx` fixture, five measured
 `StructuredData` passes for one exact record ID reduced median portable
 allocation from 92.9 MB to 45.9 MB and median time from 27.7 ms to 11.9 ms.

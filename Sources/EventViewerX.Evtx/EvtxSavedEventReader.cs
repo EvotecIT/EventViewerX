@@ -6,6 +6,7 @@ namespace EventViewerX.Evtx;
 /// <summary>
 /// Cross-platform EVTX reader backed by the dependency-isolated <c>evtx</c> parser package.
 /// Provider-formatted messages are unavailable without Windows provider resources.
+/// Raw XML uses compact parser output and retains the event's XML namespace.
 /// </summary>
 public sealed class EvtxSavedEventReader : ISavedEventReader {
     /// <inheritdoc />
@@ -96,14 +97,17 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
         Action<SavedEventReadDiagnostic>? diagnosticHandler,
         CancellationToken cancellationToken) {
 
+        var renderer = new EvtxTemplateXmlRenderer();
         foreach (ThirdPartyEventRecord source in eventLog.GetEventRecords()) {
             cancellationToken.ThrowIfCancellationRequested();
             if (matcher.CanRejectBeforeRendering(source.EventRecordId, source.EventId)) {
                 continue;
             }
             string xml;
+            System.Xml.Linq.XDocument document;
             try {
-                xml = source.ConvertPayloadToXml();
+                xml = renderer.Render(source);
+                document = SavedEventXmlProjector.ParseDocument(xml);
             } catch (Exception exception) {
                 diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
                     Code = "EVXEVTX201",
@@ -115,7 +119,6 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                     $"EVTX record {source.RecordNumber} could not be rendered without weakening fidelity.",
                     exception);
             }
-            var document = SavedEventXmlProjector.ParseDocument(xml);
             if (!matcher.IsMatch(document)) {
                 continue;
             }

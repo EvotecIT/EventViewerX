@@ -31,6 +31,15 @@ roughly 720 KB allocated/event versus 41,719 events/second and 3.5 KB/event for
 the Windows path. The fidelity gate also runs on Linux and reports header,
 chunk, recovery, and parser diagnostics explicitly.
 
+Managed template records use compact XML with the original event namespace.
+Use namespace-aware XML queries or the normalized `Data` and metadata fields;
+raw XML whitespace and namespace declarations are not a stable serialization
+contract. Avoiding an additional XML formatting pass reduced allocation by
+about 40% on the retained 184-record fixture. The adapter preserves special
+characters and XML-valid whitespace instead of applying the dependency's
+display-oriented string cleanup. The larger fixture measurements
+above still describe the earlier baseline; the managed adapter remains opt-in.
+
 The managed adapter also recognizes literal BinXML records produced by rendered
 WEC subscriptions and routes them through a bounded, spec-aligned EVX reader.
 It preserved all 653 records from the archived ForwardedEvents fidelity fixture
