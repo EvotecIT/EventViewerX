@@ -1,8 +1,5 @@
 # Sigma compatibility
 
-This document describes the current 4.0 source tree. Version 4.0 is not yet
-published or released.
-
 EventViewerX compiles supported Sigma YAML into the same immutable native
 detection plan used by built-in rules. It does not embed a second detection
 engine. Unsupported syntax or unsafe source assumptions remain explicit

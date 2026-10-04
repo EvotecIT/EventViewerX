@@ -1,8 +1,5 @@
 # Operational detection packs
 
-This document describes the current 4.0 source tree. Version 4.0 is not yet
-published or released.
-
 EventViewerX groups reusable detections into versioned packs instead of adding
 a PowerShell command for every administrative scenario. A pack owns rule IDs,
 versions, hashes, provenance, source coverage, executable fixtures, and tuning.

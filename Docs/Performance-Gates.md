@@ -1,8 +1,5 @@
 # Performance regression gates
 
-This document describes the current 4.0 source tree. Version 4.0 is not yet
-published or released.
-
 Performance claims are tied to exact workloads, fixtures, SDK/runtime identity,
 and correctness checks. PowerForge owns the PowerShell benchmark orchestration,
 artifact provenance, normalized summaries, and baseline comparison. The

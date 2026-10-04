@@ -2,16 +2,16 @@
 
 EventViewerX 4.0 is the active successor to PSWinReporting and PSWinReportingV2. The legacy modules remain available from the frozen `PSWinReporting` and `PSWinReportingV2` branches, but new reporting and monitoring work belongs in PSEventViewer and the EventViewerX engine.
 
-This guide describes the intended 4.0 contract. Do not remove a working legacy schedule until its EventViewerX replacement passes readiness and produces an accepted report from the same sources.
+This guide describes the EventViewerX 4.0 contract. Do not remove a working legacy schedule until its EventViewerX replacement passes readiness and produces an accepted report from the same sources.
 
 ## Package and runtime names
 
 - PowerShell: install and import `PSEventViewer`.
 - .NET: reference `EventViewerX`, `EventViewerX.Detection`, `EventViewerX.Evtx`, `EventViewerX.Reporting`, and `EventViewerX.Storage` as needed.
-- CLI: build `EventViewerX.Cli` from source until its .NET tool and platform ZIPs are published.
+- CLI: build `EventViewerX.Cli` from source with `dotnet build Sources/EventViewerX.Cli/EventViewerX.Cli.csproj --configuration Release`, or use a qualified tool package or platform archive.
 - Windows PowerShell 5.1 and PowerShell 7 expose the same module commands and result contracts.
 
-The five EventViewerX libraries and PSEventViewer have public 4.0.0 packages. The CLI project follows the same source version, but its tool package and ZIPs have not been published. PSWinReporting 1.x and PSWinReportingV2 2.x keep their historical versions and are not upgraded into EventViewerX 4.0.
+The five EventViewerX libraries and PSEventViewer use the public 4.0 version series. Check the installed module, package or CLI version when diagnosing behavior; library, module and CLI artifacts have separate delivery lanes. PSWinReporting 1.x and PSWinReportingV2 2.x keep their historical versions and are not upgraded into EventViewerX 4.0.
 
 ## Choose the collection path first
 
