@@ -1,12 +1,19 @@
 Describe 'evx query streaming contracts' {
     BeforeAll {
-        $script:StreamingCliPath = if ($env:EVX_CLI_PATH) {
+        $script:StreamingCliPath = $null
+        $CliCandidates = @(
             $env:EVX_CLI_PATH
-        } else {
             Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe'
+            Join-Path $PSScriptRoot '..\Sources\EventViewerX.Cli\bin\Debug\net10.0\evx.exe'
+        )
+        foreach ($Candidate in $CliCandidates) {
+            if (-not [string]::IsNullOrWhiteSpace($Candidate) -and (Test-Path -LiteralPath $Candidate)) {
+                $script:StreamingCliPath = $Candidate
+                break
+            }
         }
         $script:StreamingFixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
-        if (-not (Test-Path -LiteralPath $script:StreamingCliPath)) {
+        if (-not $script:StreamingCliPath) {
             throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
         }
     }
