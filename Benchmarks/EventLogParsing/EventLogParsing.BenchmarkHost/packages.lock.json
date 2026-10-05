@@ -25,8 +25,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "1.1.0",
-        "contentHash": "jSDGXPlzm7d5ZY+2YDYQ6TwlO352GnV230vnQBSIkKvfqD16QMbOSmNGNqCQSjI00C1TtoxU3BxFlz3okRiaVg=="
+        "resolved": "1.2.0",
+        "contentHash": "aENd8ljXupDPV1QKfEz5+CI01la4w9Ur42o8cV20ZJVH33kYGKH1GvDkJQjqpA8xYG1Me8BiM2o9cgBEBL/vKg=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -82,7 +82,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
-          "HtmlForgeX": "[1.1.0, )",
+          "HtmlForgeX": "[1.2.0, )",
           "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
