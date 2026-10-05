@@ -1,0 +1,75 @@
+name: Test Native CLI Archives
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['README.md', 'README.MD', 'Docs/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.112'
+
+jobs:
+  native-archives:
+    name: 'Native CLI archives (${{ matrix.runtime }})'
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: win-x64
+            os: windows-2025
+          - runtime: win-arm64
+            os: windows-11-arm
+            git-path: 'C:\Program Files\Git\bin\git.exe'
+          - runtime: linux-x64
+            os: ubuntu-24.04
+          - runtime: linux-arm64
+            os: ubuntu-24.04-arm
+          - runtime: osx-x64
+            os: macos-15-intel
+            dotnet-root: /usr/local/share/dotnet
+          - runtime: osx-arm64
+            os: macos-15
+            dotnet-root: /usr/local/share/dotnet
+    runs-on: ${{ matrix.os }}
+    env:
+      POWERFORGE_GIT_PATH: ${{ matrix.git-path }}
+    steps:
+      - name: Preserve source line endings during checkout
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - name: Prepare the supported macOS SDK installation directory
+        if: runner.os == 'macOS'
+        shell: bash
+        run: sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0755 /usr/local/share/dotnet
+      - uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ matrix.dotnet-root }}
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Install shared archive build and validation owner
+        shell: pwsh
+        run: Install-Module PSPublishModule -MinimumVersion 3.0.155 -Scope CurrentUser -Force -AllowClobber
+      - name: Build and qualify native archives
+        shell: pwsh
+        run: |
+          git status --short
+          dotnet --version
+          ./Build/Test-NativeCliArchives.ps1 -RuntimeIdentifier '${{ matrix.runtime }}' `
+            -WorkRoot (Join-Path $env:RUNNER_TEMP 'evx-native-archives') `
+            -EvidencePath (Join-Path $env:RUNNER_TEMP 'evx-native-evidence/qualification.json')
+      - name: Retain native qualification evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cli-native-${{ matrix.runtime }}
+          path: ${{ runner.temp }}/evx-native-evidence/qualification.json
+          retention-days: 14
+          if-no-files-found: warn

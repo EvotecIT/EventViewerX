@@ -1376,9 +1376,20 @@ Install or update PSPublishModule to the latest version before running the relea
 # Build the standalone CLI archives locally. This command does not upload them.
 .\Build\Build-Cli.ps1 -RunMode Build
 
+# Build only the two archive styles for a selected runtime.
+.\Build\Build-Cli.ps1 -RunMode Build -Runtimes win-arm64
+
 # Plan the complete package, module, CLI, and unified GitHub release.
 .\Build\Build-All.ps1 -RunMode Plan
 ```
+
+The native CLI archive workflow builds FrameworkDependent and PortableCompat
+archives on Windows, Linux, and macOS, each on x64 and ARM64 hosts. It rejects
+an OS or process architecture mismatch and checks the extracted executable's
+version, help, event catalog, portable EVTX query, SQLite ingestion, stored
+evidence, and integrity. Its retained JSON evidence includes the source revision
+and archive SHA-256 hashes. These checks qualify built archives; public release
+signing and publication use the release configuration separately.
 
 Browse [the event query benchmark contract](Benchmarks/EventLogParsing/README.md),
 [the local history benchmark contract](Benchmarks/EventStore/README.md),

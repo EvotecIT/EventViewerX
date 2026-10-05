@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Plan', 'Build')]
-    [string] $RunMode = 'Build'
+    [string] $RunMode = 'Build',
+
+    [ValidateNotNullOrEmpty()]
+    [string[]] $Runtimes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +19,9 @@ $invokeSplat = @{
 }
 if ($RunMode -eq 'Plan') {
     $invokeSplat.Plan = $true
+}
+if ($PSBoundParameters.ContainsKey('Runtimes')) {
+    $invokeSplat.Runtimes = $Runtimes
 }
 
 Invoke-PowerForgeRelease @invokeSplat
