@@ -57,6 +57,75 @@ jobs:
       - name: Install shared archive build and validation owner
         shell: pwsh
         run: Install-Module PSPublishModule -MinimumVersion 3.0.153 -Scope CurrentUser -Force -AllowClobber
+      - name: Diagnose Windows ARM64 Git provenance
+        if: matrix.runtime == 'win-arm64'
+        shell: pwsh
+        run: |
+          $null = ./Build/Build-Cli.ps1 -RunMode Plan -Runtimes win-arm64
+          $assembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PowerForge' }
+          $type = $assembly.GetType('PowerForge.DotNetPublishPipelineRunner')
+          $verifier = $assembly.GetType('PowerForge.DotNetPublishReleaseArtifactVerifier')
+          $flags = [Reflection.BindingFlags] 'NonPublic,Static'
+          $propertyFlags = [Reflection.BindingFlags] 'NonPublic,Public,Instance'
+          foreach ($path in @($env:POWERFORGE_GIT_PATH, 'C:\Program Files\Git\bin\git.exe', 'C:\Program Files\Git\clangarm64\bin\git.exe')) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+            $ownerSignature = $verifier.GetMethod('VerifyAuthenticode', $flags).Invoke($null, @($path))
+            $ownerSignatureData = [ordered] @{}
+            foreach ($name in @('IsValid', 'StatusCode', 'Subject', 'Thumbprint')) {
+              $ownerSignatureData[$name] = $ownerSignature.GetType().GetProperty($name, $propertyFlags).GetValue($ownerSignature)
+            }
+            [pscustomobject] @{
+              Path = $path
+              SignatureStatus = $signature.Status.ToString()
+              ProductName = $version.ProductName
+              OriginalFilename = $version.OriginalFilename
+              OwnerSignature = $ownerSignatureData
+              SinglePhysicalLink = $type.GetMethod('HasSinglePhysicalLink', $flags).Invoke($null, @($path))
+              IndependentlyTrusted = $type.GetMethod('IsIndependentlyTrustedGitExecutable', $flags).Invoke($null, @($path))
+            } | ConvertTo-Json -Depth 5 -Compress | Write-Output
+            fsutil hardlink list $path
+          }
+          $specs = @(
+            @{ Name = 'ResolveRunGitExecutablePath'; Arguments = [object[]] @() }
+            @{ Name = 'ResolveGitChildExecutable'; Arguments = [object[]] @('git') }
+            @{ Name = 'ReadGitRawText'; Arguments = [object[]] @($PWD.Path, 'rev-parse --show-toplevel') }
+          )
+          $rootOutput = $null
+          foreach ($spec in $specs) {
+            try {
+              $value = $type.GetMethod($spec.Name, $flags).Invoke($null, $spec.Arguments)
+              [pscustomobject] @{ Probe = $spec.Name; Value = $value } | ConvertTo-Json -Compress | Write-Output
+              if ($spec.Name -eq 'ReadGitRawText') { $rootOutput = $value }
+            } catch {
+              [pscustomobject] @{ Probe = $spec.Name; Error = $_.Exception.GetBaseException().Message } | ConvertTo-Json -Compress | Write-Output
+            }
+          }
+          $environment = $type.GetMethod('CreateTrustedGitEnvironment', $flags).Invoke($null, [object[]] @($null, $null, $null))
+          foreach ($command in @('rev-parse --show-toplevel', 'rev-parse HEAD', 'status --porcelain=v1 --untracked-files=no')) {
+            $process = [Diagnostics.Process]::new()
+            try {
+              $process.StartInfo.FileName = $env:POWERFORGE_GIT_PATH
+              $process.StartInfo.Arguments = '--no-replace-objects ' + $command
+              $process.StartInfo.WorkingDirectory = $PWD.Path
+              $process.StartInfo.UseShellExecute = $false
+              $process.StartInfo.CreateNoWindow = $true
+              $process.StartInfo.RedirectStandardOutput = $true
+              $process.StartInfo.RedirectStandardError = $true
+              foreach ($pair in $environment.GetEnumerator()) {
+                if ($null -eq $pair.Value) { $process.StartInfo.Environment.Remove($pair.Key) | Out-Null }
+                else { $process.StartInfo.Environment[$pair.Key] = $pair.Value }
+              }
+              $null = $process.Start()
+              $stdout = $process.StandardOutput.ReadToEndAsync()
+              $stderr = $process.StandardError.ReadToEndAsync()
+              if (-not $process.WaitForExit(10000)) { $process.Kill($true); throw 'Read-only Git diagnostic timed out.' }
+              [pscustomobject] @{ Command = $command; ExitCode = $process.ExitCode; Stdout = $stdout.GetAwaiter().GetResult(); Stderr = $stderr.GetAwaiter().GetResult() } | ConvertTo-Json -Compress | Write-Output
+            } finally {
+              $process.Dispose()
+            }
+          }
+          if ([string]::IsNullOrWhiteSpace($rootOutput)) { throw 'PowerForge could not read Git source provenance; diagnostic evidence is above.' }
       - name: Build and qualify native archives
         shell: pwsh
         run: |
