@@ -31,8 +31,23 @@ afterward. The smaller samples and reopened cases show timing variance on the
 busy host, so these are comparison observations rather than throughput targets.
 `lookup-before.json` and `lookup-after.json` retain the samples and summaries.
 
-Lookup still scans the checkpoint table to preserve .NET `OrdinalIgnoreCase`
-semantics. SQLite's built-in `NOCASE` comparison is insufficient for these
-Unicode identities. This improvement avoids constructing unrelated checkpoint
-objects and parsing their timestamps; it does not claim indexed lookup or
-change identity, bookmark, newest-value, or compare-and-swap behavior.
+## Indexed identity lookup
+
+Checkpoint identities now use a versioned derived SHA-256 key and a SQLite index.
+Managed `OrdinalIgnoreCase` verification remains authoritative. Legacy rows are
+coalesced and indexed during initialization; uncached legacy identities and misses
+retain a compatibility fallback. Ordinary successful lookups avoid reading the whole
+checkpoint table. Older backups are accepted and receive the derived index when opened.
+
+The 2026-10-05 comparison used the same host, logical-processor affinity mask 3,
+BelowNormal priority, one warmup, three measured samples, and rotated retained/reopened
+order. Population and initial migration are outside the measured operation. At 10,000
+checkpoints, ten retained-store reads allocated 12,320,400 bytes before indexing and
+123,680 bytes afterward. Reopened reads allocated about 62,921,325 bytes before and
+693,120 bytes afterward. All samples validated the expected record IDs.
+
+The ten-read operation medians were 304.3 ms before and 25.5 ms after for retained
+stores, and 626.3 ms before and 46.8 ms after for reopened stores. Timing varied on
+the busy host; these are local comparisons, not throughput guarantees or a ranking
+against other libraries. `indexed-lookup-before.json` and `indexed-lookup-after.json`
+retain the summaries, sample counts, allocation metrics, and timing spread.

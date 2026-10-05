@@ -90,6 +90,10 @@ and corrupt state or cursors. A new file is written and flushed; existing checkp
 are never overwritten. Preserve the last committed checkpoint if a process exits
 while writing its successor.
 
+Coverage uncertainty also survives restart. A successful later batch cannot erase an
+earlier collection failure or missing source window. Recollect the affected history and
+rebuild with a new generation to clear that uncertainty.
+
 The .NET `EventDetectionReplaySession` exposes `LastEventTimeUtc`, `LastRecordId`, and
 `LastObservationIdentity`. Use that cursor to request only the continuation from your
 source. An exact repeated boundary observation is ignored; input before the cursor

@@ -12,6 +12,7 @@ internal sealed class EvtxDumpXmlRecordFramer {
     private StringBuilder? _record;
     private readonly EvtxDumpXmlDepthTracker _depthTracker = new();
     private long? _pendingRecordNumber;
+    private long? _possibleRecoveryRecordNumber;
     internal long? ContainerRecordNumber { get; private set; }
 
     internal bool TryAdd(string line, out string? xml) =>
@@ -22,6 +23,8 @@ internal sealed class EvtxDumpXmlRecordFramer {
             return TryAddCore(line, out xml, out recoveryError);
         } catch {
             Reset();
+            _pendingRecordNumber = null;
+            _possibleRecoveryRecordNumber = null;
             throw;
         }
     }
@@ -30,11 +33,7 @@ internal sealed class EvtxDumpXmlRecordFramer {
         xml = null;
         recoveryError = null;
         int first = FirstNonWhitespace(line);
-        if (_depthTracker.CanResynchronizeAtDocumentBoundary && StartsWith(line, first, "Record ")) {
-            if (_record != null) {
-                recoveryError = "evtx_dump started a new record before the previous Event fragment ended.";
-                Reset();
-            }
+        if (_record == null && StartsWith(line, first, "Record ")) {
             if (!long.TryParse(line.Substring(first + 7).Trim(), System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture, out long number)) {
                 _pendingRecordNumber = null;
@@ -48,12 +47,21 @@ internal sealed class EvtxDumpXmlRecordFramer {
             if (_record != null) {
                 recoveryError = "evtx_dump started a new XML document before the previous Event fragment ended.";
                 Reset();
+                _pendingRecordNumber = _possibleRecoveryRecordNumber;
             }
+            _possibleRecoveryRecordNumber = null;
             first = FirstNonWhitespace(line, declarationEnd);
             if (first == line.Length) {
                 return false;
             }
         }
+
+        // A Record line can be ordinary payload text. Only a following XML declaration
+        // can confirm that it was a banner after an interrupted document.
+        _possibleRecoveryRecordNumber = _record != null && _depthTracker.CanResynchronizeAtDocumentBoundary &&
+            StartsWith(line, first, "Record ") && long.TryParse(line.Substring(first + 7).Trim(),
+                System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long possibleNumber)
+            ? possibleNumber : null;
         if (_record == null) {
             if (first == line.Length) {
                 return false;
@@ -69,6 +77,7 @@ internal sealed class EvtxDumpXmlRecordFramer {
             if (_depthTracker.Process(line)) {
                 ContainerRecordNumber = _pendingRecordNumber;
                 _pendingRecordNumber = null;
+                _possibleRecoveryRecordNumber = null;
                 xml = line;
                 Reset();
                 return true;
@@ -96,6 +105,7 @@ internal sealed class EvtxDumpXmlRecordFramer {
         xml = _record.ToString();
         ContainerRecordNumber = _pendingRecordNumber;
         _pendingRecordNumber = null;
+        _possibleRecoveryRecordNumber = null;
         Reset();
         return true;
     }
@@ -104,6 +114,10 @@ internal sealed class EvtxDumpXmlRecordFramer {
         if (_record != null) {
             Reset();
             throw new InvalidDataException("evtx_dump ended inside an Event XML fragment.");
+        }
+        if (_pendingRecordNumber.HasValue) {
+            _pendingRecordNumber = null;
+            throw new InvalidDataException("evtx_dump ended after a record banner without an Event XML fragment.");
         }
     }
 

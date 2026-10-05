@@ -1,0 +1,118 @@
+[
+  {
+    "suite": "event-checkpoints",
+    "scenario": "Checkpoints-1000",
+    "operation": "Lookup",
+    "engine": "Reopened",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "CheckpointCount": "1000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 361.2066,
+    "meanMs": 323.1004333333333,
+    "minMs": 93.6869,
+    "maxMs": 514.4078,
+    "p95Ms": 499.08768,
+    "p99Ms": 511.34377599999993,
+    "stdDevMs": 212.93327329875743,
+    "stdErrMs": 122.93708265846576,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "LookupMs": 300.6136333333333,
+      "EngineAllocatedBytes": 6582416
+    }
+  },
+  {
+    "suite": "event-checkpoints",
+    "scenario": "Checkpoints-1000",
+    "operation": "Lookup",
+    "engine": "Retained",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "CheckpointCount": "1000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 67.5393,
+    "meanMs": 110.9369,
+    "minMs": 57.5995,
+    "maxMs": 207.6719,
+    "p95Ms": 193.65864,
+    "p99Ms": 204.869248,
+    "stdDevMs": 83.92225613482992,
+    "stdErrMs": 48.45253717044478,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "LookupMs": 76.9774,
+      "EngineAllocatedBytes": 1221840
+    }
+  },
+  {
+    "suite": "event-checkpoints",
+    "scenario": "Checkpoints-10000",
+    "operation": "Lookup",
+    "engine": "Reopened",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "CheckpointCount": "10000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 626.3008,
+    "meanMs": 656.4346999999999,
+    "minMs": 585.1667,
+    "maxMs": 757.8366,
+    "p95Ms": 744.6830199999999,
+    "p99Ms": 755.205884,
+    "stdDevMs": 90.1929184493439,
+    "stdErrMs": 52.07290574572667,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "LookupMs": 645.5332333333333,
+      "EngineAllocatedBytes": 62921325.333333336
+    }
+  },
+  {
+    "suite": "event-checkpoints",
+    "scenario": "Checkpoints-10000",
+    "operation": "Lookup",
+    "engine": "Retained",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "CheckpointCount": "10000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 304.2717,
+    "meanMs": 282.42890000000006,
+    "minMs": 210.4849,
+    "maxMs": 332.5301,
+    "p95Ms": 329.70426,
+    "p99Ms": 331.964932,
+    "stdDevMs": 63.88731207869055,
+    "stdErrMs": 36.88535682643362,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {
+      "LookupMs": 261.5253,
+      "EngineAllocatedBytes": 12320400
+    }
+  }
+]

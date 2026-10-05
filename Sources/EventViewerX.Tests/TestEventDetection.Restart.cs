@@ -4,6 +4,41 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventDetection {
     [Fact]
+    public void LaterSourceCoverageCannotFillAnEarlierBatchGapInPositiveCorrelation() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {
+            RuleId = "threshold", Title = "Threshold", Kind = EventDetectionRuleKind.Threshold, Threshold = 2
+        }) });
+        var initial = new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create(expectedTargets: new[] { "server01" }));
+        var next = new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create(expectedTargets: new[] { "server01" }, observedTargets: new[] { "server01" }));
+        var session = new EventDetectionReplaySession(plan, "query", "generation", initial);
+        session.Process(EventObservation.Create(CreateEvent(1, Utc(10, 0), 1, "Tasks", "Provider")));
+        EventDetectionReplaySession restored = EventDetectionReplaySession.Restore(session.ExportCheckpoint(), plan, "query", "generation", next);
+        EventDetectionFinding finding = Assert.Single(restored.Process(EventObservation.Create(CreateEvent(1, Utc(10, 1), 2, "Tasks", "Provider"))));
+        Assert.Equal(EventDetectionFindingStatus.Matched, finding.Status);
+        Assert.False(finding.Coverage.IsComplete);
+        Assert.Contains(finding.Coverage.Failures, failure => failure.Contains("server01", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RestartCannotUpgradeFailedHistoricalCoverageToConfirmedAbsence() {
+        var options = new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create(failures: new[] { "Interrupted read" }));
+        EventDetectionPlan plan = AbsencePlan();
+        EventObject source = CreateEvent(1, Utc(10, 0), 1, "Tasks", "Provider"); source.Data["TaskId"] = "42";
+        var session = new EventDetectionReplaySession(plan, "query", "generation", options);
+        session.Process(EventObservation.Create(source));
+        var window = new EventDetectionAbsenceWindow(Utc(10, 10), new[] {
+            new EventCoverageWindow { ScopeIdentity = "server01/tasks/all", StartUtc = Utc(10, 0), EndUtc = Utc(10, 10), IsComplete = true }
+        });
+        EventDetectionReplaySession restored = EventDetectionReplaySession.Restore(session.ExportCheckpoint(), plan, "query", "generation",
+            new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create()));
+        EventDetectionFinding original = Assert.Single(session.AdvanceWatermark(window));
+        EventDetectionFinding resumed = Assert.Single(restored.AdvanceWatermark(window));
+        Assert.Equal(EventDetectionFindingStatus.Incomplete, original.Status);
+        Assert.Equal(original.Status, resumed.Status);
+        Assert.Contains("Interrupted read", resumed.Coverage.Failures);
+    }
+
+    [Fact]
     public void CheckpointConsumesFinalizedAbsenceButRetainsLaterTriggers() {
         EventDetectionPlan plan = AbsencePlan();
         var options = new EventDetectionEngineOptions(coverage: EventDetectionCoverage.Create());

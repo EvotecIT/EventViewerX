@@ -50,9 +50,50 @@ Describe 'Investigation and incremental detection workflows' {
         $Preview.Disappearing.Count | Should -Be 0
         $Preview.IsComplete | Should -BeFalse
     }
+
+    It 'projects raw investigation events using the typed plan before durable capture' {
+        $Saved = [EventViewerX.SavedEventRecord]::new()
+        $Saved.EventId = 12
+        $Saved.ProviderName = 'Microsoft-Windows-Kernel-General'
+        $Saved.Channel = 'System'
+        $Saved.Computer = 'server01'
+        $Saved.RecordId = 1
+        $Saved.TimeCreatedUtc = [DateTime]::UtcNow.AddMinutes(-1)
+        $RestoreFixture = [EventViewerX.SavedEventRecord].GetMethod('ToEventObject', [Reflection.BindingFlags]'Instance,NonPublic')
+        $Source = $RestoreFixture.Invoke($Saved, @('System', [EventViewerX.EventReadMode]::Full))
+        $TypedDefinition = [EventViewerX.EventDetectionRuleDefinition]::new()
+        $TypedDefinition.RuleId = 'test:typed-startup'
+        $TypedDefinition.Title = 'Startup'
+        $TypedDefinition.EventTypes = [EventViewerX.EventType[]] @([EventViewerX.EventType]::OSStartup)
+        $TypedRule = [EventViewerX.EventDetectionRule]::new($TypedDefinition)
+        $TypedPlan = [EventViewerX.EventDetectionPlan]::Compile([EventViewerX.IEventDetectionRule[]] @($TypedRule), $null)
+        $Expected = @($Source | Invoke-EVXDetection -Rule $TypedRule)
+        $Expected.Count | Should -Be 1
+        $Manifest = [EventViewerX.EventInvestigationManifest]::new()
+        $Manifest.StartUtc = $Saved.TimeCreatedUtc
+        $Manifest.EndUtc = $Saved.TimeCreatedUtc.AddMinutes(1)
+        $Manifest.QueryIdentity = 'startup-fixture'
+        $Session = $Source | Export-EVXInvestigation -Path (Join-Path $TestDrive 'typed-session') -Manifest $Manifest -Plan $TypedPlan
+        $Replay = $Session | Invoke-EVXInvestigation
+        $Replay.Findings.Count | Should -Be $Expected.Count
+        $Replay.Observations[0].TypeName | Should -Be 'OSStartup'
+    }
 }
 
 Describe 'Watcher accepted-action draining' {
+    It 'stops on action overload while allowing its accepted action to drain' {
+        $Watcher = Start-EVXWatcher -LogName System -FilterXPath '*' -ReadMode Metadata -Start Oldest -ActionCapacity 1 -Action { Start-Sleep -Milliseconds 200 }
+        try {
+            $Deadline = [DateTime]::UtcNow.AddSeconds(10)
+            while (-not $Watcher.DrainCompletion.IsCompleted -and [DateTime]::UtcNow -lt $Deadline) { Start-Sleep -Milliseconds 25 }
+            $Watcher.Health.IsOverloaded | Should -BeTrue
+            $Watcher.Health.Rejected | Should -Be 1
+            $Watcher.Health.Acknowledged | Should -Be 1
+            $Watcher.Health.Completed | Should -Be 1
+            $Watcher.DrainCompletion.IsCompleted | Should -BeTrue
+        } finally { Stop-EVXWatcher -Id $Watcher.Id -ErrorAction SilentlyContinue }
+    }
+
     It 'caps projected callbacks before dispatch and drains accepted work' {
         $DefinitionPath = Join-Path $TestDrive 'system-definition.json'
         @{

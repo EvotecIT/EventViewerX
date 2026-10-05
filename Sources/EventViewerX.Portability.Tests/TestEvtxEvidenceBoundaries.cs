@@ -4,6 +4,33 @@ using Xunit;
 namespace EventViewerX.Portability.Tests;
 
 public sealed class TestEvtxEvidenceBoundaries {
+    [Theory]
+    [InlineData("Record 42")]
+    [InlineData("Record created successfully")]
+    public void ContainerBannersDoNotConsumeMultilinePayloadText(string payload) {
+        var framer = new EvtxDumpXmlRecordFramer();
+        Assert.False(framer.TryAdd("Record 1", out _));
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\"?>", out _));
+        Assert.False(framer.TryAdd("<Event><EventData><Data>first line", out _));
+        Assert.False(framer.TryAdd(payload, out _, out string? error));
+        Assert.Null(error);
+        Assert.True(framer.TryAdd("last line</Data></EventData></Event>", out string? xml));
+        Assert.Contains(payload, xml);
+        Assert.Equal(1, framer.ContainerRecordNumber);
+    }
+
+    [Fact]
+    public void TruncatedRecordRecoveryRetainsTheNextContainerNumber() {
+        var framer = new EvtxDumpXmlRecordFramer();
+        Assert.False(framer.TryAdd("Record 1", out _));
+        Assert.False(framer.TryAdd("<Event><EventData><Data>truncated", out _));
+        Assert.False(framer.TryAdd("Record 2", out _));
+        Assert.False(framer.TryAdd("<?xml version=\"1.0\"?>", out _, out string? error));
+        Assert.NotNull(error);
+        Assert.True(framer.TryAdd("<Event />", out _));
+        Assert.Equal(2, framer.ContainerRecordNumber);
+    }
+
     [Fact]
     public void ForwardedSourceIdentityDoesNotReplaceContainerIdentity() {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ForwardedEvents-Literal-Sanitized.evtx");

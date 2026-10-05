@@ -6,6 +6,7 @@ namespace PSEventViewer;
 [OutputType(typeof(EventInvestigationSession))]
 public sealed class CmdletExportEVXInvestigation : AsyncPSCmdlet {
     private readonly List<EventObservation> _observations = new();
+    private EventTypeProjectionPlan? _projection;
     /// <para>Canonical observation or detached event to retain.</para>
     [Parameter(Mandatory = true, ValueFromPipeline = true)]
     public object InputObject { get; set; } = null!;
@@ -26,13 +27,19 @@ public sealed class CmdletExportEVXInvestigation : AsyncPSCmdlet {
     public EventDetectionCoverage? Coverage { get; set; }
 
     /// <inheritdoc />
+    protected override Task BeginProcessingAsync() {
+        _projection = Plan.RequiredEventTypes.Count == 0 ? null : EventTypeCatalog.CompileProjectionPlan(Plan.RequiredEventTypes);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     protected override Task ProcessRecordAsync() {
         if (_observations.Count >= Manifest.Limits.MaximumObservations) { throw new PSArgumentException("Investigation observation limit exceeded."); }
         object value = InputObject;
         while (value is PSObject wrapper && wrapper.BaseObject != value) { value = wrapper.BaseObject; }
         _observations.Add(value switch {
             EventObservation observation => observation,
-            EventObject source => EventObservation.Create(source),
+            EventObject source => EventObservation.Create(source, _projection == null ? null : EventTypeCatalog.CreateEventRule(source, _projection)),
             EventTypeRecord typed => EventObservation.Create(typed.SourceEvent, typed),
             CustomEventRecord custom => EventObservation.FromCustomRecord(custom),
             _ => throw new PSArgumentException("InputObject must be an EventViewerX observation or event.")

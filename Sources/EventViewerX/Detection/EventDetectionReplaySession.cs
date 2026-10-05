@@ -100,7 +100,8 @@ public sealed class EventDetectionReplaySession {
             PlanHash = _plan.PlanHash, SourceIdentity = _sourceIdentity, RetentionIdentity = _retentionIdentity,
             LimitsIdentity = LimitsIdentity(_options), State = state,
             LastEventTimeUtc = _lastTimeUtc, LastRecordId = _lastRecordId, LastObservationIdentity = _lastIdentity,
-            ProcessedObservations = ProcessedObservations, FinalizedThroughUtc = _finalizedThroughUtc
+            ProcessedObservations = ProcessedObservations, FinalizedThroughUtc = _finalizedThroughUtc,
+            CoverageJson = (_options.Coverage ?? EventDetectionCoverage.Unknown()).ToJson()
         };
         document.StateHash = CheckpointHash(document);
         string json = JsonSerializer.Serialize(document, EventAnalysisJson.CreateSerializerOptions());
@@ -116,20 +117,27 @@ public sealed class EventDetectionReplaySession {
         if (maximumCheckpointBytes <= 0 || Encoding.UTF8.GetByteCount(checkpointJson) > maximumCheckpointBytes) {
             throw new InvalidDataException("Checkpoint exceeds its serialized byte bound.");
         }
-        var session = new EventDetectionReplaySession(plan, sourceIdentity, retentionIdentity, options, cancellationToken);
+        if (plan == null) { throw new ArgumentNullException(nameof(plan)); }
+        options ??= new EventDetectionEngineOptions();
         ReplayCheckpoint document = JsonSerializer.Deserialize<ReplayCheckpoint>(checkpointJson, EventAnalysisJson.CreateSerializerOptions())
             ?? throw new InvalidDataException("Missing replay checkpoint.");
         if (document.SchemaVersion != 1 || document.EngineIdentity != EventInvestigationSession.CurrentEngineIdentity) { throw new InvalidDataException("Checkpoint format or engine build changed."); }
         if (document.PlanHash != plan.PlanHash) { throw new InvalidDataException("Checkpoint invalidated by changed rules or tuning."); }
         if (document.SourceIdentity != sourceIdentity) { throw new InvalidDataException("Checkpoint source or query scope changed."); }
         if (document.RetentionIdentity != retentionIdentity) { throw new InvalidDataException("Checkpoint invalidated by retention or historical source changes."); }
-        if (document.LimitsIdentity != LimitsIdentity(session._options)) { throw new InvalidDataException("Checkpoint execution bounds changed."); }
+        if (document.LimitsIdentity != LimitsIdentity(options)) { throw new InvalidDataException("Checkpoint execution bounds changed."); }
         if (document.State == null || document.StateHash != CheckpointHash(document) || document.ProcessedObservations < 0 ||
             (document.FinalizedThroughUtc.HasValue && document.FinalizedThroughUtc.Value.Kind != DateTimeKind.Utc) ||
             (document.LastEventTimeUtc.HasValue && (document.LastEventTimeUtc.Value.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(document.LastObservationIdentity))) ||
             (document.ProcessedObservations > 0) != document.LastEventTimeUtc.HasValue) {
             throw new InvalidDataException("Replay checkpoint is corrupt or inconsistent.");
         }
+        EventDetectionCoverage coverage = EventDetectionCoverage.FromJson(document.CoverageJson)
+            .Accumulate(options.Coverage ?? EventDetectionCoverage.Unknown());
+        if (options.EventTimeOrdering != null) { throw new ArgumentException("Durable replay requires ordered input without a live reorder buffer.", nameof(options)); }
+        var combinedOptions = new EventDetectionEngineOptions(options.MaximumObservations, options.MaximumGroups,
+            options.MaximumStateObservations, options.MaximumStateBytes, options.MaximumCandidateRules, coverage).WithAbsenceWindow(options.AbsenceWindow);
+        var session = new EventDetectionReplaySession(plan, sourceIdentity, retentionIdentity, combinedOptions, cancellationToken);
         session._evaluator.RestoreState(document.State);
         session._lastTimeUtc = document.LastEventTimeUtc; session._lastRecordId = document.LastRecordId;
         session._lastIdentity = document.LastObservationIdentity; session.ProcessedObservations = document.ProcessedObservations;
@@ -175,5 +183,6 @@ public sealed class EventDetectionReplaySession {
         public string LastObservationIdentity { get; set; } = string.Empty;
         public long ProcessedObservations { get; set; }
         public DateTime? FinalizedThroughUtc { get; set; }
+        public string CoverageJson { get; set; } = string.Empty;
     }
 }
