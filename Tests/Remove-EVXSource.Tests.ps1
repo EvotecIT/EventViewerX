@@ -11,7 +11,9 @@ describe 'Remove-EVXSource cmdlet' {
                 -LogName 'Application' `
                 -SourceName $script:source |
                 Out-Null
-            Write-EVXEvent -LogName 'Application' -ProviderName $script:source -Id 1 -Message 'test'
+            [EventViewerX.ClassicEventLogManager]::SourceExists(
+                $script:source,
+                'Application') | Should -BeTrue
         }
     }
 
