@@ -24,6 +24,18 @@ public static class EventTimelineEngine {
         IEnumerable<EventDetectionFinding>? findings,
         EventTimelineOptions? options = null) {
 
+        return Create(observations, findings, options, Array.Empty<EventClockEvidence>());
+    }
+
+    /// <summary>Creates a timeline with independently supplied clock bounds while preserving all three raw clocks.</summary>
+    public static EventTimeline Create(IEnumerable<EventObservation>? observations,
+        IEnumerable<EventDetectionFinding>? findings, EventTimelineOptions? options,
+        IReadOnlyList<EventClockEvidence> clockEvidence) {
+
+        if (clockEvidence == null || clockEvidence.Any(item => item == null)) {
+            throw new ArgumentException("Clock evidence cannot be null or contain null items.", nameof(clockEvidence));
+        }
+
         options ??= new EventTimelineOptions();
         string? pivotValue = string.IsNullOrWhiteSpace(options.PivotValue) ? null : options.PivotValue!.Trim();
         var entries = new List<EventTimelineEntry>();
@@ -43,7 +55,7 @@ public static class EventTimelineEngine {
                     string.Empty,
                     severity: null,
                     new[] { observation.Identity },
-                    pivots));
+                    pivots) { ClockInterval = EventClockInterval.Resolve(observation, clockEvidence) });
             }
         }
         if (options.IncludeFindings) {
@@ -57,6 +69,10 @@ public static class EventTimelineEngine {
                     .Select(static group => group.First())
                     .ToArray();
                 string identity = finding.RuleId + ":" + string.Join(";", finding.EvidenceIdentities);
+                EventClockInterval?[] intervals = evidence.Select(item => EventClockInterval.Resolve(item, clockEvidence)).ToArray();
+                EventClockInterval? interval = intervals.Length == 0 || intervals.Any(item => item == null) ? null :
+                    new EventClockInterval(intervals.Min(item => item!.EarliestUtc), intervals.Max(item => item!.LatestUtc),
+                        intervals.SelectMany(item => item!.Provenance));
                 entries.Add(new EventTimelineEntry(
                     EventTimelineEntryKind.Finding,
                     identity,
@@ -67,7 +83,7 @@ public static class EventTimelineEngine {
                     finding.RuleId,
                     finding.Severity,
                     finding.EvidenceIdentities,
-                    pivots));
+                    pivots) { ClockInterval = interval });
             }
         }
         EventTimelineEntry[] filtered = entries

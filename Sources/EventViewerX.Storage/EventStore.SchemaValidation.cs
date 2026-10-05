@@ -49,7 +49,8 @@ public sealed partial class EventStore {
             Column("container", "TEXT", true, 3),
             Column("record_id", "INTEGER", false),
             Column("bookmark_xml", "TEXT", false),
-            Column("updated_utc", "TEXT", true)),
+            Column("updated_utc", "TEXT", true),
+            Column("identity_key", "TEXT", true)),
         Table("evx_findings",
             Column("finding_key", "TEXT", true, 1),
             Column("rule_id", "TEXT", true),
@@ -163,6 +164,8 @@ public sealed partial class EventStore {
         var actualByName = actualColumns.ToDictionary(static column => column.Name, StringComparer.OrdinalIgnoreCase);
         foreach (StoreColumnContract expected in table.Columns) {
             if (!actualByName.TryGetValue(expected.Name, out StoreColumnContract actual)) {
+                // Older backups omit this derived lookup accelerator. Initialization recreates it.
+                if (table.TableName == "evx_checkpoints" && expected.Name == "identity_key") { continue; }
                 diagnostics.Add($"Required EventStore column '{table.TableName}.{expected.Name}' is missing.");
                 continue;
             }

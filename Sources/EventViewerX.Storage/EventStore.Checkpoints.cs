@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using DBAClientX;
 
 namespace EventViewerX.Storage;
@@ -34,6 +37,7 @@ public sealed partial class EventStore {
                     ["$consumer"] = canonical.Consumer,
                     ["$computer"] = canonical.Computer,
                     ["$container"] = canonical.Container,
+                    ["$identityKey"] = CreateCheckpointIdentityKey(canonical.Consumer, canonical.Computer, canonical.Container),
                     ["$recordId"] = canonical.RecordId,
                     ["$bookmark"] = canonical.BookmarkXml,
                     ["$updated"] = updatedAt
@@ -211,15 +215,8 @@ public sealed partial class EventStore {
             await transaction.ExecuteNonQueryAsync(
                 ReserveWriterSql,
                 cancellationToken: token).ConfigureAwait(false);
-            IReadOnlyList<StoredCheckpointRow> rows = await transaction.QueryAsListAsync(
-                SelectStoredCheckpointsSql,
-                MapStoredCheckpoint,
-                cancellationToken: token).ConfigureAwait(false);
-            StoredCheckpointRow[] matches = rows.Where(row => MatchesCheckpointIdentity(
-                row,
-                consumer.Trim(),
-                computer.Trim(),
-                container.Trim())).ToArray();
+            StoredCheckpointRow[] matches = await FindCheckpointRowsAsync(transaction,
+                consumer.Trim(), computer.Trim(), container.Trim(), token).ConfigureAwait(false);
             foreach (StoredCheckpointRow match in matches) {
                 await transaction.ExecuteNonQueryAsync(
                     "DELETE FROM evx_checkpoints WHERE rowid = $rowId;",
@@ -247,6 +244,13 @@ public sealed partial class EventStore {
     private static void EnsureCheckpointIdentitySchema(SQLiteSession session) {
         session.RunInTransaction(transaction => {
             transaction.ExecuteNonQuery(ReserveWriterSql);
+            IReadOnlyList<string> columns = transaction.QueryAsList("PRAGMA table_info(evx_checkpoints);", record => record.GetString(1));
+            if (!columns.Contains("identity_key", StringComparer.OrdinalIgnoreCase)) {
+                transaction.ExecuteNonQuery("ALTER TABLE evx_checkpoints ADD COLUMN identity_key TEXT NOT NULL DEFAULT ''; ");
+            }
+            transaction.ExecuteNonQuery("CREATE INDEX IF NOT EXISTS ix_evx_checkpoint_identity ON evx_checkpoints(identity_key);");
+            object? pending = transaction.ExecuteScalar("SELECT 1 FROM evx_checkpoints WHERE identity_key = '' LIMIT 1;");
+            if (pending == null || pending == DBNull.Value) { return; }
             IReadOnlyList<StoredCheckpointRow> rows = transaction.QueryAsList(
                 SelectStoredCheckpointsSql,
                 MapStoredCheckpoint);
@@ -267,6 +271,10 @@ public sealed partial class EventStore {
                     InsertCheckpointSql,
                     CreateCheckpointParameters(identity, value));
             }
+            foreach (StoredCheckpointRow row in transaction.QueryAsList(SelectStoredCheckpointsSql, MapStoredCheckpoint)) {
+                transaction.ExecuteNonQuery("UPDATE evx_checkpoints SET identity_key = $key WHERE rowid = $rowId;",
+                    new Dictionary<string, object?> { ["$key"] = CreateCheckpointIdentityKey(row.Consumer, row.Computer, row.Container), ["$rowId"] = row.RowId });
+            }
         });
     }
 
@@ -280,15 +288,8 @@ public sealed partial class EventStore {
         await session.ExecuteNonQueryAsync(
             ReserveWriterSql,
             cancellationToken: cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<StoredCheckpointRow> rows = await session.QueryAsListAsync(
-            SelectStoredCheckpointsSql,
-            MapStoredCheckpoint,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        StoredCheckpointRow[] matches = rows.Where(row => MatchesCheckpointIdentity(
-            row,
-            requested.Consumer,
-            requested.Computer,
-            requested.Container)).OrderBy(static row => row.RowId).ToArray();
+        StoredCheckpointRow[] matches = await FindCheckpointRowsAsync(session, requested.Consumer,
+            requested.Computer, requested.Container, cancellationToken).ConfigureAwait(false);
         if (compareExpected && !MatchesExpectedCheckpoint(matches, expected)) {
             throw new InvalidOperationException(
                 $"Checkpoint '{requested.Consumer}' for {requested.Computer}/{requested.Container} changed after collection started; no events or checkpoint were committed.");
@@ -364,7 +365,8 @@ public sealed partial class EventStore {
         StoredCheckpointRow value) => new() {
             ["$consumer"] = identity.Consumer,
             ["$computer"] = identity.Computer,
-            ["$container"] = identity.Container,
+        ["$container"] = identity.Container,
+        ["$identityKey"] = CreateCheckpointIdentityKey(identity.Consumer, identity.Computer, identity.Container),
             ["$recordId"] = value.RecordId,
             ["$bookmark"] = value.BookmarkXml,
             ["$updated"] = value.UpdatedUtc
@@ -379,8 +381,30 @@ FROM evx_checkpoints;";
 
     private const string InsertCheckpointSql = @"
 INSERT INTO evx_checkpoints
-    (consumer, computer, container, record_id, bookmark_xml, updated_utc)
-VALUES ($consumer, $computer, $container, $recordId, $bookmark, $updated);";
+    (consumer, computer, container, record_id, bookmark_xml, updated_utc, identity_key)
+VALUES ($consumer, $computer, $container, $recordId, $bookmark, $updated, $identityKey);";
+
+    private static string CreateCheckpointIdentityKey(string consumer, string computer, string container) {
+        using SHA256 hash = SHA256.Create();
+        byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new[] {
+            consumer.ToUpperInvariant(), computer.ToUpperInvariant(), container.ToUpperInvariant() }));
+        return "v1:" + BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", string.Empty);
+    }
+
+    private static async Task<StoredCheckpointRow[]> FindCheckpointRowsAsync(SQLiteAsyncSession session,
+        string consumer, string computer, string container, CancellationToken token) {
+        string key = CreateCheckpointIdentityKey(consumer, computer, container);
+        IReadOnlyList<StoredCheckpointRow> candidates = await session.QueryAsListAsync(
+            SelectStoredCheckpointsSql.TrimEnd(';') + " WHERE identity_key = $key OR identity_key = '';",
+            MapStoredCheckpoint, new Dictionary<string, object?> { ["$key"] = key }, cancellationToken: token).ConfigureAwait(false);
+        StoredCheckpointRow[] matches = candidates.Where(row => MatchesCheckpointIdentity(row, consumer, computer, container))
+            .OrderBy(row => row.RowId).ToArray();
+        if (matches.Length > 0) { return matches; }
+        // Preserve ordinal matching across Unicode casing-table/runtime differences and
+        // older writers. Only a missing indexed identity needs this compatibility scan.
+        candidates = await session.QueryAsListAsync(SelectStoredCheckpointsSql, MapStoredCheckpoint, cancellationToken: token).ConfigureAwait(false);
+        return candidates.Where(row => MatchesCheckpointIdentity(row, consumer, computer, container)).OrderBy(row => row.RowId).ToArray();
+    }
 
     private sealed class StoredCheckpointRow {
         internal StoredCheckpointRow(

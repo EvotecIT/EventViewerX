@@ -1,7 +1,7 @@
 namespace EventViewerX;
 
 public static partial class EventDetectionEngine {
-    private sealed partial class Evaluator {
+    internal sealed partial class Evaluator {
         private SortedSet<BufferedObservation>? _reorderQueue;
         private DateTime _latestEventTimeUtc = DateTime.MinValue;
         private DateTime _eventTimeWatermarkUtc = DateTime.MinValue;
@@ -24,9 +24,12 @@ public static partial class EventDetectionEngine {
                 : ProcessWithOrdering(observation, _options.EventTimeOrdering);
         }
 
-        internal IEnumerable<EventDetectionFinding> Complete() => _reorderQueue == null
-            ? Array.Empty<EventDetectionFinding>()
-            : DrainReorderQueue(complete: true);
+        internal IEnumerable<EventDetectionFinding> Complete() {
+            if (_reorderQueue != null) {
+                foreach (EventDetectionFinding finding in DrainReorderQueue(complete: true)) { yield return finding; }
+            }
+            foreach (EventDetectionFinding finding in CompleteAbsence()) { yield return finding; }
+        }
 
         private IEnumerable<EventDetectionFinding> ProcessWithOrdering(EventObservation observation,
             EventTimeOrderingOptions ordering) {

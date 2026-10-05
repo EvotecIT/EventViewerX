@@ -107,6 +107,13 @@ public sealed class EventObservation {
             new ReadOnlyDictionary<string, object?>(fields));
     }
 
+    /// <summary>Creates a canonical observation retaining the custom definition name and projected field values.</summary>
+    public static EventObservation FromCustomRecord(CustomEventRecord record, DateTime? receivedTimeUtc = null, DateTime? processedTimeUtc = null) {
+        if (record == null) { throw new ArgumentNullException(nameof(record)); }
+        EventObservation baseline = Create(record.SourceEvent, receivedTimeUtc: receivedTimeUtc, processedTimeUtc: processedTimeUtc);
+        return Restore(record.SourceEvent, baseline.Identity, record.TypeName, record.Values, baseline.ReceivedTimeUtc, baseline.ProcessedTimeUtc);
+    }
+
     /// <summary>Stable SHA-256 evidence identity.</summary>
     public string Identity { get; }
     /// <summary>Projected EventViewerX type name, or Generic for a raw event.</summary>

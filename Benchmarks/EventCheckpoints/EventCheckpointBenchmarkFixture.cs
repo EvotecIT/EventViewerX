@@ -36,6 +36,10 @@ public sealed class EventCheckpointBenchmarkFixture : IDisposable {
                     });
             }
         });
+        // The SQL seed simulates imported legacy rows. Complete migrations before
+        // measuring steady-state lookup; reopened cases still include normal initialization.
+        store = new EventStore(store.Path);
+        store.Initialize();
     }
 
     /// <summary>Reads the last checkpoint ten times through an initialized store.</summary>

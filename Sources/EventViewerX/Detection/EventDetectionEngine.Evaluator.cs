@@ -3,7 +3,7 @@ using System.Globalization;
 namespace EventViewerX;
 
 public static partial class EventDetectionEngine {
-    private sealed partial class Evaluator {
+    internal sealed partial class Evaluator {
         private readonly EventDetectionPlan _plan;
         private readonly EventDetectionEngineOptions _options;
         private readonly CancellationToken _cancellationToken;
@@ -11,10 +11,12 @@ public static partial class EventDetectionEngine {
         private readonly Dictionary<StateKey, DistinctState> _distinctStates = new();
         private readonly Dictionary<StateKey, TemporalState> _temporalStates = new();
         private readonly List<EventDetectionFinding> _findings = new();
+        private readonly HashSet<string> _failedRules = new(StringComparer.OrdinalIgnoreCase);
         private readonly int[] _matchingStepIndexes;
         private long _observations;
         private int _stateObservations;
         private long _stateBytes;
+        private bool _evaluationIncomplete;
         private bool _observationBoundReported;
         private bool _groupBoundReported;
         private bool _stateBoundReported;
@@ -48,6 +50,9 @@ public static partial class EventDetectionEngine {
             for (int candidateIndex = 0; candidateIndex < candidates.Length; candidateIndex++) {
                 _cancellationToken.ThrowIfCancellationRequested();
                 EventDetectionPlan.CompiledRule rule = candidates[candidateIndex];
+                if (_failedRules.Contains(rule.Definition.RuleId)) {
+                    continue;
+                }
                 try {
                     if (!rule.Matches(observation) || rule.IsSuppressed(observation)) {
                         continue;
@@ -55,6 +60,9 @@ public static partial class EventDetectionEngine {
                     switch (rule.Definition.Kind) {
                         case EventDetectionRuleKind.Stateless:
                             findings.Add(CreateFinding(rule, new[] { observation }, groupValue: null));
+                            break;
+                        case EventDetectionRuleKind.Absence:
+                            ProcessAbsence(rule, observation, findings);
                             break;
                         case EventDetectionRuleKind.Threshold:
                             ProcessThreshold(rule, observation, findings);
@@ -69,6 +77,7 @@ public static partial class EventDetectionEngine {
                     }
                 } catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException &&
                     !(exception is OperationCanceledException && _cancellationToken.IsCancellationRequested)) {
+                    _failedRules.Add(rule.Definition.RuleId);
                     findings.Add(CreateError(rule, observation, exception));
                 }
             }
@@ -235,7 +244,7 @@ public static partial class EventDetectionEngine {
             return false;
         }
 
-        private int StateGroupCount => _thresholdStates.Count + _distinctStates.Count + _temporalStates.Count;
+        private int StateGroupCount => _thresholdStates.Count + _distinctStates.Count + _temporalStates.Count + _absenceStates.Count;
 
     }
 }

@@ -151,6 +151,11 @@ namespace PSEventViewer {
         [ValidateRange(1, 65536)]
         public int BufferCapacity { get; set; } = 256;
 
+        /// <summary>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</summary>
+        [Parameter]
+        [ValidateRange(1, int.MaxValue)]
+        public int ActionCapacity { get; set; } = 1024;
+
         /// <summary>Remote native session connection timeout in milliseconds.</summary>
         [Parameter]
         [ValidateRange(1, int.MaxValue)]
@@ -256,7 +261,7 @@ namespace PSEventViewer {
                     CancelToken)
                 .ToArray();
 
-            var bridge = new PowerShellWatcherEventBridge();
+            var bridge = new PowerShellWatcherEventBridge(ActionCapacity, StopOnMatch.IsPresent ? 1 : StopAfter);
             PSEventManager eventManager = Events;
             string sourceIdentifier = $"PSEventViewer.Watcher.{Guid.NewGuid():N}";
             PSEventSubscriber subscriber = eventManager.SubscribeEvent(
@@ -269,6 +274,10 @@ namespace PSEventViewer {
                 forwardEvent: false);
 
             WatcherInfo? watcher = null;
+            bridge.Delivery.StopRequested += (_, _) => {
+                WatcherInfo? current = watcher;
+                if (current != null) { _ = Task.Run(() => WatcherManager.StopWatcher(current.Id)); }
+            };
             Action<EventObject> publish = bridge.Publish;
             Guid watcherOwnerId = PowerShellResourceOwnerId;
             EventHandler? stoppedHandler = null;
@@ -294,7 +303,7 @@ namespace PSEventViewer {
                     StopOnMatch.IsPresent,
                     StopAfter,
                     TimeOut,
-                    string.IsNullOrWhiteSpace(ActionIdentity) ? null : ActionIdentity!.Trim(),
+                    GetHostActionIdentity(),
                     reuseScopeIdentity: watcherOwnerId.ToString("N"),
                     namedEvents: null,
                     cancellationToken: CancelToken);
@@ -311,6 +320,7 @@ namespace PSEventViewer {
                 if (!createdPowerShellWatcher) {
                     RemovePowerShellSubscription();
                 } else {
+                    watcher.AttachHostDelivery(bridge.Delivery);
                     PowerShellWatcherRegistry.Register(watcherOwnerId, watcher.Id);
                     stoppedHandler = (_, _) => {
                         PowerShellWatcherRegistry.Unregister(watcherOwnerId, watcher.Id);
@@ -322,16 +332,18 @@ namespace PSEventViewer {
                         PowerShellWatcherRegistry.Unregister(watcherOwnerId, watcher.Id);
                         bridge.RequestCleanup(
                             synchronousWhenIdle: true);
+                    } else if (bridge.Delivery.GetHealth().IsStopping) {
+                        _ = Task.Run(() => WatcherManager.StopWatcher(watcher.Id));
                     }
                 }
                 CancelToken.ThrowIfCancellationRequested();
                 WriteObject(watcher);
             } catch {
-                RemovePowerShellSubscription();
                 if (createdPowerShellWatcher && watcher != null) {
                     PowerShellWatcherRegistry.Unregister(watcherOwnerId, watcher.Id);
                     WatcherManager.StopWatcher(watcher.Id);
                 }
+                bridge.RequestCleanup(synchronousWhenIdle: true);
                 throw;
             }
             return Task.CompletedTask;
@@ -381,7 +393,7 @@ namespace PSEventViewer {
                         source.ProviderNames))
                     .ToArray();
             }
-            var bridge = new PowerShellWatcherEventBridge();
+            var bridge = new PowerShellWatcherEventBridge(ActionCapacity, StopOnMatch.IsPresent ? 1 : StopAfter);
             PSEventManager eventManager = Events;
             string sourceIdentifier = $"PSEventViewer.Watcher.{Guid.NewGuid():N}";
             PSEventSubscriber subscriber = eventManager.SubscribeEvent(
@@ -394,16 +406,24 @@ namespace PSEventViewer {
                 forwardEvent: false);
             Guid ownerId = PowerShellResourceOwnerId;
             var ownedWatchers = new List<WatcherInfo>();
-            int remaining = 0;
-            int delivered = 0;
+            var resultWatchers = new List<WatcherInfo>();
+            // The startup sentinel prevents an early source stop from removing
+            // the shared subscriber while later sources are still starting.
+            int remaining = 1;
             int cleanup = 0;
-            int threshold = StopOnMatch.IsPresent ? 1 : StopAfter;
             void RemoveSubscription() {
                 if (Interlocked.Exchange(ref cleanup, 1) == 0) {
                     eventManager.UnsubscribeEvent(subscriber);
                 }
             }
             bridge.AttachCleanup(RemoveSubscription);
+            bridge.Delivery.StopRequested += (_, _) => {
+                WatcherInfo[] snapshot;
+                lock (ownedWatchers) { snapshot = ownedWatchers.ToArray(); }
+                _ = Task.Run(() => {
+                    foreach (WatcherInfo item in snapshot) { WatcherManager.StopWatcher(item.Id); }
+                });
+            };
             void Publish(EventObject source) {
                 object? target = definition == null
                     ? EventTypeCatalog.CreateEventRule(source, projectionPlan!)
@@ -411,25 +431,13 @@ namespace PSEventViewer {
                 if (target == null) {
                     return;
                 }
-                bridge.Publish(target);
-                int count = Interlocked.Increment(ref delivered);
-                if (threshold > 0 && count >= threshold) {
-                    WatcherInfo[] snapshot;
-                    lock (ownedWatchers) {
-                        snapshot = ownedWatchers.ToArray();
-                    }
-                    _ = Task.Run(() => {
-                        foreach (WatcherInfo watcher in snapshot) {
-                            WatcherManager.StopWatcher(watcher.Id);
-                        }
-                    });
-                }
+                bridge.PublishProjected(target, source.TimeCreated);
             }
 
             try {
                 int sourceIndex = 0;
                 foreach ((string LogName, IReadOnlyList<int> EventIds, IReadOnlyList<string> Providers) source in sources) {
-                    if (threshold > 0 && Volatile.Read(ref delivered) >= threshold) {
+                    if (bridge.Delivery.GetHealth().IsStopping) {
                         break;
                     }
                     bool collector = !string.IsNullOrWhiteSpace(Collector);
@@ -469,12 +477,13 @@ namespace PSEventViewer {
                         stopOnMatch: false,
                         stopAfter: 0,
                         TimeOut,
-                        string.IsNullOrWhiteSpace(ActionIdentity) ? null : $"{ActionIdentity!.Trim()}:{source.LogName}:{sourceIndex}",
+                        GetHostActionIdentity(sourceIndex),
                         reuseScopeIdentity: ownerId.ToString("N"),
                         namedEvents: custom ? null : leaves,
                         cancellationToken: CancelToken);
                     bool owned = watcher.Action.Equals((Action<EventObject>)Publish);
                     if (owned) {
+                        watcher.AttachHostDelivery(bridge.Delivery);
                         lock (ownedWatchers) {
                             ownedWatchers.Add(watcher);
                         }
@@ -493,25 +502,38 @@ namespace PSEventViewer {
                         watcher.Stopped += (_, _) => CompleteWatcher();
                         if (watcher.IsStopped) {
                             CompleteWatcher();
-                        } else if (threshold > 0 && Volatile.Read(ref delivered) >= threshold) {
+                        } else if (bridge.Delivery.GetHealth().IsStopping) {
                             _ = Task.Run(() => WatcherManager.StopWatcher(watcher.Id));
                         }
                     }
-                    WriteObject(watcher);
+                    resultWatchers.Add(watcher);
                     sourceIndex++;
                 }
-                if (Volatile.Read(ref remaining) == 0) {
-                    RemoveSubscription();
+                if (resultWatchers.Count > 1 && resultWatchers.Any(item =>
+                    !ReferenceEquals(item.HostDelivery, resultWatchers[0].HostDelivery))) {
+                    throw new PSInvalidOperationException("Only part of the named projected watcher group could be reused. Stop the existing group before recreating it so one delivery policy owns every source.");
                 }
+                foreach (WatcherInfo item in resultWatchers) { WriteObject(item); }
             } catch {
                 foreach (WatcherInfo watcher in ownedWatchers) {
                     PowerShellWatcherRegistry.Unregister(ownerId, watcher.Id);
                     WatcherManager.StopWatcher(watcher.Id);
                 }
-                RemoveSubscription();
                 throw;
+            } finally {
+                if (Interlocked.Decrement(ref remaining) == 0) {
+                    bridge.RequestCleanup(synchronousWhenIdle: true);
+                }
             }
             return Task.CompletedTask;
+        }
+
+        private string? GetHostActionIdentity(int sourceIndex = -1) {
+            if (string.IsNullOrWhiteSpace(ActionIdentity)) { return null; }
+            string identity = ActionIdentity!.Trim();
+            // The stable action identity includes the behavior of its host closure.
+            // Length-prefixing prevents collisions with caller-supplied delimiters.
+            return $"{identity.Length}:{identity}|capacity={ActionCapacity}|limit={(StopOnMatch.IsPresent ? 1 : StopAfter)}|source={sourceIndex}";
         }
     }
 }

@@ -33,6 +33,13 @@ public static class EventPredicateEvaluator {
         return fields => fields != null && EvaluateSafely(compiled, fields);
     }
 
+    /// <summary>Compiles analysis predicates without converting evaluation failures into non-matches.</summary>
+    /// <remarks>Detection catches these failures and retains an explicit error outcome.</remarks>
+    internal static Func<IReadOnlyDictionary<string, object?>, bool> CompileAnalysisFields(EventPredicate predicate) {
+        Func<object, bool> compiled = CompileCore(ValidateAndClone(predicate));
+        return fields => fields != null && compiled(fields);
+    }
+
     /// <summary>Evaluates a predicate against a built-in or custom event record.</summary>
     public static bool Matches(EventPredicate predicate, object record) {
         if (record == null) {

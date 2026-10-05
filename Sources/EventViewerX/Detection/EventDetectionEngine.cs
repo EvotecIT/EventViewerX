@@ -18,7 +18,14 @@ public static partial class EventDetectionEngine {
             throw new ArgumentNullException(nameof(plan));
         }
         EventDetectionCoverage effectiveCoverage = coverage?.Snapshot() ?? EventDetectionCoverage.Unknown();
-        return plan.CompiledRules.Select(rule => CreateTrace(rule, observation, effectiveCoverage)).ToArray();
+        return plan.CompiledRules.Select(rule => {
+            try { return CreateTrace(rule, observation, effectiveCoverage); }
+            catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException and not OperationCanceledException) {
+                return new EventDetectionRuleTrace(rule.Definition.RuleId, rule.Definition.Title, observation.Identity,
+                    rule.Definition.Kind, false, false, "Evaluation error: " + exception.Message, Array.Empty<string>(),
+                    new[] { Condition("Evaluation", false, exception.GetType().FullName + ": " + exception.Message) });
+            }
+        }).ToArray();
     }
 
     private static EventDetectionRuleTrace CreateTrace(
@@ -120,6 +127,11 @@ public static partial class EventDetectionEngine {
         IEnumerable<EventObservation> observations,
         EventDetectionPlan plan,
         EventDetectionEngineOptions? options = null) => StreamCore(observations, plan, options, default);
+
+    /// <summary>Streams ordered findings with cancellation between observations and rule evaluations.</summary>
+    public static IEnumerable<EventDetectionFinding> Stream(IEnumerable<EventObservation> observations,
+        EventDetectionPlan plan, EventDetectionEngineOptions? options, CancellationToken cancellationToken) =>
+        StreamCore(observations, plan, options, cancellationToken);
 
     private static IEnumerable<EventDetectionFinding> StreamCore(
         IEnumerable<EventObservation> observations,

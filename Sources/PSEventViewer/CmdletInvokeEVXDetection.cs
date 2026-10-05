@@ -30,7 +30,7 @@ namespace PSEventViewer;
 [OutputType(typeof(EventDetectionPlanExplanation))]
 [OutputType(typeof(EventDecisionReportSnapshot))]
 [OutputType(typeof(EventDetectionRuleTrace))]
-public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
+public sealed partial class CmdletInvokeEVXDetection : AsyncPSCmdlet {
     private readonly List<EventObject> _events = new();
 
     /// <summary>Detached, typed, or custom EventViewerX event to evaluate.</summary>
@@ -107,10 +107,14 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
     public long MaximumStateBytes { get; set; } = 64L * 1024L * 1024L;
 
     /// <inheritdoc />
-    protected override void ProcessRecord() {
+    protected override Task ProcessRecordAsync() {
         object? value = InputObject;
         while (value is PSObject wrapper && wrapper.BaseObject != value) {
             value = wrapper.BaseObject;
+        }
+        if (Stream) {
+            ProcessStreaming(value);
+            return Task.CompletedTask;
         }
         EventObject? source = value switch {
             null => null,
@@ -124,10 +128,24 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
         if (source != null && (MaximumObservations == 0 || _events.Count <= MaximumObservations)) {
             _events.Add(source);
         }
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     protected override async Task EndProcessingAsync() {
+        if (Stream) {
+            CompleteStreaming();
+            return;
+        }
+        (EventDetectionPlan plan, List<EventDetectionPack> packs) = CompilePlan();
+        if (Explain) {
+            WriteObject(plan.Explain(), enumerateCollection: false);
+            return;
+        }
+        await EvaluateMaterializedAsync(plan, packs).ConfigureAwait(false);
+    }
+
+    private (EventDetectionPlan Plan, List<EventDetectionPack> Packs) CompilePlan() {
         var rules = new List<IEventDetectionRule>();
         var packs = new List<EventDetectionPack>();
         bool explicitContent = Rule.Length > 0 || Pack.Length > 0;
@@ -145,10 +163,10 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
             rules.AddRange(pack.GetRules());
         }
         EventDetectionPlan plan = EventDetectionPlan.Compile(rules, Tuning);
-        if (Explain) {
-            WriteObject(plan.Explain(), enumerateCollection: false);
-            return;
-        }
+        return (plan, packs);
+    }
+
+    private async Task EvaluateMaterializedAsync(EventDetectionPlan plan, List<EventDetectionPack> packs) {
         if (!string.IsNullOrWhiteSpace(FromStore) && _events.Count > 0) {
             throw new PSArgumentException("FromStore cannot be combined with pipeline InputObject values.", nameof(FromStore));
         }
@@ -163,12 +181,12 @@ public sealed class CmdletInvokeEVXDetection : AsyncPSCmdlet {
                 failures: new[] {
                     "Stored history ingestion coverage was not supplied. Pass Coverage before treating an empty historical result as clean."
                 }));
-        var options = new EventDetectionEngineOptions(
+        EventDetectionEngineOptions options = new EventDetectionEngineOptions(
             maximumObservations: MaximumObservations,
             maximumGroups: MaximumGroups,
             maximumStateObservations: MaximumStateObservations,
             maximumStateBytes: MaximumStateBytes,
-            coverage: effectiveCoverage);
+            coverage: effectiveCoverage).WithAbsenceWindow(AbsenceWindow);
         EventDetectionExecutionResult execution = storePath == null
             ? EventDetectionEngine.Evaluate(_events, plan, options, CancelToken)
             : await new EventStore(storePath).EvaluateDetectionAsync(

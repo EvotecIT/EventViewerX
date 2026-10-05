@@ -46,7 +46,8 @@ internal static class SigmaSelectionCompiler {
             .Select(static value => value.Trim().ToLowerInvariant())
             .ToArray();
         bool requireAll = modifiers.Contains("all", StringComparer.Ordinal);
-        bool ignoreCase = !modifiers.Contains("cased", StringComparer.Ordinal);
+        bool ignoreCase = !modifiers.Contains("cased", StringComparer.Ordinal) &&
+            !modifiers.Contains("re", StringComparer.Ordinal);
         string[] behavior = modifiers.Where(static value => value is not "all" and not "cased").ToArray();
         if (behavior.Length > 1) {
             throw new SigmaConditionException(
@@ -92,19 +93,18 @@ internal static class SigmaSelectionCompiler {
             return EventPredicate.Compare(field, EventPredicateOperator.IsNull);
         }
 
+        if (modifier is null or "contains" or "startswith" or "endswith") {
+            return SigmaStringPattern.Compile(field, value, modifier, ignoreCase);
+        }
         EventPredicateOperator comparison = modifier switch {
             "contains" => EventPredicateOperator.Contains,
             "startswith" => EventPredicateOperator.StartsWith,
             "endswith" => EventPredicateOperator.EndsWith,
             "re" => EventPredicateOperator.MatchesRegex,
             "cidr" => EventPredicateOperator.InSubnet,
-            _ when value != null && ContainsWildcard(value) => EventPredicateOperator.MatchesWildcard,
-            _ => EventPredicateOperator.Equal
+            _ => throw new SigmaConditionException("EVXSIGMA124", "Unsupported comparison modifier.")
         };
-        string? normalizedValue = comparison == EventPredicateOperator.MatchesWildcard
-            ? ConvertSigmaWildcard(value ?? string.Empty)
-            : value;
-        EventPredicate predicate = EventPredicate.Compare(field, comparison, normalizedValue);
+        EventPredicate predicate = EventPredicate.Compare(field, comparison, value);
         predicate.IgnoreCase = ignoreCase;
         predicate.Validate();
         return predicate;
@@ -166,37 +166,6 @@ internal static class SigmaSelectionCompiler {
             throw new SigmaConditionException("EVXSIGMA124", "Sigma selection field cannot be empty.");
         }
         return CanonicalFields.TryGetValue(field, out string? canonical) ? canonical : field;
-    }
-
-    private static bool ContainsWildcard(string value) {
-        bool escaped = false;
-        foreach (char character in value) {
-            if (character == '\\') {
-                escaped = !escaped;
-                continue;
-            }
-            if (!escaped && character is '*' or '?') {
-                return true;
-            }
-            escaped = false;
-        }
-        return false;
-    }
-
-    private static string ConvertSigmaWildcard(string value) {
-        var result = new System.Text.StringBuilder();
-        for (int index = 0; index < value.Length; index++) {
-            if (value[index] == '\\' && index + 1 < value.Length && value[index + 1] is '*' or '?' or '\\') {
-                char escaped = value[++index];
-                if (escaped is '*' or '?') {
-                    result.Append('`');
-                }
-                result.Append(escaped);
-                continue;
-            }
-            result.Append(value[index]);
-        }
-        return result.ToString();
     }
 
     private static string Scalar(YamlNode node, string description) {

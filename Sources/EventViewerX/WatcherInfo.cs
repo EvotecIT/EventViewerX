@@ -10,7 +10,7 @@ namespace EventViewerX {
     /// <summary>
     /// Represents information about a running watcher instance.
     /// </summary>
-    public class WatcherInfo : IDisposable {
+    public partial class WatcherInfo : IDisposable {
         internal static readonly TimeSpan MaximumSupportedTimeout =
             TimeSpan.FromMilliseconds(uint.MaxValue - 1d);
 
@@ -382,11 +382,16 @@ namespace EventViewerX {
             }
 
             Exception? exCaught = null;
+            long ticket = _nativeDelivery.TryAccept(obj.TimeCreated);
+            if (ticket == 0) { ScheduleStop(); return; }
+            _nativeDelivery.Begin(ticket);
             try {
                 Action?.Invoke(obj);
             } catch (Exception ex) {
                 exCaught = ex;
                 Settings._logger.WriteWarning("OnEvent callback threw: {0}", ex.Message.Trim());
+            } finally {
+                _nativeDelivery.Acknowledge(ticket, exCaught == null);
             }
 
             if (StopOnMatch ||
@@ -483,6 +488,7 @@ namespace EventViewerX {
                         _endTime = DateTime.UtcNow;
                         _stopped = true;
                     }
+                    _nativeDelivery.StopAccepting();
                 }
             }
             Stopped?.Invoke(this, EventArgs.Empty);

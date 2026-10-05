@@ -96,7 +96,7 @@ public sealed partial class EventStore {
             options?.MaximumStateObservations ?? 250_000,
             options?.MaximumStateBytes ?? 256L * 1024L * 1024L,
             options?.MaximumCandidateRules ?? 10_000,
-            coverage);
+            coverage).WithAbsenceWindow(options?.AbsenceWindow);
         EventDetectionExecutionResult evaluated = EventDetectionEngine.Evaluate(
             read.Observations, plan, engineOptions, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();

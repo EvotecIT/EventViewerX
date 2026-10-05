@@ -85,6 +85,10 @@ The `master` branch is the active home of PSEventViewer and EventViewerX.
 
 ## Why use it
 
+For portable evidence sessions, bounded detection checkpoints, coverage-aware absence,
+watcher draining, rule-change previews, and clock uncertainty, see
+[Reproducible investigations and bounded replay](INVESTIGATIONS.md).
+
 - Stream local channels, remote channels, offline EVTX files, or structured
   QueryList XML without accumulating the complete result.
 - Push event ID, provider, time, record ID, level, keyword, user, and event-data

@@ -14,6 +14,17 @@ public sealed class EventDetectionEngineOptions {
 
     /// <summary>Optional bounded live event-time ordering. Null evaluates observations immediately.</summary>
     public EventTimeOrderingOptions? EventTimeOrdering { get; }
+    /// <summary>Final evaluation time and exact collection receipts used to confirm absent completions.</summary>
+    public EventDetectionAbsenceWindow? AbsenceWindow { get; private set; }
+
+    /// <summary>Returns detached options with explicit time-bounded absence coverage.</summary>
+    public EventDetectionEngineOptions WithAbsenceWindow(EventDetectionAbsenceWindow? window) {
+        EventDetectionEngineOptions copy = EventTimeOrdering == null
+            ? new EventDetectionEngineOptions(MaximumObservations, MaximumGroups, MaximumStateObservations, MaximumStateBytes, MaximumCandidateRules, Coverage)
+            : new EventDetectionEngineOptions(EventTimeOrdering, MaximumObservations, MaximumGroups, MaximumStateObservations, MaximumStateBytes, MaximumCandidateRules, Coverage);
+        copy.AbsenceWindow = window;
+        return copy;
+    }
     /// <summary>Creates an immutable validated detection execution contract.</summary>
     public EventDetectionEngineOptions(
         long maximumObservations = 1_000_000,

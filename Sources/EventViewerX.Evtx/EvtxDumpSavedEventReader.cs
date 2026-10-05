@@ -77,7 +77,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
 
         var startInfo = new ProcessStartInfo {
             FileName = _executablePath,
-            Arguments = $"-t 1 -o xml --no-indent --dont-show-record-number {QuoteArgument(Path.GetFullPath(path))}",
+            Arguments = $"-t 1 -o xml --no-indent {QuoteArgument(Path.GetFullPath(path))}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -145,7 +145,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     continue;
                 }
                 normalizedRecords++;
-                if (!headerCursor.TryApply(record)) {
+                if (!framer.ContainerRecordNumber.HasValue || !headerCursor.TryApply(record, framer.ContainerRecordNumber.Value)) {
                     headerMisses++;
                 }
                 if (matcher.IsMatch(record.RawXml)) {

@@ -7,6 +7,25 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
     [Fact]
+    public async Task RestoreAcceptsLegacyBackupWithoutDerivedCheckpointIndex() {
+        string path = CreateStorePath();
+        string backup = CreateStorePath();
+        string target = CreateStorePath();
+        try {
+            var source = new EventStore(path);
+            await source.WriteAsync(CreateReport((new DateTime(2026, 8, 28, 10, 0, 0, DateTimeKind.Utc), 1, "alice")));
+            await source.BackupAsync(backup);
+            var sqlite = new SQLite();
+            sqlite.ExecuteNonQuery(backup, "DROP INDEX ix_evx_checkpoint_identity; ALTER TABLE evx_checkpoints DROP COLUMN identity_key;");
+            var restored = new EventStore(target);
+            Assert.True((await restored.RestoreAsync(backup)).IsHealthy);
+            Assert.Single((await restored.ReadReportAsync(new EventStoreQuery { Oldest = true })).Rows);
+            using SQLiteSession verification = sqlite.OpenSession(target);
+            Assert.Equal(1L, Convert.ToInt64(verification.ExecuteScalar("SELECT COUNT(*) FROM pragma_table_info('evx_checkpoints') WHERE name = 'identity_key';")));
+        } finally { DeleteStore(path); DeleteStore(backup); DeleteStore(target); }
+    }
+
+    [Fact]
     public async Task IntegrityValidationRejectsMissingEmptyAndUnrelatedFilesWithoutMutatingThem() {
         string missing = CreateStorePath();
         string empty = CreateStorePath();

@@ -11,6 +11,8 @@ internal sealed class EvtxDumpXmlRecordFramer {
 
     private StringBuilder? _record;
     private readonly EvtxDumpXmlDepthTracker _depthTracker = new();
+    private long? _pendingRecordNumber;
+    internal long? ContainerRecordNumber { get; private set; }
 
     internal bool TryAdd(string line, out string? xml) =>
         TryAdd(line, out xml, out _);
@@ -28,6 +30,19 @@ internal sealed class EvtxDumpXmlRecordFramer {
         xml = null;
         recoveryError = null;
         int first = FirstNonWhitespace(line);
+        if (_depthTracker.CanResynchronizeAtDocumentBoundary && StartsWith(line, first, "Record ")) {
+            if (_record != null) {
+                recoveryError = "evtx_dump started a new record before the previous Event fragment ended.";
+                Reset();
+            }
+            if (!long.TryParse(line.Substring(first + 7).Trim(), System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out long number)) {
+                _pendingRecordNumber = null;
+                throw new InvalidDataException("evtx_dump produced an invalid container record number.");
+            }
+            _pendingRecordNumber = number;
+            return false;
+        }
         if (_depthTracker.CanResynchronizeAtDocumentBoundary &&
             TryGetXmlDeclarationEnd(line, first, out int declarationEnd)) {
             if (_record != null) {
@@ -52,6 +67,8 @@ internal sealed class EvtxDumpXmlRecordFramer {
                     $"evtx_dump produced an Event XML fragment larger than {MaximumRecordCharacters} characters.");
             }
             if (_depthTracker.Process(line)) {
+                ContainerRecordNumber = _pendingRecordNumber;
+                _pendingRecordNumber = null;
                 xml = line;
                 Reset();
                 return true;
@@ -77,6 +94,8 @@ internal sealed class EvtxDumpXmlRecordFramer {
         }
 
         xml = _record.ToString();
+        ContainerRecordNumber = _pendingRecordNumber;
+        _pendingRecordNumber = null;
         Reset();
         return true;
     }

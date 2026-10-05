@@ -71,9 +71,12 @@ public sealed partial class EventStore {
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
-        return await session.RunInTransactionAsync(
-            (transaction, token) => ReadFindingSnapshotAsync(transaction, snapshot, token),
-            cancellationToken).ConfigureAwait(false);
+        await session.ExecuteNonQueryAsync("BEGIN DEFERRED TRANSACTION;", cancellationToken: cancellationToken).ConfigureAwait(false);
+        try {
+            return await ReadFindingSnapshotAsync(session, snapshot, cancellationToken).ConfigureAwait(false);
+        } finally {
+            await session.ExecuteNonQueryAsync("ROLLBACK;").ConfigureAwait(false);
+        }
     }
 
     private static async Task<IReadOnlyList<StoredEventDetectionFinding>> ReadFindingSnapshotAsync(

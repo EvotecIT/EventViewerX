@@ -50,6 +50,9 @@ public sealed class EventDetectionRuleDefinition {
     public string? GroupBy { get; set; }
     /// <summary>Field whose unique values are counted by a distinct-value rule.</summary>
     public string? DistinctBy { get; set; }
+    /// <summary>Exact collection scope receipt required to conclude absence, including the source and query contract.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CoverageScope { get; set; }
     /// <summary>Steps required by temporal and ordered-temporal rules.</summary>
     public IReadOnlyList<EventDetectionStepDefinition> Steps { get; set; } = Array.Empty<EventDetectionStepDefinition>();
     /// <summary>ATT&amp;CK, product, platform, or operational tags.</summary>
@@ -119,7 +122,7 @@ public sealed class EventDetectionRuleDefinition {
             .Select(static (step, index) => step?.Snapshot(index) ??
                 throw new InvalidDataException($"Steps[{index}] cannot be null."))
             .ToArray();
-        if (Kind is EventDetectionRuleKind.Temporal or EventDetectionRuleKind.OrderedTemporal) {
+        if (Kind is EventDetectionRuleKind.Temporal or EventDetectionRuleKind.OrderedTemporal or EventDetectionRuleKind.Absence) {
             if (steps.Length < 2) {
                 throw new InvalidDataException("Temporal rules require at least two steps.");
             }
@@ -129,6 +132,9 @@ public sealed class EventDetectionRuleDefinition {
             }
             if (steps.Select(static step => step.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != steps.Length) {
                 throw new InvalidDataException("Temporal step names must be unique.");
+            }
+            if (Kind == EventDetectionRuleKind.Absence && (steps.Length != 2 || string.IsNullOrWhiteSpace(CoverageScope))) {
+                throw new InvalidDataException("Absence rules require exactly two steps (trigger and completion) and an exact CoverageScope identity.");
             }
         } else if (steps.Length != 0) {
             throw new InvalidDataException("Steps are supported only by temporal rules.");
@@ -162,6 +168,7 @@ public sealed class EventDetectionRuleDefinition {
             Window = Window,
             GroupBy = GroupBy,
             DistinctBy = DistinctBy,
+            CoverageScope = CoverageScope,
             Steps = Steps.Select(static (step, index) => step.Snapshot(index)).ToArray(),
             Tags = Tags.ToArray(),
             FalsePositives = FalsePositives.ToArray(),
