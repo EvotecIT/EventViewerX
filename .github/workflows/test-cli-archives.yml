@@ -91,6 +91,7 @@ jobs:
             @{ Name = 'ResolveGitChildExecutable'; Arguments = [object[]] @('git') }
             @{ Name = 'ReadGitRawText'; Arguments = [object[]] @($PWD.Path, 'rev-parse --show-toplevel') }
           )
+          $env:POWERFORGE_GIT_PATH = 'C:\Program Files\Git\bin\git.exe'
           $rootOutput = $null
           foreach ($spec in $specs) {
             try {
@@ -102,6 +103,13 @@ jobs:
             }
           }
           $environment = $type.GetMethod('CreateTrustedGitEnvironment', $flags).Invoke($null, [object[]] @($null, $null, $null))
+          foreach ($nullPath in @('NUL', '/dev/null')) {
+            $environment['GIT_CONFIG_GLOBAL'] = $nullPath
+            for ($index = 0; $index -lt [int] $environment['GIT_CONFIG_COUNT']; $index++) {
+              if ($environment["GIT_CONFIG_KEY_$index"] -in @('core.attributesFile', 'core.hooksPath')) {
+                $environment["GIT_CONFIG_VALUE_$index"] = $nullPath
+              }
+            }
           foreach ($command in @('rev-parse --show-toplevel', 'rev-parse HEAD', 'status --porcelain=v1 --untracked-files=no')) {
             $process = [Diagnostics.Process]::new()
             try {
@@ -120,10 +128,11 @@ jobs:
               $stdout = $process.StandardOutput.ReadToEndAsync()
               $stderr = $process.StandardError.ReadToEndAsync()
               if (-not $process.WaitForExit(10000)) { $process.Kill($true); throw 'Read-only Git diagnostic timed out.' }
-              [pscustomobject] @{ Command = $command; ExitCode = $process.ExitCode; Stdout = $stdout.GetAwaiter().GetResult(); Stderr = $stderr.GetAwaiter().GetResult() } | ConvertTo-Json -Compress | Write-Output
+              [pscustomobject] @{ NullPath = $nullPath; Command = $command; ExitCode = $process.ExitCode; Stdout = $stdout.GetAwaiter().GetResult(); Stderr = $stderr.GetAwaiter().GetResult() } | ConvertTo-Json -Compress | Write-Output
             } finally {
               $process.Dispose()
             }
+          }
           }
           if ([string]::IsNullOrWhiteSpace($rootOutput)) { throw 'PowerForge could not read Git source provenance; diagnostic evidence is above.' }
       - name: Build and qualify native archives
