@@ -466,6 +466,20 @@ Replacing an EVTX retires its old locale companions, including when the new
 export omits resources. Adding resources to an unchanged EVTX keeps its other
 locales. Neighboring archives keep their companion files.
 
+Provider-resource archival also needs Windows to access the installed provider
+metadata and write its companion files. If an archive attempt reports access
+denied or Windows error 267 ("The directory name is invalid"), verify that the
+export and its parent directory exist, then retry `Update-EVXLogArchive` in an
+elevated PowerShell terminal. Windows can report 267 for an unelevated archive
+attempt even when the same file archives successfully after elevation. Exporting
+the EVTX alone can succeed under that unelevated token.
+
+To distinguish a native Windows failure from EventViewerX staging, copy the
+export to a separate directory and run `wevtutil al <full-path-to-copy> /l:en-US`
+under the same token. This command adds companion resources to the copy. Compare
+the result in an elevated terminal before changing provider registration,
+directory permissions, or the Event Log service.
+
 A publication failure restores attempted replacements and retired companions.
 File replacement keeps a native recovery copy; if recovery itself fails, the
 exception identifies the retained recovery file or directory. These guarantees
