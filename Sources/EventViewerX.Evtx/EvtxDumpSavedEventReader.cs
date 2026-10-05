@@ -171,6 +171,19 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     Recovered = process.ExitCode == 0
                 });
             }
+            if (process.ExitCode != 0) {
+                throw new InvalidDataException(
+                    $"evtx_dump exited with code {process.ExitCode}. See saved-event diagnostics for parser output.");
+            }
+            if ((inputRecords > 0 || rejectedRecords > 0) && normalizedRecords == 0) {
+                throw new InvalidDataException(
+                    "evtx_dump produced records, but EventViewerX could not normalize any of them. " +
+                    "The executable output may be incompatible with this EventViewerX version.");
+            }
+        } finally {
+            // Stop the process first, even if a consumer's diagnostic callback throws.
+            if (!completed) { TryKillTree(process); }
+            // Known evidence must survive MaxEvents and explicit early disposal too.
             if (rejectedRecords > 0) {
                 diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
                     Code = "EVXEVTX304",
@@ -188,19 +201,6 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                               "Those records have no source file offset.",
                     Recovered = true
                 });
-            }
-            if (process.ExitCode != 0) {
-                throw new InvalidDataException(
-                    $"evtx_dump exited with code {process.ExitCode}. See saved-event diagnostics for parser output.");
-            }
-            if ((inputRecords > 0 || rejectedRecords > 0) && normalizedRecords == 0) {
-                throw new InvalidDataException(
-                    "evtx_dump produced records, but EventViewerX could not normalize any of them. " +
-                    "The executable output may be incompatible with this EventViewerX version.");
-            }
-        } finally {
-            if (!completed) {
-                TryKillTree(process);
             }
         }
     }

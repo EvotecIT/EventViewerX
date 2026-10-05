@@ -31,7 +31,7 @@ public static partial class EventDetectionEngine {
             }
             foreach (var pair in _absenceStates) {
                 groups.Add(new CheckpointGroup { RuleId = pair.Key.RuleId, Group = pair.Key.GroupValue,
-                    Kind = EventDetectionRuleKind.Absence, Observations = pair.Value.Select(EventObservationSnapshot.Capture).ToArray() });
+                    Kind = EventDetectionRuleKind.Absence, Observations = pair.Value.Observations.Select(EventObservationSnapshot.Capture).ToArray() });
             }
             return JsonSerializer.Serialize(new CheckpointState { Groups = groups.ToArray(), AbsenceLatestUtc = _absenceLatestUtc }, EventAnalysisJson.CreateSerializerOptions());
         }
@@ -96,7 +96,9 @@ public static partial class EventDetectionEngine {
                         _temporalStates.Add(key, temporal);
                         break;
                     case EventDetectionRuleKind.Absence:
-                        _absenceStates.Add(key, group.Observations.Select(item => Restore(item)).ToList());
+                        var absence = new AbsenceState();
+                        foreach (EventObservationSnapshot item in group.Observations) { absence.Add(Restore(item, AbsenceNodeBytes)); }
+                        _absenceStates.Add(key, absence);
                         break;
                     default: throw new InvalidDataException("Unsupported checkpoint rule state.");
                 }

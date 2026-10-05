@@ -1,0 +1,28 @@
+[
+  {
+    "suite": "absence-completion",
+    "scenario": "Expired-10000",
+    "operation": "Match",
+    "engine": "Current",
+    "host": "Core-7.6.6",
+    "os": "Windows",
+    "runMode": "standard",
+    "variables": {
+      "Count": "10000"
+    },
+    "sampleCount": 3,
+    "failureCount": 0,
+    "status": "Succeeded",
+    "medianMs": 10.1733,
+    "meanMs": 11.322666666666668,
+    "minMs": 9.5806,
+    "maxMs": 14.2141,
+    "p95Ms": 13.81002,
+    "p99Ms": 14.133284,
+    "stdDevMs": 2.5215299647898957,
+    "stdErrMs": 1.455806003941154,
+    "outlierCount": 0,
+    "failureReasons": {},
+    "metrics": {}
+  }
+]

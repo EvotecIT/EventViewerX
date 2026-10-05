@@ -53,14 +53,14 @@ public sealed class EventInvestigationSession {
                 }
                 target.Flush(true);
             }
-            EventInvestigationArtifact artifact = session.Describe(name, "input");
+            EventInvestigationArtifact artifact = session.Describe(name, "input", cancellationToken);
             artifact.OriginalName = System.IO.Path.GetFileName(input);
             artifacts.Add(artifact);
         }
         string planJson = plan.ToJson();
         if (Encoding.UTF8.GetByteCount(planJson) > 16 * 1024 * 1024) { throw new InvalidDataException("Investigation plan exceeds 16 MiB."); }
         session.WriteNew("plan.json", planJson);
-        artifacts.Add(session.Describe("plan.json", "plan"));
+        artifacts.Add(session.Describe("plan.json", "plan", cancellationToken));
         var retained = new List<EventObservation>();
         using (var stream = new FileStream(session.Resolve("observations.jsonl"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
         using (var writer = new StreamWriter(stream, new UTF8Encoding(false))) {
@@ -81,10 +81,17 @@ public sealed class EventInvestigationSession {
             writer.Flush(); stream.Flush(true);
         }
         manifest.ObservationCount = retained.Count;
-        artifacts.Add(session.Describe("observations.jsonl", "observations"));
+        artifacts.Add(session.Describe("observations.jsonl", "observations", cancellationToken));
         EventDetectionExecutionResult result = session.Evaluate(retained, plan, effectiveCoverage, cancellationToken);
-        session.WriteNew("findings.jsonl", string.Join(Environment.NewLine, result.Findings.Select(item => EventAnalysisJson.Serialize(item))));
-        artifacts.Add(session.Describe("findings.jsonl", "output"));
+        using (var stream = new FileStream(session.Resolve("findings.jsonl"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        using (var writer = new StreamWriter(stream, new UTF8Encoding(false))) {
+            foreach (EventDetectionFinding finding in result.Findings) {
+                cancellationToken.ThrowIfCancellationRequested();
+                writer.WriteLine(EventAnalysisJson.Serialize(finding));
+            }
+            writer.Flush(); stream.Flush(true);
+        }
+        artifacts.Add(session.Describe("findings.jsonl", "output", cancellationToken));
         manifest.Artifacts = artifacts.ToArray();
         // The manifest is the commit marker; failed creation never leaves a seemingly complete session.
         string manifestJson = JsonSerializer.Serialize(manifest, JsonOptions);
@@ -139,7 +146,7 @@ public sealed class EventInvestigationSession {
     public void Verify(CancellationToken cancellationToken = default) {
         foreach (EventInvestigationArtifact artifact in _manifest.Artifacts) {
             cancellationToken.ThrowIfCancellationRequested();
-            EventInvestigationArtifact actual = Describe(artifact.Path, artifact.Role);
+            EventInvestigationArtifact actual = Describe(artifact.Path, artifact.Role, cancellationToken);
             if (actual.Length != artifact.Length || !string.Equals(actual.Sha256, artifact.Sha256, StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidDataException($"Investigation artifact '{artifact.Path}' failed integrity verification.");
             }
@@ -196,11 +203,24 @@ public sealed class EventInvestigationSession {
         }
     }
 
-    private EventInvestigationArtifact Describe(string path, string role) {
+    private EventInvestigationArtifact Describe(string path, string role, CancellationToken token) {
         using var stream = new FileStream(Resolve(path), FileMode.Open, FileAccess.Read, FileShare.Read);
-        using SHA256 hash = SHA256.Create();
         return new EventInvestigationArtifact { Path = path, Role = role, Length = stream.Length,
-            Sha256 = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", string.Empty) };
+            Sha256 = BitConverter.ToString(HashArtifact(stream, token)).Replace("-", string.Empty) };
+    }
+
+    internal static byte[] HashArtifact(Stream stream, CancellationToken token) {
+        using SHA256 hash = SHA256.Create();
+        var buffer = new byte[81920];
+        while (true) {
+            token.ThrowIfCancellationRequested();
+            int count = stream.Read(buffer, 0, buffer.Length);
+            token.ThrowIfCancellationRequested();
+            if (count == 0) { break; }
+            hash.TransformBlock(buffer, 0, count, buffer, 0);
+        }
+        hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return hash.Hash!;
     }
     private void WriteNew(string path, string text) {
         using var stream = new FileStream(Resolve(path), FileMode.CreateNew, FileAccess.Write, FileShare.None);

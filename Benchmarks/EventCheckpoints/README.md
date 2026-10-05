@@ -51,3 +51,26 @@ stores, and 626.3 ms before and 46.8 ms after for reopened stores. Timing varied
 the busy host; these are local comparisons, not throughput guarantees or a ranking
 against other libraries. `indexed-lookup-before.json` and `indexed-lookup-after.json`
 retain the summaries, sample counts, allocation metrics, and timing spread.
+
+## Absence completion matching
+
+`absence-completion.benchmark.ps1` uses the same fixture project to measure 10,000
+late completions after 10,000 expired starts in one correlation group. Setup and final
+absence evaluation are outside the measured operation. Every sample verifies that all
+10,000 expired triggers remain available as evidence.
+
+```powershell
+dotnet build ./Benchmarks/EventCheckpoints/EventCheckpoints.BenchmarkFixture.csproj -c Release
+Add-Type -Path ./Benchmarks/EventCheckpoints/bin/Release/net10.0-windows/EventViewerX.CheckpointBenchmark.dll
+Import-Module PSPublishModule
+Invoke-BenchmarkSuite -Path ./Benchmarks/EventCheckpoints/absence-completion.benchmark.ps1 `
+    -OutputRoot ./Ignore/Benchmarks/AbsenceCompletion -ProcessorAffinityMask 3 -ProcessPriority BelowNormal
+```
+
+The 2026-10-05 comparison used one warmup and three measured samples on the same
+host and affinity as the indexed lookup comparison. Median matching time fell from
+914.1 ms to 10.2 ms after replacing repeated list scans and shifts with a monotonic
+completion cursor and linked pending evidence. The before samples ranged from 789.9
+to 1702.5 ms; after samples ranged from 9.6 to 14.2 ms. These local measurements isolate
+completion matching and do not predict complete investigation throughput.
+`absence-before.json` and `absence-after.json` retain the runner summaries.

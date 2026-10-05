@@ -207,6 +207,14 @@ already satisfies a changed rule. Input truncation, incomplete coverage, finding
 and evaluation failures make the preview incomplete. No rules are enabled and no alerts
 are delivered by the comparison.
 
+Declare coverage for the common historical sample, including both plans. A finite
+event-ID, channel, provider, or typed scope must cover the selectors used by both plans;
+otherwise the preview reports uncertainty even when collection succeeded for the old
+plan. An omitted coverage dimension declares no filter in that dimension. Selector checks
+are conservative and do not infer collection completeness from the events that happened
+to occur. Broader collected scopes can cover newly introduced selectors without requiring
+another collection run.
+
 ## Represent clock uncertainty
 
 Pass independently established `EventClockEvidence` to the four-argument

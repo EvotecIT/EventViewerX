@@ -67,11 +67,15 @@ public static partial class EventDetectionEngine {
         if (truncated) { diagnostics.Add("The historical observation limit was reached; comparison covers only the bounded sample."); }
         EventDetectionCoverage coverage = options?.Coverage ?? EventDetectionCoverage.Unknown();
         if (!coverage.IsComplete) { diagnostics.Add("Historical collection coverage is incomplete or undeclared."); }
+        string[] scopeGaps = PreviewCoverageGaps(previous, coverage).Concat(PreviewCoverageGaps(current, coverage))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        diagnostics.AddRange(scopeGaps);
         EventDetectionEngineOptions runOptions = options ?? new EventDetectionEngineOptions();
-        if (truncated) {
+        if (truncated || scopeGaps.Length != 0) {
+            string[] failures = scopeGaps.Concat(truncated ? new[] { "Historical impact input was truncated." } : Array.Empty<string>()).ToArray();
             runOptions = new EventDetectionEngineOptions(runOptions.MaximumObservations, runOptions.MaximumGroups,
                 runOptions.MaximumStateObservations, runOptions.MaximumStateBytes, runOptions.MaximumCandidateRules,
-                coverage.WithFailures(new[] { "Historical impact input was truncated." })).WithAbsenceWindow(runOptions.AbsenceWindow);
+                coverage.WithFailures(failures)).WithAbsenceWindow(runOptions.AbsenceWindow);
         }
         EventDetectionFinding[] Run(EventDetectionPlan plan) {
             EventDetectionFinding[] findings = StreamCore(sample, plan, runOptions, cancellationToken).Take(maximumFindings + 1).ToArray();
@@ -89,6 +93,36 @@ public static partial class EventDetectionEngine {
             .OrderBy(item => item, StringComparer.Ordinal).ToArray();
         return new EventDetectionImpactPreview(previous.PlanHash, current.PlanHash, sample.Count, before, after,
             diagnostics.Count == 0, newRequirements, diagnostics);
+    }
+
+    private static IEnumerable<string> PreviewCoverageGaps(EventDetectionPlan plan, EventDetectionCoverage coverage) {
+        var gaps = new List<string>();
+        void Check<T>(string dimension, IReadOnlyCollection<T> expected, IReadOnlyCollection<T> observed,
+            IEnumerable<T> required, IEqualityComparer<T>? comparer = null) {
+            // An omitted dimension adds no filter to the caller's explicit coverage declaration.
+            // Once a finite scope is declared, it cannot establish an unrestricted rule scope.
+            if (expected.Count == 0 && observed.Count == 0) { return; }
+            var selected = new HashSet<T>(required, comparer);
+            var collected = new HashSet<T>(observed, comparer);
+            if (selected.Count == 0 || !selected.IsSubsetOf(collected)) {
+                gaps.Add($"Historical {dimension} coverage does not establish all sources required by plan {plan.PlanHash}.");
+            }
+        }
+        foreach (EventDetectionPlan.CompiledRule rule in plan.CompiledRules) {
+            IReadOnlyList<EventSourceDefinition> typedSources = rule.IndexEventTypeNames.Count == 0
+                ? Array.Empty<EventSourceDefinition>()
+                : EventTypeCatalog.GetSources(rule.Definition.EventTypes.Concat(rule.Definition.Steps.SelectMany(step => step.EventTypes)));
+            Check("EventId", coverage.ExpectedEventIds, coverage.ObservedEventIds,
+                rule.IndexEventIds.Count != 0 ? rule.IndexEventIds : typedSources.SelectMany(source => source.EventIds));
+            Check("Channel", coverage.ExpectedChannels, coverage.ObservedChannels,
+                rule.IndexChannels.Count != 0 ? rule.IndexChannels : typedSources.Select(source => source.LogName), StringComparer.OrdinalIgnoreCase);
+            Check("Provider", coverage.ExpectedProviders, coverage.ObservedProviders,
+                rule.IndexProviders.Count != 0 ? rule.IndexProviders : typedSources.Any(source => source.ProviderNames.Count == 0)
+                    ? Array.Empty<string>() : typedSources.SelectMany(source => source.ProviderNames), StringComparer.OrdinalIgnoreCase);
+            Check("EventType", EventTypeCatalog.Expand(coverage.ExpectedEventTypes), EventTypeCatalog.Expand(coverage.ObservedEventTypes),
+                rule.IndexEventTypeNames.Select(name => (EventType)Enum.Parse(typeof(EventType), name)));
+        }
+        return gaps;
     }
 
     private static IEnumerable<string> SourceRequirements(EventDetectionPlan plan) {
