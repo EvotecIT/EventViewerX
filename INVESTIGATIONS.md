@@ -228,3 +228,8 @@ measurements widen the interval conservatively. Finding intervals include all th
 evidence; one observation without a bound leaves the finding's ordering uncertain.
 The existing raw-time display order remains deterministic and does not establish
 cross-host causality. Receive delay is never converted into a clock correction.
+
+Pass the timeline's `Entries` into the report engine or `Show-EVXEvent` to retain
+`ClockBounded`, `ClockEarliestUtc`, `ClockLatestUtc`, and `ClockProvenance` in report
+rows alongside the original three clocks. An entry without independent evidence has
+`ClockBounded = false` and empty interval endpoints.

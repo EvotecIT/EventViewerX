@@ -4,6 +4,26 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestEventDetection {
     [Fact]
+    public void TimelineReportPreservesClockBoundsAndExplicitUnknowns() {
+        EventObservation observation = EventObservation.Create(CreateEvent(1, Utc(10, 0), 1, "Tasks", "Provider"));
+        EventTimeline known = EventTimelineEngine.Create(new[] { observation }, null, null, new[] {
+            new EventClockEvidence("server01", Utc(9, 0), Utc(11, 0), TimeSpan.FromSeconds(-2), TimeSpan.FromSeconds(5), "Independent clock sample")
+        });
+        EventTimeline unknown = EventTimelineEngine.Create(new[] { observation }, null);
+        var report = EventViewerX.Reporting.EventReportEngine.Create(known.Entries.Concat(unknown.Entries).Cast<object>());
+        var rows = Assert.Single(report.Sections).Rows;
+        Assert.Equal(true, rows[0].Values["ClockBounded"]);
+        Assert.Equal(Utc(10, 0).AddSeconds(-7), rows[0].Values["ClockEarliestUtc"]);
+        Assert.Equal(Utc(10, 0).AddSeconds(3), rows[0].Values["ClockLatestUtc"]);
+        Assert.Equal("Independent clock sample", rows[0].Values["ClockProvenance"]);
+        Assert.Equal(false, rows[1].Values["ClockBounded"]);
+        Assert.Null(rows[1].Values["ClockEarliestUtc"]);
+        Assert.Equal(observation.EventTimeUtc, rows[0].Values[nameof(EventTimelineEntry.EventTimeUtc)]);
+        Assert.Equal(observation.ReceivedTimeUtc, rows[0].Values[nameof(EventTimelineEntry.ReceivedTimeUtc)]);
+        Assert.Equal(observation.ProcessedTimeUtc, rows[0].Values[nameof(EventTimelineEntry.ProcessedTimeUtc)]);
+    }
+
+    [Fact]
     public void ArtifactHashingObservesCancellationDuringTheCurrentFile() {
         using var cancellation = new CancellationTokenSource();
         using var stream = new CancellingEvidenceStream(cancellation);
