@@ -36,8 +36,11 @@ public static partial class EventDetectionEngine {
             return JsonSerializer.Serialize(new CheckpointState { Groups = groups.ToArray(), AbsenceLatestUtc = _absenceLatestUtc }, EventAnalysisJson.CreateSerializerOptions());
         }
 
-        internal void RestoreState(string json) {
+        internal void RestoreState(string json, long processedObservations) {
             if (StateGroupCount != 0 || _observations != 0) { throw new InvalidOperationException("State can only be restored into a new evaluator."); }
+            if (processedObservations < 0 || (_options.MaximumObservations > 0 && processedObservations > _options.MaximumObservations)) {
+                throw new InvalidDataException("Checkpoint exceeds the configured observation bound.");
+            }
             CheckpointState document = JsonSerializer.Deserialize<CheckpointState>(json, EventAnalysisJson.CreateSerializerOptions())
                 ?? throw new InvalidDataException("Missing correlation checkpoint state.");
             if (document.Groups == null || document.Groups.Length > _options.MaximumGroups) { throw new InvalidDataException("Checkpoint exceeds the group bound."); }
@@ -105,6 +108,7 @@ public static partial class EventDetectionEngine {
                 if (group.Kind != EventDetectionRuleKind.Absence) { TrackStateExpiry(group.ExpiresUtc); }
             }
             _absenceLatestUtc = document.AbsenceLatestUtc;
+            _observations = processedObservations;
         }
 
         private sealed class CheckpointState {

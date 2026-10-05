@@ -138,7 +138,7 @@ public sealed class EventDetectionReplaySession {
         var combinedOptions = new EventDetectionEngineOptions(options.MaximumObservations, options.MaximumGroups,
             options.MaximumStateObservations, options.MaximumStateBytes, options.MaximumCandidateRules, coverage).WithAbsenceWindow(options.AbsenceWindow);
         var session = new EventDetectionReplaySession(plan, sourceIdentity, retentionIdentity, combinedOptions, cancellationToken);
-        session._evaluator.RestoreState(document.State);
+        session._evaluator.RestoreState(document.State, document.ProcessedObservations);
         session._lastTimeUtc = document.LastEventTimeUtc; session._lastRecordId = document.LastRecordId;
         session._lastIdentity = document.LastObservationIdentity; session.ProcessedObservations = document.ProcessedObservations;
         session._finalizedThroughUtc = document.FinalizedThroughUtc;
@@ -157,7 +157,7 @@ public sealed class EventDetectionReplaySession {
         if (_completed) { throw new InvalidOperationException("Replay has been completed."); }
     }
     private static string LimitsIdentity(EventDetectionEngineOptions options) =>
-        $"{options.MaximumGroups}:{options.MaximumStateObservations}:{options.MaximumStateBytes}:{options.MaximumCandidateRules}";
+        $"{options.MaximumObservations}:{options.MaximumGroups}:{options.MaximumStateObservations}:{options.MaximumStateBytes}:{options.MaximumCandidateRules}";
     private static string Hash(string text) {
         using SHA256 hash = SHA256.Create();
         return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", string.Empty);

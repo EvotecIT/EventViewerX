@@ -126,10 +126,11 @@ public static partial class EventDetectionEngine {
     }
 
     private static IEnumerable<string> SourceRequirements(EventDetectionPlan plan) {
-        foreach (EventDetectionRuleDefinition rule in plan.Rules) {
-            foreach (string channel in rule.Channels.DefaultIfEmpty("*")) { yield return "Channel:" + channel; }
-            foreach (string provider in rule.Providers.DefaultIfEmpty("*")) { yield return "Provider:" + provider; }
-            foreach (int id in rule.EventIds) { yield return "EventId:" + id; }
+        foreach (EventDetectionPlan.CompiledRule compiled in plan.CompiledRules) {
+            EventDetectionRuleDefinition rule = compiled.Definition;
+            foreach (string channel in compiled.IndexChannels.DefaultIfEmpty("*")) { yield return "Channel:" + channel; }
+            foreach (string provider in compiled.IndexProviders.DefaultIfEmpty("*")) { yield return "Provider:" + provider; }
+            foreach (int id in compiled.IndexEventIds) { yield return "EventId:" + id; }
             // Retain selector combinations as well as individual dimensions. Moving an
             // existing provider to another channel can introduce a new collection scope.
             string Scope(EventDetectionStepDefinition? step) => "Scope:" + System.Text.Json.JsonSerializer.Serialize(new {
@@ -147,9 +148,6 @@ public static partial class EventDetectionEngine {
                 (rule.Steps.Count == 0 || rule.Steps.Any(step => step.EventIds.Count == 0 && step.EventTypes.Count == 0))) { yield return "EventId:*"; }
             foreach (EventDetectionStepDefinition step in rule.Steps) {
                 yield return Scope(step);
-                foreach (string channel in step.Channels) { yield return "Channel:" + channel; }
-                foreach (string provider in step.Providers) { yield return "Provider:" + provider; }
-                foreach (int id in step.EventIds) { yield return "EventId:" + id; }
             }
         }
         foreach (EventType type in plan.RequiredEventTypes) { yield return "EventType:" + type; }
