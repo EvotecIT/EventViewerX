@@ -77,7 +77,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
 
         var startInfo = new ProcessStartInfo {
             FileName = _executablePath,
-            Arguments = $"-t 1 -o xml --no-indent --dont-show-record-number {QuoteArgument(Path.GetFullPath(path))}",
+            Arguments = $"-t 1 -o xml --no-indent {QuoteArgument(Path.GetFullPath(path))}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -145,7 +145,7 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     continue;
                 }
                 normalizedRecords++;
-                if (!headerCursor.TryApply(record)) {
+                if (!framer.ContainerRecordNumber.HasValue || !headerCursor.TryApply(record, framer.ContainerRecordNumber.Value)) {
                     headerMisses++;
                 }
                 if (matcher.IsMatch(record.RawXml)) {
@@ -171,6 +171,19 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                     Recovered = process.ExitCode == 0
                 });
             }
+            if (process.ExitCode != 0) {
+                throw new InvalidDataException(
+                    $"evtx_dump exited with code {process.ExitCode}. See saved-event diagnostics for parser output.");
+            }
+            if ((inputRecords > 0 || rejectedRecords > 0) && normalizedRecords == 0) {
+                throw new InvalidDataException(
+                    "evtx_dump produced records, but EventViewerX could not normalize any of them. " +
+                    "The executable output may be incompatible with this EventViewerX version.");
+            }
+        } finally {
+            // Stop the process first, even if a consumer's diagnostic callback throws.
+            if (!completed) { TryKillTree(process); }
+            // Known evidence must survive MaxEvents and explicit early disposal too.
             if (rejectedRecords > 0) {
                 diagnosticHandler?.Invoke(new SavedEventReadDiagnostic {
                     Code = "EVXEVTX304",
@@ -188,19 +201,6 @@ public sealed class EvtxDumpSavedEventReader : ISavedEventReader {
                               "Those records have no source file offset.",
                     Recovered = true
                 });
-            }
-            if (process.ExitCode != 0) {
-                throw new InvalidDataException(
-                    $"evtx_dump exited with code {process.ExitCode}. See saved-event diagnostics for parser output.");
-            }
-            if ((inputRecords > 0 || rejectedRecords > 0) && normalizedRecords == 0) {
-                throw new InvalidDataException(
-                    "evtx_dump produced records, but EventViewerX could not normalize any of them. " +
-                    "The executable output may be incompatible with this EventViewerX version.");
-            }
-        } finally {
-            if (!completed) {
-                TryKillTree(process);
             }
         }
     }

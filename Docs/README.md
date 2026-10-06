@@ -20,10 +20,16 @@ Clears Windows Event Log channels through the native engine.
 
 Supports local or remote channels, explicit credentials, and an optional native EVTX backup. Failures are terminating and retain their Windows error code.
 
+### [Compare-EVXDetectionPack](Compare-EVXDetectionPack.md)
+Compares detection pack content or previews changes against bounded historical observations.
+
 ### [Export-EVXEvent](Export-EVXEvent.md)
 Streams Windows events directly to CSV, JSON Lines, XML, or native EVTX.
 
 Uses the EventViewerX native engine and writes directly to the destination without materializing PowerShell objects. Completed output is promoted atomically, so cancellation or failure does not replace an existing file.
+
+### [Export-EVXInvestigation](Export-EVXInvestigation.md)
+Captures a reproducible investigation with copied input evidence, canonical observations, effective rules, and verified outputs.
 
 ### [Get-EVXAnalysisContract](Get-EVXAnalysisContract.md)
 Gets versioned EventViewerX analysis JSON contracts.
@@ -107,6 +113,9 @@ Compiles one immutable indexed plan, projects each raw event once, and emits exp
 
 Storage is optional. Pipe events directly from Get-EVXEvent, supply detached EventObject instances, or use FromStore to rebuild stateful correlation across process restarts.
 
+### [Invoke-EVXInvestigation](Invoke-EVXInvestigation.md)
+Replays a verified investigation without rewriting its original evidence or generated outputs.
+
 ### [Invoke-EVXStoreRetention](Invoke-EVXStoreRetention.md)
 Applies explicit EventViewerX event and finding retention.
 
@@ -145,6 +154,9 @@ No Windows SDK, Visual Studio, native compiler, generated source, or external bu
 Registers a classic Windows Event Log source explicitly.
 
 Creates only the requested source registration and supports provider message, parameter, and category resource files. The command reports whether it created anything.
+
+### [Open-EVXInvestigation](Open-EVXInvestigation.md)
+Opens an investigation after verifying every retained input and output artifact.
 
 ### [Remove-EVXLog](Remove-EVXLog.md)
 Removes an event log from the system.

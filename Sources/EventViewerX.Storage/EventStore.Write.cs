@@ -174,6 +174,7 @@ public sealed partial class EventStore {
                         ["$consumer"] = storedCheckpoint.Consumer,
                         ["$computer"] = storedCheckpoint.Computer,
                         ["$container"] = storedCheckpoint.Container,
+                        ["$identityKey"] = CreateCheckpointIdentityKey(storedCheckpoint.Consumer, storedCheckpoint.Computer, storedCheckpoint.Container),
                         ["$recordId"] = storedCheckpoint.RecordId,
                         ["$bookmark"] = storedCheckpoint.BookmarkXml,
                         ["$updated"] = updatedAt
@@ -205,29 +206,13 @@ public sealed partial class EventStore {
         await using SQLiteAsyncSession session = await sqlite
             .OpenSessionAsync(Path, cancellationToken)
             .ConfigureAwait(false);
-        IReadOnlyList<EventStoreCheckpoint?> rows = await session.QueryAsListAsync(
-            @"SELECT consumer, computer, container, record_id, bookmark_xml, updated_utc
-              FROM evx_checkpoints;",
-            record => !string.Equals(record.GetString(0), normalizedConsumer, StringComparison.OrdinalIgnoreCase) ||
-                      !string.Equals(record.GetString(1), normalizedComputer, StringComparison.OrdinalIgnoreCase) ||
-                      !string.Equals(record.GetString(2), normalizedContainer, StringComparison.OrdinalIgnoreCase)
-                ? null
-                : new EventStoreCheckpoint {
-                Consumer = record.GetString(0),
-                Computer = record.GetString(1),
-                Container = record.GetString(2),
-                RecordId = record.IsDBNull(3) ? null : record.GetInt64(3),
-                BookmarkXml = record.IsDBNull(4) ? null : record.GetString(4),
-                UpdatedAtUtc = DateTime.Parse(
-                    record.GetString(5),
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.RoundtripKind)
-            },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        return rows
-            .OfType<EventStoreCheckpoint>()
-            .OrderByDescending(static row => row.UpdatedAtUtc)
-            .FirstOrDefault();
+        StoredCheckpointRow[] rows = await FindCheckpointRowsAsync(session, normalizedConsumer,
+            normalizedComputer, normalizedContainer, cancellationToken).ConfigureAwait(false);
+        StoredCheckpointRow? row = rows.OrderByDescending(item => ParseUtc(item.UpdatedUtc)).FirstOrDefault();
+        return row == null ? null : new EventStoreCheckpoint {
+            Consumer = row.Consumer, Computer = row.Computer, Container = row.Container,
+            RecordId = row.RecordId, BookmarkXml = row.BookmarkXml, UpdatedAtUtc = ParseUtc(row.UpdatedUtc)
+        };
     }
 
     private static Dictionary<string, object?> CreateEventParameters(
@@ -460,12 +445,13 @@ SELECT
 
     private const string UpsertCheckpointSql = @"
 INSERT INTO evx_checkpoints
-    (consumer, computer, container, record_id, bookmark_xml, updated_utc)
-VALUES ($consumer, $computer, $container, $recordId, $bookmark, $updated)
+    (consumer, computer, container, record_id, bookmark_xml, updated_utc, identity_key)
+VALUES ($consumer, $computer, $container, $recordId, $bookmark, $updated, $identityKey)
 ON CONFLICT(consumer, computer, container) DO UPDATE SET
     record_id = excluded.record_id,
     bookmark_xml = excluded.bookmark_xml,
-    updated_utc = excluded.updated_utc;";
+    updated_utc = excluded.updated_utc,
+    identity_key = excluded.identity_key;";
 
     private sealed class StoredIdentityCandidate {
         internal StoredIdentityCandidate(

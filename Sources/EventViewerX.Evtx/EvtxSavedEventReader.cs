@@ -43,9 +43,6 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
             foreach (SavedEventRecord record in forward) {
                 yield return record;
             }
-            if (!literalBinXml) {
-                ReportParserErrors(eventLog, diagnosticHandler);
-            }
             yield break;
         }
 
@@ -64,9 +61,6 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
                      query.MaxEvents,
                      cancellationToken)) {
             yield return record;
-        }
-        if (!literalBinXml) {
-            ReportParserErrors(eventLog, diagnosticHandler);
         }
     }
 
@@ -97,6 +91,22 @@ public sealed class EvtxSavedEventReader : ISavedEventReader {
         Action<SavedEventReadDiagnostic>? diagnosticHandler,
         CancellationToken cancellationToken) {
 
+        try {
+            foreach (SavedEventRecord record in ReadForwardRecords(eventLog, matcher, diagnosticHandler, cancellationToken)) {
+                yield return record;
+            }
+        } finally {
+            // The consumer can stop at MaxEvents or dispose early. Known parser failures
+            // must survive both paths, and precede the emission of newest-first buffers.
+            ReportParserErrors(eventLog, diagnosticHandler);
+        }
+    }
+
+    private static IEnumerable<SavedEventRecord> ReadForwardRecords(
+        ThirdPartyEventLog eventLog,
+        EvtxXPathMatcher matcher,
+        Action<SavedEventReadDiagnostic>? diagnosticHandler,
+        CancellationToken cancellationToken) {
         var renderer = new EvtxTemplateXmlRenderer();
         foreach (ThirdPartyEventRecord source in eventLog.GetEventRecords()) {
             cancellationToken.ThrowIfCancellationRequested();

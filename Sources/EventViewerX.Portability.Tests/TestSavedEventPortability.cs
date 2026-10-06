@@ -460,7 +460,7 @@ public sealed class TestSavedEventPortability {
         };
 
         using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
-        bool matched = cursor.TryApply(actual);
+        bool matched = cursor.TryApply(actual, recordId);
 
         Assert.True(matched);
         Assert.Equal(timestampUtc.AddTicks(-1), actual.TimeCreatedUtc);
@@ -485,7 +485,7 @@ public sealed class TestSavedEventPortability {
             var actual = new SavedEventRecord { RecordId = recordId };
 
             using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
-            bool matched = cursor.TryApply(actual);
+            bool matched = cursor.TryApply(actual, recordId);
 
             Assert.True(matched);
             Assert.Equal(4096 + 512, actual.FileOffset);
@@ -520,8 +520,8 @@ public sealed class TestSavedEventPortability {
 
             using var cursor = new EvtxRecordHeaderCursor(path, CancellationToken.None);
 
-            Assert.False(cursor.TryApply(damagedRecord));
-            Assert.True(cursor.TryApply(recoveredRecord));
+            Assert.False(cursor.TryApply(damagedRecord, firstRecordId));
+            Assert.True(cursor.TryApply(recoveredRecord, secondRecordId));
             Assert.Equal(firstRecordOffset + firstRecordSize, recoveredRecord.FileOffset);
         } finally {
             File.Delete(path);

@@ -54,4 +54,13 @@ public sealed class EventTimelineEntry {
     public IReadOnlyList<string> EvidenceIdentities { get; }
     /// <summary>Canonical hunting pivots.</summary>
     public IReadOnlyList<EventPivot> Pivots { get; }
+
+    /// <summary>Possible UTC interval based on supplied clock evidence; null means clock uncertainty is unknown.</summary>
+    public EventClockInterval? ClockInterval { get; internal set; }
+
+    /// <summary>Returns only an ordering supported by non-overlapping clock bounds.</summary>
+    public EventClockOrder CompareClockOrder(EventTimelineEntry other) {
+        if (other == null) { throw new ArgumentNullException(nameof(other)); }
+        return ClockInterval?.CompareTo(other.ClockInterval) ?? EventClockOrder.Ambiguous;
+    }
 }

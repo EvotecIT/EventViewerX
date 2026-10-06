@@ -11,5 +11,7 @@ public enum EventDetectionRuleKind {
     /// <summary>All configured steps must occur within a window, in any order.</summary>
     Temporal,
     /// <summary>All configured steps must occur within a window in declared order.</summary>
-    OrderedTemporal
+    OrderedTemporal,
+    /// <summary>A trigger has no corresponding completion before its deadline, confirmed only against complete collection coverage.</summary>
+    Absence
 }

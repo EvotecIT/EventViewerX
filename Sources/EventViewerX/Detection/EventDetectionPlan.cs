@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace EventViewerX;
 
 /// <summary>Immutable indexed detection plan compiled from native or imported rule definitions.</summary>
-public sealed class EventDetectionPlan {
+public sealed partial class EventDetectionPlan {
     private readonly Dictionary<int, CompiledRule[]> _byEventId;
     private readonly Dictionary<string, CompiledRule[]> _byType;
     private readonly Dictionary<string, CompiledRule[]> _byChannel;
@@ -248,7 +248,7 @@ public sealed class EventDetectionPlan {
             Providers = new HashSet<string>(definition.Providers, StringComparer.OrdinalIgnoreCase);
             _predicate = definition.Predicate == null
                 ? null
-                : EventPredicateEvaluator.CompileFields(definition.Predicate);
+                : EventPredicateEvaluator.CompileAnalysisFields(definition.Predicate);
             SuppressionDefinitions = suppressions.Select(static suppression => new EventDetectionSuppression(
                 suppression.RuleId,
                 suppression.Predicate,
@@ -373,7 +373,7 @@ public sealed class EventDetectionPlan {
             Providers = new HashSet<string>(definition.Providers, StringComparer.OrdinalIgnoreCase);
             _predicate = definition.Predicate == null
                 ? null
-                : EventPredicateEvaluator.CompileFields(definition.Predicate);
+                : EventPredicateEvaluator.CompileAnalysisFields(definition.Predicate);
         }
 
         internal EventDetectionStepDefinition Definition { get; }
@@ -398,7 +398,7 @@ public sealed class EventDetectionPlan {
             StartTimeUtc = suppression.StartTimeUtc?.ToUniversalTime();
             EndTimeUtc = suppression.EndTimeUtc?.ToUniversalTime();
             Reason = suppression.Reason?.Trim() ?? string.Empty;
-            _predicate = EventPredicateEvaluator.CompileFields(suppression.Predicate);
+            _predicate = EventPredicateEvaluator.CompileAnalysisFields(suppression.Predicate);
         }
 
         internal string RuleId { get; }

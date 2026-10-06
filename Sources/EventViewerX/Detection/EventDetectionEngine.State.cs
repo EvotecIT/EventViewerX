@@ -3,7 +3,7 @@ using System.Globalization;
 namespace EventViewerX;
 
 public static partial class EventDetectionEngine {
-    private sealed partial class Evaluator {
+    internal sealed partial class Evaluator {
         private void EvictExpiredStates(DateTime current) {
             if (current <= _nextStateExpiryUtc) {
                 return;
@@ -260,6 +260,7 @@ public static partial class EventDetectionEngine {
             EventObservation observation,
             Exception exception) {
 
+            _evaluationIncomplete = true;
             EventDetectionRuleDefinition definition = rule.Definition;
             return new EventDetectionFinding(
                 definition.RuleId,
@@ -283,7 +284,7 @@ public static partial class EventDetectionEngine {
                 definition.References,
                 new Dictionary<string, string>(),
                 _options.Coverage!,
-                $"Detection evaluation failed: {exception.Message}",
+                $"Detection evaluation failed; this rule is disabled for the remainder of this execution: {exception.Message}",
                 exception.GetType().FullName);
         }
 
@@ -291,6 +292,7 @@ public static partial class EventDetectionEngine {
             EventObservation observation,
             string diagnostic) {
 
+            _evaluationIncomplete = true;
             return new EventDetectionFinding(
                 "EVX-ENGINE-BOUNDS",
                 "1.0.0",
@@ -372,13 +374,13 @@ public static partial class EventDetectionEngine {
             if (options.MaximumCandidateRules <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(options.MaximumCandidateRules));
             }
-            return options.EventTimeOrdering == null
+            return (options.EventTimeOrdering == null
                 ? new EventDetectionEngineOptions(options.MaximumObservations, options.MaximumGroups,
                     options.MaximumStateObservations, options.MaximumStateBytes, options.MaximumCandidateRules,
                     options.Coverage ?? EventDetectionCoverage.Unknown())
                 : new EventDetectionEngineOptions(options.EventTimeOrdering, options.MaximumObservations,
                     options.MaximumGroups, options.MaximumStateObservations, options.MaximumStateBytes,
-                    options.MaximumCandidateRules, options.Coverage ?? EventDetectionCoverage.Unknown());
+                    options.MaximumCandidateRules, options.Coverage ?? EventDetectionCoverage.Unknown())).WithAbsenceWindow(options.AbsenceWindow);
         }
 
         private readonly struct StateKey : IEquatable<StateKey> {
@@ -387,8 +389,8 @@ public static partial class EventDetectionEngine {
                 GroupValue = groupValue;
             }
 
-            private string RuleId { get; }
-            private string GroupValue { get; }
+            internal string RuleId { get; }
+            internal string GroupValue { get; }
 
             public bool Equals(StateKey other) =>
                 string.Equals(RuleId, other.RuleId, StringComparison.OrdinalIgnoreCase) &&

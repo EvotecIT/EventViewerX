@@ -31,8 +31,46 @@ afterward. The smaller samples and reopened cases show timing variance on the
 busy host, so these are comparison observations rather than throughput targets.
 `lookup-before.json` and `lookup-after.json` retain the samples and summaries.
 
-Lookup still scans the checkpoint table to preserve .NET `OrdinalIgnoreCase`
-semantics. SQLite's built-in `NOCASE` comparison is insufficient for these
-Unicode identities. This improvement avoids constructing unrelated checkpoint
-objects and parsing their timestamps; it does not claim indexed lookup or
-change identity, bookmark, newest-value, or compare-and-swap behavior.
+## Indexed identity lookup
+
+Checkpoint identities now use a versioned derived SHA-256 key and a SQLite index.
+Managed `OrdinalIgnoreCase` verification remains authoritative. Legacy rows are
+coalesced and indexed during initialization; uncached legacy identities and misses
+retain a compatibility fallback. Ordinary successful lookups avoid reading the whole
+checkpoint table. Older backups are accepted and receive the derived index when opened.
+
+The 2026-10-05 comparison used the same host, logical-processor affinity mask 3,
+BelowNormal priority, one warmup, three measured samples, and rotated retained/reopened
+order. Population and initial migration are outside the measured operation. At 10,000
+checkpoints, ten retained-store reads allocated 12,320,400 bytes before indexing and
+123,680 bytes afterward. Reopened reads allocated about 62,921,325 bytes before and
+693,120 bytes afterward. All samples validated the expected record IDs.
+
+The ten-read operation medians were 304.3 ms before and 25.5 ms after for retained
+stores, and 626.3 ms before and 46.8 ms after for reopened stores. Timing varied on
+the busy host; these are local comparisons, not throughput guarantees or a ranking
+against other libraries. `indexed-lookup-before.json` and `indexed-lookup-after.json`
+retain the summaries, sample counts, allocation metrics, and timing spread.
+
+## Absence completion matching
+
+`absence-completion.benchmark.ps1` uses the same fixture project to measure 10,000
+late completions after 10,000 expired starts in one correlation group. Setup and final
+absence evaluation are outside the measured operation. Every sample verifies that all
+10,000 expired triggers remain available as evidence.
+
+```powershell
+dotnet build ./Benchmarks/EventCheckpoints/EventCheckpoints.BenchmarkFixture.csproj -c Release
+Add-Type -Path ./Benchmarks/EventCheckpoints/bin/Release/net10.0-windows/EventViewerX.CheckpointBenchmark.dll
+Import-Module PSPublishModule
+Invoke-BenchmarkSuite -Path ./Benchmarks/EventCheckpoints/absence-completion.benchmark.ps1 `
+    -OutputRoot ./Ignore/Benchmarks/AbsenceCompletion -ProcessorAffinityMask 3 -ProcessPriority BelowNormal
+```
+
+The 2026-10-05 comparison used one warmup and three measured samples on the same
+host and affinity as the indexed lookup comparison. Median matching time fell from
+914.1 ms to 10.2 ms after replacing repeated list scans and shifts with a monotonic
+completion cursor and linked pending evidence. The before samples ranged from 789.9
+to 1702.5 ms; after samples ranged from 9.6 to 14.2 ms. These local measurements isolate
+completion matching and do not predict complete investigation throughput.
+`absence-before.json` and `absence-after.json` retain the runner summaries.

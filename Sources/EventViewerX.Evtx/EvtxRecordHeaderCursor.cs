@@ -17,11 +17,11 @@ internal sealed class EvtxRecordHeaderCursor : IDisposable {
         _headers = Read(path, cancellationToken).GetEnumerator();
     }
 
-    internal bool TryApply(SavedEventRecord record) {
-        if (_completed || !record.RecordId.HasValue) {
+    internal bool TryApply(SavedEventRecord record, long containerRecordNumber) {
+        if (_completed) {
             return false;
         }
-        long targetRecordNumber = record.RecordId.Value;
+        long targetRecordNumber = containerRecordNumber;
         while (TryMoveNext(out EvtxRecordHeader header)) {
             if (header.RecordNumber < targetRecordNumber) {
                 continue;

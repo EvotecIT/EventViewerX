@@ -15,7 +15,7 @@ Storage is optional. Pipe events directly from Get-EVXEvent, supply detached Eve
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Invoke-EVXDetection [-InputObject <Object>] [-FromStore <string>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-Rule <IEventDetectionRule[]>] [-Pack <EventDetectionPack[]>] [-IncludeBuiltIn] [-Tuning <EventDetectionTuning>] [-Coverage <EventDetectionCoverage>] [-Explain] [-Trace] [-ReportKind <EventDecisionReportKind>] [-MaximumObservations <long>] [-MaximumCandidates <long>] [-MaximumGroups <int>] [-MaximumStateObservations <int>] [-MaximumStateBytes <long>] [<CommonParameters>]
+Invoke-EVXDetection [-InputObject <Object>] [-FromStore <string>] [-StartTime <DateTime>] [-EndTime <DateTime>] [-Rule <IEventDetectionRule[]>] [-Pack <EventDetectionPack[]>] [-IncludeBuiltIn] [-Tuning <EventDetectionTuning>] [-Coverage <EventDetectionCoverage>] [-Explain] [-Trace] [-ReportKind <EventDecisionReportKind>] [-MaximumObservations <long>] [-MaximumCandidates <long>] [-MaximumGroups <int>] [-MaximumStateObservations <int>] [-MaximumStateBytes <long>] [-Stream] [-CheckpointIn <string>] [-CheckpointOut <string>] [-SourceIdentity <string>] [-RetentionIdentity <string>] [-AbsenceWindow <EventDetectionAbsenceWindow>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -56,6 +56,54 @@ Invoke-EVXDetection -Explain
 Returns selectors, state requirements, and required typed projections without processing events.
 
 ## PARAMETERS
+
+### -AbsenceWindow
+Explicit as-of time and complete source-window receipts for absence rules.
+
+```yaml
+Type: EventDetectionAbsenceWindow
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -CheckpointIn
+Optional checkpoint to resume. Requires Stream, SourceIdentity, and RetentionIdentity.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -CheckpointOut
+New checkpoint file written after successful streaming input and due AbsenceWindow decisions. Later triggers remain pending. Existing files are never replaced.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -Coverage
 Expected and successfully collected source scope attached to every finding.
@@ -265,6 +313,22 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -RetentionIdentity
+Source generation that changes after retention, replacement, or historical correction.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -Rule
 Explicit native rules. When omitted, the built-in packs are used.
 
@@ -281,11 +345,43 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -SourceIdentity
+Stable identity of the exact ordered source and query contract.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -StartTime
 UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.
 
 ```yaml
 Type: DateTime
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Stream
+Evaluates ordered pipeline input incrementally without retaining and sorting the whole investigation. Do not combine with FromStore, Trace, Explain, or ReportKind.
+
+```yaml
+Type: SwitchParameter
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

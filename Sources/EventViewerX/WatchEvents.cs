@@ -248,6 +248,17 @@ namespace EventViewerX {
             EventLogSubscription[] startupFailedSubscriptions =
                 Array.Empty<EventLogSubscription>();
             ExceptionDispatchInfo? startFailure = null;
+            var startupFailures = new List<Action>();
+            bool initializing = true;
+            void DispatchFailure(EventLogSubscriptionLifetime lifetime, int index, EventLogSubscriptionFailure failure) {
+                lock (startupFailures) {
+                    if (initializing) {
+                        startupFailures.Add(() => DetectFailure(lifetime, index, failure));
+                        return;
+                    }
+                }
+                DetectFailure(lifetime, index, failure);
+            }
             lock (_lifecycleSync) {
                 if (_lifecycleVersion != lifecycleVersion) {
                     startFailure = ExceptionDispatchInfo.Capture(
@@ -283,7 +294,7 @@ namespace EventViewerX {
                             _subscriptions.Add(new EventLogSubscription(
                                 query,
                                 DetectEvent,
-                                failure => DetectFailure(
+                                failure => DispatchFailure(
                                     subscriptionLifetime,
                                     subscriptionIndex,
                                     failure),
@@ -297,6 +308,17 @@ namespace EventViewerX {
                                 exception);
                     }
                 }
+            }
+            Action[] pendingFailures;
+            lock (startupFailures) {
+                initializing = false;
+                pendingFailures = startupFailures.ToArray();
+                startupFailures.Clear();
+            }
+            // Initial native diagnostics run on another thread. Do not let their callbacks
+            // wait for the lifecycle lock held by subscription construction.
+            foreach (Action pendingFailure in pendingFailures) {
+                pendingFailure();
             }
             DisposeSubscriptions(startupFailedSubscriptions);
             startFailure?.Throw();

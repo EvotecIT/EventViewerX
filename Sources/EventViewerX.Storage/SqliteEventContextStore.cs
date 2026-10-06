@@ -201,35 +201,41 @@ public sealed class SqliteEventContextStore : IEventContextStore {
                 request.AuthorizationContext))
             .Select(static group => group.First())
             .ToArray();
-        Dictionary<string, EventContextFact> facts = await session.RunInTransactionAsync(
-            async (transaction, token) => {
-                var snapshot = new Dictionary<string, EventContextFact>(StringComparer.Ordinal);
-                for (int offset = 0; offset < distinctRequests.Length; offset += BatchQuerySize) {
-                    EventContextQuery[] batch = distinctRequests
-                        .Skip(offset)
-                        .Take(BatchQuerySize)
-                        .ToArray();
-                    var parameters = new Dictionary<string, object?>();
-                    string values = string.Join(",", Enumerable.Range(0, batch.Length).Select(index => {
-                        parameters["$objectKind" + index] = (int)batch[index].ObjectKind;
-                        parameters["$canonicalId" + index] = batch[index].CanonicalId;
-                        parameters["$alias" + index] = batch[index].Alias;
-                        parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
-                        return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
-                    }));
-                    IReadOnlyList<StoredFactRow> loaded = await transaction.QueryAsListAsync(
-                        SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
-                        MapStoredFact,
-                        parameters,
-                        cancellationToken: token).ConfigureAwait(false);
-                    foreach (KeyValuePair<string, EventContextFact> fact in MaterializeFacts(loaded)) {
-                        snapshot[fact.Key] = fact.Value;
-                    }
-                }
-                return snapshot;
-            },
-            cancellationToken).ConfigureAwait(false);
+        Dictionary<string, EventContextFact> facts;
+        await session.ExecuteNonQueryAsync("BEGIN DEFERRED TRANSACTION;", cancellationToken: cancellationToken).ConfigureAwait(false);
+        try {
+            facts = await ReadFactsAsync().ConfigureAwait(false);
+        } finally {
+            await session.ExecuteNonQueryAsync("ROLLBACK;").ConfigureAwait(false);
+        }
         return EventContextResolver.ResolveMany(facts.Values, requests);
+
+        async Task<Dictionary<string, EventContextFact>> ReadFactsAsync() {
+            var snapshot = new Dictionary<string, EventContextFact>(StringComparer.Ordinal);
+            for (int offset = 0; offset < distinctRequests.Length; offset += BatchQuerySize) {
+                EventContextQuery[] batch = distinctRequests
+                    .Skip(offset)
+                    .Take(BatchQuerySize)
+                    .ToArray();
+                var parameters = new Dictionary<string, object?>();
+                string values = string.Join(",", Enumerable.Range(0, batch.Length).Select(index => {
+                    parameters["$objectKind" + index] = (int)batch[index].ObjectKind;
+                    parameters["$canonicalId" + index] = batch[index].CanonicalId;
+                    parameters["$alias" + index] = batch[index].Alias;
+                    parameters["$authorizationContext" + index] = batch[index].AuthorizationContext;
+                    return $"($objectKind{index},$canonicalId{index},$alias{index},$authorizationContext{index})";
+                }));
+                IReadOnlyList<StoredFactRow> loaded = await session.QueryAsListAsync(
+                    SelectFactsBatchPrefix + values + SelectFactsBatchSuffix,
+                    MapStoredFact,
+                    parameters,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                foreach (KeyValuePair<string, EventContextFact> fact in MaterializeFacts(loaded)) {
+                    snapshot[fact.Key] = fact.Value;
+                }
+            }
+            return snapshot;
+        }
     }
 
     private void EnsureInitialized() {

@@ -1,7 +1,7 @@
 namespace EventViewerX;
 
 public static partial class EventDetectionEngine {
-    private sealed partial class Evaluator {
+    internal sealed partial class Evaluator {
         private void ProcessDistinct(EventDetectionPlan.CompiledRule rule,
             EventObservation observation, ICollection<EventDetectionFinding> findings) {
 

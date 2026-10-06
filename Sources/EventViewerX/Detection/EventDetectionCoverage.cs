@@ -205,6 +205,25 @@ public sealed class EventDetectionCoverage {
         Normalize(Failures.Concat(failures ?? Array.Empty<string>())),
         IsDeclared);
 
+    // Observing a missing source in a later batch does not repair a gap in an earlier one.
+    internal EventDetectionCoverage Accumulate(EventDetectionCoverage continuation) => new(
+        Normalize(ExpectedTargets.Concat(continuation.ExpectedTargets)), Normalize(ObservedTargets.Concat(continuation.ObservedTargets)),
+        Normalize(ExpectedChannels.Concat(continuation.ExpectedChannels)), Normalize(ObservedChannels.Concat(continuation.ObservedChannels)),
+        Normalize(ExpectedProviders.Concat(continuation.ExpectedProviders)), Normalize(ObservedProviders.Concat(continuation.ObservedProviders)),
+        NormalizeEventIds(ExpectedEventIds.Concat(continuation.ExpectedEventIds)), NormalizeEventIds(ObservedEventIds.Concat(continuation.ObservedEventIds)),
+        ExpectedEventTypes.Concat(continuation.ExpectedEventTypes).Distinct().ToArray(),
+        ObservedEventTypes.Concat(continuation.ObservedEventTypes).Distinct().ToArray(),
+        Normalize(Failures.Concat(continuation.Failures).Concat(MissingScopeDiagnostics()).Concat(continuation.MissingScopeDiagnostics())),
+        IsDeclared && continuation.IsDeclared);
+
+    private IEnumerable<string> MissingScopeDiagnostics() {
+        foreach (string target in MissingTargets) { yield return "A replay input batch did not cover target: " + target; }
+        foreach (string channel in MissingChannels) { yield return "A replay input batch did not cover channel: " + channel; }
+        foreach (string provider in MissingProviders) { yield return "A replay input batch did not cover provider: " + provider; }
+        foreach (int id in MissingEventIds) { yield return "A replay input batch did not cover event ID: " + id; }
+        foreach (EventType type in MissingEventTypes) { yield return "A replay input batch did not cover event type: " + type; }
+    }
+
     private static string[] Normalize(IEnumerable<string>? values) =>
         (values ?? Array.Empty<string>())
             .Where(static value => !string.IsNullOrWhiteSpace(value))

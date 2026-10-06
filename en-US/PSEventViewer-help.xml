@@ -332,6 +332,228 @@
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Compare-EVXDetectionPack</command:name>
+      <command:verb>Compare</command:verb>
+      <command:noun>EVXDetectionPack</command:noun>
+      <maml:description>
+        <maml:para>Compares detection pack content or previews changes against bounded historical observations.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Compares detection pack content or previews changes against bounded historical observations.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Compare-EVXDetectionPack</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Current</maml:name>
+          <maml:description>
+            <maml:para>Proposed version of the pack.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">EventDetectionPack</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionPack</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Historical</maml:name>
+          <maml:description>
+            <maml:para>Evaluates both versions against the same historical sample instead of comparing definitions only.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+          <maml:name>InputObject</maml:name>
+          <maml:description>
+            <maml:para>Canonical historical observation to compare.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventObservation</command:parameterValue>
+          <dev:type>
+            <maml:name>EventObservation</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumFindings</maml:name>
+          <maml:description>
+            <maml:para>Maximum findings retained from each plan.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>MaximumObservations</maml:name>
+          <maml:description>
+            <maml:para>Maximum historical observations retained for comparison.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Options</maml:name>
+          <maml:description>
+            <maml:para>Coverage and evaluator bounds shared by both versions.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionEngineOptions</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionEngineOptions</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Previous</maml:name>
+          <maml:description>
+            <maml:para>Original version of the pack.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">EventDetectionPack</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionPack</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Current</maml:name>
+        <maml:description>
+          <maml:para>Proposed version of the pack.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">EventDetectionPack</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionPack</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Historical</maml:name>
+        <maml:description>
+          <maml:para>Evaluates both versions against the same historical sample instead of comparing definitions only.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+        <maml:name>InputObject</maml:name>
+        <maml:description>
+          <maml:para>Canonical historical observation to compare.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventObservation</command:parameterValue>
+        <dev:type>
+          <maml:name>EventObservation</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumFindings</maml:name>
+        <maml:description>
+          <maml:para>Maximum findings retained from each plan.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>MaximumObservations</maml:name>
+        <maml:description>
+          <maml:para>Maximum historical observations retained for comparison.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Options</maml:name>
+        <maml:description>
+          <maml:para>Coverage and evaluator bounds shared by both versions.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionEngineOptions</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionEngineOptions</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Previous</maml:name>
+        <maml:description>
+          <maml:para>Original version of the pack.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">EventDetectionPack</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionPack</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>EventViewerX.EventObservation</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionPackComparison</maml:name>
+        </dev:type>
+      </command:returnValue>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionImpactPreview</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>EXAMPLE 1</maml:title>
+        <dev:code>Compare-EVXDetectionPack -Previous 'Value' -Current 'Value'</dev:code>
+        <dev:remarks>
+          <maml:para></maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Export-EVXEvent</command:name>
       <command:verb>Export</command:verb>
       <command:noun>EVXEvent</command:noun>
@@ -2012,6 +2234,199 @@ already provides integrity validation.</maml:para>
         <dev:code>Export-EVXEvent -LogName Security -MachineName DC1 -OutputPath C:\Exports\DC1-Security.jsonl -Format JsonLines -ReadMode Full -MessageCulture en-US</dev:code>
         <dev:remarks>
           <maml:para>Uses the bounded native remote reader and avoids a PowerShell object-to-file pipeline.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Export-EVXInvestigation</command:name>
+      <command:verb>Export</command:verb>
+      <command:noun>EVXInvestigation</command:noun>
+      <maml:description>
+        <maml:para>Captures a reproducible investigation with copied input evidence, canonical observations, effective rules, and verified outputs.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Use a new directory. The manifest declares the full input window, including correlation warm-up. Existing evidence is never overwritten.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Export-EVXInvestigation</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Coverage</maml:name>
+          <maml:description>
+            <maml:para>Expected and observed collection coverage.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionCoverage</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionCoverage</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+          <maml:name>InputObject</maml:name>
+          <maml:description>
+            <maml:para>Canonical observation or detached event to retain.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
+          <dev:type>
+            <maml:name>Object</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>InputPath</maml:name>
+          <maml:description>
+            <maml:para>Original input files to copy and hash inside the session.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Manifest</maml:name>
+          <maml:description>
+            <maml:para>Source receipts, query identity, time range, parser versions, and execution limits.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">EventInvestigationManifest</command:parameterValue>
+          <dev:type>
+            <maml:name>EventInvestigationManifest</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>New investigation directory.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Plan</maml:name>
+          <maml:description>
+            <maml:para>Effective detection plan to retain and evaluate.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">EventDetectionPlan</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionPlan</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Coverage</maml:name>
+        <maml:description>
+          <maml:para>Expected and observed collection coverage.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionCoverage</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionCoverage</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="named" aliases="None">
+        <maml:name>InputObject</maml:name>
+        <maml:description>
+          <maml:para>Canonical observation or detached event to retain.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">Object</command:parameterValue>
+        <dev:type>
+          <maml:name>Object</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>InputPath</maml:name>
+        <maml:description>
+          <maml:para>Original input files to copy and hash inside the session.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Manifest</maml:name>
+        <maml:description>
+          <maml:para>Source receipts, query identity, time range, parser versions, and execution limits.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">EventInvestigationManifest</command:parameterValue>
+        <dev:type>
+          <maml:name>EventInvestigationManifest</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>New investigation directory.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Plan</maml:name>
+        <maml:description>
+          <maml:para>Effective detection plan to retain and evaluate.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">EventDetectionPlan</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionPlan</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>System.Object</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventInvestigationSession</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>EXAMPLE 1</maml:title>
+        <dev:code>Export-EVXInvestigation -InputObject 'Value' -Manifest 'Value' -Plan 'Value'</dev:code>
+        <dev:remarks>
+          <maml:para></maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -10942,6 +11357,42 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
       <command:syntaxItem parameterSetName="__AllParameterSets">
         <maml:name>Invoke-EVXDetection</maml:name>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>AbsenceWindow</maml:name>
+          <maml:description>
+            <maml:para>Explicit as-of time and complete source-window receipts for absence rules.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">EventDetectionAbsenceWindow</command:parameterValue>
+          <dev:type>
+            <maml:name>EventDetectionAbsenceWindow</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>CheckpointIn</maml:name>
+          <maml:description>
+            <maml:para>Optional checkpoint to resume. Requires Stream, SourceIdentity, and RetentionIdentity.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>CheckpointOut</maml:name>
+          <maml:description>
+            <maml:para>New checkpoint file written after successful streaming input and due AbsenceWindow decisions. Later triggers remain pending. Existing files are never replaced.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Coverage</maml:name>
           <maml:description>
             <maml:para>Expected and successfully collected source scope attached to every finding.</maml:para>
@@ -11110,6 +11561,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>RetentionIdentity</maml:name>
+          <maml:description>
+            <maml:para>Source generation that changes after retention, replacement, or historical correction.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Rule</maml:name>
           <maml:description>
@@ -11123,6 +11586,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>SourceIdentity</maml:name>
+          <maml:description>
+            <maml:para>Stable identity of the exact ordered source and query contract.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>StartTime</maml:name>
           <maml:description>
             <maml:para>UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.</maml:para>
@@ -11130,6 +11605,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
           <dev:type>
             <maml:name>DateTime</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>Stream</maml:name>
+          <maml:description>
+            <maml:para>Evaluates ordered pipeline input incrementally without retaining and sorting the whole investigation. Do not combine with FromStore, Trace, Explain, or ReportKind.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -11161,6 +11648,42 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
       </command:syntaxItem>
     </command:syntax>
     <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>AbsenceWindow</maml:name>
+        <maml:description>
+          <maml:para>Explicit as-of time and complete source-window receipts for absence rules.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">EventDetectionAbsenceWindow</command:parameterValue>
+        <dev:type>
+          <maml:name>EventDetectionAbsenceWindow</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>CheckpointIn</maml:name>
+        <maml:description>
+          <maml:para>Optional checkpoint to resume. Requires Stream, SourceIdentity, and RetentionIdentity.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>CheckpointOut</maml:name>
+        <maml:description>
+          <maml:para>New checkpoint file written after successful streaming input and due AbsenceWindow decisions. Later triggers remain pending. Existing files are never replaced.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Coverage</maml:name>
         <maml:description>
@@ -11330,6 +11853,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>RetentionIdentity</maml:name>
+        <maml:description>
+          <maml:para>Source generation that changes after retention, replacement, or historical correction.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>Rule</maml:name>
         <maml:description>
@@ -11343,6 +11878,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>SourceIdentity</maml:name>
+        <maml:description>
+          <maml:para>Stable identity of the exact ordered source and query contract.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
         <maml:name>StartTime</maml:name>
         <maml:description>
           <maml:para>UTC or local lower boundary for historical findings. Stateful rules replay earlier retained history automatically.</maml:para>
@@ -11350,6 +11897,18 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <command:parameterValue required="false" variableLength="false">DateTime</command:parameterValue>
         <dev:type>
           <maml:name>DateTime</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>Stream</maml:name>
+        <maml:description>
+          <maml:para>Evaluates ordered pipeline input incrementally without retaining and sorting the whole investigation. Do not combine with FromStore, Trace, Explain, or ReportKind.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -11440,6 +11999,103 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
         <dev:code>Invoke-EVXDetection -Explain</dev:code>
         <dev:remarks>
           <maml:para>Returns selectors, state requirements, and required typed projections without processing events.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
+      <command:name>Invoke-EVXInvestigation</command:name>
+      <command:verb>Invoke</command:verb>
+      <command:noun>EVXInvestigation</command:noun>
+      <maml:description>
+        <maml:para>Replays a verified investigation without rewriting its original evidence or generated outputs.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Replays a verified investigation without rewriting its original evidence or generated outputs.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Invoke-EVXInvestigation</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>AllowDifferentEngine</maml:name>
+          <maml:description>
+            <maml:para>Allows comparative replay with a different engine build and marks resulting coverage incomplete.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+          <maml:name>Session</maml:name>
+          <maml:description>
+            <maml:para>Session returned by Open-EVXInvestigation or Export-EVXInvestigation.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">EventInvestigationSession</command:parameterValue>
+          <dev:type>
+            <maml:name>EventInvestigationSession</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>AllowDifferentEngine</maml:name>
+        <maml:description>
+          <maml:para>Allows comparative replay with a different engine build and marks resulting coverage incomplete.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+        <maml:name>Session</maml:name>
+        <maml:description>
+          <maml:para>Session returned by Open-EVXInvestigation or Export-EVXInvestigation.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">EventInvestigationSession</command:parameterValue>
+        <dev:type>
+          <maml:name>EventInvestigationSession</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>EventViewerX.EventInvestigationSession</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventDetectionExecutionResult</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>EXAMPLE 1</maml:title>
+        <dev:code>Invoke-EVXInvestigation -AllowDifferentEngine</dev:code>
+        <dev:remarks>
+          <maml:para></maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>
@@ -17189,6 +17845,79 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
   </command:command>
   <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
     <command:details>
+      <command:name>Open-EVXInvestigation</command:name>
+      <command:verb>Open</command:verb>
+      <command:noun>EVXInvestigation</command:noun>
+      <maml:description>
+        <maml:para>Opens an investigation after verifying every retained input and output artifact.</maml:para>
+      </maml:description>
+    </command:details>
+    <maml:description>
+      <maml:para>Opens an investigation after verifying every retained input and output artifact.</maml:para>
+    </maml:description>
+    <command:syntax>
+      <command:syntaxItem parameterSetName="__AllParameterSets">
+        <maml:name>Open-EVXInvestigation</maml:name>
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>Directory containing manifest.json and its retained evidence.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>Directory containing manifest.json and its retained evidence.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
+        <dev:type>
+          <maml:name>String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes>
+      <command:inputType>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+        </dev:type>
+      </command:inputType>
+    </command:inputTypes>
+    <command:returnValues>
+      <command:returnValue>
+        <dev:type>
+          <maml:name>EventViewerX.EventInvestigationSession</maml:name>
+        </dev:type>
+      </command:returnValue>
+    </command:returnValues>
+    <maml:alertSet>
+      <maml:alert>
+        <maml:para></maml:para>
+      </maml:alert>
+    </maml:alertSet>
+    <command:examples>
+      <command:example>
+        <maml:title>EXAMPLE 1</maml:title>
+        <dev:code>Open-EVXInvestigation -Path 'C:\Path'</dev:code>
+        <dev:remarks>
+          <maml:para></maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <command:relatedLinks />
+  </command:command>
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10" xmlns:MSHelp="http://msdn.microsoft.com/mshelp" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10">
+    <command:details>
       <command:name>Remove-EVXLog</command:name>
       <command:verb>Remove</command:verb>
       <command:noun>EVXLog</command:noun>
@@ -21465,6 +22194,18 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ActionIdentity</maml:name>
           <maml:description>
             <maml:para>Stable caller-defined identity used to reuse a named watcher across recreated host delegates.&#xD;
@@ -21740,6 +22481,18 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ActionIdentity</maml:name>
           <maml:description>
             <maml:para>Stable caller-defined identity used to reuse a named watcher across recreated host delegates.&#xD;
@@ -21999,6 +22752,18 @@ LogName and Path are not included because this watcher targets one LogName.</mam
           <command:parameterValue required="true" variableLength="false">ScriptBlock</command:parameterValue>
           <dev:type>
             <maml:name>ScriptBlock</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -22267,6 +23032,18 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ActionIdentity</maml:name>
           <maml:description>
             <maml:para>Stable caller-defined identity used to reuse a named watcher across recreated host delegates.&#xD;
@@ -22525,6 +23302,18 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
           <command:parameterValue required="true" variableLength="false">ScriptBlock</command:parameterValue>
           <dev:type>
             <maml:name>ScriptBlock</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
@@ -22899,6 +23688,18 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+          <maml:name>ActionCapacity</maml:name>
+          <maml:description>
+            <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>ActionIdentity</maml:name>
           <maml:description>
             <maml:para>Stable caller-defined identity used to reuse a named watcher across recreated host delegates.&#xD;
@@ -23157,6 +23958,18 @@ Omit this parameter to reject reuse when the action delegate is not the same ins
         <command:parameterValue required="true" variableLength="false">ScriptBlock</command:parameterValue>
         <dev:type>
           <maml:name>ScriptBlock</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <maml:name>ActionCapacity</maml:name>
+        <maml:description>
+          <maml:para>Maximum accepted PowerShell actions awaiting acknowledgement. Overload stops collection and is exposed through watcher Health.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
-public sealed class TestSigmaDetection {
+public sealed partial class TestSigmaDetection {
     [Fact]
     public void DuplicateSigmaRuleIdsProduceStructuredCompilationErrors() {
         const string yaml = """
