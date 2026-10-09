@@ -599,6 +599,9 @@ Set-EVXLog `
 
 `Update-EVXLogArchive` archives provider resources beside an EVTX file so
 historical messages can be rendered on another machine.
+Windows may require an elevated session for this operation and for EVTX exports
+with `-ArchiveResources`. If Windows rejects resource archiving with error 5
+(access denied) or 267 (invalid directory), retry from an administrator session.
 
 ### Classic logs and sources
 

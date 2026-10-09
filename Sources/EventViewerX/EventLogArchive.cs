@@ -15,6 +15,7 @@ public static class EventLogArchive {
     /// previously created by the Windows Event Log export API. Keep its LocaleMetaData
     /// directory alongside the log when copying the archive to another computer.
     /// </summary>
+    /// <remarks>Windows may require administrator permissions to archive provider resources.</remarks>
     public static void ArchiveResources(
         string path,
         CultureInfo? culture = null,
