@@ -74,8 +74,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA=="
+        "resolved": "1.4.0",
+        "contentHash": "iZYhgl4weq0WPo0BA9tdaXPXBlPrLE1f8hRefw+6aOMkyLPdl0Y4dv2rvfaHByqmBiJ3B5gKxF/pLPYitxBIQw=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -282,7 +282,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
-          "HtmlForgeX": "[1.2.0, )",
+          "HtmlForgeX": "[1.4.0, )",
           "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"
@@ -372,8 +372,8 @@
       },
       "HtmlForgeX": {
         "type": "Transitive",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA=="
+        "resolved": "1.4.0",
+        "contentHash": "iZYhgl4weq0WPo0BA9tdaXPXBlPrLE1f8hRefw+6aOMkyLPdl0Y4dv2rvfaHByqmBiJ3B5gKxF/pLPYitxBIQw=="
       },
       "HtmlForgeX.Email": {
         "type": "Transitive",
@@ -591,7 +591,7 @@
         "type": "Project",
         "dependencies": {
           "EventViewerX": "[4.0.1, )",
-          "HtmlForgeX": "[1.2.0, )",
+          "HtmlForgeX": "[1.4.0, )",
           "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
           "OfficeIMO.Excel": "[3.2.4, )"

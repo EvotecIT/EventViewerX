@@ -18,6 +18,7 @@ belong in the repository's releases, pull requests and capability guides.
 | PowerShell and CLI hosting | Thin PSEventViewer and EventViewerX.Cli adapters | Consistent bounded queries and operational evidence |
 | Build, packages, release qualification and performance orchestration | PowerForge/PSPublishModule | Build configurations, artifact checks and benchmark gates |
 | Portable saved-EVTX parsing | EventViewerX.Evtx | Explicit portable file mode; live Windows channels retain native APIs |
+| Captured supplemental logs and device facts, evidence-backed findings and offline replay | EventViewerX core investigation contracts | `Get-EVXDiagnostic`, endpoint investigations and captured-evidence reports |
 
 Use [the investigation workflows](Docs/Investigation-Workflows.md) for complete
 jobs and [the migration guide](Docs/Migration-4.0.md) when replacing a legacy
@@ -41,6 +42,33 @@ conversations.
   installation and runtime checks pass and publication is authorized.
 - [ ] Reconcile [legacy issue dispositions](Docs/Legacy-Issue-Triage.md) with
   current reports before closing or transferring conversations.
+
+## Captured-evidence investigation scope
+
+Supplemental text logs and captured device facts belong with an event investigation
+when they explain the behavior behind an observed Windows failure. Findings retain
+their source coordinates, uncertainty and replay inputs. Contextual error guidance,
+privacy controls and navigation improve this workflow without taking ownership of
+endpoint management.
+
+- [ ] Qualify further parser or diagnostic-pack proposals against representative
+  captures: identify a concrete investigation question, preserve the original bytes,
+  document missing evidence and prove reproducible findings before adding support.
+- [ ] Consider small offline Intune or Autopilot packs only when those captures
+  demonstrate useful correlations between Windows events and supplemental logs.
+- [ ] Assess a local collection profile only for a specific investigation, with
+  explicit opt-in behavior and bounded collection. Acquisition is a separate
+  contract from interpretation of supplied evidence.
+
+Repository fixtures and documented examples qualify the implemented offline
+contracts. They do not establish coverage of every deployed agent version or
+enrollment lifecycle. A larger feature list does not determine the next parser or
+pack; a demonstrated evidence gap does.
+
+Graph enrichment belongs in GraphEssentialsX, and AI adapters belong in
+IntelligenceX. Their integration requires a concrete consumer contract. A new
+desktop application, deployment agent, remote command runner or fleet service
+requires its own product and operating model.
 
 ## Quality and performance gates
 
