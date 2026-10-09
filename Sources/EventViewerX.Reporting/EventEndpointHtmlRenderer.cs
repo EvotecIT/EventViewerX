@@ -46,8 +46,9 @@ public static class EventEndpointHtmlRenderer {
                 coverage.AddRecord("coverage-" + index, "Evidence limit", record => record.Cell("Diagnostic", diagnostic));
             }
             page.Panel("Coverage and uncertainty", panel => panel.Content(coverage));
-            var explorer = Explorer("Captured log records", "Source", "Lines", "Bytes", "Time", "Time quality", "Format", "Component", "Severity");
-            if (includeSensitiveEvidence) { explorer.AddColumn("Message", "Message"); }
+            string[] logColumns = { "Source", "Lines", "Bytes", "Time", "Time quality", "Format", "Component", "Severity" };
+            if (includeSensitiveEvidence) { logColumns = logColumns.Concat(new[] { "Message" }).ToArray(); }
+            var explorer = Explorer("Captured log records", logColumns);
             foreach (EventDiagnosticRecord item in analysis.Records) {
                 explorer.AddRecord("evidence-" + item.Identity, item.Source + ":" + item.LineStart, record => {
                     record.Cell("Source", item.Source).Cell("Lines", item.LineStart + "-" + item.LineEnd).Cell("Bytes", item.ByteStart + "-" + item.ByteEnd)
