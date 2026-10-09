@@ -51,6 +51,9 @@ Gets the built-in versioned EventViewerX detection packs.
 
 Returns signed-content-ready pack manifests with rule provenance, versions, hashes, licenses, and ATT&CK tags.
 
+### [Get-EVXDiagnostic](Get-EVXDiagnostic.md)
+Reads one bounded captured-log batch or interprets a diagnostic code in its declared context.
+
 ### [Get-EVXEvent](Get-EVXEvent.md)
 Enhanced event querying cmdlet that replaces and extends Get-WinEvent functionality.
 

@@ -12,6 +12,14 @@ public sealed class EventInvestigationArtifact {
     public string Role { get; set; } = string.Empty;
     /// <summary>Original input filename, retained separately from its safe local artifact name.</summary>
     public string? OriginalName { get; set; }
+    /// <summary>Declared endpoint input kind.</summary>
+    public string? Kind { get; set; }
+    /// <summary>Collector-declared capture instant, not file modification time.</summary>
+    public DateTimeOffset? CapturedAt { get; set; }
+    /// <summary>Collector-declared execution context.</summary>
+    public string? ExecutionContext { get; set; }
+    /// <summary>Original and derived endpoint evidence is Sensitive.</summary>
+    public string? Sensitivity { get; set; }
 }
 
 /// <summary>Versioned reproducibility manifest. Original inputs and derived artifacts remain separate.</summary>
@@ -46,6 +54,8 @@ public sealed class EventInvestigationManifest {
     public string CoverageJson { get; set; } = string.Empty;
     /// <summary>Evaluation limits used for original output and replay.</summary>
     public EventInvestigationLimits Limits { get; set; } = new();
+    /// <summary>Endpoint evidence extension version; null for native-event-only sessions.</summary>
+    public int? EndpointEvidenceVersion { get; set; }
 }
 
 /// <summary>Serializable execution and evidence bounds shared by original evaluation and replay.</summary>

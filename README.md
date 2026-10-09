@@ -89,6 +89,11 @@ For portable evidence sessions, bounded detection checkpoints, coverage-aware ab
 watcher draining, rule-change previews, and clock uncertainty, see
 [Reproducible investigations and bounded replay](INVESTIGATIONS.md).
 
+[Captured endpoint investigations](Docs/Endpoint-Investigations.md) combine bounded
+CMTrace/IME log reading, contextual error-code interpretation, application-attempt
+analysis, captured DSRegCmd triage, and evidence-backed next checks in the same
+verified session format.
+
 - Stream local channels, remote channels, offline EVTX files, or structured
   QueryList XML without accumulating the complete result.
 - Push event ID, provider, time, record ID, level, keyword, user, and event-data

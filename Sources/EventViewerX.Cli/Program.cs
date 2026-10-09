@@ -32,6 +32,8 @@ internal static partial class Program {
                 "query" => await QueryAsync(options).ConfigureAwait(false),
                 "report" => await ReportAsync(options).ConfigureAwait(false),
                 "bundle" => VerifyEvidenceBundle(options),
+                "investigation" => EndpointInvestigation(options),
+                "diagnostics" => Diagnostic(options),
                 "measure" => await MeasureAsync(options).ConfigureAwait(false),
                 "detect" => await DetectAsync(options).ConfigureAwait(false),
                 "kerberos-impact" => await KerberosImpactAsync(options).ConfigureAwait(false),
@@ -554,12 +556,24 @@ internal static partial class Program {
     }
 
     private static void ValidateOptions(CliArguments options) {
-        if (options.Subcommand.Length > 0 && options.Command is not ("collector" or "provider" or "store" or "bundle")) {
+        if (options.Subcommand.Length > 0 && options.Command is not ("collector" or "provider" or "store" or "bundle" or "investigation" or "diagnostics")) {
             throw new ArgumentException(
                 $"Unexpected argument '{options.Subcommand}'. The {options.Command} command does not accept a subcommand.");
         }
 
         switch (options.Command) {
+            case "investigation" when options.Subcommand == "create":
+                options.ValidateAllowed("directory", "log", "dsreg", "facts", "registry", "attachment", "device", "expected-join", "context", "captured-at", "utc-offset-minutes", "max-records", "max-input-bytes", "max-record-bytes", "html", "include-sensitive");
+                break;
+            case "investigation" when options.Subcommand is "replay" or "inspect":
+                options.ValidateAllowed("directory", "allow-different-engine", "html", "include-sensitive");
+                break;
+            case "diagnostics" when options.Subcommand == "read":
+                options.ValidateAllowed("path", "checkpoint", "utc-offset-minutes", "max-records", "max-batch-bytes", "max-record-bytes", "live");
+                break;
+            case "diagnostics" when options.Subcommand == "code":
+                options.ValidateAllowed("value", "kind");
+                break;
             case "query":
                 options.ValidateAllowed(
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
@@ -679,6 +693,10 @@ internal static partial class Program {
             "  evx --version\n" +
             "  evx types [--type TYPE[,TYPE] | --definition FILE]\n" +
             "  evx schemas\n" +
+            "  evx diagnostics code --value NUMBER [--kind Unknown|Win32|HResult|WindowsInstaller|ProcessExit]\n" +
+            "  evx diagnostics read --path FILE [--checkpoint FILE.json] [--utc-offset-minutes N] [--live] [--max-records N]\n" +
+            "  evx investigation create --directory NEW_DIR [--log FILE[,FILE]] [--dsreg FILE] [--facts FILE] [--registry FILE] [--attachment FILE] [--context User|SYSTEM|Unknown] [--captured-at OFFSET_TIMESTAMP] [--expected-join Entra|Hybrid|Domain|Unjoined] [--html FILE [--include-sensitive]]\n" +
+            "  evx investigation inspect|replay --directory DIR [--allow-different-engine with replay] [--html FILE [--include-sensitive]]\n" +
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream for JSONL without retaining rows] [--read-mode Metadata|Message|StructuredData|StructuredDataAndMessage|Full] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
             "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--summary Hour|Day|Week|Month] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --bundle FILE.zip | --mail-profile FILE) [--privacy omit|pseudonymize [--privacy-key-file FILE (32 binary bytes)] [--retain-fields FIELD[,FIELD]] [--pseudonymize-fields FIELD[,FIELD]]] [--summary-file FILE.json] [--require-complete] [--drawer-placement Auto|Top|Right]\n" +
             "  evx bundle verify --path FILE.zip [--max-bytes N]\n" +
