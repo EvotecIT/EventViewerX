@@ -10,6 +10,7 @@ Describe 'PSEventViewer v4 command surface' {
             'Get-EVXCollectorSubscription'
             'Get-EVXDetectionCoverage'
             'Get-EVXDetectionPack'
+            'Get-EVXDiagnostic'
             'Get-EVXEvent'
             'Get-EVXKerberosImpact'
             'Get-EVXLog'

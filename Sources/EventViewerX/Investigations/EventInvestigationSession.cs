@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace EventViewerX;
 
 /// <summary>Creates and reopens portable evidence sessions. Replay reads verified canonical observations and never modifies original artifacts.</summary>
-public sealed class EventInvestigationSession {
+public sealed partial class EventInvestigationSession {
     private static readonly JsonSerializerOptions JsonOptions = EventAnalysisJson.CreateSerializerOptions(true);
     private static readonly JsonSerializerOptions CompactOptions = EventAnalysisJson.CreateSerializerOptions();
     private readonly EventInvestigationManifest _manifest;
@@ -21,6 +21,12 @@ public sealed class EventInvestigationSession {
     public static EventInvestigationSession Create(string directory, EventInvestigationManifest request,
         IEnumerable<EventObservation> observations, EventDetectionPlan plan, IEnumerable<string>? inputFiles = null,
         EventDetectionCoverage? coverage = null, CancellationToken cancellationToken = default) {
+        return CreateCore(directory, request, observations, plan, inputFiles, coverage, cancellationToken);
+    }
+
+    private static EventInvestigationSession CreateCore(string directory, EventInvestigationManifest request,
+        IEnumerable<EventObservation> observations, EventDetectionPlan plan, IEnumerable<string>? inputFiles,
+        EventDetectionCoverage? coverage, CancellationToken cancellationToken, EventEndpointCapture? endpoint = null) {
         if (request == null) { throw new ArgumentNullException(nameof(request)); }
         if (observations == null) { throw new ArgumentNullException(nameof(observations)); }
         if (plan == null) { throw new ArgumentNullException(nameof(plan)); }
@@ -28,6 +34,7 @@ public sealed class EventInvestigationSession {
         manifest.SchemaVersion = 1; manifest.SessionId = Guid.NewGuid(); manifest.CreatedUtc = DateTime.UtcNow;
         manifest.PlanHash = plan.PlanHash; manifest.EngineIdentity = CurrentEngineIdentity;
         manifest.Artifacts = Array.Empty<EventInvestigationArtifact>(); manifest.ObservationCount = 0;
+        manifest.EndpointEvidenceVersion = endpoint == null ? null : 1;
         EventDetectionCoverage effectiveCoverage = coverage ?? EventDetectionCoverage.Unknown();
         if (manifest.Sources?.Any(source => source == null || !source.IsComplete) == true) {
             effectiveCoverage = effectiveCoverage.WithFailures(new[] { "One or more investigation sources are incomplete." });
@@ -40,6 +47,7 @@ public sealed class EventInvestigationSession {
         var artifacts = new List<EventInvestigationArtifact>();
         var session = new EventInvestigationSession(root, manifest);
         int inputIndex = 0;
+        long inputBytes = 0;
         foreach (string input in inputFiles ?? Array.Empty<string>()) {
             cancellationToken.ThrowIfCancellationRequested();
             string name = "input-" + (++inputIndex).ToString("D6", System.Globalization.CultureInfo.InvariantCulture) + ".evidence";
@@ -49,6 +57,8 @@ public sealed class EventInvestigationSession {
                 int read;
                 while ((read = source.Read(buffer, 0, buffer.Length)) != 0) {
                     cancellationToken.ThrowIfCancellationRequested();
+                    inputBytes += read;
+                    if (endpoint != null && inputBytes > endpoint.MaximumInputBytes) { throw new InvalidDataException("Endpoint input byte limit exceeded."); }
                     target.Write(buffer, 0, read);
                 }
                 target.Flush(true);
@@ -92,6 +102,7 @@ public sealed class EventInvestigationSession {
             writer.Flush(); stream.Flush(true);
         }
         artifacts.Add(session.Describe("findings.jsonl", "output", cancellationToken));
+        if (endpoint != null) { session.WriteEndpoint(endpoint, artifacts, cancellationToken); }
         manifest.Artifacts = artifacts.ToArray();
         // The manifest is the commit marker; failed creation never leaves a seemingly complete session.
         string manifestJson = JsonSerializer.Serialize(manifest, JsonOptions);
@@ -181,7 +192,7 @@ public sealed class EventInvestigationSession {
         VerifyHash("observations.jsonl", file.Position, hash.Hash!);
     }
 
-    private string ReadText(string name, int maximumBytes, bool verify) {
+    private string ReadText(string name, int maximumBytes, bool verify, bool capturedText = false) {
         using var file = new FileStream(Resolve(name), FileMode.Open, FileAccess.Read, FileShare.Read);
         if (file.Length > maximumBytes) { throw new InvalidDataException("Investigation document exceeds its size limit."); }
         using var buffer = new MemoryStream();
@@ -193,7 +204,7 @@ public sealed class EventInvestigationSession {
         }
         byte[] content = buffer.ToArray();
         if (verify) { using SHA256 hash = SHA256.Create(); VerifyHash(name, content.Length, hash.ComputeHash(content)); }
-        return new UTF8Encoding(false, true).GetString(content);
+        return capturedText ? DecodeCapturedText(content) : new UTF8Encoding(false, true).GetString(content);
     }
 
     private void VerifyHash(string name, long length, byte[] hash) {
@@ -246,6 +257,7 @@ public sealed class EventInvestigationSession {
             manifest.Sources == null || manifest.Artifacts == null || manifest.Limits == null || manifest.ParserVersions == null) {
             throw new InvalidDataException("Invalid investigation manifest contract.");
         }
+        if (manifest.EndpointEvidenceVersion.HasValue && manifest.EndpointEvidenceVersion != 1) { throw new InvalidDataException("Unsupported endpoint evidence version."); }
         foreach (EventCoverageWindow source in manifest.Sources) {
             if (source == null) { throw new InvalidDataException("Investigation sources cannot contain null receipts."); }
             source.Validate();
@@ -258,5 +270,9 @@ public sealed class EventInvestigationSession {
         }
         if (manifest.Artifacts.Length > 0 && new[] { "plan.json", "observations.jsonl", "findings.jsonl" }
             .Any(required => !manifest.Artifacts.Any(item => item.Path == required))) { throw new InvalidDataException("Required investigation artifacts are missing."); }
+        if (manifest.EndpointEvidenceVersion.HasValue && manifest.Artifacts.Length > 0 &&
+            new[] { "endpoint-records.jsonl", "endpoint-capture.json", "endpoint-analysis.json" }.Any(required => !manifest.Artifacts.Any(item => item.Path == required))) {
+            throw new InvalidDataException("Required endpoint evidence artifacts are missing.");
+        }
     }
 }

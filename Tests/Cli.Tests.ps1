@@ -14,6 +14,55 @@ Describe 'evx portable host' {
         $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
     }
 
+    It 'preserves diagnostic input when the checkpoint is its <Alias> alias' -TestCases @(
+        @{ Alias = 'direct' }
+        @{ Alias = 'relative' }
+        @{ Alias = 'Windows casing' }
+    ) {
+        param($Alias)
+        if ($Alias -eq 'Windows casing' -and $env:OS -ne 'Windows_NT') {
+            Set-ItResult -Skipped -Because 'Windows filesystem casing contract'
+            return
+        }
+        $InputPath = Join-Path -Path $TestDrive -ChildPath 'diagnostic.json'
+        [System.IO.File]::WriteAllText($InputPath, "{}`n", (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
+        $OriginalHash = (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash
+        $CheckpointPath = $InputPath
+        if ($Alias -eq 'relative') { $CheckpointPath = '.\diagnostic.json' }
+        if ($Alias -eq 'Windows casing') { $CheckpointPath = $InputPath.ToUpperInvariant() }
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        Push-Location -LiteralPath $TestDrive
+        try {
+            # Windows PowerShell 5.1 surfaces redirected native stderr as error records.
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath diagnostics read --path $InputPath --checkpoint $CheckpointPath 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+            Pop-Location
+        }
+        $ExitCode | Should -Be 1
+        ($Output -join "`n") | Should -Match 'checkpoint path must be different'
+        (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $OriginalHash
+    }
+
+    It 'resumes diagnostics with a distinct checkpoint without replaying accepted records' {
+        $InputPath = Join-Path -Path $TestDrive -ChildPath 'diagnostic.log'
+        $CheckpointPath = Join-Path -Path $TestDrive -ChildPath 'checkpoint.json'
+        [System.IO.File]::WriteAllText($InputPath, "one`ntwo`n", (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
+        $OriginalHash = (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash
+        $First = & $script:CliPath diagnostics read --path $InputPath --checkpoint $CheckpointPath --max-records 1 | ConvertFrom-Json
+        $LASTEXITCODE | Should -Be 0
+        $Second = & $script:CliPath diagnostics read --path $InputPath --checkpoint $CheckpointPath --max-records 1 | ConvertFrom-Json
+        $LASTEXITCODE | Should -Be 0
+        $First.Records | Should -HaveCount 1
+        $Second.Records | Should -HaveCount 1
+        $First.Records[0].Message | Should -Be 'one'
+        $Second.Records[0].Message | Should -Be 'two'
+        $Second.Checkpoint.Generation | Should -Be $First.Checkpoint.Generation
+        (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $OriginalHash
+    }
+
     It 'reports its package version consistently' {
         [array] $VersionOutput = & $script:CliPath --version
         [int] $VersionExitCode = $LASTEXITCODE
