@@ -108,6 +108,22 @@ public sealed class TestEndpointDiagnostics : IDisposable {
         Assert.Equal(expected, attempt.Outcome);
     }
 
+    [Theory]
+    [InlineData("session", "0")]
+    [InlineData("session", "3010")]
+    [InlineData("attempt", "0")]
+    [InlineData("attempt", "3010")]
+    public void RestartedEnforcementDoesNotInheritEarlierCompletion(string marker, string code) {
+        string path = PathOf("retry.log");
+        string app = "AppId: 11111111-1111-1111-1111-111111111111 context=SYSTEM " + marker + "=one ";
+        File.WriteAllText(path, Frame(app + "MSI exit code " + code) + Frame(app + "installation starts", "10:01:00+120") +
+            Frame(app + "applicationDetected: False", "10:02:00+120"), new UTF8Encoding(false));
+        EventEndpointAnalysis analysis = EventIntuneApplicationAnalyzer.Analyze(EventDiagnosticLogReader.Read(path).Records);
+        EventIntuneApplicationAttempt attempt = Assert.Single(analysis.Applications);
+        Assert.Equal("Unknown", attempt.Outcome); Assert.Null(attempt.ExitCode); Assert.Equal(3, attempt.EvidenceIdentities.Length);
+        Assert.Equal("InsufficientEvidence", Assert.Single(analysis.Findings).Status);
+    }
+
     [Fact]
     public async Task ConcurrentTruncationStopsWithoutWaitingForCancellation() {
         string path = PathOf("truncate.log");

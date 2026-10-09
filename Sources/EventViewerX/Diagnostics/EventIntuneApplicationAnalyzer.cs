@@ -52,7 +52,8 @@ public static class EventIntuneApplicationAnalyzer {
             string scope = !localSources.Contains((record.Source, record.Generation)) && !string.IsNullOrWhiteSpace(record.Device) && context is not ("Unknown" or "User")
                 ? "device:" + record.Device : "source:" + record.Source + ":" + record.Generation;
             string key = ids[0] + "|" + context + "|" + scope + "|" + (attemptMatch.Success ? attemptMatch.Groups["value"].Value : string.Empty);
-            bool starts = Contains(message, "retry") || phase == "Enforcement" && EnforcementStarted.IsMatch(message);
+            bool executionStarts = phase == "Enforcement" && EnforcementStarted.IsMatch(message);
+            bool starts = Contains(message, "retry") || executionStarts;
             if (!active.TryGetValue(key, out EventIntuneApplicationAttempt? application) ||
                 !attemptMatch.Success && (application.LastPhase == "Reporting" || starts && phasesByAttempt[application].Contains("Enforcement"))) {
                 application = new EventIntuneApplicationAttempt {
@@ -64,6 +65,10 @@ public static class EventIntuneApplicationAnalyzer {
                 evidenceByAttempt[application] = new List<string>(); phasesByAttempt[application] = new List<string>();
             }
             evidenceByAttempt[application].Add(record.Identity);
+            if (executionStarts) {
+                // A logging session can contain several executions. An earlier result cannot settle a newly started execution.
+                completedAttempts.Remove(application); application.Outcome = "Unknown"; application.ExitCode = null;
+            }
             if (exit.Success || EnforcementCompleted.IsMatch(message)) { completedAttempts.Add(application); }
             if (phase != "Unknown") {
                 application.LastPhase = phase;
