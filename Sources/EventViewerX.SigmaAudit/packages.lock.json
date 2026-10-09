@@ -61,7 +61,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }

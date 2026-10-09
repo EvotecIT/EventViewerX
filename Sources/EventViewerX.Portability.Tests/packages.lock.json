@@ -198,7 +198,7 @@
       "eventviewerx.evtx": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.0, )",
+          "EventViewerX": "[4.0.1, )",
           "evtx": "[1.5.2, )"
         }
       }

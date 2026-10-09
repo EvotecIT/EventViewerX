@@ -4,9 +4,9 @@
     ".NETFramework,Version=v4.7.2": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[1.2.0, )",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA==",
+        "requested": "[1.3.0, )",
+        "resolved": "1.3.0",
+        "contentHash": "HTjnNttbEHd7KUL8l9NuDRsi0GOhMUor/SMr563kFykiumo8IlFZA3mu5XnrC8KUC/rn6a5OZ5XtfFQuV1/ISA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.12"
@@ -233,9 +233,9 @@
     ".NETStandard,Version=v2.1": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[1.2.0, )",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA==",
+        "requested": "[1.3.0, )",
+        "resolved": "1.3.0",
+        "contentHash": "HTjnNttbEHd7KUL8l9NuDRsi0GOhMUor/SMr563kFykiumo8IlFZA3mu5XnrC8KUC/rn6a5OZ5XtfFQuV1/ISA==",
         "dependencies": {
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Text.Json": "10.0.12"
@@ -419,9 +419,9 @@
     "net10.0-windows7.0": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[1.2.0, )",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA=="
+        "requested": "[1.3.0, )",
+        "resolved": "1.3.0",
+        "contentHash": "HTjnNttbEHd7KUL8l9NuDRsi0GOhMUor/SMr563kFykiumo8IlFZA3mu5XnrC8KUC/rn6a5OZ5XtfFQuV1/ISA=="
       },
       "HtmlForgeX.Email": {
         "type": "Direct",
@@ -501,9 +501,9 @@
     "net8.0-windows7.0": {
       "HtmlForgeX": {
         "type": "Direct",
-        "requested": "[1.2.0, )",
-        "resolved": "1.2.0",
-        "contentHash": "rXmjplPb5sgpqsc+ta0m/myRkYPE+Ri5VMT7F11DqLXHXZhiEv5asLrTy93bGVaXhVJYB0jxnR8qNVC2KIxhQA=="
+        "requested": "[1.3.0, )",
+        "resolved": "1.3.0",
+        "contentHash": "HTjnNttbEHd7KUL8l9NuDRsi0GOhMUor/SMr563kFykiumo8IlFZA3mu5XnrC8KUC/rn6a5OZ5XtfFQuV1/ISA=="
       },
       "HtmlForgeX.Email": {
         "type": "Direct",
