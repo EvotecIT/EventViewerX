@@ -64,6 +64,7 @@ public static class EventEndpointHtmlRenderer {
                 summaries.AddRecord("artifact-" + group.Key, "Captured DSRegCmd", record => record.Cell("Artifact", group.Key)
                     .Cell("Kind", "DSRegCmd status").Cell("Captured at", string.Join("; ", group.Select(snapshot => snapshot.CapturedAt?.ToString("O") ?? "Unknown").Distinct()))
                     .Cell("Context", string.Join(", ", group.Select(snapshot => snapshot.ExecutionContext).Distinct())).Detail("Identity", group.Key)
+                    .Detail("Capture context and time", string.Join("; ", group.Select(snapshot => snapshot.ExecutionContext + " at " + (snapshot.CapturedAt?.ToString("O") ?? "Unknown capture time")).Distinct()))
                     .Detail("Coverage", "Captured fields describe this snapshot and execution context; missing fields and later device state remain unknown."));
             }
             if (analysis.IdentitySnapshots.Length > 0) { page.Panel("Identity artifacts", panel => panel.Content(summaries)); }

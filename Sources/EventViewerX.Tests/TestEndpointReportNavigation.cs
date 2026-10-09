@@ -34,6 +34,7 @@ public sealed class TestEndpointReportNavigation {
         var analysis = new EventEndpointAnalysis {
             IdentitySnapshots = new[] {
                 new EventDsRegSnapshot { EvidenceIdentity = "shared-id", ExecutionContext = "SYSTEM", CapturedAt = first },
+                new EventDsRegSnapshot { EvidenceIdentity = "shared-id", ExecutionContext = "SYSTEM", CapturedAt = second },
                 new EventDsRegSnapshot { EvidenceIdentity = "shared-id", ExecutionContext = "User", CapturedAt = second }
             },
             Findings = new[] { new EventDiagnosticFinding { EvidenceIdentities = new[] { "shared-id" } } }
@@ -45,5 +46,8 @@ public sealed class TestEndpointReportNavigation {
         Assert.Contains("SYSTEM, User", html);
         Assert.Contains(first.ToString("O"), html);
         Assert.Contains(second.ToString("O"), html);
+        Assert.Contains("SYSTEM at " + first.ToString("O"), html);
+        Assert.Contains("SYSTEM at " + second.ToString("O"), html);
+        Assert.Contains("User at " + second.ToString("O"), html);
     }
 }

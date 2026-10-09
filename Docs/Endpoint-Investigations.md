@@ -156,7 +156,8 @@ session's preflight integrity checks.
 Reports show findings and captured evidence together. Select a finding, open its
 Evidence tab, then select a supporting log coordinate or identity artifact. The report
 selects the corresponding record, including records outside the current table
-page or filter. Artifact summaries retain capture context and time; raw fields
+page or filter. Artifact summaries retain each capture's context and time together,
+including repeated captures of the same bytes; raw fields
 remain in the original session unless explicitly included in the export.
 
 Original artifacts and canonical diagnostic records remain sensitive. Reports
