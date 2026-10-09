@@ -154,6 +154,13 @@ Replay checks the hash of the diagnostic bytes actually consumed as well as the
 session's preflight integrity checks.
 
 Original artifacts and canonical diagnostic records remain sensitive. Reports
+show findings and captured evidence together. Select a finding, open its Evidence
+tab, then select a supporting log coordinate or identity artifact. The report
+selects the corresponding record, including records outside the current table
+page or filter. Artifact summaries retain capture context and time; raw fields
+remain in the original session unless explicitly included in the export.
+
+Original artifacts and canonical diagnostic records remain sensitive. Reports
 omit raw log messages and DSRegCmd fields by default; application identifiers and
 conclusions can still be sensitive. Use `--include-sensitive` or
 `-IncludeSensitiveEvidence` only when the report recipient needs raw evidence.
