@@ -23,7 +23,8 @@ internal static class WindowsEventArchive {
                             archiveLocale,
                             0)) {
                     throw CreateWin32Exception(
-                        $"Provider resources could not be archived into '{archivePath}'.");
+                        $"Provider resources could not be archived into '{archivePath}'.",
+                        archivingResources: true);
                 }
             });
     }
@@ -585,7 +586,8 @@ internal static class WindowsEventArchive {
                 locale,
                 0)) {
             throw CreateWin32Exception(
-                $"The event log was exported but its provider resources could not be archived into '{targetPath}'.");
+                $"The event log was exported but its provider resources could not be archived into '{targetPath}'.",
+                archivingResources: true);
         }
     }
 
@@ -605,8 +607,19 @@ internal static class WindowsEventArchive {
         }
     }
 
-    private static Win32Exception CreateWin32Exception(string message) {
+    private static Win32Exception CreateWin32Exception(
+        string message,
+        bool archivingResources = false) {
+
         int error = Marshal.GetLastWin32Error();
-        return new Win32Exception(error, message);
+        string description = new Win32Exception(error).Message.TrimEnd('.');
+        string guidance = archivingResources && (error == 5 || error == 267)
+            ? " Provider-resource archiving may require administrator permissions. " +
+              "For local archives, retry from an elevated session; for remote archives, " +
+              "check the archiving identity's permissions on the target computer."
+            : string.Empty;
+        return new Win32Exception(
+            error,
+            $"{message} Windows error {error}: {description}.{guidance}");
     }
 }

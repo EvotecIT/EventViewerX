@@ -884,26 +884,35 @@ public sealed class TestNativeEventEngineContracts {
             exception.Message);
     }
 
-    [Fact]
-    public void ExportedArchiveCanReceiveProviderResourcesSeparately() {
-        if (!OperatingSystem.IsWindows()) return;
-        string directory = CreateTemporaryDirectory();
+    [WindowsAdministratorTheory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ExportedArchiveRetainsProviderResources(bool extended, bool archiveDuringExport) {
+        string ordinaryDirectory = CreateTemporaryDirectory();
+        string directory = extended ? @"\\?\" + ordinaryDirectory : ordinaryDirectory;
         try {
             string outputPath = Path.Combine(
                 directory,
                 "archived.evtx");
             EventLogExporter.ExportFile(
                 new EventLogFileQuery(
-                    GetFixturePath()),
+                    GetFixturePath()) {
+                    MessageCulture = System.Globalization.CultureInfo.GetCultureInfo("en-US")
+                },
                 outputPath,
                 EventExportFormat.Evtx,
-                archiveResources: false);
+                archiveResources: archiveDuringExport);
 
-            EventLogArchive.ArchiveResources(
-                outputPath,
-                System.Globalization.CultureInfo
-                    .GetCultureInfo("en-US"));
+            byte[] exportedLog = File.ReadAllBytes(outputPath);
+            if (!archiveDuringExport) {
+                EventLogArchive.ArchiveResources(
+                    outputPath,
+                    System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+            }
 
+            Assert.Equal(exportedLog, File.ReadAllBytes(outputPath));
             EventLogFileInformation information =
                 EventLogArchive.GetInformation(
                     outputPath);
@@ -913,6 +922,8 @@ public sealed class TestNativeEventEngineContracts {
             Assert.Contains(Directory.EnumerateFiles(metadata), resource =>
                 Path.GetFileName(resource).StartsWith("archived_", StringComparison.OrdinalIgnoreCase) ||
                 Path.GetFileName(resource).StartsWith("archived.evtx_", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(new[] { "LocaleMetaData" },
+                Directory.EnumerateDirectories(directory).Select(Path.GetFileName));
         } finally {
             Directory.Delete(directory, recursive: true);
         }
