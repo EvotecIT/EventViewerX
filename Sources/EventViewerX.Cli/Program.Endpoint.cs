@@ -12,13 +12,21 @@ internal static partial class Program {
             return WriteJson(EventDiagnosticCode.Resolve(options.Require("value"), ParseEnum(options.Get("kind"), EventDiagnosticCodeKind.Unknown, "--kind")));
         }
         if (options.Subcommand != "read") { throw new ArgumentException("Use diagnostics read or diagnostics code."); }
+        string inputPath = System.IO.Path.GetFullPath(options.Require("path"));
         EventDiagnosticCheckpoint? checkpoint = null;
         string? checkpointPath = options.Get("checkpoint");
+        if (checkpointPath != null) {
+            checkpointPath = System.IO.Path.GetFullPath(checkpointPath);
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Equals(ResolveDiagnosticPath(inputPath), ResolveDiagnosticPath(checkpointPath), comparison)) {
+                throw new ArgumentException("The checkpoint path must be different from the diagnostic input path.");
+            }
+        }
         if (checkpointPath != null && File.Exists(checkpointPath)) {
             if (new FileInfo(checkpointPath).Length > 64 * 1024) { throw new InvalidDataException("Checkpoint exceeds 64 KiB."); }
             checkpoint = JsonSerializer.Deserialize<EventDiagnosticCheckpoint>(File.ReadAllText(checkpointPath), JsonOptions) ?? throw new InvalidDataException("Missing checkpoint.");
         }
-        var result = EventDiagnosticLogReader.Read(options.Require("path"), new EventDiagnosticReadOptions {
+        var result = EventDiagnosticLogReader.Read(inputPath, new EventDiagnosticReadOptions {
             UtcOffset = Offset(options), FinalFile = !options.Has("live"), MaximumRecords = options.GetInt("max-records", 10_000),
             MaximumBatchBytes = options.GetInt("max-batch-bytes", 8 * 1024 * 1024), MaximumRecordBytes = options.GetInt("max-record-bytes", 256 * 1024)
         }, checkpoint, cancellation.Token);
@@ -32,6 +40,20 @@ internal static partial class Program {
             } finally { if (File.Exists(temporary)) { File.Delete(temporary); } }
         }
         return exit;
+    }
+
+    private static string ResolveDiagnosticPath(string fullPath) {
+        string root = System.IO.Path.GetPathRoot(fullPath)!;
+        string[] parts = fullPath.Substring(root.Length).Split(System.IO.Path.DirectorySeparatorChar);
+        string directory = root;
+        for (int index = 0; index < parts.Length - 1; index++) {
+            directory = System.IO.Path.Combine(directory, parts[index]);
+            if (Directory.Exists(directory)) {
+                directory = new DirectoryInfo(directory).ResolveLinkTarget(true)?.FullName ?? directory;
+            }
+        }
+        string path = System.IO.Path.Combine(directory, parts[parts.Length - 1]);
+        return File.Exists(path) ? new FileInfo(path).ResolveLinkTarget(true)?.FullName ?? path : path;
     }
 
     private static TimeSpan? Offset(CliArguments options) => options.Get("utc-offset-minutes") is string minutes

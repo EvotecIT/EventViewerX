@@ -72,6 +72,33 @@ public sealed class TestEndpointDiagnostics : IDisposable {
     }
 
     [Fact]
+    public void ResumePreservesGenerationWhenWindowsPathCasingChanges() {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)) { return; }
+        string path = PathOf("CaseSensitive.log");
+        File.WriteAllText(path, "one\ntwo\n", new UTF8Encoding(false));
+        var options = new EventDiagnosticReadOptions { MaximumRecords = 1 };
+        EventDiagnosticReadResult first = EventDiagnosticLogReader.Read(path, options);
+        EventDiagnosticReadResult second = EventDiagnosticLogReader.Read(path.ToUpperInvariant(), options, first.Checkpoint);
+        Assert.False(second.GenerationChanged);
+        Assert.Equal(first.Checkpoint.Generation, second.Checkpoint.Generation);
+        Assert.Equal("two", Assert.Single(second.Records).Message);
+        Assert.Equal(2, second.Records[0].LineStart);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnsupportedUtf32DoesNotProduceDiagnosticRecords(bool bigEndian) {
+        string path = PathOf("utf32.log");
+        var encoding = new UTF32Encoding(bigEndian, true, true);
+        File.WriteAllBytes(path, encoding.GetPreamble().Concat(encoding.GetBytes("one\n")).ToArray());
+        byte[] original = File.ReadAllBytes(path);
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => EventDiagnosticLogReader.Read(path));
+        Assert.Contains("UTF-32", error.Message);
+        Assert.Equal(original, File.ReadAllBytes(path));
+    }
+
+    [Fact]
     public void BoundsMarkOversizedEvidenceAndLeaveTrailingFramesPending() {
         string path = PathOf("bounded.log"); File.WriteAllText(path, Frame(new string('x', 800)) + "<![LOG[pending", new UTF8Encoding(false));
         EventDiagnosticReadResult result = EventDiagnosticLogReader.Read(path, new EventDiagnosticReadOptions { MaximumRecordBytes = 128, MaximumBatchBytes = 4096 });

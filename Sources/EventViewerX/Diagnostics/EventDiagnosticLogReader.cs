@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace EventViewerX;
@@ -20,7 +21,8 @@ public static partial class EventDiagnosticLogReader {
         long length = stream.Length;
         string fileIdentity = PhysicalIdentity(stream, fullPath);
         (Encoding encoding, int bom, string encodingName) = DetectEncoding(stream);
-        bool changed = checkpoint != null && (checkpoint.SchemaVersion != 1 || checkpoint.Path != fullPath ||
+        StringComparison pathComparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        bool changed = checkpoint != null && (checkpoint.SchemaVersion != 1 || !string.Equals(checkpoint.Path, fullPath, pathComparison) ||
             checkpoint.Offset < bom || checkpoint.Offset > length || checkpoint.NextLine < 1 || checkpoint.PrefixLength < 0 || checkpoint.PrefixLength > 4096 ||
             checkpoint.FileIdentity != fileIdentity || checkpoint.Encoding != encodingName ||
             checkpoint.PrefixLength > length || Fingerprint(stream, 0, checkpoint.PrefixLength) != checkpoint.PrefixHash ||
@@ -125,7 +127,10 @@ public static partial class EventDiagnosticLogReader {
 
     private static (Encoding, int, string) DetectEncoding(FileStream stream) {
         stream.Position = 0;
-        int a = stream.ReadByte(), b = stream.ReadByte(), c = stream.ReadByte();
+        int a = stream.ReadByte(), b = stream.ReadByte(), c = stream.ReadByte(), d = stream.ReadByte();
+        if (a == 255 && b == 254 && c == 0 && d == 0 || a == 0 && b == 0 && c == 254 && d == 255) {
+            throw new InvalidDataException("UTF-32 logs are unsupported; use UTF-8 or BOM-marked UTF-16.");
+        }
         if (a == 255 && b == 254) { return (new UnicodeEncoding(false, false, true), 2, "utf-16le"); }
         if (a == 254 && b == 255) { return (new UnicodeEncoding(true, false, true), 2, "utf-16be"); }
         return (new UTF8Encoding(false, true), a == 239 && b == 187 && c == 191 ? 3 : 0, "utf-8");
