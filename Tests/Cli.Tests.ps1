@@ -30,11 +30,17 @@ Describe 'evx portable host' {
         $CheckpointPath = $InputPath
         if ($Alias -eq 'relative') { $CheckpointPath = '.\diagnostic.json' }
         if ($Alias -eq 'Windows casing') { $CheckpointPath = $InputPath.ToUpperInvariant() }
+        $PreviousErrorActionPreference = $ErrorActionPreference
         Push-Location -LiteralPath $TestDrive
         try {
+            # Windows PowerShell 5.1 surfaces redirected native stderr as error records.
+            $ErrorActionPreference = 'Continue'
             $Output = @(& $script:CliPath diagnostics read --path $InputPath --checkpoint $CheckpointPath 2>&1)
             $ExitCode = $LASTEXITCODE
-        } finally { Pop-Location }
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+            Pop-Location
+        }
         $ExitCode | Should -Be 1
         ($Output -join "`n") | Should -Match 'checkpoint path must be different'
         (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $OriginalHash
