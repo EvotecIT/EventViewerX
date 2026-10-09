@@ -11,7 +11,8 @@ public static class EventIntuneApplicationAnalyzer {
     private static readonly Regex Context = Pattern("\\b(?:user(?:id)?|context)\\s*[:=]\\s*(?<value>SYSTEM|" + GuidPattern + "|[^\\s,;\\]]+)");
     private static readonly Regex Attempt = Pattern("\\b(?:attempt|session)(?:id)?\\s*[:=]\\s*(?<value>[a-zA-Z0-9_-]+)");
     private static readonly Regex Exit = Pattern("\\b(?:lpExitCode|exit\\s*code)\\s*[:=]?\\s*(?<value>0x[a-fA-F0-9]+|-?\\d+)");
-    private static readonly Regex EnforcementObserved = Pattern("\\b(?:installation|enforcement)\\s+(?:has\\s+)?(?:started|starts|starting|completed|finished)\\b|\\b(?:starting|executing)\\s+(?:installation|install command|enforcement)\\b");
+    private static readonly Regex EnforcementStarted = Pattern("\\b(?:installation|enforcement)\\s+(?:has\\s+)?(?:started|starts|starting)\\b|\\b(?:starting|executing)\\s+(?:installation|install command|enforcement)\\b");
+    private static readonly Regex EnforcementCompleted = Pattern("\\b(?:installation|enforcement)\\s+(?:has\\s+)?(?:completed|finished)\\b");
 
     /// <summary>Reconstructs bounded attempts and generates next-evidence guidance. Unknown clocks remain source-local; no duration is invented.</summary>
     public static EventEndpointAnalysis Analyze(IEnumerable<EventDiagnosticRecord> records, IEnumerable<EventDsRegSnapshot>? snapshots = null,
@@ -30,12 +31,13 @@ public static class EventIntuneApplicationAnalyzer {
         var active = new Dictionary<string, EventIntuneApplicationAttempt>(StringComparer.OrdinalIgnoreCase);
         var evidenceByAttempt = new Dictionary<EventIntuneApplicationAttempt, List<string>>();
         var phasesByAttempt = new Dictionary<EventIntuneApplicationAttempt, List<string>>();
-        var executedAttempts = new HashSet<EventIntuneApplicationAttempt>();
+        var completedAttempts = new HashSet<EventIntuneApplicationAttempt>();
         var findings = new List<EventDiagnosticFinding>();
         int unattributed = 0;
-        // Only records with known instants may be merged across files. Unknown-time records stay in byte order within their source generation.
-        IEnumerable<EventDiagnosticRecord> ordered = retained.OrderBy(record => record.Timestamp.HasValue ? 0 : 1)
-            .ThenBy(record => record.Timestamp?.UtcDateTime)
+        // A source with any unknown instant stays wholly source-local; mixing clock qualities must not reorder its pre-install checks.
+        var localSources = new HashSet<(string Source, string Generation)>(retained.Where(record => !record.Timestamp.HasValue).Select(record => (record.Source, record.Generation)));
+        IEnumerable<EventDiagnosticRecord> ordered = retained.OrderBy(record => localSources.Contains((record.Source, record.Generation)) ? 1 : 0)
+            .ThenBy(record => localSources.Contains((record.Source, record.Generation)) ? (DateTime?)null : record.Timestamp?.UtcDateTime)
             .ThenBy(record => record.Source, StringComparer.Ordinal).ThenBy(record => record.Generation, StringComparer.Ordinal).ThenBy(record => record.ByteStart);
         foreach (EventDiagnosticRecord record in ordered) {
             if (record.Format is "Malformed" or "Oversized") { inputComplete = false; continue; }
@@ -46,12 +48,11 @@ public static class EventIntuneApplicationAnalyzer {
             string[] ids = App.Matches(message).Cast<Match>().Select(match => match.Groups["id"].Value.ToLowerInvariant()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (ids.Length != 1) { unattributed++; continue; }
             Match contextMatch = Context.Match(message), attemptMatch = Attempt.Match(message);
-            string context = contextMatch.Success ? contextMatch.Groups["value"].Value : string.IsNullOrWhiteSpace(record.Context) ? record.CaptureContext : record.Context;
-            string scope = record.Timestamp.HasValue && !string.IsNullOrWhiteSpace(record.Device) && context is not ("Unknown" or "User")
+            string context = NormalizeContext(contextMatch.Success ? contextMatch.Groups["value"].Value : string.IsNullOrWhiteSpace(record.Context) ? record.CaptureContext : record.Context);
+            string scope = !localSources.Contains((record.Source, record.Generation)) && !string.IsNullOrWhiteSpace(record.Device) && context is not ("Unknown" or "User")
                 ? "device:" + record.Device : "source:" + record.Source + ":" + record.Generation;
             string key = ids[0] + "|" + context + "|" + scope + "|" + (attemptMatch.Success ? attemptMatch.Groups["value"].Value : string.Empty);
-            bool executionObserved = exit.Success || EnforcementObserved.IsMatch(message);
-            bool starts = Contains(message, "retry") || phase == "Enforcement" && executionObserved && (Contains(message, "start") || Contains(message, "executing"));
+            bool starts = Contains(message, "retry") || phase == "Enforcement" && EnforcementStarted.IsMatch(message);
             if (!active.TryGetValue(key, out EventIntuneApplicationAttempt? application) ||
                 !attemptMatch.Success && (application.LastPhase == "Reporting" || starts && phasesByAttempt[application].Contains("Enforcement"))) {
                 application = new EventIntuneApplicationAttempt {
@@ -63,7 +64,7 @@ public static class EventIntuneApplicationAnalyzer {
                 evidenceByAttempt[application] = new List<string>(); phasesByAttempt[application] = new List<string>();
             }
             evidenceByAttempt[application].Add(record.Identity);
-            if (executionObserved) { executedAttempts.Add(application); }
+            if (exit.Success || EnforcementCompleted.IsMatch(message)) { completedAttempts.Add(application); }
             if (phase != "Unknown") {
                 application.LastPhase = phase;
                 if (!phasesByAttempt[application].Contains(phase)) { phasesByAttempt[application].Add(phase); }
@@ -83,13 +84,13 @@ public static class EventIntuneApplicationAnalyzer {
             if (phase == "Detection" && (Contains(message, "applicationDetected: True") || Contains(message, "applicationDetected=true"))) {
                 application.Outcome = application.Outcome == "RestartRequired" ? "RestartRequired" : "Installed";
             }
-            if (phase == "Detection" && (Contains(message, "applicationDetected: False") || Contains(message, "applicationDetected=false")) && executedAttempts.Contains(application)) {
+            if (phase == "Detection" && (Contains(message, "applicationDetected: False") || Contains(message, "applicationDetected=false")) && completedAttempts.Contains(application)) {
                 application.Outcome = application.Outcome == "RestartRequired" ? "RestartRequired" : "Failure";
             }
             if (Regex.IsMatch(message, "\\b(?:download|installation|enforcement) (?:has )?failed\\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))) { application.Outcome = "Failure"; }
         }
         if (unattributed > 0) { diagnostics.Add(unattributed + " phase/result messages lack one explicit application ID; they remain in raw evidence and were not correlated."); }
-        if (retained.Any(record => !record.Timestamp.HasValue)) { diagnostics.Add("Some records have no known UTC instant. Their order is source-local; cross-file chronology and durations are unknown."); }
+        if (localSources.Count > 0) { diagnostics.Add("Sources containing an unknown UTC instant remain in byte order for the entire generation. Their cross-file chronology and durations are unknown."); }
         foreach (EventIntuneApplicationAttempt attempt in attempts) {
             attempt.EvidenceIdentities = evidenceByAttempt[attempt].ToArray(); attempt.Phases = phasesByAttempt[attempt].ToArray();
             string artifact = attempt.Outcome == "Failure" ? "Installer log, detection configuration, and Intune return-code mapping"
@@ -114,6 +115,14 @@ public static class EventIntuneApplicationAnalyzer {
     }
 
     private static bool Contains(string text, string value) => text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+    private static string NormalizeContext(string context) {
+        if (string.IsNullOrWhiteSpace(context)) { return "Unknown"; }
+        context = context.Trim();
+        foreach (string reserved in new[] { "Unknown", "User", "SYSTEM" }) {
+            if (context.Equals(reserved, StringComparison.OrdinalIgnoreCase)) { return reserved; }
+        }
+        return context;
+    }
     private static string Phase(string text) {
         if (Contains(text, "reporting") || Contains(text, "send results")) { return "Reporting"; }
         if (Contains(text, "applicationDetected") || Contains(text, "detection")) { return "Detection"; }

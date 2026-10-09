@@ -33,8 +33,9 @@ are preserved for inspection rather than used to invent conclusions.
 
 Declare `--device` only when the inputs belong to that endpoint. Cross-file
 application correlation also requires known instants and a specific execution
-identity in the records. Unknown time, unknown context, and generic `User`
-context keep attempts source-local. CLI capture options apply to all supplied
+identity in the records. A source generation containing any unknown instant stays
+entirely in byte order. Unknown context and generic `User` context, regardless of
+casing, keep attempts source-local. CLI capture options apply to all supplied
 files; use the typed API or PowerShell capture descriptors when files have
 different contexts, offsets, or capture times.
 
@@ -93,7 +94,8 @@ records per batch, and retained bytes per frame. Incomplete trailing frames stay
 pending. Oversized completed frames carry an explicit diagnostic and cannot
 produce application conclusions. A frame larger than the batch bound cannot
 advance until the bound is increased; session capture reports that gap instead
-of repeatedly retrying it.
+of repeatedly retrying it. Concurrent truncation discards an unfinished frame and
+reports the changed input so the next read can validate its generation.
 
 The checkpoint fingerprints physical file identity, the prefix, and the preceding
 4 KiB. Rotation, empty truncation, and changes in those checked bytes start a new
@@ -128,13 +130,20 @@ detection, download, enforcement, restart, and reporting messages. Records need
 one explicit application ID. Unattributed lines remain in evidence and never
 inherit an app from a nearby line or thread. Attempt boundaries without explicit
 IDs are marked inferred. An observed client detection result does not prove
-service-side reporting or later deployment state. [Microsoft's documented application lifecycle](https://learn.microsoft.com/en-us/troubleshoot/mem/intune/app-management/develop-deliver-working-win32-app-via-intune).
+service-side reporting or later deployment state. A negative detection during an
+unfinished installation remains uncertain; post-enforcement failure needs a
+completion or exit result, or an explicit terminal failure. [Microsoft's documented application lifecycle](https://learn.microsoft.com/en-us/troubleshoot/mem/intune/app-management/develop-deliver-working-win32-app-via-intune).
 
 DSRegCmd analysis retains section-local values, unknowns, and conflicting fields.
 Join-state mismatch needs an explicit intended join mode. User PRT and Hello
 results need the affected user's context and policy. MDM URLs alone do not prove
 device enrollment. Capture time must be supplied by the collector; a file's
 modification time is not a collection receipt. [Microsoft's DSRegCmd field contracts](https://learn.microsoft.com/en-us/entra/identity/devices/troubleshoot-device-dsregcmd).
+
+Captured DSRegCmd text and JSON facts support UTF-8 and BOM-marked UTF-16, including
+Windows PowerShell 5.1 redirection. Canonical session JSON remains strict UTF-8.
+Replay checks the hash of the diagnostic bytes actually consumed as well as the
+session's preflight integrity checks.
 
 Original artifacts and canonical diagnostic records remain sensitive. Reports
 omit raw log messages and DSRegCmd fields by default; application identifiers and

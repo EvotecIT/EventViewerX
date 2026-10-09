@@ -44,8 +44,9 @@ public static partial class EventDiagnosticLogReader {
         try {
             while (stream.Position < length && stream.Position - startOffset < options.MaximumBatchBytes && records.Count < options.MaximumRecords) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var line = new MemoryStream();
+                using var line = new MemoryStream();
                 bool lineOversized = false, newline = false;
+                bool unexpectedEnd = false;
                 bool lineHasFooter = false;
                 int footerProgress = 0;
                 const string footer = "]LOG]!>";
@@ -55,6 +56,7 @@ public static partial class EventDiagnosticLogReader {
                     cancellationToken.ThrowIfCancellationRequested();
                     int first = stream.ReadByte();
                     int second = unit == 2 ? stream.ReadByte() : -1;
+                    if (first < 0 || unit == 2 && second < 0) { unexpectedEnd = true; break; }
                     int character = unit == 1 ? first : encodingName == "utf-16le" ? first | second << 8 : first << 8 | second;
                     footerProgress = character == footer[footerProgress] ? footerProgress + 1 : character == footer[0] ? 1 : 0;
                     if (footerProgress == footer.Length) { lineHasFooter = true; footerProgress = 0; }
@@ -62,6 +64,11 @@ public static partial class EventDiagnosticLogReader {
                     else { lineOversized = true; }
                     newline = unit == 1 ? first == 10 : encodingName == "utf-16le" ? first == 10 && second == 0 : first == 0 && second == 10;
                     if (newline) { break; }
+                }
+                if (unexpectedEnd) {
+                    anyLoss = true;
+                    diagnostics.Add("The file changed during this read; the unfinished frame was discarded. Resume to validate the generation.");
+                    break;
                 }
                 bool eof = stream.Position == length;
                 if (!newline && (!eof || !options.FinalFile)) { line.Dispose(); break; }

@@ -192,7 +192,7 @@ public sealed partial class EventInvestigationSession {
         VerifyHash("observations.jsonl", file.Position, hash.Hash!);
     }
 
-    private string ReadText(string name, int maximumBytes, bool verify) {
+    private string ReadText(string name, int maximumBytes, bool verify, bool capturedText = false) {
         using var file = new FileStream(Resolve(name), FileMode.Open, FileAccess.Read, FileShare.Read);
         if (file.Length > maximumBytes) { throw new InvalidDataException("Investigation document exceeds its size limit."); }
         using var buffer = new MemoryStream();
@@ -204,7 +204,7 @@ public sealed partial class EventInvestigationSession {
         }
         byte[] content = buffer.ToArray();
         if (verify) { using SHA256 hash = SHA256.Create(); VerifyHash(name, content.Length, hash.ComputeHash(content)); }
-        return new UTF8Encoding(false, true).GetString(content);
+        return capturedText ? DecodeCapturedText(content) : new UTF8Encoding(false, true).GetString(content);
     }
 
     private void VerifyHash(string name, long length, byte[] hash) {

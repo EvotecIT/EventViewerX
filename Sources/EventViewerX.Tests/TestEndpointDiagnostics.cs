@@ -98,13 +98,103 @@ public sealed class TestEndpointDiagnostics : IDisposable {
     [Theory]
     [InlineData("installation command configured", "Unknown")]
     [InlineData("installation has not started", "Unknown")]
-    [InlineData("installation starts", "Failure")]
+    [InlineData("installation starts", "Unknown")]
+    [InlineData("installation completed", "Failure")]
     public void NegativeDetectionRequiresObservedExecution(string phase, string expected) {
         string path = PathOf("execution.log");
         const string app = "AppId: 11111111-1111-1111-1111-111111111111 context=SYSTEM attempt=one ";
         File.WriteAllText(path, Frame(app + phase) + Frame(app + "applicationDetected: False", "10:01:00+120"), new UTF8Encoding(false));
         EventIntuneApplicationAttempt attempt = Assert.Single(EventIntuneApplicationAnalyzer.Analyze(EventDiagnosticLogReader.Read(path).Records).Applications);
         Assert.Equal(expected, attempt.Outcome);
+    }
+
+    [Fact]
+    public async Task ConcurrentTruncationStopsWithoutWaitingForCancellation() {
+        string path = PathOf("truncate.log");
+        File.WriteAllText(path, string.Empty); _ = EventDiagnosticLogReader.Read(path);
+        using (var file = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete)) { file.SetLength(32 * 1024 * 1024); }
+        using var started = new ManualResetEventSlim();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Task<EventDiagnosticReadResult> reading = Task.Factory.StartNew(() => {
+            started.Set();
+            return EventDiagnosticLogReader.Read(path, new EventDiagnosticReadOptions { MaximumBatchBytes = 64 * 1024 * 1024, MaximumRecordBytes = 128 }, cancellationToken: cancellation.Token);
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        try {
+            Assert.True(started.Wait(TimeSpan.FromSeconds(2)));
+            await Task.Delay(100);
+            using (var truncate = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete)) { truncate.SetLength(0); }
+            EventDiagnosticReadResult result = await reading;
+            Assert.False(result.IsComplete); Assert.Empty(result.Records);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("changed during"));
+        } finally {
+            cancellation.Cancel();
+            try { await reading; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MixedTimestampQualityKeepsEntireSourceInByteOrder(bool declaredDevice) {
+        string path = PathOf("mixed-time.log");
+        const string app = "AppId: 11111111-1111-1111-1111-111111111111 context=SYSTEM attempt=one ";
+        File.WriteAllText(path, Frame(app + "applicationDetected: False", "10:00:00") + Frame(app + "MSI exit code 0", "10:01:00+120"), new UTF8Encoding(false));
+        var records = EventDiagnosticLogReader.Read(path, new EventDiagnosticReadOptions { Device = declaredDevice ? "captured-device" : string.Empty }).Records;
+        EventIntuneApplicationAttempt attempt = Assert.Single(EventIntuneApplicationAnalyzer.Analyze(records).Applications);
+        Assert.Equal("InstallerSucceededDetectionUnknown", attempt.Outcome);
+        Assert.Equal(records.Select(record => record.Identity), attempt.EvidenceIdentities);
+    }
+
+    [Theory]
+    [InlineData("User")]
+    [InlineData("user")]
+    [InlineData("USER")]
+    [InlineData("Unknown")]
+    [InlineData("unknown")]
+    [InlineData("UNKNOWN")]
+    public void GenericContextNeverCorrelatesAcrossFiles(string context) {
+        string first = PathOf("generic-first.log"), second = PathOf("generic-second.log");
+        const string app = "AppId: 11111111-1111-1111-1111-111111111111 attempt=one context=";
+        File.WriteAllText(first, Frame(app + context + " MSI exit code 0"));
+        File.WriteAllText(second, Frame(app + context + " applicationDetected: False", "10:01:00+120"));
+        var options = new EventDiagnosticReadOptions { Device = "captured-device" };
+        var records = EventDiagnosticLogReader.Read(first, options).Records.Concat(EventDiagnosticLogReader.Read(second, options).Records);
+        EventEndpointAnalysis result = EventIntuneApplicationAnalyzer.Analyze(records);
+        Assert.Equal(2, result.Applications.Length); Assert.DoesNotContain(result.Applications, attempt => attempt.Outcome == "Failure");
+    }
+
+    [Theory]
+    [InlineData("utf-8")]
+    [InlineData("utf-16le")]
+    [InlineData("utf-16be")]
+    public void CapturedTextSupportsBomEncodingsWhileRetainingOriginalBytes(string format) {
+        Encoding encoding = format switch { "utf-16le" => new UnicodeEncoding(false, true), "utf-16be" => new UnicodeEncoding(true, true), _ => new UTF8Encoding(true) };
+        string dsreg = PathOf("status.txt"), facts = PathOf("facts.json");
+        File.WriteAllText(dsreg, "| Device State |\r\nAzureAdJoined : YES\r\nDomainJoined : NO\r\nEnterpriseJoined : NO\r\n", encoding);
+        File.WriteAllText(facts, "{\"collector\":\"synthetic\"}", encoding);
+        byte[] original = File.ReadAllBytes(dsreg);
+        EventInvestigationSession session = EventInvestigationSession.CreateEndpoint(PathOf("encoded-case"), new EventEndpointCapture { ExpectedJoin = "Hybrid", Inputs = new[] {
+            new EventEndpointInput { Path = dsreg, Kind = "DsRegCmd" }, new EventEndpointInput { Path = facts, Kind = "Facts" } } });
+        EventEndpointAnalysis replay = session.ReplayEndpoint();
+        Assert.Equal("YES", Assert.Single(replay.IdentitySnapshots).Fields.Single(field => field.Name == "AzureAdJoined").Value);
+        Assert.Contains(replay.Findings, finding => finding.RuleId == "endpoint.identity.join" && finding.Status == "Failure");
+        Assert.Equal(original, File.ReadAllBytes(System.IO.Path.Combine(session.DirectoryPath, "input-000001.evidence")));
+    }
+
+    [Fact]
+    public void EndpointRecordsVerifyBytesConsumedAfterPreflight() {
+        string path = PathOf("consumed.log"); File.WriteAllText(path, Frame("AppId: 11111111-1111-1111-1111-111111111111 MSI exit code 1603"));
+        EventInvestigationSession session = EventInvestigationSession.CreateEndpoint(PathOf("consumed-case"), new EventEndpointCapture { Inputs = new[] { new EventEndpointInput { Path = path } } });
+        session.Verify();
+        // Enter the existing record-consumption boundary after a successful preflight, without adding a production test hook.
+        var reader = typeof(EventInvestigationSession).GetMethod("ReadDiagnosticRecords", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        Type receiptType = reader.GetParameters()[0].ParameterType;
+        object receipt = JsonSerializer.Deserialize(File.ReadAllText(System.IO.Path.Combine(session.DirectoryPath, "endpoint-capture.json")), receiptType,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        string records = System.IO.Path.Combine(session.DirectoryPath, "endpoint-records.jsonl");
+        File.WriteAllText(records, File.ReadAllText(records).Replace("1603", "3010"), new UTF8Encoding(false));
+        var consumed = (IEnumerable<EventDiagnosticRecord>)reader.Invoke(session, new[] { receipt, (object)CancellationToken.None })!;
+        Assert.Throws<InvalidDataException>(() => consumed.ToArray());
     }
 
     [Fact]

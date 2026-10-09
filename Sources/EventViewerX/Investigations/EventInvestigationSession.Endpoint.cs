@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace EventViewerX;
 
@@ -95,9 +96,9 @@ public sealed partial class EventInvestigationSession {
                     checkpoint = batch.Checkpoint;
                 }
             } else if (input.Kind == "DsRegCmd") {
-                snapshots.Add(EventDsRegAnalyzer.Parse(ReadText(artifact.Path, 1024 * 1024, false), artifact.Sha256, input.ExecutionContext, input.CapturedAt));
+                snapshots.Add(EventDsRegAnalyzer.Parse(ReadText(artifact.Path, 1024 * 1024, false, capturedText: true), artifact.Sha256, input.ExecutionContext, input.CapturedAt));
             } else if (input.Kind == "Facts") {
-                using JsonDocument facts = JsonDocument.Parse(ReadText(artifact.Path, 1024 * 1024, false));
+                using JsonDocument facts = JsonDocument.Parse(ReadText(artifact.Path, 1024 * 1024, false, capturedText: true));
                 if (facts.RootElement.ValueKind != JsonValueKind.Object) { throw new InvalidDataException("Captured facts must be a JSON object."); }
                 diagnostics.Add(artifact.Path + ": structured facts retained for inspection; no unsupported policy inference was applied.");
             } else { diagnostics.Add(artifact.Path + ": original " + input.Kind + " retained as evidence; it was not imported or executed."); }
@@ -127,7 +128,9 @@ public sealed partial class EventInvestigationSession {
             receipt.RecordCount < 0 || receipt.RecordCount > receipt.MaximumRecords) { throw new InvalidDataException("Invalid endpoint receipt bounds."); }
         using var stream = new FileStream(Resolve("endpoint-records.jsonl"), FileMode.Open, FileAccess.Read, FileShare.Read);
         if (stream.Length > receipt.MaximumRecordBytes + receipt.MaximumRecords * 2L) { throw new InvalidDataException("Diagnostic evidence exceeds its bound."); }
-        using var reader = new StreamReader(stream, new UTF8Encoding(false, true));
+        using SHA256 hash = SHA256.Create();
+        using var verified = new CryptoStream(stream, hash, CryptoStreamMode.Read);
+        using var reader = new StreamReader(verified, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: false);
         var line = new StringBuilder();
         int count = 0, value;
         while ((value = reader.Read()) >= 0) {
@@ -142,6 +145,18 @@ public sealed partial class EventInvestigationSession {
             yield return record; line.Clear();
         }
         if (line.Length != 0 || count != receipt.RecordCount) { throw new InvalidDataException("Diagnostic record stream is incomplete."); }
+        VerifyHash("endpoint-records.jsonl", stream.Position, hash.Hash!);
+    }
+
+    private static string DecodeCapturedText(byte[] content) {
+        int skip = 0;
+        Encoding encoding = new UTF8Encoding(false, true);
+        if (content.Length >= 4 && (content[0] == 255 && content[1] == 254 && content[2] == 0 && content[3] == 0 ||
+            content[0] == 0 && content[1] == 0 && content[2] == 254 && content[3] == 255)) { throw new InvalidDataException("Captured text supports UTF-8 and BOM-marked UTF-16."); }
+        if (content.Length >= 2 && content[0] == 255 && content[1] == 254) { encoding = new UnicodeEncoding(false, false, true); skip = 2; }
+        else if (content.Length >= 2 && content[0] == 254 && content[1] == 255) { encoding = new UnicodeEncoding(true, false, true); skip = 2; }
+        else if (content.Length >= 3 && content[0] == 239 && content[1] == 187 && content[2] == 191) { skip = 3; }
+        return encoding.GetString(content, skip, content.Length - skip);
     }
 
     private sealed class EndpointReceipt {
