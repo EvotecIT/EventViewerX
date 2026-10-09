@@ -76,6 +76,8 @@ public sealed class EventIntuneApplicationAttempt {
     public string Outcome { get; set; } = "Unknown";
     /// <summary>Raw installer result; process exit codes are interpreted only in their declared context.</summary>
     public string? ExitCode { get; set; }
+    /// <summary>Interpretation in the installer family declared by the evidence. Unknown process mappings remain unknown.</summary>
+    public EventDiagnosticCode? ExitDiagnostic { get; set; }
     /// <summary>Exact phase evidence in deterministic observation order.</summary>
     public string[] EvidenceIdentities { get; set; } = Array.Empty<string>();
     /// <summary>Distinct confirmed phases in this attempt.</summary>
@@ -111,7 +113,7 @@ public sealed class EventEndpointAnalysis {
     /// <summary>Endpoint analysis schema version.</summary>
     public int SchemaVersion { get; set; } = 1;
     /// <summary>Rule/reducer content version.</summary>
-    public string AnalyzerVersion { get; set; } = "1.0.0";
+    public string AnalyzerVersion { get; set; } = "1.1.0";
     /// <summary>Parsed diagnostic records, bounded by capture limits.</summary>
     public EventDiagnosticRecord[] Records { get; set; } = Array.Empty<EventDiagnosticRecord>();
     /// <summary>Captured identity snapshots.</summary>

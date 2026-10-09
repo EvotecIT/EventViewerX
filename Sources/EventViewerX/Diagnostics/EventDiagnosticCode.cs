@@ -17,7 +17,7 @@ public enum EventDiagnosticCodeKind {
 }
 
 /// <summary>Independently authored interpretation, retaining the original representation and unknown outcomes.</summary>
-public sealed class EventDiagnosticCode {
+public sealed partial class EventDiagnosticCode {
     /// <summary>Unmodified input.</summary>
     public string Original { get; private set; } = string.Empty;
     /// <summary>Declared context.</summary>
@@ -40,6 +40,8 @@ public sealed class EventDiagnosticCode {
     public string NextCheck { get; private set; } = string.Empty;
     /// <summary>Primary documentation for the number family.</summary>
     public string Reference { get; private set; } = string.Empty;
+    /// <summary>Documented constant or explicit HRESULT_FROM_WIN32 expression, when known in the declared family.</summary>
+    public string? SymbolicName { get; private set; }
 
     /// <summary>Interprets signed decimal, unsigned decimal, or 0x-prefixed 32-bit hexadecimal. No context is guessed from magnitude.</summary>
     public static EventDiagnosticCode Resolve(string text, EventDiagnosticCodeKind kind = EventDiagnosticCodeKind.Unknown) {
@@ -72,17 +74,15 @@ public sealed class EventDiagnosticCode {
             if (kind == EventDiagnosticCodeKind.WindowsInstaller) {
                 result.Reference = "https://learn.microsoft.com/en-us/windows/win32/msi/error-codes";
                 switch (value) {
-                    case 1641: result.Outcome = "SuccessRestartInitiated"; result.Explanation = "Windows Installer completed the operation and initiated a restart."; break;
-                    case 3010: result.Outcome = "SuccessRestartRequired"; result.Explanation = "Windows Installer completed the operation and requires a restart."; break;
-                    case 1603: result.Explanation = "Windows Installer reported installation failure. The number does not identify the failing custom action."; break;
-                    case 1618: result.Explanation = "Another Windows Installer transaction is running."; break;
-                    case 1619: result.Explanation = "Windows Installer could not open the supplied package."; break;
+                    case 1641: result.Outcome = "SuccessRestartInitiated"; break;
+                    case 3010: result.Outcome = "SuccessRestartRequired"; break;
                 }
                 result.NextCheck = result.Outcome.StartsWith("SuccessRestart", StringComparison.Ordinal)
                     ? "Inspect reboot policy and post-restart detection before calling the application deployment complete."
                     : "Inspect the installer log and configured Intune return-code mapping.";
             }
         }
+        ApplyKnownMeaning(result);
         return result;
     }
 }

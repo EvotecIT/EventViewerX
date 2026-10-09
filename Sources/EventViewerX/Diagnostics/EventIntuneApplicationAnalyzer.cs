@@ -67,7 +67,7 @@ public static class EventIntuneApplicationAnalyzer {
             evidenceByAttempt[application].Add(record.Identity);
             if (executionStarts) {
                 // A logging session can contain several executions. An earlier result cannot settle a newly started execution.
-                completedAttempts.Remove(application); application.Outcome = "Unknown"; application.ExitCode = null;
+                completedAttempts.Remove(application); application.Outcome = "Unknown"; application.ExitCode = null; application.ExitDiagnostic = null;
             }
             if (exit.Success || EnforcementCompleted.IsMatch(message)) { completedAttempts.Add(application); }
             if (phase != "Unknown") {
@@ -79,6 +79,7 @@ public static class EventIntuneApplicationAnalyzer {
                 // MSI semantics require an explicit installer declaration; generic process return-code maps are deployment configuration.
                 bool msi = Contains(message, "msiexec") || Contains(message, "Windows Installer") || Contains(message, "MSI exit");
                 EventDiagnosticCode code = EventDiagnosticCode.Resolve(application.ExitCode, msi ? EventDiagnosticCodeKind.WindowsInstaller : EventDiagnosticCodeKind.ProcessExit);
+                application.ExitDiagnostic = code;
                 application.Outcome = code.Outcome switch {
                     "Success" => "InstallerSucceededDetectionUnknown",
                     "SuccessRestartRequired" or "SuccessRestartInitiated" => "RestartRequired",
@@ -98,15 +99,21 @@ public static class EventIntuneApplicationAnalyzer {
         if (localSources.Count > 0) { diagnostics.Add("Sources containing an unknown UTC instant remain in byte order for the entire generation. Their cross-file chronology and durations are unknown."); }
         foreach (EventIntuneApplicationAttempt attempt in attempts) {
             attempt.EvidenceIdentities = evidenceByAttempt[attempt].ToArray(); attempt.Phases = phasesByAttempt[attempt].ToArray();
+            EventDiagnosticCode? code = attempt.ExitDiagnostic;
+            string exitExplanation = code == null ? string.Empty : " Exit code " + code.Original + " (" + code.Kind + ", " + code.Hex +
+                (code.SymbolicName == null ? string.Empty : ", " + code.SymbolicName) + "): " + code.Explanation;
             string artifact = attempt.Outcome == "Failure" ? "Installer log, detection configuration, and Intune return-code mapping"
                 : attempt.Outcome == "RestartRequired" ? "Reboot policy and post-restart detection evidence" : "Detection result, applicability policy, and reporting receipt";
             findings.Add(new EventDiagnosticFinding {
-                RuleId = "endpoint.intune.application", Title = attempt.ApplicationId + ": " + attempt.Outcome,
+                RuleId = "endpoint.intune.application", RuleVersion = "1.1.0", Title = attempt.ApplicationId + ": " + attempt.Outcome,
                 Status = attempt.Outcome == "Failure" ? "Failure" : attempt.Outcome is "Installed" or "NotApplicable" ? "Observed" : "InsufficientEvidence",
-                Explanation = "Last observed phase: " + attempt.LastPhase + ". Outcome: " + attempt.Outcome + ". Attempt boundary: " + attempt.BoundaryQuality + "; context: " + attempt.Context + ". Unobserved phases remain unknown; this does not prove service-side status.",
-                EvidenceIdentities = attempt.EvidenceIdentities, References = new[] { Reference },
+                Explanation = "Last observed phase: " + attempt.LastPhase + ". Outcome: " + attempt.Outcome + ". Attempt boundary: " + attempt.BoundaryQuality + "; context: " + attempt.Context + "." + exitExplanation + " Unobserved phases remain unknown; this does not prove service-side status.",
+                EvidenceIdentities = attempt.EvidenceIdentities, References = code == null ? new[] { Reference } : new[] { Reference, code.Reference }.Distinct().ToArray(),
                 NextChecks = new[] { new EventDiagnosticNextCheck { Artifact = artifact, Action = "Compare the captured attempt with the configured installation and detection contract.",
                     Reason = "Client observations alone do not establish intended settings, later retries, or accepted service reporting." } }
+                    .Concat(code == null ? Array.Empty<EventDiagnosticNextCheck>() : new[] { new EventDiagnosticNextCheck {
+                        Artifact = "Installer or process evidence for exit code " + code.Original, Action = code.NextCheck,
+                        Reason = "The meaning is bounded by the declared " + code.Kind + " contract; an exit code alone does not establish the deployment's cause or completion." } }).ToArray()
             });
         }
         EventDsRegSnapshot[] identity = (snapshots ?? Array.Empty<EventDsRegSnapshot>()).Take(129).ToArray();

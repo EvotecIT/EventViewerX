@@ -118,8 +118,16 @@ evx diagnostics code --value 0x80070005 --kind HResult
 ```
 
 The result retains the original number, its unsigned and hexadecimal forms,
-HRESULT facility and severity where applicable, and a next check. A process exit
-code needs the application's configured return-code mapping. Windows Installer
+HRESULT facility and severity where applicable, and a next check. Common Win32,
+HRESULT and Windows
+Installer values include documented symbolic names, deterministic explanations
+and a specific next artifact or configuration to inspect. Unknown numbers retain
+their representation and family semantics without an invented diagnosis. The
+catalog does not depend on the collector's language or operating system.
+Application findings retain that interpretation when the captured line declares
+Windows Installer; other executable exit codes still require their configured mapping.
+
+A process exit code needs the application's configured return-code mapping. Windows Installer
 0, 1641, and 3010 have success semantics; a required restart still needs reboot
 policy and later detection evidence. [Windows Installer return-code contract](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes).
 

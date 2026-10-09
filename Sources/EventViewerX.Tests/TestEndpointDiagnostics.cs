@@ -147,7 +147,7 @@ public sealed class TestEndpointDiagnostics : IDisposable {
             Frame(app + "applicationDetected: False", "10:02:00+120"), new UTF8Encoding(false));
         EventEndpointAnalysis analysis = EventIntuneApplicationAnalyzer.Analyze(EventDiagnosticLogReader.Read(path).Records);
         EventIntuneApplicationAttempt attempt = Assert.Single(analysis.Applications);
-        Assert.Equal("Unknown", attempt.Outcome); Assert.Null(attempt.ExitCode); Assert.Equal(3, attempt.EvidenceIdentities.Length);
+        Assert.Equal("Unknown", attempt.Outcome); Assert.Null(attempt.ExitCode); Assert.Null(attempt.ExitDiagnostic); Assert.Equal(3, attempt.EvidenceIdentities.Length);
         Assert.Equal("InsufficientEvidence", Assert.Single(analysis.Findings).Status);
     }
 
@@ -266,6 +266,30 @@ public sealed class TestEndpointDiagnostics : IDisposable {
         Assert.Equal("Installed", analysis.Applications.Single(app => app.ApplicationId == b).Outcome);
         Assert.Contains(analysis.CoverageDiagnostics, diagnostic => diagnostic.Contains("not correlated"));
         Assert.All(analysis.Findings, finding => Assert.NotEmpty(finding.NextChecks));
+    }
+
+    [Theory]
+    [InlineData("MSI exit code 1618", "ERROR_INSTALL_ALREADY_RUNNING", "Failure")]
+    [InlineData("MSI exit code 3010", "ERROR_SUCCESS_REBOOT_REQUIRED", "RestartRequired")]
+    [InlineData("exit code 1618", null, "Unknown")]
+    public void ApplicationFindingsExplainOnlyTheDeclaredExitContract(string message, string? symbol, string outcome) {
+        string path = PathOf("exit-guidance.log");
+        File.WriteAllText(path, Frame("AppId: 11111111-1111-1111-1111-111111111111 context=SYSTEM attempt=one " + message + "; raw-sensitive-marker"), new UTF8Encoding(false));
+        EventEndpointAnalysis analysis = EventIntuneApplicationAnalyzer.Analyze(EventDiagnosticLogReader.Read(path).Records);
+        EventIntuneApplicationAttempt attempt = Assert.Single(analysis.Applications);
+        EventDiagnosticFinding finding = Assert.Single(analysis.Findings);
+        Assert.Equal(outcome, attempt.Outcome);
+        Assert.NotNull(attempt.ExitDiagnostic);
+        Assert.Equal(symbol, attempt.ExitDiagnostic.SymbolicName);
+        Assert.Contains(attempt.ExitDiagnostic.Explanation, finding.Explanation);
+        Assert.Contains(attempt.ExitDiagnostic.Reference, finding.References);
+        Assert.Contains(finding.NextChecks, check => check.Action == attempt.ExitDiagnostic.NextCheck);
+        Assert.Equal(attempt.EvidenceIdentities, finding.EvidenceIdentities);
+        Assert.Equal("1.1.0", finding.RuleVersion);
+        Assert.Equal("1.1.0", analysis.AnalyzerVersion);
+        string html = EventEndpointHtmlRenderer.Render(analysis);
+        Assert.Contains(symbol ?? "ProcessExit", html);
+        Assert.DoesNotContain("raw-sensitive-marker", html);
     }
 
     [Fact]
