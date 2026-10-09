@@ -282,7 +282,8 @@ public sealed class TestEndpointDiagnostics : IDisposable {
         Assert.NotNull(attempt.ExitDiagnostic);
         Assert.Equal(symbol, attempt.ExitDiagnostic.SymbolicName);
         Assert.Contains(attempt.ExitDiagnostic.Explanation, finding.Explanation);
-        Assert.Contains(attempt.ExitDiagnostic.Reference, finding.References);
+        Assert.DoesNotContain(finding.References, string.IsNullOrWhiteSpace);
+        if (!string.IsNullOrWhiteSpace(attempt.ExitDiagnostic.Reference)) { Assert.Contains(attempt.ExitDiagnostic.Reference, finding.References); }
         Assert.Contains(finding.NextChecks, check => check.Action == attempt.ExitDiagnostic.NextCheck);
         Assert.Equal(attempt.EvidenceIdentities, finding.EvidenceIdentities);
         Assert.Equal("1.1.0", finding.RuleVersion);
@@ -290,6 +291,25 @@ public sealed class TestEndpointDiagnostics : IDisposable {
         string html = EventEndpointHtmlRenderer.Render(analysis);
         Assert.Contains(symbol ?? "ProcessExit", html);
         Assert.DoesNotContain("raw-sensitive-marker", html);
+    }
+
+    [Theory]
+    [InlineData("MSI exit code 3010", EventDiagnosticCodeKind.WindowsInstaller, "ERROR_SUCCESS_REBOOT_REQUIRED")]
+    [InlineData("MSI exit code 1603", EventDiagnosticCodeKind.WindowsInstaller, "ERROR_INSTALL_FAILURE")]
+    [InlineData("exit code 3010", EventDiagnosticCodeKind.ProcessExit, null)]
+    public void ExitInterpretationSurvivesCaptureInspectReopenAndReplay(string message, EventDiagnosticCodeKind kind, string? symbol) {
+        string path = PathOf("persisted-exit.log");
+        File.WriteAllText(path, Frame("AppId: 11111111-1111-1111-1111-111111111111 context=SYSTEM attempt=one " + message), new UTF8Encoding(false));
+        EventDiagnosticCode expected = Assert.Single(EventIntuneApplicationAnalyzer.Analyze(EventDiagnosticLogReader.Read(path).Records).Applications).ExitDiagnostic!;
+        EventInvestigationSession session = EventInvestigationSession.CreateEndpoint(PathOf("exit-case"), new EventEndpointCapture {
+            Inputs = new[] { new EventEndpointInput { Path = path, Kind = "Log" } } });
+        foreach (EventEndpointAnalysis analysis in new[] { session.ReadEndpointAnalysis(), EventInvestigationSession.Open(session.DirectoryPath).ReadEndpointAnalysis(), session.ReplayEndpoint() }) {
+            EventDiagnosticCode? actual = Assert.Single(analysis.Applications).ExitDiagnostic;
+            Assert.NotNull(actual);
+            Assert.Equal(kind, actual.Kind);
+            Assert.Equal(symbol, actual.SymbolicName);
+            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        }
     }
 
     [Fact]

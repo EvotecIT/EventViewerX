@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace EventViewerX;
 
@@ -19,28 +20,40 @@ public enum EventDiagnosticCodeKind {
 /// <summary>Independently authored interpretation, retaining the original representation and unknown outcomes.</summary>
 public sealed partial class EventDiagnosticCode {
     /// <summary>Unmodified input.</summary>
+    [JsonInclude]
     public string Original { get; private set; } = string.Empty;
     /// <summary>Declared context.</summary>
+    [JsonInclude]
     public EventDiagnosticCodeKind Kind { get; private set; }
     /// <summary>Unsigned 32-bit representation, or null for invalid input.</summary>
+    [JsonInclude]
     public uint? Value { get; private set; }
     /// <summary>Canonical hexadecimal representation.</summary>
+    [JsonInclude]
     public string? Hex { get; private set; }
     /// <summary>HRESULT facility, only for a declared HRESULT.</summary>
+    [JsonInclude]
     public int? Facility { get; private set; }
     /// <summary>HRESULT severity bit, only for a declared HRESULT.</summary>
+    [JsonInclude]
     public bool? HResultFailure { get; private set; }
     /// <summary>Embedded Win32 value for a Win32-facility HRESULT.</summary>
+    [JsonInclude]
     public uint? Win32Value { get; private set; }
     /// <summary>Success, SuccessRestartRequired, SuccessRestartInitiated, Failure, or Unknown.</summary>
+    [JsonInclude]
     public string Outcome { get; private set; } = "Unknown";
     /// <summary>Meaning within the declared context; never an inferred root cause.</summary>
+    [JsonInclude]
     public string Explanation { get; private set; } = string.Empty;
     /// <summary>Next artifact or configuration to inspect.</summary>
+    [JsonInclude]
     public string NextCheck { get; private set; } = string.Empty;
     /// <summary>Primary documentation for the number family.</summary>
+    [JsonInclude]
     public string Reference { get; private set; } = string.Empty;
     /// <summary>Documented constant or explicit HRESULT_FROM_WIN32 expression, when known in the declared family.</summary>
+    [JsonInclude]
     public string? SymbolicName { get; private set; }
 
     /// <summary>Interprets signed decimal, unsigned decimal, or 0x-prefixed 32-bit hexadecimal. No context is guessed from magnitude.</summary>

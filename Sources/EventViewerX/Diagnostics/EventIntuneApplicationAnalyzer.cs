@@ -108,7 +108,7 @@ public static class EventIntuneApplicationAnalyzer {
                 RuleId = "endpoint.intune.application", RuleVersion = "1.1.0", Title = attempt.ApplicationId + ": " + attempt.Outcome,
                 Status = attempt.Outcome == "Failure" ? "Failure" : attempt.Outcome is "Installed" or "NotApplicable" ? "Observed" : "InsufficientEvidence",
                 Explanation = "Last observed phase: " + attempt.LastPhase + ". Outcome: " + attempt.Outcome + ". Attempt boundary: " + attempt.BoundaryQuality + "; context: " + attempt.Context + "." + exitExplanation + " Unobserved phases remain unknown; this does not prove service-side status.",
-                EvidenceIdentities = attempt.EvidenceIdentities, References = code == null ? new[] { Reference } : new[] { Reference, code.Reference }.Distinct().ToArray(),
+                EvidenceIdentities = attempt.EvidenceIdentities, References = code == null ? new[] { Reference } : new[] { Reference, code.Reference }.Where(reference => !string.IsNullOrWhiteSpace(reference)).Distinct().ToArray(),
                 NextChecks = new[] { new EventDiagnosticNextCheck { Artifact = artifact, Action = "Compare the captured attempt with the configured installation and detection contract.",
                     Reason = "Client observations alone do not establish intended settings, later retries, or accepted service reporting." } }
                     .Concat(code == null ? Array.Empty<EventDiagnosticNextCheck>() : new[] { new EventDiagnosticNextCheck {

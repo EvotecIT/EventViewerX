@@ -58,4 +58,13 @@ public sealed class TestDiagnosticCodeExplanations {
         Assert.Equal("Failure", code.Outcome);
         Assert.Contains("not a root-cause", code.Explanation);
     }
+
+    [Fact]
+    public void FailureWithZeroWin32BitsDoesNotClaimTheSuccessMacro() {
+        EventDiagnosticCode code = EventDiagnosticCode.Resolve("0x80070000", EventDiagnosticCodeKind.HResult);
+        Assert.Equal("Failure", code.Outcome);
+        Assert.Equal((uint)0, code.Win32Value);
+        Assert.Null(code.SymbolicName);
+        Assert.DoesNotContain("returned success", code.Explanation);
+    }
 }

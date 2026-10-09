@@ -6,7 +6,7 @@ public sealed partial class EventDiagnosticCode {
         var meaning = result.Kind switch {
             EventDiagnosticCodeKind.Win32 => Win32Meaning(result.Value.Value),
             EventDiagnosticCodeKind.WindowsInstaller => InstallerMeaning(result.Value.Value),
-            EventDiagnosticCodeKind.HResult when result.Win32Value.HasValue => Win32Meaning(result.Win32Value.Value),
+            EventDiagnosticCodeKind.HResult when result.Win32Value.HasValue => result.Win32Value.Value == 0 ? null : Win32Meaning(result.Win32Value.Value),
             EventDiagnosticCodeKind.HResult => HResultMeaning(result.Value.Value),
             _ => null
         };
