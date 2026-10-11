@@ -291,6 +291,8 @@ See [custom event definitions](Event-Definitions.md) and
 
 ### Create HTML, Excel, and email output
 
+For an editable Word/PDF investigation brief and an Excel register from the same bounded snapshot, see the [PSWriteOffice report handoff](Office-Report-Handoff.md).
+
 `Show-EVXEvent` is the one report command. It queries once and renders each
 selected output from the same normalized snapshot.
 

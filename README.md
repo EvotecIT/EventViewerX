@@ -148,6 +148,7 @@ framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 - [Five investigation workflows](Docs/Investigation-Workflows.md): lockouts,
   authentication modernization, Group Policy, collector health, saved EVTX, and
   automation that preserves incomplete-input evidence.
+- [Editable incident briefs](Docs/Office-Report-Handoff.md): hand a bounded event snapshot to PSWriteOffice for Word/PDF and Excel output.
 - [PowerShell guide](Docs/PowerShell-Guide.md): local, remote, offline, large
   logs, export, checkpoints, watchers, administration, WEC, script recovery,
   and writes.
