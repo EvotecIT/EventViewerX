@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
         with:
           dotnet-version: '10.0.112'
 
@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 

@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
@@ -39,7 +39,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
