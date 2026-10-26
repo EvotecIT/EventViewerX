@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: EvotecIT/.github/actions/setup-dotnet@ec7a94defe85925f23fab68a44b4659ca71c3497
+      - uses: EvotecIT/.github/actions/setup-dotnet@6951a19318dbacbae020a2c1e0d4ffa300a95c6d
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
@@ -39,7 +39,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: EvotecIT/.github/actions/setup-dotnet@ec7a94defe85925f23fab68a44b4659ca71c3497
+      - uses: EvotecIT/.github/actions/setup-dotnet@6951a19318dbacbae020a2c1e0d4ffa300a95c6d
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
