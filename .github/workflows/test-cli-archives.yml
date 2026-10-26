@@ -49,7 +49,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0755 /usr/local/share/dotnet
-      - uses: EvotecIT/.github/actions/setup-dotnet@6a07f68bbcf97cfce479f930590d4fe4d85ef715
+      - uses: EvotecIT/.github/actions/setup-dotnet@ec7a94defe85925f23fab68a44b4659ca71c3497
         env:
           DOTNET_INSTALL_DIR: ${{ matrix.dotnet-root }}
         with:
