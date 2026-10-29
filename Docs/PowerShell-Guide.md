@@ -316,27 +316,44 @@ Get-EVXEvent -LogName System -EventId 41, 6008 -TimePeriod Last7Days |
 
 With no explicit output and no `-PassThru`, the command creates and opens a
 temporary HTML report. `-EmailPackage` returns transport-neutral HTML, plain
-text, inline resources, and attachments for Mailozaurr, Graph, or Teams
-adapters; PSEventViewer itself does not send or own credentials. Its compact
+text, inline resources, and attachments for delivery adapters; PSEventViewer
+itself does not send or own credentials. Its compact
 digest distributes the row limit across populated typed sections instead of
 letting the first event type consume the entire email.
 
 ```powershell
-Install-Module Mailozaurr -Scope CurrentUser
-Import-Module Mailozaurr
-$credential = Get-Credential
+Install-Module Mailozaurr -MinimumVersion 3.0.5 -Scope CurrentUser
+Import-Module Mailozaurr -MinimumVersion 3.0.5 -ErrorAction Stop
 $email = Show-EVXEvent -Type ADUserLogonFailed `
     -TimePeriod Last24Hours -EmailPackage
 
-Send-EmailMessage -Server 'smtp.contoso.com' -Port 587 `
-    -From 'events@contoso.com' -To 'operations@contoso.com' `
-    -Subject $email.Subject -HTML $email.Html -Text $email.PlainText `
-    -Credential $credential -SecureSocketOptions StartTls
+$builder = New-Object -TypeName Mailozaurr.MailApplicationBuilder
+$mail = $builder.Build()
+$profileId = 'evx-graph'
+$profile = $mail.Profiles.GetProfileAsync($profileId).GetAwaiter().GetResult()
+if (-not $profile) { throw "Mailozaurr profile '$profileId' was not found." }
+$message = New-Object -TypeName Mailozaurr.DraftMessage
+$message.ProfileId = $profileId
+$message.From = New-Object -TypeName Mailozaurr.MessageRecipient `
+    -Property @{ Address = $profile.DefaultSender }
+$message.To.Add((New-Object -TypeName Mailozaurr.MessageRecipient `
+    -Property @{ Address = 'operations@contoso.com' }))
+$message.Subject = $email.Subject
+$message.HtmlBody = $email.Html
+$message.TextBody = $email.PlainText
+$request = New-Object -TypeName Mailozaurr.SendMessageRequest
+$request.ProfileId = $profileId
+$request.Message = $message
+$result = $mail.Send.SendAsync($request).GetAwaiter().GetResult()
+if (-not $result.Succeeded -or $result.Queued) {
+    throw "Mail delivery was not acknowledged: $($result.Message)"
+}
 ```
 
-`Send-EmailMessage` is supplied by Mailozaurr. Keeping it outside the module
-lets the same package work with SMTP, Microsoft Graph, or a future transport
-adapter without making any sender a PSEventViewer dependency.
+Create `evx-graph` with the [Graph certificate recipe](First-Run.md#graph-with-an-app-registration-and-certificate),
+or change `$profileId` to the [SMTP relay profile](First-Run.md#smtp-relay).
+Mailozaurr selects the handler and resolves protected secrets. The module
+keeps only the rendered package and has no mail transport dependency.
 
 ### Retain and summarize typed history
 

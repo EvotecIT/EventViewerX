@@ -42,7 +42,7 @@ internal static partial class Program {
     private static void ValidateReportOutputPaths(CliArguments options) {
         StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var inputs = new HashSet<string>(options.GetMany("path").Select(ComparisonPath), comparer);
-        foreach (string name in new[] { "store", "write-store", "context-store", "definition", "mail-profile", "privacy-key-file" }) {
+        foreach (string name in new[] { "store", "write-store", "context-store", "definition", "mail-profile-store", "privacy-key-file" }) {
             if (options.Get(name) is string path) { inputs.Add(ComparisonPath(path)); }
         }
         if (options.Get("where") is string predicate && File.Exists(predicate)) { inputs.Add(ComparisonPath(predicate)); }

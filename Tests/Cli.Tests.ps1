@@ -9,9 +9,19 @@ Describe 'evx portable host' {
         if (-not $script:CliPath) {
             throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
         }
+        $cliDirectory = Split-Path -Parent $script:CliPath
+        if (-not ('EventViewerX.EventType' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.dll')
+        }
+        if (-not ('EventViewerX.Reporting.EventReportRow' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.Reporting.dll')
+        }
+        if (-not ('EventViewerX.Storage.EventStore' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.Storage.dll')
+        }
         $script:FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
         $script:TruncatedFixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples-Truncated.evtx'
-        $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
+        $script:MailProfilesPath = Join-Path $PSScriptRoot 'Fixtures\MailProfiles.json'
     }
 
     It 'preserves diagnostic input when the checkpoint is its <Alias> alias' -TestCases @(
@@ -143,7 +153,10 @@ Describe 'evx portable host' {
                 --drawer-placement Top `
                 --excel $ExcelPath `
                 --email-html $EmailPath `
-                --mail-profile $script:SmtpProfilePath)
+                --mail-profile event-smtp `
+                --mail-profile-store $script:MailProfilesPath `
+                --mail-to operator@example.test `
+                --mail-dry-run)
 
         $LASTEXITCODE | Should -Be 0
         Test-Path -LiteralPath $HtmlPath | Should -BeTrue
@@ -153,30 +166,33 @@ Describe 'evx portable host' {
         $Delivery = $Output[-1] | ConvertFrom-Json
         $Delivery.DryRun | Should -BeTrue
         $Delivery.Delivered | Should -BeFalse
+        $Delivery.ProfileId | Should -Be 'event-smtp'
+        $Delivery.ProfileKind | Should -Be 'Smtp'
     }
 
-    It 'accepts legacy named and numeric SMTP security values' -TestCases @(
-        @{ SecurityValue = 'Auto' }
-        @{ SecurityValue = '1' }
+    It 'dry-runs a Mailozaurr <Kind> profile without delivery' -TestCases @(
+        @{ Kind = 'event-smtp'; ExpectedKind = 'Smtp' }
+        @{ Kind = 'event-graph'; ExpectedKind = 'Graph' }
     ) {
-        param([string] $SecurityValue)
+        param([string] $Kind, [string] $ExpectedKind)
 
-        $ProfilePath = Join-Path $TestDrive "smtp-$SecurityValue.json"
-        $EmailPath = Join-Path $TestDrive "smtp-$SecurityValue.html"
-        $Profile = Get-Content -LiteralPath $script:SmtpProfilePath -Raw | ConvertFrom-Json
-        $Profile.SecureSocketOptions = $SecurityValue
-        $Profile | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ProfilePath -Encoding UTF8
+        $EmailPath = Join-Path $TestDrive "$Kind.html"
 
         $Output = @(& $script:CliPath report `
                 --path $script:FixturePath `
                 --max 1 `
                 --email-html $EmailPath `
-                --mail-profile $ProfilePath)
+                --mail-profile $Kind `
+                --mail-profile-store $script:MailProfilesPath `
+                --mail-to operator@example.test `
+                --mail-dry-run)
 
         $LASTEXITCODE | Should -Be 0
         $Delivery = $Output[-1] | ConvertFrom-Json
         $Delivery.DryRun | Should -BeTrue
         $Delivery.Delivered | Should -BeFalse
+        $Delivery.ProfileId | Should -Be $Kind
+        $Delivery.ProfileKind | Should -Be $ExpectedKind
     }
 
     It 'rejects an unknown HTML drawer placement' {

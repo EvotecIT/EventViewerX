@@ -2,20 +2,17 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Mailozaurr.Internet": {
+      "Mailozaurr": {
         "type": "Direct",
         "requested": "[3.0.5, )",
         "resolved": "3.0.5",
-        "contentHash": "nabdTchmekmOb5pehWnGcblgw42gJj9yFGeLwMSm8MPkfLz4G8ekzqsukOysXFuX3TLSwuIdr39LDRCOF2O/ZQ==",
+        "contentHash": "xdtJjaPEoIc089gNzX6ClZVEeDgRi4sl8PpYmwKd2JO3aV9lXD4pyYvAt1G+nEhWIv6+fAEEftnOk+nPd64GrQ==",
         "dependencies": {
-          "BouncyCastle.Cryptography": "2.7.0",
-          "EmailValidation": "1.4.0",
-          "MailKit": "4.18.1",
-          "MimeKit": "4.18.1",
-          "NSspi": "0.3.1",
-          "OfficeIMO.Email.Html": "3.5.1",
-          "System.Security.Cryptography.Pkcs": "10.0.13",
-          "System.Security.Cryptography.ProtectedData": "10.0.13"
+          "Mailozaurr.Artifacts": "3.0.5",
+          "Mailozaurr.Gmail": "3.0.5",
+          "Mailozaurr.Internet": "3.0.5",
+          "Mailozaurr.Jmap": "3.0.5",
+          "Mailozaurr.MicrosoftGraph": "3.0.5"
         }
       },
       "System.Security.Cryptography.Pkcs": {
@@ -109,6 +106,32 @@
         "resolved": "11.11.0",
         "contentHash": "cyIVdQBwSipxWG8MA3Rqox7iNbUNUTK5bfJi9tIdm4CAfH71Oo5ABLP4/QyrUwuakqpUEPGtE43BDddvEehuYw=="
       },
+      "Google.Apis": {
+        "type": "Transitive",
+        "resolved": "1.77.0",
+        "contentHash": "zj7MKdZz7lWRM7z2meqh5S9KSf83c1xY8Fa+b1KzYxw9xMugUxcQtwPoxJgFzxKJgLE64dAra0ze++P/Up4k6Q==",
+        "dependencies": {
+          "Google.Apis.Core": "1.77.0"
+        }
+      },
+      "Google.Apis.Auth": {
+        "type": "Transitive",
+        "resolved": "1.77.0",
+        "contentHash": "lcgXlzM+JkX0nKKc7KBwTdiei2IbV20PuTe3cVQ2zOhq0j4IiS9I4xlRQY4igdCMLlmobthz5xtHiPr/wxl0Ew==",
+        "dependencies": {
+          "Google.Apis": "1.77.0",
+          "Google.Apis.Core": "1.77.0",
+          "System.Management": "7.0.2"
+        }
+      },
+      "Google.Apis.Core": {
+        "type": "Transitive",
+        "resolved": "1.77.0",
+        "contentHash": "7Yj4dpbOLFbxct6x5AFHQEZ25E8/f+5zqW39Q8f/GZknLyuS+uhnt2DIcKQplBNJTK9WNXompbYLWsPRhO6Nmg==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.4"
+        }
+      },
       "HtmlForgeX": {
         "type": "Transitive",
         "resolved": "1.4.0",
@@ -154,6 +177,55 @@
           "MimeKit": "4.18.1"
         }
       },
+      "Mailozaurr.Artifacts": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "yKpPtuTQEGE/15QoY2M3o1mRyG3l+p4NTggcVz0yCDw7/ORbKhsZ2Yrx2sg9s6AK4rF9xKCN7UM9S+wxUTz5yg==",
+        "dependencies": {
+          "MimeKit": "4.18.1",
+          "OfficeIMO.Email": "3.5.1",
+          "OfficeIMO.Email.Html": "3.5.1",
+          "System.Security.Cryptography.Pkcs": "10.0.13"
+        }
+      },
+      "Mailozaurr.Gmail": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "6YgsspX4oJdipH+4+vq1ZcsNBi5eVsoO7Y7s0RZ63UyGuSaOY1/GNrahQlfJ59cRp2hYsXrIYtWglUngDiZJSg==",
+        "dependencies": {
+          "Google.Apis.Auth": "1.77.0",
+          "Mailozaurr.Internet": "3.0.5"
+        }
+      },
+      "Mailozaurr.Internet": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "nabdTchmekmOb5pehWnGcblgw42gJj9yFGeLwMSm8MPkfLz4G8ekzqsukOysXFuX3TLSwuIdr39LDRCOF2O/ZQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.7.0",
+          "EmailValidation": "1.4.0",
+          "MailKit": "4.18.1",
+          "MimeKit": "4.18.1",
+          "NSspi": "0.3.1",
+          "OfficeIMO.Email.Html": "3.5.1",
+          "System.Security.Cryptography.Pkcs": "10.0.13",
+          "System.Security.Cryptography.ProtectedData": "10.0.13"
+        }
+      },
+      "Mailozaurr.Jmap": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "kRWnFK/gkmma9NXadLOk6BnVrTRcGZDrzSnv0wLe3Mydg4jSCQ8njAKMZV35KYXoa/qnndmsLENQGXdBE5Rdbg=="
+      },
+      "Mailozaurr.MicrosoftGraph": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "JPab/9o5x3HztOZPsXPb6EvIDWERilDGvMyMouz5vXaXO5ZySxCX3yD98EpMSrJZO2L730EYK5EsoeWbv0Z+qA==",
+        "dependencies": {
+          "Mailozaurr.Internet": "3.0.5",
+          "Microsoft.Identity.Client": "4.91.0"
+        }
+      },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -171,6 +243,19 @@
         "dependencies": {
           "SQLitePCLRaw.core": "2.1.11"
         }
+      },
+      "Microsoft.Identity.Client": {
+        "type": "Transitive",
+        "resolved": "4.91.0",
+        "contentHash": "u+j8hdM/Eez1j0rQVodY+4MRfsLgmsskjMgVkf74xkLWssbW4mqSgz0Tx4H0CJTtrDes00M5s4545rbLN61/uw==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "8.14.0"
+        }
+      },
+      "Microsoft.IdentityModel.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.14.0",
+        "contentHash": "iwbCpSjD3ehfTwBhtSNEtKPK0ICun6ov7Ibx6ISNA9bfwIyzI2Siwyi9eJFCJBwxowK9xcA1mj+jBWiigeqgcQ=="
       },
       "Microsoft.NETCore.Platforms": {
         "type": "Transitive",
@@ -193,6 +278,11 @@
         "dependencies": {
           "Microsoft.NETCore.Platforms": "1.1.0"
         }
+      },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.4",
+        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
       },
       "NSspi": {
         "type": "Transitive",
@@ -329,6 +419,11 @@
           "SQLitePCLRaw.core": "3.0.5"
         }
       },
+      "System.CodeDom": {
+        "type": "Transitive",
+        "resolved": "7.0.0",
+        "contentHash": "GLltyqEsE5/3IE+zYRP5sNa1l44qKl9v+bfdMcwg+M9qnQf47wK3H0SUR/T+3N4JEQXF3vV4CSuuo0rsg+nq2A=="
+      },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
         "resolved": "10.0.11",
@@ -343,6 +438,14 @@
         "type": "Transitive",
         "resolved": "10.0.2",
         "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
+      },
+      "System.Management": {
+        "type": "Transitive",
+        "resolved": "7.0.2",
+        "contentHash": "/qEUN91mP/MUQmJnM5y5BdT7ZoPuVrtxnFlbJ8a3kBJGhe2wCzBfnPFtK2wTtEEcf3DMGR9J00GZZfg6HRI6yA==",
+        "dependencies": {
+          "System.CodeDom": "7.0.0"
+        }
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",

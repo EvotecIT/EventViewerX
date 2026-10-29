@@ -587,7 +587,7 @@ internal static partial class Program {
                     "preset", "type", "definition", "definition-name", "log", "path", "event-id", "record-id",
                     "machine", "collector", "source", "provider", "start", "end", "since", "max",
                     "max-candidates", "concurrency", "oldest", "read-mode", "portable-evtx", "portable-evtx-executable", "resolve-dns", "title",
-                    "html", "excel", "csv", "email-html", "mail-profile", "email-rows", "drawer-placement", "where",
+                    "html", "excel", "csv", "email-html", "mail-profile", "mail-profile-store", "mail-to", "mail-dry-run", "email-rows", "drawer-placement", "where",
                     "store", "write-store", "summary", "context-store", "context-authorization",
                     "privacy", "privacy-key-file", "retain-fields", "pseudonymize-fields", "bundle", "bundle-max-bytes", "summary-file", "require-complete",
                     "duplicates", "occurrence-window", "maximum-occurrence-observations", "maximum-occurrence-groups");
@@ -606,7 +606,7 @@ internal static partial class Program {
             case "watch":
                 options.ValidateAllowed(
                     "type", "definition", "machine", "collector", "jsonl", "outbox",
-                    "mail-profile", "interval", "stop-after", "timeout", "ready-file",
+                    "mail-profile", "mail-profile-store", "mail-to", "mail-dry-run", "interval", "stop-after", "timeout", "ready-file",
                     "summary-file", "title", "notification-buffer-capacity", "delivery-queue-capacity",
                     "dead-letter-after", "retry-delay", "maximum-retry-delay", "checkpoint-store",
                     "checkpoint-consumer", "ignore-stale-bookmark", "outbox-maximum-batch-bytes",
@@ -698,14 +698,14 @@ internal static partial class Program {
             "  evx investigation create --directory NEW_DIR [--log FILE[,FILE]] [--dsreg FILE] [--facts FILE] [--registry FILE] [--attachment FILE] [--context User|SYSTEM|Unknown] [--captured-at OFFSET_TIMESTAMP] [--expected-join Entra|Hybrid|Domain|Unjoined] [--html FILE [--include-sensitive]]\n" +
             "  evx investigation inspect|replay --directory DIR [--allow-different-engine with replay] [--html FILE [--include-sensitive]]\n" +
             "  evx query  (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db [--type TYPE[,TYPE] | --definition FILE | --definition-name NAME]) [--portable-evtx | --portable-evtx-executable FILE with --path] [--context-store CONTEXT.db with --type GroupPolicyDirectoryAudit] [--where JSON_OR_FILE (typed/store)] [--write-store FILE.db [--checkpoint NAME]] [--stream for JSONL without retaining rows] [--read-mode Metadata|Message|StructuredData|StructuredDataAndMessage|Full] [--summary-file FILE.json] [--require-complete (exit 2 on incomplete input)] [--explain] [--since 01:00:00] [--max N]\n" +
-            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--summary Hour|Day|Week|Month] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --bundle FILE.zip | --mail-profile FILE) [--privacy omit|pseudonymize [--privacy-key-file FILE (32 binary bytes)] [--retain-fields FIELD[,FIELD]] [--pseudonymize-fields FIELD[,FIELD]]] [--summary-file FILE.json] [--require-complete] [--drawer-placement Auto|Top|Right]\n" +
+            "  evx report (--type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--summary Hour|Day|Week|Month] (--html FILE | --excel FILE | --csv FILE.csv|BUNDLE.zip | --email-html FILE | --bundle FILE.zip | --mail-profile ID --mail-to ADDRESS[,ADDRESS] [--mail-profile-store FILE] [--mail-dry-run]) [--privacy omit|pseudonymize [--privacy-key-file FILE (32 binary bytes)] [--retain-fields FIELD[,FIELD]] [--pseudonymize-fields FIELD[,FIELD]]] [--summary-file FILE.json] [--require-complete] [--drawer-placement Auto|Top|Right]\n" +
             "  evx bundle verify --path FILE.zip [--max-bytes N]\n" +
             "  evx measure (--preset PRESET | --type TYPE[,TYPE] | --definition FILE | --log LOG | --path FILE[,FILE] | --store FILE.db) [--portable-evtx | --portable-evtx-executable FILE with --path] [--group-by FIELD[,FIELD]] [--bucket Hour|Day|Week|Month] [--measure OPERATION:FIELD:NAME:RATE_UNIT] [--top N] [--html FILE | --excel FILE | --csv FILE] [--explain]\n" +
             "  evx detect (--store FILE.db | --type TYPE[,TYPE] | --log LOG | --path FILE[,FILE]) [--coverage FILE with --store] [--portable-evtx | --portable-evtx-executable FILE with --path] [--sigma FILE[,FILE] [--sigma-profile strict|windows-sysmon-powershell] | --pack FILE[,FILE]] [--include-built-in] [--tuning FILE] [--write-findings-store FILE.db] [--jsonl FILE] [--trace-jsonl FILE] [--report-kind KIND] [--report-html FILE | --report-csv FILE | --report-excel FILE] [--explain | --dry-run]\n" +
             "  evx detect --test-fixtures\n" +
             "  evx detect --pack-coverage [--pack FILE[,FILE]] [--include-built-in]\n" +
             "  evx kerberos-impact --store FILE.db [--start TIMESTAMP] [--end TIMESTAMP] [--max N] [--maximum-groups N] [--maximum-evidence-per-group N]\n" +
-            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile FILE] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--outbox-maximum-batch-bytes N] [--outbox-maximum-bytes N] [--outbox-maximum-pending-batches N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
+            "  evx watch  (--type TYPE[,TYPE] | --definition FILE) [--machine HOST | --collector WEC] [--checkpoint-store FILE.db] [--checkpoint-consumer NAME] [--ignore-stale-bookmark] [--jsonl FILE] [--outbox DIR | --mail-profile ID --mail-to ADDRESS[,ADDRESS] [--mail-profile-store FILE] [--mail-dry-run]] [--interval 00:05:00] [--delivery-queue-capacity N] [--notification-buffer-capacity N] [--outbox-maximum-batch-bytes N] [--outbox-maximum-bytes N] [--outbox-maximum-pending-batches N] [--dead-letter-after N] [--retry-delay 00:01:00] [--maximum-retry-delay 01:00:00] [--stop-after N] [--timeout 01:00:00] [--ready-file FILE] [--summary-file FILE]\n" +
             "  evx collector create --name NAME --type TYPE[,TYPE] (--source HOST[,HOST] | --source-initiated --collector-host WEC) [--allowed-source-sddl SDDL] [--output FILE] [--apply]\n" +
             "  evx collector readiness\n" +
             "  evx collector runtime --name NAME\n" +

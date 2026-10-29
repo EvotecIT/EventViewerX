@@ -1,0 +1,27 @@
+{
+  "Version": 1,
+  "Profiles": [
+    {
+      "Id": "event-smtp",
+      "DisplayName": "Event SMTP relay",
+      "Kind": 5,
+      "DefaultSender": "sender@example.test",
+      "Settings": {
+        "server": "relay.example.test",
+        "port": "25"
+      }
+    },
+    {
+      "Id": "event-graph",
+      "DisplayName": "Event Graph",
+      "Kind": 3,
+      "DefaultSender": "sender@example.test",
+      "DefaultMailbox": "sender@example.test",
+      "Settings": {
+        "clientId": "00000000-0000-0000-0000-000000000001",
+        "tenantId": "00000000-0000-0000-0000-000000000002",
+        "certificatePath": "never-opened-in-dry-run.pfx"
+      }
+    }
+  ]
+}

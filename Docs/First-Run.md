@@ -162,11 +162,82 @@ Get-ChildItem 'C:\ProgramData\EventViewerX\Reports' -Filter 'Local-*.html' |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1 FullName, LastWriteTime
 ```
 
-For a compact email body, use `Show-EVXEvent -EmailPackage` and the
-[Mailozaurr delivery example](PowerShell-Guide.md#create-html-excel-and-email-output).
-The interactive HTML report is an attachment or a separate artifact; email
-clients receive the compact HTML and plain-text package. Keep mail credentials
-in the scheduler's approved secret store rather than the report script.
+## Send the report with Mailozaurr
+
+`evx report` and `evx watch` select a Mailozaurr profile by ID. The profile
+holds provider settings and protected secrets; `--mail-to` is the report's
+notification recipient policy. `--mail-dry-run` resolves the profile and
+renders the email but never calls a provider. Remove it only when ready to
+deliver. The interactive HTML report remains a separate artifact; recipients
+get the compact HTML and plain-text email.
+
+Install Mailozaurr for the account that creates the profile. The CLI uses the
+same profile and secret stores under that account. For a scheduled task, create
+the profile under the task identity or set `MAILOZAURR_PROFILE_DIRECTORY` and
+`MAILOZAURR_SECRET_DIRECTORY` to protected directories accessible to it.
+
+### Graph with an app registration and certificate
+
+In Microsoft Entra, register a single-tenant application, add Microsoft Graph
+application permission `Mail.Send`, grant admin consent, and upload the public
+certificate (.cer) under Certificates & secrets. Keep the matching private
+certificate (.pfx) on the reporting host, readable by the scheduled identity.
+The mailbox in `-DefaultMailbox` is the sending mailbox. Scope the application's
+mailbox access as required by your tenant policy; see [Exchange application
+RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac).
+
+```powershell
+Install-Module Mailozaurr -MinimumVersion 3.0.5 -Scope CurrentUser
+Import-Module Mailozaurr -MinimumVersion 3.0.5 -ErrorAction Stop
+$graphSettings = @{
+    clientId = '<application-client-id>'
+    tenantId = '<tenant-id>'
+    certificatePath = 'C:\ProgramData\EventViewerX\Secrets\mail-app.pfx'
+}
+New-MailProfile -ProfileId evx-graph -DisplayName 'Event reports via Graph' `
+    -Kind Graph -DefaultSender 'events@contoso.com' `
+    -DefaultMailbox 'events@contoso.com' -Settings $graphSettings
+# If the PFX has a password, store it through Mailozaurr:
+Set-MailProfileSecret -ProfileId evx-graph -Name certificatePassword `
+    -Value (Read-Host 'Certificate password' -AsSecureString)
+Test-MailProfile -ProfileId evx-graph
+
+evx report --log System --event-id 7040 --since 7.00:00:00 `
+    --email-html .\System-Email.html --mail-profile evx-graph `
+    --mail-to operations@contoso.com --mail-dry-run
+```
+
+### SMTP relay
+
+Use a relay that accepts the reporting host without basic authentication.
+This example requests STARTTLS. Change the server, port, sender, and recipients
+to match your relay's policy. Mailozaurr also supports authenticated SMTP
+through its own profile secret service when that transport is appropriate.
+
+```powershell
+$smtpSettings = @{
+    server = 'relay.contoso.com'
+    port = '587'
+    secureSocketOptions = 'StartTls'
+    authenticationEnabled = 'false'
+}
+New-MailProfile -ProfileId evx-relay -DisplayName 'Event reports via relay' `
+    -Kind Smtp -DefaultSender 'events@contoso.com' -Settings $smtpSettings
+Test-MailProfile -ProfileId evx-relay
+
+evx report --log System --event-id 7040 --since 7.00:00:00 `
+    --email-html .\System-Email.html --mail-profile evx-relay `
+    --mail-to operations@contoso.com --mail-dry-run
+```
+
+Mailozaurr's Gmail, SendGrid, Mailgun, and SES profile kinds use the same
+`--mail-profile` and `--mail-to` options. A Mailozaurr `profiles.json` store
+can be selected explicitly with `--mail-profile-store FILE`. No EventViewerX
+mail-profile JSON format is used.
+
+For a PowerShell pipeline, `Show-EVXEvent -EmailPackage` returns the same
+transport-neutral body. The [PowerShell guide](PowerShell-Guide.md#create-html-excel-and-email-output)
+shows how to hand it to Mailozaurr's profile send service.
 
 For remote or collector mode, use a scheduled identity with network access and
 the required Event Log permissions. Change the action's `-Mode` and add

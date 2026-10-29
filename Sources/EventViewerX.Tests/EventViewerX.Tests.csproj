@@ -35,4 +35,8 @@
         <ProjectReference Include="..\EventViewerX.Detection\EventViewerX.Detection.csproj" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+        <ProjectReference Include="..\EventViewerX.Cli\EventViewerX.Cli.csproj" />
+    </ItemGroup>
+
 </Project>

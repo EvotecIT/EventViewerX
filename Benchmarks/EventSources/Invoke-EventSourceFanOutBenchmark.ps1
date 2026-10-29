@@ -48,7 +48,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csproj'
 $modulePath = Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net8.0\PSEventViewer.dll'
-$corePath = Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0\EventViewerX.dll'
+$corePath = Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net8.0\EventViewerX.dll'
 $specPath = Join-Path $PSScriptRoot 'event-source-fanout.benchmark.ps1'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot 'Ignore\Benchmarks\EventSources\FanOut'
@@ -59,7 +59,7 @@ if ($targets.Count -lt 2) {
     throw 'MachineName must contain at least two distinct non-empty targets.'
 }
 if (-not $SkipBuild.IsPresent) {
-    dotnet build $projectPath --configuration Release --framework net10.0-windows
+    dotnet build $projectPath --configuration Release --framework net8.0
     if ($LASTEXITCODE -ne 0) {
         throw 'The PSEventViewer Release build failed before the event-source fan-out benchmark.'
     }

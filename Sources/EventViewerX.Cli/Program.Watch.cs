@@ -90,9 +90,19 @@ internal static partial class Program {
                 "Dead-letter attempt count must be greater than zero.");
         }
         using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
-        SmtpNotificationProfile? mailProfile = options.Get("mail-profile") is string profilePath
-            ? SmtpNotificationProfile.Load(profilePath)
-            : null;
+        string? mailProfile = options.Get("mail-profile");
+        if (mailProfile == null &&
+            (options.Has("mail-profile-store") || options.Has("mail-to") || options.Has("mail-dry-run"))) {
+            throw new ArgumentException("--mail-profile is required for mail delivery options.");
+        }
+        EventNotificationMailDelivery? mailDelivery = mailProfile == null
+            ? null
+            : EventNotificationMailDelivery.Create(options.Get("mail-profile-store"));
+        string[] mailRecipients = options.GetMany("mail-to");
+        bool mailDryRun = options.Has("mail-dry-run");
+        if (mailDelivery != null) {
+            await mailDelivery.ValidateAsync(mailProfile!, mailRecipients).ConfigureAwait(false);
+        }
         bool bufferNotifications = !string.IsNullOrWhiteSpace(outbox) || mailProfile != null;
         EventStore? checkpointStore = string.IsNullOrWhiteSpace(checkpointStorePath)
             ? null
@@ -200,8 +210,9 @@ internal static partial class Program {
                     }
                     if (mailProfile != null &&
                         (durableBatch == null || !durableBatch.Delivery.TransportAcknowledgedUtc.HasValue)) {
-                        Mailozaurr.SmtpResult result = await mailProfile.SendAsync(email, report.Title).ConfigureAwait(false);
-                        if (mailProfile.DryRun || !result.Status) {
+                        Mailozaurr.SendResult result = await mailDelivery!.SendAsync(
+                            mailProfile, email, mailRecipients, mailDryRun).ConfigureAwait(false);
+                        if (mailDryRun || !result.Succeeded || result.Queued) {
                             return;
                         }
                         if (durableBatch != null) {
@@ -390,11 +401,10 @@ internal static partial class Program {
                             : batch.Manifest.Title;
                         if (!batch.Delivery.TransportAcknowledgedUtc.HasValue) {
                             if (batch.Manifest.RequiresExternalTransport) {
-                                Mailozaurr.SmtpResult result = await mailProfile!.SendAsync(
-                                    batch.Html,
-                                    batch.PlainText,
-                                    title).ConfigureAwait(false);
-                                if (mailProfile.DryRun || !result.Status) {
+                                Mailozaurr.SendResult result = await mailDelivery!.SendAsync(
+                                    mailProfile!, batch.Html, batch.PlainText, title,
+                                    mailRecipients, mailDryRun).ConfigureAwait(false);
+                                if (mailDryRun || !result.Succeeded || result.Queued) {
                                     return idleDelay;
                                 }
                             }

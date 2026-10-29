@@ -11,6 +11,17 @@ internal static partial class Program {
         ValidateOccurrenceOptions(options);
         ValidateQuerySummaryPath(options);
         ValidateReportOutputPaths(options);
+        string? mailProfileId = options.Get("mail-profile");
+        if (mailProfileId == null &&
+            (options.Has("mail-profile-store") || options.Has("mail-to") || options.Has("mail-dry-run"))) {
+            throw new ArgumentException("--mail-profile is required for mail delivery options.");
+        }
+        EventNotificationMailDelivery? mailDelivery = mailProfileId == null
+            ? null
+            : EventNotificationMailDelivery.Create(options.Get("mail-profile-store"));
+        if (mailDelivery != null) {
+            await mailDelivery.ValidateAsync(mailProfileId!, options.GetMany("mail-to")).ConfigureAwait(false);
+        }
         using var cancellation = new ConsoleQueryCancellation();
         CancellationToken token = cancellation.Token;
         (EventReportPrivacyOptions? privacy, byte[]? key) = LoadReportPrivacy(options);
@@ -73,17 +84,18 @@ internal static partial class Program {
                 Console.WriteLine(fullPath);
                 written = true;
             }
-            if (options.Get("mail-profile") is string mailProfile) {
+            if (mailProfileId != null) {
                 emailPackage ??= await EventReportEmailRenderer.RenderAsync(report, options.GetInt("email-rows", 25)).ConfigureAwait(false);
-                SmtpNotificationProfile profile = SmtpNotificationProfile.Load(mailProfile);
-                Mailozaurr.SmtpResult result = await profile.SendAsync(emailPackage, report.Title).ConfigureAwait(false);
+                bool dryRun = options.Has("mail-dry-run");
+                Mailozaurr.SendResult result = await mailDelivery!.SendAsync(
+                    mailProfileId, emailPackage, options.GetMany("mail-to"), dryRun, token).ConfigureAwait(false);
                 Console.WriteLine(JsonSerializer.Serialize(new {
-                    Delivered = result.Status,
-                    profile.DryRun,
-                    result.Server,
-                    result.Port,
-                    result.MessageId,
-                    result.TimeToExecute
+                    Delivered = result.Succeeded && !result.Queued,
+                    DryRun = dryRun,
+                    result.ProfileId,
+                    result.ProfileKind,
+                    result.ProviderMessageId,
+                    result.Message
                 }, JsonOptions));
                 written = true;
             }
