@@ -3,9 +3,13 @@ name: Test Native CLI Archives
 on:
   push:
     branches: [master]
-    paths-ignore: ['README.md', 'README.MD', 'Docs/**']
   pull_request:
   workflow_dispatch:
+
+# Only newer commits to the same PR may replace a run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -14,28 +18,18 @@ env:
   DOTNET_VERSION: '10.0.112'
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-changes.yml
+
   native-archives:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'Native CLI archives (${{ matrix.runtime }})'
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runtime: win-x64
-            os: windows-2025
-          - runtime: win-arm64
-            os: windows-11-arm
-            git-path: 'C:\Program Files\Git\bin\git.exe'
-          - runtime: linux-x64
-            os: ubuntu-24.04
-          - runtime: linux-arm64
-            os: ubuntu-24.04-arm
-          - runtime: osx-x64
-            os: macos-15-intel
-            dotnet-root: /usr/local/share/dotnet
-          - runtime: osx-arm64
-            os: macos-15
-            dotnet-root: /usr/local/share/dotnet
+      # macOS coverage stays on master pushes and manual runs.
+      matrix: ${{ fromJSON(needs.changes.outputs.archives) }}
     runs-on: ${{ matrix.os }}
     env:
       POWERFORGE_GIT_PATH: ${{ matrix.git-path }}
@@ -73,3 +67,11 @@ jobs:
           path: ${{ runner.temp }}/evx-native-evidence/qualification.json
           retention-days: 14
           if-no-files-found: warn
+
+  result:
+    name: Test Native CLI Archives result
+    needs: [changes, native-archives]
+    if: always()
+    uses: ./.github/workflows/ci-result.yml
+    with:
+      results: ${{ toJSON(needs) }}
