@@ -133,14 +133,18 @@ Update an older installed copy before using 4.0 features:
 Update-Module -Name PSEventViewer
 ```
 
-The 4.0 source supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
-targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
+The 4.0 module supports 64-bit Windows PowerShell 5.1 and PowerShell 7.4+ on
+Windows. Its payloads target net472 and net8.0. The five EventViewerX NuGet
+libraries target net472, net8.0, and net10.0.
 The CLI project targets .NET 10. Its release configuration defines
 framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 [CLI commands](#portable-host-and-event-triggered-automation) for source builds and qualified artifact installation.
 
 ## Documentation
 
+- [First run and scheduled report](Docs/First-Run.md): one bounded report from
+  local, remote, collector, or offline evidence, followed by a PowerShell task
+  recipe.
 - [Onboarding and prerequisites](Docs/Onboarding.md): local-first readiness,
   explicit Active Directory discovery, direct versus WEC collection, audit
   policy, permissions, firewall, and a complete scheduled daily AD-change
@@ -154,6 +158,8 @@ framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 - [EventViewerX .NET guide](Docs/EventViewerX-Guide.md): typed synchronous and
   asynchronous reads, batching, subscriptions, exports, administration, and
   writes.
+- [Legacy report API inventory](Docs/Legacy-Reports-Inventory.md): published
+  `EventViewerX.Reports.*` facades and migration work for the reporting redesign.
 - [Custom provider guide](Docs/Custom-Providers.md): PowerShell hashtables,
   JSON, typed C#, build/install, signing/trust, named writes, upgrades, repair,
   rollback, and removal.

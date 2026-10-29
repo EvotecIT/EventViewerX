@@ -1,7 +1,10 @@
 # EventViewerX .NET guide
 
 EventViewerX is the reusable C# engine beneath PSEventViewer.
-It targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
+The NuGet libraries target net472, net8.0, and net10.0. Live Windows Event Log
+operations still require Windows; the portable EVTX adapter can read saved
+files on supported non-Windows hosts.
+
 The typed APIs own native query construction, filter partitioning, bounded
 multi-source reads, projection, message rendering, export, subscriptions,
 catalog/administration, and event writing.

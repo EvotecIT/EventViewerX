@@ -155,6 +155,30 @@ Describe 'evx portable host' {
         $Delivery.Delivered | Should -BeFalse
     }
 
+    It 'accepts legacy named and numeric SMTP security values' -TestCases @(
+        @{ SecurityValue = 'Auto' }
+        @{ SecurityValue = '1' }
+    ) {
+        param([string] $SecurityValue)
+
+        $ProfilePath = Join-Path $TestDrive "smtp-$SecurityValue.json"
+        $EmailPath = Join-Path $TestDrive "smtp-$SecurityValue.html"
+        $Profile = Get-Content -LiteralPath $script:SmtpProfilePath -Raw | ConvertFrom-Json
+        $Profile.SecureSocketOptions = $SecurityValue
+        $Profile | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ProfilePath -Encoding UTF8
+
+        $Output = @(& $script:CliPath report `
+                --path $script:FixturePath `
+                --max 1 `
+                --email-html $EmailPath `
+                --mail-profile $ProfilePath)
+
+        $LASTEXITCODE | Should -Be 0
+        $Delivery = $Output[-1] | ConvertFrom-Json
+        $Delivery.DryRun | Should -BeTrue
+        $Delivery.Delivered | Should -BeFalse
+    }
+
     It 'rejects an unknown HTML drawer placement' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

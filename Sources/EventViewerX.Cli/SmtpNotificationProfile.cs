@@ -1,6 +1,5 @@
 using System.Text.Json;
 using EventViewerX.Reporting;
-using MailKit.Security;
 using Mailozaurr;
 
 namespace EventViewerX.Cli;
@@ -13,7 +12,7 @@ internal sealed class SmtpNotificationProfile {
 
     public string Server { get; set; } = string.Empty;
     public int Port { get; set; } = 587;
-    public string SecureSocketOptions { get; set; } = nameof(MailKit.Security.SecureSocketOptions.StartTls);
+    public string SecureSocketOptions { get; set; } = nameof(SmtpSecurityMode.StartTls);
     public bool UseSsl { get; set; }
     public string From { get; set; } = string.Empty;
     public string[] To { get; set; } = Array.Empty<string>();
@@ -55,7 +54,7 @@ internal sealed class SmtpNotificationProfile {
         if (To.Length + Cc.Length + Bcc.Length == 0) {
             throw new InvalidDataException("SMTP profile requires at least one To, Cc, or Bcc recipient.");
         }
-        if (!Enum.TryParse(SecureSocketOptions, true, out MailKit.Security.SecureSocketOptions parsed) ||
+        if (!Enum.TryParse(SecureSocketOptions, true, out SmtpSecurityMode parsed) ||
             !Enum.IsDefined(parsed)) {
             throw new InvalidDataException("SMTP profile SecureSocketOptions must be None, Auto, SslOnConnect, StartTls, or StartTlsWhenAvailable.");
         }
@@ -99,32 +98,37 @@ internal sealed class SmtpNotificationProfile {
             Subject = (string.IsNullOrWhiteSpace(Subject) ? "{Title}" : Subject).Replace("{Title}", title, StringComparison.Ordinal),
             HtmlBody = html,
             TextBody = plainText,
-            AutoCreateMessage = true,
-            Timeout = TimeoutMilliseconds,
-            RetryCount = RetryCount,
-            RetryDelayMilliseconds = RetryDelayMilliseconds,
-            DryRun = DryRun
+            AutoCreateMessage = true
         };
         try {
-            MailKit.Security.SecureSocketOptions socketOptions = Enum.Parse<MailKit.Security.SecureSocketOptions>(SecureSocketOptions, true);
+            SmtpSecurityMode securityMode = Enum.Parse<SmtpSecurityMode>(SecureSocketOptions, true);
+            string secret = string.Empty;
             if (UserName != null) {
-                string? secret = Environment.GetEnvironmentVariable(PasswordEnvironmentVariable!);
+                secret = Environment.GetEnvironmentVariable(PasswordEnvironmentVariable!) ?? string.Empty;
                 if (string.IsNullOrEmpty(secret)) {
                     throw new InvalidOperationException(
                         $"SMTP secret environment variable '{PasswordEnvironmentVariable}' is not set.");
                 }
-                SmtpConnectAuthenticateResult connected = await smtp.ConnectAndAuthenticateAsync(
-                    Server.Trim(), Port, UserName, secret, socketOptions, UseSsl,
-                    ProtocolAuthMode.Basic, cancellationToken).ConfigureAwait(false);
-                if (!connected.IsSuccess) {
-                    throw new InvalidOperationException($"SMTP connect/authentication failed: {connected.Error}");
-                }
-            } else {
-                SmtpResult connected = await smtp.ConnectAsync(
-                    Server.Trim(), Port, socketOptions, UseSsl, cancellationToken).ConfigureAwait(false);
-                if (!connected.Status) {
-                    throw new InvalidOperationException($"SMTP connection failed: {connected.Error}");
-                }
+            }
+            var request = new SmtpSessionRequest {
+                Server = Server.Trim(),
+                Port = Port,
+                SecurityMode = securityMode,
+                UseSsl = UseSsl,
+                TimeoutMs = TimeoutMilliseconds,
+                RetryCount = RetryCount,
+                RetryDelayMilliseconds = RetryDelayMilliseconds,
+                DryRun = DryRun,
+                Authenticate = UserName != null,
+                UserName = UserName ?? string.Empty,
+                Password = secret,
+                AuthMode = ProtocolAuthMode.Basic
+            };
+            SmtpConnectResult connected = await SmtpSessionService.ConnectAndAuthenticateAsync(
+                smtp, request, cancellationToken).ConfigureAwait(false);
+            if (!connected.IsSuccess) {
+                string operation = UserName == null ? "connection" : "connect/authentication";
+                throw new InvalidOperationException($"SMTP {operation} failed: {connected.Error}");
             }
             SmtpResult result = await smtp.SendAsync(cancellationToken).ConfigureAwait(false);
             if (!result.Status && !DryRun) {

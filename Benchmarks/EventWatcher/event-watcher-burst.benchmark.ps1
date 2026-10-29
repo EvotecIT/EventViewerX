@@ -1,6 +1,6 @@
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $cliPath = Get-BenchmarkInput -Name EventViewerXCliPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe')
-$eventViewerXPath = Get-BenchmarkInput -Name EventViewerXPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0-windows\EventViewerX.dll')
+$eventViewerXPath = Get-BenchmarkInput -Name EventViewerXPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0\EventViewerX.dll')
 $burstCountsText = Get-BenchmarkInput -Name BurstCounts -Default '100,1000,10000'
 [int[]] $burstCounts = @($burstCountsText.Split(',') | ForEach-Object {
         [int] $value = 0

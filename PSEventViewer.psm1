@@ -1,7 +1,7 @@
 ﻿# to speed up development adding direct path to binaries, instead of the the Lib folder
 $Development = $true
 $DevelopmentPath = "$PSScriptRoot\Sources\PSEventViewer\bin\Debug"
-$DevelopmentFolderCore = "net8.0-windows"
+$DevelopmentFolderCore = "net8.0"
 $DevelopmentFolderDefault = "net472"
 $BinaryModules = @(
     "PSEventViewer.dll"
@@ -16,50 +16,8 @@ $Public = @( Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -ErrorAction Silentl
 $Private = @( Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
 $Classes = @( Get-ChildItem -Path $PSScriptRoot\Classes\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
 $Enums = @( Get-ChildItem -Path $PSScriptRoot\Enums\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
-# Get all assemblies
-$AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\Lib -Directory -ErrorAction SilentlyContinue -File
-
-# Lets find which libraries we need to load
-if ($Development) {
-    $Framework = 'Core'
-    $FrameworkNet = 'Default'
-} else {
-    $Default = $false
-    $Core = $false
-    $Standard = $false
-    foreach ($A in $AssemblyFolders.Name) {
-        if ($A -eq 'Default') {
-            $Default = $true
-        } elseif ($A -eq 'Core') {
-            $Core = $true
-        } elseif ($A -eq 'Standard') {
-            $Standard = $true
-        }
-    }
-    if ($Standard -and $Core -and $Default) {
-        $FrameworkNet = 'Default'
-        $Framework = 'Standard'
-    } elseif ($Standard -and $Core) {
-        $Framework = 'Standard'
-        $FrameworkNet = 'Standard'
-    } elseif ($Core -and $Default) {
-        $Framework = 'Core'
-        $FrameworkNet = 'Default'
-    } elseif ($Standard -and $Default) {
-        $Framework = 'Standard'
-        $FrameworkNet = 'Default'
-    } elseif ($Standard) {
-        $Framework = 'Standard'
-        $FrameworkNet = 'Standard'
-    } elseif ($Core) {
-        $Framework = 'Core'
-        $FrameworkNet = ''
-    } elseif ($Default) {
-        $Framework = ''
-        $FrameworkNet = 'Default'
-    }
-}
-
+$Framework = 'Core'
+$FrameworkNet = 'Default'
 
 $BinaryDev = @(
     foreach ($BinaryModule in $BinaryModules) {

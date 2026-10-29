@@ -1,5 +1,5 @@
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$eventViewerXPath = Get-BenchmarkInput -Name EventViewerXPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0-windows\EventViewerX.dll')
+$eventViewerXPath = Get-BenchmarkInput -Name EventViewerXPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX\bin\Release\net10.0\EventViewerX.dll')
 $machineName = Get-BenchmarkInput -Name MachineName
 $logName = Get-BenchmarkInput -Name LogName -Default Security
 $maximumRecordId = Get-BenchmarkInput -Name MaximumRecordId -Int -Default 0

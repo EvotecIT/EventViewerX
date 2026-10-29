@@ -18,12 +18,12 @@ Invoke-ReleaseValidation -Version $Version -ProjectRoot (Split-Path -Parent $PSS
         RequiredFiles = @(
             'PSEventViewer.psm1'
             'Lib/Default/PSEventViewer.dll'
-            'Lib/Standard/PSEventViewer.dll'
-            'Lib/Standard/runtimes/win-x64/native/e_sqlite3.dll'
-            'Lib/Standard/runtimes/win-x86/native/e_sqlite3.dll'
-            'Lib/Standard/runtimes/win-arm64/native/e_sqlite3.dll'
+            'Lib/Core/PSEventViewer.dll'
+            'Lib/Core/runtimes/win-x64/native/e_sqlite3.dll'
+            'Lib/Core/runtimes/win-x86/native/e_sqlite3.dll'
+            'Lib/Core/runtimes/win-arm64/native/e_sqlite3.dll'
         )
-        VersionedAssemblies = @('Lib/Default/EventViewerX*.dll', 'Lib/Standard/EventViewerX*.dll')
+        VersionedAssemblies = @('Lib/Default/EventViewerX*.dll', 'Lib/Core/EventViewerX*.dll')
         ProbeScript = 'Build/Test-ModuleRuntime.ps1'
         Hosts = $Hosts
     }

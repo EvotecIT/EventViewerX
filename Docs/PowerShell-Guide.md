@@ -1,7 +1,8 @@
 # PSEventViewer PowerShell guide
 
 This guide is organized by task. All examples work in Windows PowerShell 5.1
-and PowerShell 7 unless a Windows permission or feature is explicitly required.
+and PowerShell 7.4 or later on Windows unless a permission or feature is
+explicitly required.
 
 ```powershell
 Install-Module -Name PSEventViewer -Scope CurrentUser
@@ -321,6 +322,9 @@ digest distributes the row limit across populated typed sections instead of
 letting the first event type consume the entire email.
 
 ```powershell
+Install-Module Mailozaurr -Scope CurrentUser
+Import-Module Mailozaurr
+$credential = Get-Credential
 $email = Show-EVXEvent -Type ADUserLogonFailed `
     -TimePeriod Last24Hours -EmailPackage
 

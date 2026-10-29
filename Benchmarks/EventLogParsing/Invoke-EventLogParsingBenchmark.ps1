@@ -192,7 +192,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "The benchmark host build failed with exit code $LASTEXITCODE."
 }
 
-dotnet build (Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csproj') --configuration Release --framework net10.0-windows
+dotnet build (Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csproj') --configuration Release --framework net8.0
 if ($LASTEXITCODE -ne 0) {
     throw "The PSEventViewer build failed with exit code $LASTEXITCODE."
 }

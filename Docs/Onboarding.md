@@ -1,5 +1,10 @@
 # EventViewerX onboarding and prerequisites
 
+For the shortest first report and a PowerShell scheduled-task recipe, start
+with [First run and scheduled report](First-Run.md). The module requires 64-bit
+Windows PowerShell 5.1 or PowerShell 7.4+ on Windows. Its payloads target
+net472 and net8.0; the NuGet libraries target net472, net8.0, and net10.0.
+
 EventViewerX starts with the local machine. It never expands a readiness check
 to the current domain or forest unless you ask for that scope explicitly. This
 keeps an interactive check predictable on enterprise networks while still
