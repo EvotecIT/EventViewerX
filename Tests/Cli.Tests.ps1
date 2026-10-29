@@ -245,6 +245,102 @@ Describe 'evx portable host' {
         (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
     }
 
+    It 'protects a Mailozaurr profile store reached through a directory link' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-linked'
+        $AliasDirectory = Join-Path $TestDrive 'mail-profiles-alias'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        if ($env:OS -eq 'Windows_NT') {
+            New-Item -ItemType Junction -Path $AliasDirectory -Target $ProfileDirectory | Out-Null
+        } else {
+            New-Item -ItemType SymbolicLink -Path $AliasDirectory -Target $ProfileDirectory | Out-Null
+        }
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl (Join-Path $AliasDirectory 'profiles.json') `
+                    --mail-profile event-smtp --mail-to operator@example.test `
+                    --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects the implicit Mailozaurr secret store from watch JSONL output' {
+        $SecretDirectory = Join-Path $TestDrive 'mail-secrets-watch'
+        New-Item -ItemType Directory -Path $SecretDirectory | Out-Null
+        $SecretPath = Join-Path $SecretDirectory 'profile-secrets.json'
+        [System.IO.File]::WriteAllText($SecretPath, '{"protected":"synthetic"}')
+        $BeforeHash = (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash
+        $PreviousSecretDirectory = $env:MAILOZAURR_SECRET_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $SecretDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl $SecretPath --mail-profile event-smtp `
+                    --mail-profile-store $script:MailProfilesPath `
+                    --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $PreviousSecretDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'holds a pending mail batch when its <Change> changes' -TestCases @(
+        @{ Change = 'recipients'; Profile = 'event-smtp'; Recipient = 'other@example.test' }
+        @{ Change = 'profile'; Profile = 'event-graph'; Recipient = 'original@example.test' }
+    ) {
+        param([string] $Change, [string] $Profile, [string] $Recipient)
+        $Outbox = Join-Path $TestDrive "outbox-$Change"
+        $Batch = Join-Path $Outbox 'pending-batch'
+        New-Item -ItemType Directory -Path $Batch -Force | Out-Null
+        $Manifest = @{
+            SchemaVersion = 2
+            BatchId = 'pending-batch'
+            EventCount = 1
+            Title = 'Synthetic notification'
+            PersistedUtc = '2026-10-29T12:00:00Z'
+            RequiresExternalTransport = $true
+            TransportProfileId = 'event-smtp'
+            Recipients = @('original@example.test')
+            Checkpoints = @()
+        } | ConvertTo-Json -Depth 5
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'batch.json'), $Manifest)
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'email.html'), '<p>Synthetic</p>')
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'email.txt'), 'Synthetic')
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup --outbox $Outbox `
+                    --mail-profile $Profile --mail-profile-store $script:MailProfilesPath `
+                    --mail-to $Recipient --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'different mail profile or recipient list'
+        (Test-Path -LiteralPath (Join-Path $Batch 'delivery.json')) | Should -BeFalse
+    }
+
     It 'protects the implicit Mailozaurr secret store from report output' {
         $SecretDirectory = Join-Path $TestDrive 'mail-secrets-report'
         New-Item -ItemType Directory -Path $SecretDirectory | Out-Null

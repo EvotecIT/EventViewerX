@@ -28,7 +28,7 @@ public static partial class EventNotificationOutbox {
             email,
             eventCount,
             Array.Empty<EventNotificationCheckpointBoundary>(),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     /// <summary>Persists a batch together with the checkpoint boundaries acknowledged by its delivery.</summary>
     public static string Save(
@@ -78,6 +78,31 @@ public static partial class EventNotificationOutbox {
         IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
         bool requiresExternalTransport,
         EventNotificationOutboxLimits limits,
+        CancellationToken cancellationToken = default) => Save(
+            outboxPath,
+            batchId,
+            report,
+            email,
+            eventCount,
+            checkpoints,
+            requiresExternalTransport,
+            limits,
+            transportProfileId: null,
+            recipients: Array.Empty<string>(),
+            cancellationToken: cancellationToken);
+
+    /// <summary>Persists a bounded batch with its selected transport profile and recipients.</summary>
+    public static string Save(
+        string outboxPath,
+        string batchId,
+        EventReport report,
+        EventEmailPackage email,
+        int eventCount,
+        IEnumerable<EventNotificationCheckpointBoundary> checkpoints,
+        bool requiresExternalTransport,
+        EventNotificationOutboxLimits limits,
+        string? transportProfileId,
+        IEnumerable<string> recipients,
         CancellationToken cancellationToken = default) {
 
         if (string.IsNullOrWhiteSpace(outboxPath)) {
@@ -97,6 +122,13 @@ public static partial class EventNotificationOutbox {
             throw new ArgumentNullException(nameof(limits));
         }
         EventNotificationCheckpointBoundary[] checkpointSnapshot = SnapshotCheckpoints(checkpoints);
+        if (recipients == null) {
+            throw new ArgumentNullException(nameof(recipients));
+        }
+        string[] recipientSnapshot = recipients.Select(static recipient => recipient?.Trim() ?? string.Empty).ToArray();
+        if (recipientSnapshot.Any(string.IsNullOrWhiteSpace)) {
+            throw new ArgumentException("Notification recipients cannot be empty.", nameof(recipients));
+        }
 
         string outboxDirectory = Path.GetFullPath(outboxPath);
         Directory.CreateDirectory(outboxDirectory);
@@ -116,6 +148,8 @@ public static partial class EventNotificationOutbox {
             Title = report.Title,
             PersistedUtc = persistedUtc,
             RequiresExternalTransport = requiresExternalTransport,
+            TransportProfileId = transportProfileId,
+            Recipients = recipientSnapshot,
             Checkpoints = checkpointSnapshot
         };
         string reportHtml = EventReportHtmlRenderer.Render(report);
@@ -214,7 +248,8 @@ public static partial class EventNotificationOutbox {
                 !string.Equals(manifest.BatchId, name, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' has invalid identity metadata.");
             }
-            if (manifest.SchemaVersion != EventNotificationBatchManifest.CurrentSchemaVersion) {
+            if (manifest.SchemaVersion != 1 &&
+                manifest.SchemaVersion != EventNotificationBatchManifest.CurrentSchemaVersion) {
                 throw new InvalidDataException(
                     $"Outbox batch '{directory}' uses unsupported manifest schema {manifest.SchemaVersion}. " +
                     $"This build supports schema {EventNotificationBatchManifest.CurrentSchemaVersion}; " +
@@ -225,9 +260,16 @@ public static partial class EventNotificationOutbox {
             }
             manifest.Checkpoints = SnapshotCheckpoints(
                 manifest.Checkpoints ?? Array.Empty<EventNotificationCheckpointBoundary>());
+            manifest.Recipients ??= Array.Empty<string>();
             EventNotificationDeliveryState delivery = ReadDeliveryState(directory);
             if (delivery.DeliveredUtc.HasValue) {
                 continue;
+            }
+            if (manifest.SchemaVersion == 1 && manifest.RequiresExternalTransport &&
+                !delivery.TransportAcknowledgedUtc.HasValue) {
+                throw new InvalidDataException(
+                    $"Outbox batch '{directory}' uses schema 1 without bound recipients. " +
+                    "It cannot be delivered automatically; resolve it with a compatible reader or manual recovery.");
             }
             result.Add(new EventNotificationOutboxBatch(
                 directory,

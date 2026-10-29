@@ -202,7 +202,9 @@ internal static partial class Program {
                         projected.Length,
                         checkpointBoundaries,
                         requiresExternalTransport: mailProfile != null,
-                        limits: outboxLimits);
+                        limits: outboxLimits,
+                        transportProfileId: mailProfile,
+                        recipients: mailRecipients);
                     durableBatch = EventNotificationOutbox.GetPending(outbox!)
                         .Single(candidate => string.Equals(
                             candidate.Manifest.BatchId,
@@ -402,6 +404,17 @@ internal static partial class Program {
                     if (batch.Manifest.Checkpoints.Length != 0 && checkpointStore == null) {
                         throw new InvalidOperationException(
                             $"Pending notification batch '{batch.Manifest.BatchId}' owns checkpoint boundaries, but this watcher was restarted without --checkpoint-store.");
+                    }
+                    if (!batch.Delivery.TransportAcknowledgedUtc.HasValue &&
+                        batch.Manifest.RequiresExternalTransport &&
+                        (!string.Equals(batch.Manifest.TransportProfileId, mailProfile, StringComparison.Ordinal) ||
+                         !batch.Manifest.Recipients.OrderBy(static recipient => recipient, StringComparer.OrdinalIgnoreCase)
+                             .SequenceEqual(mailRecipients.Select(static recipient => recipient.Trim())
+                                 .OrderBy(static recipient => recipient, StringComparer.OrdinalIgnoreCase),
+                                 StringComparer.OrdinalIgnoreCase))) {
+                        throw new InvalidOperationException(
+                            $"Pending notification batch '{batch.Manifest.BatchId}' belongs to a different mail profile or recipient list. " +
+                            "Restore the original --mail-profile and --mail-to options before delivery; the batch remains pending.");
                     }
                     try {
                         string title = string.IsNullOrWhiteSpace(batch.Manifest.Title)

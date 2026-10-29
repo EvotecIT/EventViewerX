@@ -80,6 +80,9 @@ supported API so an older concurrent generation cannot restore stale progress.
 During upgrades and rollbacks, retain an outbox reader compatible with every
 pending manifest. A newer unknown schema intentionally blocks delivery and
 checkpoint advancement.
+Schema 2 binds pending mail batches to their profile and recipients. Schema 1
+batches without an acknowledged external transport cannot be sent automatically;
+review the original destination and resolve them manually before upgrading.
 
 ## Saved EVTX and external adapters
 
