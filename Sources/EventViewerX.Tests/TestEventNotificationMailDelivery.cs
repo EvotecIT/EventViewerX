@@ -53,6 +53,24 @@ public sealed class TestEventNotificationMailDelivery {
         Assert.Empty(handler.Requests);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task RejectsUnacknowledgedSendResult(bool succeeded, bool queued) {
+        var profiles = new InMemoryMailProfileStore();
+        await profiles.SaveAsync(CreateProfile(MailProfileKind.Smtp));
+        var handler = new FakeSendHandler(MailProfileKind.Smtp, succeeded, queued);
+        var delivery = new EventNotificationMailDelivery(
+            profiles, new RoutedMailSendService(profiles, new[] { handler }));
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            delivery.SendAsync("event-alerts", "<strong>Two events</strong>", "Two events", "Daily events",
+                new[] { "operator@example.test" }, dryRun: false));
+
+        Assert.Contains("not acknowledged", exception.Message);
+        Assert.Single(handler.Requests);
+    }
+
     private static MailProfile CreateProfile(MailProfileKind kind) => new() {
         Id = "event-alerts",
         DisplayName = "Event alerts",
@@ -64,7 +82,7 @@ public sealed class TestEventNotificationMailDelivery {
             : new Dictionary<string, string>()
     };
 
-    private sealed class FakeSendHandler(MailProfileKind kind) : IMailSendHandler {
+    private sealed class FakeSendHandler(MailProfileKind kind, bool succeeded = true, bool queued = false) : IMailSendHandler {
         public MailProfileKind Kind => kind;
         public List<SendMessageRequest> Requests { get; } = new();
 
@@ -74,7 +92,9 @@ public sealed class TestEventNotificationMailDelivery {
             CancellationToken cancellationToken = default) {
             Requests.Add(request);
             return Task.FromResult(new SendResult {
-                Succeeded = true,
+                Succeeded = succeeded,
+                Queued = queued,
+                Message = succeeded && !queued ? null : "synthetic rejection",
                 ProfileId = profile.Id,
                 ProfileKind = profile.Kind,
                 ProviderMessageId = "synthetic-message"

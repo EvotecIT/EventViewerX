@@ -195,6 +195,82 @@ Describe 'evx portable host' {
         $Delivery.ProfileKind | Should -Be $ExpectedKind
     }
 
+    It 'protects the implicit Mailozaurr profile store from report output' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-report'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath report --path $script:FixturePath `
+                    --email-html $ProfilePath --mail-profile event-smtp `
+                    --mail-to operator@example.test --mail-dry-run 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from every input'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects the implicit Mailozaurr profile store from watch JSONL output' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-watch'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl $ProfilePath --mail-profile event-smtp `
+                    --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects the implicit Mailozaurr secret store from report output' {
+        $SecretDirectory = Join-Path $TestDrive 'mail-secrets-report'
+        New-Item -ItemType Directory -Path $SecretDirectory | Out-Null
+        $SecretPath = Join-Path $SecretDirectory 'profile-secrets.json'
+        [System.IO.File]::WriteAllText($SecretPath, '{"protected":"synthetic"}')
+        $BeforeHash = (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash
+        $PreviousSecretDirectory = $env:MAILOZAURR_SECRET_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $SecretDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath report --path $script:FixturePath `
+                    --email-html $SecretPath --mail-profile event-smtp `
+                    --mail-profile-store $script:MailProfilesPath `
+                    --mail-to operator@example.test --mail-dry-run 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $PreviousSecretDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from every input'
+        (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
     It 'rejects an unknown HTML drawer placement' {
         $PreviousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

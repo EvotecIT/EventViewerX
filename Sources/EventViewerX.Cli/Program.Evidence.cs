@@ -45,6 +45,11 @@ internal static partial class Program {
         foreach (string name in new[] { "store", "write-store", "context-store", "definition", "mail-profile-store", "privacy-key-file" }) {
             if (options.Get(name) is string path) { inputs.Add(ComparisonPath(path)); }
         }
+        if (options.Get("mail-profile") != null) {
+            foreach (string storePath in EventNotificationMailDelivery.ResolveStorePaths(options.Get("mail-profile-store"))) {
+                inputs.Add(ComparisonPath(storePath));
+            }
+        }
         if (options.Get("where") is string predicate && File.Exists(predicate)) { inputs.Add(ComparisonPath(predicate)); }
         var outputs = new HashSet<string>(comparer);
         bool hasReportOutput = false;

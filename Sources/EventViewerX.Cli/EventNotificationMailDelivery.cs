@@ -14,14 +14,23 @@ internal sealed class EventNotificationMailDelivery {
     }
 
     internal static EventNotificationMailDelivery Create(string? profileStorePath) {
+        MailApplication application = new MailApplicationBuilder(CreateOptions(profileStorePath)).Build();
+        return new EventNotificationMailDelivery(application.ProfileStore, application.Send);
+    }
+
+    internal static string[] ResolveStorePaths(string? profileStorePath) {
+        MailApplicationOptions options = CreateOptions(profileStorePath);
+        return new[] { options.ProfileStore.GetFilePath(), options.SecretStore.GetFilePath() };
+    }
+
+    private static MailApplicationOptions CreateOptions(string? profileStorePath) {
         var options = new MailApplicationOptions();
         if (!string.IsNullOrWhiteSpace(profileStorePath)) {
             string fullPath = Path.GetFullPath(profileStorePath);
             options.ProfileStore.DirectoryPath = Path.GetDirectoryName(fullPath);
             options.ProfileStore.FileName = Path.GetFileName(fullPath);
         }
-        MailApplication application = new MailApplicationBuilder(options).Build();
-        return new EventNotificationMailDelivery(application.ProfileStore, application.Send);
+        return options;
     }
 
     internal async Task<SendResult> SendAsync(

@@ -89,7 +89,6 @@ internal static partial class Program {
                 "dead-letter-after",
                 "Dead-letter attempt count must be greater than zero.");
         }
-        using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
         string? mailProfile = options.Get("mail-profile");
         if (mailProfile == null &&
             (options.Has("mail-profile-store") || options.Has("mail-to") || options.Has("mail-dry-run"))) {
@@ -101,8 +100,17 @@ internal static partial class Program {
         string[] mailRecipients = options.GetMany("mail-to");
         bool mailDryRun = options.Has("mail-dry-run");
         if (mailDelivery != null) {
+            string[] protectedStorePaths = EventNotificationMailDelivery.ResolveStorePaths(options.Get("mail-profile-store"))
+                .Select(ComparisonPath).ToArray();
+            StringComparer pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+            foreach (string? outputPath in new[] { options.Get("jsonl"), readyFile, summaryFile, checkpointStorePath }) {
+                if (outputPath != null && protectedStorePaths.Contains(ComparisonPath(outputPath), pathComparer)) {
+                    throw new ArgumentException("Watch outputs and checkpoint storage must be separate from Mailozaurr profile and secret stores.");
+                }
+            }
             await mailDelivery.ValidateAsync(mailProfile!, mailRecipients).ConfigureAwait(false);
         }
+        using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
         bool bufferNotifications = !string.IsNullOrWhiteSpace(outbox) || mailProfile != null;
         EventStore? checkpointStore = string.IsNullOrWhiteSpace(checkpointStorePath)
             ? null
