@@ -73,37 +73,6 @@ internal static partial class Program {
         }
     }
 
-    private static string ComparisonPath(string path) {
-        if (OperatingSystem.IsWindows()) {
-            if (path.StartsWith("\\\\?\\UNC\\", StringComparison.OrdinalIgnoreCase)) { path = "\\\\" + path.Substring(8); }
-            else if (path.StartsWith("\\\\?\\", StringComparison.Ordinal)) { path = path.Substring(4); }
-        }
-        string fullPath = Path.GetFullPath(path);
-        string root = Path.GetPathRoot(fullPath)!;
-        string resolved = root;
-        foreach (string segment in fullPath.Substring(root.Length)
-                     .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)) {
-            resolved = Path.Combine(resolved, segment);
-            FileAttributes attributes;
-            try {
-                attributes = File.GetAttributes(resolved);
-            } catch (FileNotFoundException) {
-                continue;
-            } catch (DirectoryNotFoundException) {
-                continue;
-            }
-            if ((attributes & FileAttributes.ReparsePoint) == 0) {
-                continue;
-            }
-            FileSystemInfo link = (attributes & FileAttributes.Directory) != 0
-                ? new DirectoryInfo(resolved)
-                : new FileInfo(resolved);
-            resolved = link.ResolveLinkTarget(returnFinalTarget: true)?.FullName
-                ?? throw new IOException($"Cannot resolve output path link '{resolved}'.");
-        }
-        return Path.GetFullPath(resolved);
-    }
-
     private static void SaveEvidenceBundle(EventReport report, string path, CliArguments options,
         string? queryJson, string? definitionJson, EventReportPrivacyOptions? privacy, CancellationToken token) {
         string destination = Path.GetFullPath(path);

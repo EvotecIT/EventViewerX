@@ -28,6 +28,7 @@ Describe 'evx portable host' {
         @{ Alias = 'direct' }
         @{ Alias = 'relative' }
         @{ Alias = 'Windows casing' }
+        @{ Alias = 'hard link' }
     ) {
         param($Alias)
         if ($Alias -eq 'Windows casing' -and $env:OS -ne 'Windows_NT') {
@@ -40,6 +41,10 @@ Describe 'evx portable host' {
         $CheckpointPath = $InputPath
         if ($Alias -eq 'relative') { $CheckpointPath = '.\diagnostic.json' }
         if ($Alias -eq 'Windows casing') { $CheckpointPath = $InputPath.ToUpperInvariant() }
+        if ($Alias -eq 'hard link') {
+            $CheckpointPath = Join-Path $TestDrive 'diagnostic-alias.json'
+            New-Item -ItemType HardLink -Path $CheckpointPath -Target $InputPath | Out-Null
+        }
         $PreviousErrorActionPreference = $ErrorActionPreference
         Push-Location -LiteralPath $TestDrive
         try {
@@ -303,8 +308,61 @@ Describe 'evx portable host' {
         (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
     }
 
+    It 'protects a Mailozaurr profile store from a hard-linked <Command> output' -TestCases @(
+        @{ Command = 'watch' }
+        @{ Command = 'report' }
+    ) {
+        param([string] $Command)
+        $ProfileDirectory = Join-Path $TestDrive "mail-profiles-hardlink-$Command"
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $AliasPath = Join-Path $TestDrive "mail-profile-alias-$Command.json"
+        New-Item -ItemType HardLink -Path $AliasPath -Target $ProfilePath | Out-Null
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            if ($Command -eq 'watch') {
+                $Output = @(& $script:CliPath watch --type OSStartup --jsonl $AliasPath `
+                        --mail-profile event-smtp --mail-profile-store $ProfilePath `
+                        --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            } else {
+                $Output = @(& $script:CliPath report --path $script:FixturePath --email-html $AliasPath `
+                        --mail-profile event-smtp --mail-profile-store $ProfilePath `
+                        --mail-to operator@example.test --mail-dry-run 2>&1)
+            }
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'preserves a query input when its summary output is a hard link' {
+        $InputPath = Join-Path $TestDrive 'query-hardlink.evtx'
+        Copy-Item -LiteralPath $script:FixturePath -Destination $InputPath
+        $SummaryPath = Join-Path $TestDrive 'query-summary.json'
+        New-Item -ItemType HardLink -Path $SummaryPath -Target $InputPath | Out-Null
+        $BeforeHash = (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath query --path $InputPath --max 1 --summary-file $SummaryPath 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from query input'
+        (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
     It 'holds a pending mail batch when its <Change> changes' -TestCases @(
         @{ Change = 'recipients'; Profile = 'event-smtp'; Recipient = 'other@example.test' }
+        @{ Change = 'recipient casing'; Profile = 'event-smtp'; Recipient = 'Original@example.test' }
         @{ Change = 'profile'; Profile = 'event-graph'; Recipient = 'original@example.test' }
     ) {
         param([string] $Change, [string] $Profile, [string] $Recipient)

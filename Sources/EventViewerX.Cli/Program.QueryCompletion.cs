@@ -11,7 +11,7 @@ internal static partial class Program {
         if (options.Get("summary-file") is not string summaryPath) {
             return;
         }
-        string destination = Path.GetFullPath(summaryPath);
+        string destination = ComparisonPath(summaryPath);
         var inputPaths = new List<string>(options.GetMany("path"));
         foreach (string option in new[] { "store", "write-store", "context-store", "definition" }) {
             if (options.Get(option) is string path) {
@@ -21,7 +21,7 @@ internal static partial class Program {
         if (options.Get("where") is string predicatePath && File.Exists(predicatePath)) {
             inputPaths.Add(predicatePath);
         }
-        if (inputPaths.Any(path => string.Equals(Path.GetFullPath(path), destination,
+        if (inputPaths.Any(path => string.Equals(ComparisonPath(path), destination,
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))) {
             throw new ArgumentException("--summary-file must be separate from query input and history files.");
         }
