@@ -360,6 +360,48 @@ Describe 'evx portable host' {
         (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
     }
 
+    It 'writes a query summary to an existing writable <PathKind> file without read-data permission' -TestCases @(
+        @{ PathKind = 'ordinary' }
+        @{ PathKind = 'extended-length' }
+    ) {
+        param($PathKind)
+        if ($env:OS -ne 'Windows_NT') {
+            Set-ItResult -Skipped -Because 'Windows file access contract'
+            return
+        }
+        $Directory = $TestDrive
+        if ($PathKind -eq 'extended-length') {
+            $Directory = Join-Path $TestDrive ('nested-' + ('x' * 120))
+            $Directory = Join-Path $Directory ('nested-' + ('y' * 120))
+            [System.IO.Directory]::CreateDirectory($Directory) | Out-Null
+        }
+        $SummaryPath = Join-Path $Directory 'write-only-summary.json'
+        [System.IO.File]::WriteAllText($SummaryPath, 'previous summary')
+        $OriginalAcl = Get-Acl -LiteralPath $SummaryPath
+        $RestrictedAcl = Get-Acl -LiteralPath $SummaryPath
+        $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+        $Rule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList @(
+            $Identity, [System.Security.AccessControl.FileSystemRights]::ReadData,
+            [System.Security.AccessControl.AccessControlType]::Deny
+        )
+        $RestrictedAcl.AddAccessRule($Rule)
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            Set-Acl -LiteralPath $SummaryPath -AclObject $RestrictedAcl
+            { [System.IO.File]::ReadAllText($SummaryPath) } | Should -Throw
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath query --path $script:FixturePath --max 1 --summary-file $SummaryPath 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+            Set-Acl -LiteralPath $SummaryPath -AclObject $OriginalAcl
+        }
+        $ExitCode | Should -Be 0 -Because ($Output | Out-String)
+        $Summary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json
+        $Summary.SchemaVersion | Should -Be 1
+        $Summary.EventCount | Should -Be 1
+    }
+
     It 'holds a pending mail batch when its <Change> changes' -TestCases @(
         @{ Change = 'recipients'; Profile = 'event-smtp'; Recipient = 'other@example.test' }
         @{ Change = 'recipient casing'; Profile = 'event-smtp'; Recipient = 'Original@example.test' }

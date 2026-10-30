@@ -34,8 +34,14 @@ internal static partial class Program {
         }
         if (!File.Exists(resolved)) { return "path:" + Path.GetFullPath(resolved); }
         if (OperatingSystem.IsWindows()) {
-            using SafeFileHandle handle = File.OpenHandle(resolved, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
+            string nativePath = resolved.StartsWith("\\\\?\\", StringComparison.Ordinal) ||
+                resolved.StartsWith("\\\\.\\", StringComparison.Ordinal) ? resolved :
+                resolved.StartsWith("\\\\", StringComparison.Ordinal) ? "\\\\?\\UNC\\" + resolved.Substring(2) :
+                "\\\\?\\" + resolved;
+            // A zero access mask permits metadata queries without requiring read-data permission.
+            using SafeFileHandle handle = OpenMetadataHandle(nativePath, 0,
+                FileShare.ReadWrite | FileShare.Delete, IntPtr.Zero, FileMode.Open, 0, IntPtr.Zero);
+            if (handle.IsInvalid) { throw FileIdentityError(resolved); }
             // FileIdInfo includes the full 128-bit ID used by ReFS as well as NTFS.
             if (!GetFileInformationByHandleEx(handle, 18, out WindowsFileId info, 24)) {
                 throw FileIdentityError(resolved);
@@ -88,6 +94,11 @@ internal static partial class Program {
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int informationClass,
         out WindowsFileId information, uint bufferSize);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle OpenMetadataHandle(string path, uint desiredAccess,
+        FileShare shareMode, IntPtr securityAttributes, FileMode creationDisposition, uint flags,
+        IntPtr templateFile);
 
     [DllImport("libc", EntryPoint = "statx", SetLastError = true)]
     private static extern int Statx(int directory, [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
