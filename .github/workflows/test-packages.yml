@@ -11,6 +11,25 @@ env:
   DOTNET_VERSION: '10.0.112'
 
 jobs:
+  library-package:
+    name: 'NuGet library targets'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Pack and check all library targets
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'evx-library-packages'
+          $version = (Import-PowerShellDataFile ./PSEventViewer.psd1).ModuleVersion
+          foreach ($name in @('EventViewerX', 'EventViewerX.Detection', 'EventViewerX.Evtx', 'EventViewerX.Reporting', 'EventViewerX.Storage')) {
+            dotnet pack "Sources/$name/$name.csproj" --configuration Release --output $packageRoot -p:NuGetAudit=true
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          ./Build/Test-LibraryPackageTargets.ps1 -PackageRoot $packageRoot -Version $version
+
   cli-package:
     name: 'CLI tool (${{ matrix.os }})'
     strategy:

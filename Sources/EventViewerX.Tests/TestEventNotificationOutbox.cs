@@ -50,10 +50,15 @@ public sealed class TestEventNotificationOutbox {
                 email,
                 1,
                 Array.Empty<EventNotificationCheckpointBoundary>(),
-                requiresExternalTransport: true);
+                requiresExternalTransport: true,
+                limits: new EventNotificationOutboxLimits(),
+                transportProfileId: "event-graph",
+                recipients: new[] { " operator@example.test " });
 
-            Assert.True(Assert.Single(EventNotificationOutbox.GetPending(outbox))
-                .Manifest.RequiresExternalTransport);
+            EventNotificationBatchManifest manifest = Assert.Single(EventNotificationOutbox.GetPending(outbox)).Manifest;
+            Assert.True(manifest.RequiresExternalTransport);
+            Assert.Equal("event-graph", manifest.TransportProfileId);
+            Assert.Equal(new[] { "operator@example.test" }, manifest.Recipients);
         } finally {
             Directory.Delete(outbox, recursive: true);
         }
@@ -471,6 +476,50 @@ public sealed class TestEventNotificationOutbox {
             Assert.Contains("unsupported manifest schema", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.True(Directory.Exists(directory));
             Assert.False(File.Exists(Path.Combine(directory, "delivery.json")));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UnacknowledgedSchemaOneMailBatchFailsClosed() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Legacy mail batch");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            string directory = EventNotificationOutbox.Save(outbox, "legacy-mail", report, email, 1,
+                Array.Empty<EventNotificationCheckpointBoundary>(), requiresExternalTransport: true);
+            string manifestPath = Path.Combine(directory, "batch.json");
+            EventNotificationBatchManifest manifest = JsonSerializer.Deserialize<EventNotificationBatchManifest>(
+                File.ReadAllText(manifestPath))!;
+            manifest.SchemaVersion = 1;
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                EventNotificationOutbox.GetPending(outbox));
+
+            Assert.Contains("without bound recipients", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(Path.Combine(directory, "delivery.json")));
+        } finally {
+            Directory.Delete(outbox, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SchemaOneBatchWithoutExternalTransportRemainsReadable() {
+        string outbox = CreateTemporaryDirectory();
+        try {
+            EventReport report = CreateReport("Legacy local batch");
+            EventEmailPackage email = await EventReportEmailRenderer.RenderAsync(report);
+            string directory = EventNotificationOutbox.Save(outbox, "legacy-local", report, email, 1);
+            string manifestPath = Path.Combine(directory, "batch.json");
+            EventNotificationBatchManifest manifest = JsonSerializer.Deserialize<EventNotificationBatchManifest>(
+                File.ReadAllText(manifestPath))!;
+            manifest.SchemaVersion = 1;
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+
+            EventNotificationOutboxBatch pending = Assert.Single(EventNotificationOutbox.GetPending(outbox));
+            Assert.Equal("legacy-local", pending.Manifest.BatchId);
         } finally {
             Directory.Delete(outbox, recursive: true);
         }

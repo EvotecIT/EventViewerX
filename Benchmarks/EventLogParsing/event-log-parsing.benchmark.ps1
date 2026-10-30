@@ -1,6 +1,6 @@
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $hostDll = Get-BenchmarkInput -Name BenchmarkHostPath -Default (Join-Path $PSScriptRoot 'EventLogParsing.BenchmarkHost\bin\Release\net10.0-windows\EventLogParsing.BenchmarkHost.dll')
-$modulePath = Get-BenchmarkInput -Name PSEventViewerPath -Default (Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net10.0-windows\PSEventViewer.dll')
+$modulePath = Get-BenchmarkInput -Name PSEventViewerPath -Default (Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net8.0\PSEventViewer.dll')
 $cliPath = Get-BenchmarkInput -Name EventViewerXCliPath -Default (Join-Path $repositoryRoot 'Sources\EventViewerX.Cli\bin\Release\net10.0\evx.exe')
 $portableCliPath = Get-BenchmarkInput -Name EventViewerXPortableCliPath
 $baselineHostPath = Get-BenchmarkInput -Name BaselineHostPath

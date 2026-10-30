@@ -3,7 +3,7 @@ namespace EventViewerX.Reporting;
 /// <summary>Metadata stored with a completed notification outbox batch.</summary>
 public sealed class EventNotificationBatchManifest {
     /// <summary>Newest manifest schema understood by this EventViewerX build.</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>Version of the durable manifest contract.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
@@ -22,6 +22,12 @@ public sealed class EventNotificationBatchManifest {
 
     /// <summary>Whether completing this batch requires an external notification transport.</summary>
     public bool RequiresExternalTransport { get; set; }
+
+    /// <summary>Transport profile selected when the batch was persisted.</summary>
+    public string? TransportProfileId { get; set; }
+
+    /// <summary>Recipients bound to the pending transport delivery.</summary>
+    public string[] Recipients { get; set; } = Array.Empty<string>();
 
     /// <summary>Checkpoint boundaries committed only after the batch transport is acknowledged.</summary>
     public EventNotificationCheckpointBoundary[] Checkpoints { get; set; } =

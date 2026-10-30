@@ -14,7 +14,9 @@
       {
         "Id": "EventViewerX",
         "RequiredEntries": [
-          "lib/**/EventViewerX.dll"
+          "lib/net472/EventViewerX.dll",
+          "lib/net8.0/EventViewerX.dll",
+          "lib/net10.0/EventViewerX.dll"
         ],
         "ForbiddenDependencies": [
           "EventViewerX.Detection",
@@ -27,7 +29,9 @@
       {
         "Id": "EventViewerX.Detection",
         "RequiredEntries": [
-          "lib/**/EventViewerX.Detection.dll"
+          "lib/net472/EventViewerX.Detection.dll",
+          "lib/net8.0/EventViewerX.Detection.dll",
+          "lib/net10.0/EventViewerX.Detection.dll"
         ],
         "RequiredDependencies": [
           "EventViewerX"
@@ -42,7 +46,9 @@
       {
         "Id": "EventViewerX.Evtx",
         "RequiredEntries": [
-          "lib/**/EventViewerX.Evtx.dll"
+          "lib/net472/EventViewerX.Evtx.dll",
+          "lib/net8.0/EventViewerX.Evtx.dll",
+          "lib/net10.0/EventViewerX.Evtx.dll"
         ],
         "RequiredDependencies": [
           "EventViewerX"
@@ -57,7 +63,9 @@
       {
         "Id": "EventViewerX.Reporting",
         "RequiredEntries": [
-          "lib/**/EventViewerX.Reporting.dll"
+          "lib/net472/EventViewerX.Reporting.dll",
+          "lib/net8.0/EventViewerX.Reporting.dll",
+          "lib/net10.0/EventViewerX.Reporting.dll"
         ],
         "RequiredDependencies": [
           "EventViewerX"
@@ -72,7 +80,9 @@
       {
         "Id": "EventViewerX.Storage",
         "RequiredEntries": [
-          "lib/**/EventViewerX.Storage.dll"
+          "lib/net472/EventViewerX.Storage.dll",
+          "lib/net8.0/EventViewerX.Storage.dll",
+          "lib/net10.0/EventViewerX.Storage.dll"
         ],
         "RequiredDependencies": [
           "EventViewerX"
@@ -94,12 +104,14 @@
       "ProcessorArchitecture": "None",
       "RequiredFiles": [
         "PSEventViewer.psm1",
-        "Lib/Standard/runtimes/win-x64/native/e_sqlite3.dll",
-        "Lib/Standard/runtimes/win-x86/native/e_sqlite3.dll",
-        "Lib/Standard/runtimes/win-arm64/native/e_sqlite3.dll"
+        "Lib/Default/PSEventViewer.dll",
+        "Lib/Core/PSEventViewer.dll",
+        "Lib/Core/runtimes/win-x64/native/e_sqlite3.dll",
+        "Lib/Core/runtimes/win-x86/native/e_sqlite3.dll",
+        "Lib/Core/runtimes/win-arm64/native/e_sqlite3.dll"
       ],
       "VersionedAssemblies": [
-        "Lib/Standard/EventViewerX*.dll"
+        "Lib/Core/EventViewerX*.dll"
       ],
       "ProbeScript": "Build/Test-ModuleRuntime.ps1",
       "Hosts": [

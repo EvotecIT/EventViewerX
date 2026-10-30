@@ -42,8 +42,13 @@ internal static partial class Program {
     private static void ValidateReportOutputPaths(CliArguments options) {
         StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var inputs = new HashSet<string>(options.GetMany("path").Select(ComparisonPath), comparer);
-        foreach (string name in new[] { "store", "write-store", "context-store", "definition", "mail-profile", "privacy-key-file" }) {
+        foreach (string name in new[] { "store", "write-store", "context-store", "definition", "mail-profile-store", "privacy-key-file" }) {
             if (options.Get(name) is string path) { inputs.Add(ComparisonPath(path)); }
+        }
+        if (options.Get("mail-profile") != null) {
+            foreach (string storePath in EventNotificationMailDelivery.ResolveStorePaths(options.Get("mail-profile-store"))) {
+                inputs.Add(ComparisonPath(storePath));
+            }
         }
         if (options.Get("where") is string predicate && File.Exists(predicate)) { inputs.Add(ComparisonPath(predicate)); }
         var outputs = new HashSet<string>(comparer);
@@ -66,14 +71,6 @@ internal static partial class Program {
                 throw new ArgumentException("Report outputs and sidecars must be separate from every input, key, history file and other output.");
             }
         }
-    }
-
-    private static string ComparisonPath(string path) {
-        if (OperatingSystem.IsWindows()) {
-            if (path.StartsWith("\\\\?\\UNC\\", StringComparison.OrdinalIgnoreCase)) { path = "\\\\" + path.Substring(8); }
-            else if (path.StartsWith("\\\\?\\", StringComparison.Ordinal)) { path = path.Substring(4); }
-        }
-        return Path.GetFullPath(path);
     }
 
     private static void SaveEvidenceBundle(EventReport report, string path, CliArguments options,

@@ -9,15 +9,26 @@ Describe 'evx portable host' {
         if (-not $script:CliPath) {
             throw 'Build EventViewerX.Cli for net10.0 or set EVX_CLI_PATH before running CLI tests.'
         }
+        $cliDirectory = Split-Path -Parent $script:CliPath
+        if (-not ('EventViewerX.EventType' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.dll')
+        }
+        if (-not ('EventViewerX.Reporting.EventReportRow' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.Reporting.dll')
+        }
+        if (-not ('EventViewerX.Storage.EventStore' -as [type])) {
+            Add-Type -Path (Join-Path $cliDirectory 'EventViewerX.Storage.dll')
+        }
         $script:FixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples.evtx'
         $script:TruncatedFixturePath = Join-Path $PSScriptRoot 'Logs\NamedFilterExamples-Truncated.evtx'
-        $script:SmtpProfilePath = Join-Path $PSScriptRoot 'Fixtures\SmtpProfile.DryRun.json'
+        $script:MailProfilesPath = Join-Path $PSScriptRoot 'Fixtures\MailProfiles.json'
     }
 
     It 'preserves diagnostic input when the checkpoint is its <Alias> alias' -TestCases @(
         @{ Alias = 'direct' }
         @{ Alias = 'relative' }
         @{ Alias = 'Windows casing' }
+        @{ Alias = 'hard link' }
     ) {
         param($Alias)
         if ($Alias -eq 'Windows casing' -and $env:OS -ne 'Windows_NT') {
@@ -30,6 +41,10 @@ Describe 'evx portable host' {
         $CheckpointPath = $InputPath
         if ($Alias -eq 'relative') { $CheckpointPath = '.\diagnostic.json' }
         if ($Alias -eq 'Windows casing') { $CheckpointPath = $InputPath.ToUpperInvariant() }
+        if ($Alias -eq 'hard link') {
+            $CheckpointPath = Join-Path $TestDrive 'diagnostic-alias.json'
+            New-Item -ItemType HardLink -Path $CheckpointPath -Target $InputPath | Out-Null
+        }
         $PreviousErrorActionPreference = $ErrorActionPreference
         Push-Location -LiteralPath $TestDrive
         try {
@@ -143,7 +158,10 @@ Describe 'evx portable host' {
                 --drawer-placement Top `
                 --excel $ExcelPath `
                 --email-html $EmailPath `
-                --mail-profile $script:SmtpProfilePath)
+                --mail-profile event-smtp `
+                --mail-profile-store $script:MailProfilesPath `
+                --mail-to operator@example.test `
+                --mail-dry-run)
 
         $LASTEXITCODE | Should -Be 0
         Test-Path -LiteralPath $HtmlPath | Should -BeTrue
@@ -153,6 +171,300 @@ Describe 'evx portable host' {
         $Delivery = $Output[-1] | ConvertFrom-Json
         $Delivery.DryRun | Should -BeTrue
         $Delivery.Delivered | Should -BeFalse
+        $Delivery.ProfileId | Should -Be 'event-smtp'
+        $Delivery.ProfileKind | Should -Be 'Smtp'
+    }
+
+    It 'dry-runs a Mailozaurr <Kind> profile without delivery' -TestCases @(
+        @{ Kind = 'event-smtp'; ExpectedKind = 'Smtp' }
+        @{ Kind = 'event-graph'; ExpectedKind = 'Graph' }
+    ) {
+        param([string] $Kind, [string] $ExpectedKind)
+
+        $EmailPath = Join-Path $TestDrive "$Kind.html"
+
+        $Output = @(& $script:CliPath report `
+                --path $script:FixturePath `
+                --max 1 `
+                --email-html $EmailPath `
+                --mail-profile $Kind `
+                --mail-profile-store $script:MailProfilesPath `
+                --mail-to operator@example.test `
+                --mail-dry-run)
+
+        $LASTEXITCODE | Should -Be 0
+        $Delivery = $Output[-1] | ConvertFrom-Json
+        $Delivery.DryRun | Should -BeTrue
+        $Delivery.Delivered | Should -BeFalse
+        $Delivery.ProfileId | Should -Be $Kind
+        $Delivery.ProfileKind | Should -Be $ExpectedKind
+    }
+
+    It 'protects the implicit Mailozaurr profile store from report output' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-report'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath report --path $script:FixturePath `
+                    --email-html $ProfilePath --mail-profile event-smtp `
+                    --mail-to operator@example.test --mail-dry-run 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from every input'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects the implicit Mailozaurr profile store from watch JSONL output' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-watch'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl $ProfilePath --mail-profile event-smtp `
+                    --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects a Mailozaurr profile store reached through a directory link' {
+        $ProfileDirectory = Join-Path $TestDrive 'mail-profiles-linked'
+        $AliasDirectory = Join-Path $TestDrive 'mail-profiles-alias'
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        if ($env:OS -eq 'Windows_NT') {
+            New-Item -ItemType Junction -Path $AliasDirectory -Target $ProfileDirectory | Out-Null
+        } else {
+            New-Item -ItemType SymbolicLink -Path $AliasDirectory -Target $ProfileDirectory | Out-Null
+        }
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousProfileDirectory = $env:MAILOZAURR_PROFILE_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $ProfileDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl (Join-Path $AliasDirectory 'profiles.json') `
+                    --mail-profile event-smtp --mail-to operator@example.test `
+                    --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_PROFILE_DIRECTORY = $PreviousProfileDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects the implicit Mailozaurr secret store from watch JSONL output' {
+        $SecretDirectory = Join-Path $TestDrive 'mail-secrets-watch'
+        New-Item -ItemType Directory -Path $SecretDirectory | Out-Null
+        $SecretPath = Join-Path $SecretDirectory 'profile-secrets.json'
+        [System.IO.File]::WriteAllText($SecretPath, '{"protected":"synthetic"}')
+        $BeforeHash = (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash
+        $PreviousSecretDirectory = $env:MAILOZAURR_SECRET_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $SecretDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup `
+                    --jsonl $SecretPath --mail-profile event-smtp `
+                    --mail-profile-store $script:MailProfilesPath `
+                    --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $PreviousSecretDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from Mailozaurr profile and secret stores'
+        (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'protects a Mailozaurr profile store from a hard-linked <Command> output' -TestCases @(
+        @{ Command = 'watch' }
+        @{ Command = 'report' }
+    ) {
+        param([string] $Command)
+        $ProfileDirectory = Join-Path $TestDrive "mail-profiles-hardlink-$Command"
+        New-Item -ItemType Directory -Path $ProfileDirectory | Out-Null
+        $ProfilePath = Join-Path $ProfileDirectory 'profiles.json'
+        Copy-Item -LiteralPath $script:MailProfilesPath -Destination $ProfilePath
+        $AliasPath = Join-Path $TestDrive "mail-profile-alias-$Command.json"
+        New-Item -ItemType HardLink -Path $AliasPath -Target $ProfilePath | Out-Null
+        $BeforeHash = (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            if ($Command -eq 'watch') {
+                $Output = @(& $script:CliPath watch --type OSStartup --jsonl $AliasPath `
+                        --mail-profile event-smtp --mail-profile-store $ProfilePath `
+                        --mail-to operator@example.test --mail-dry-run --timeout 00:00:01 2>&1)
+            } else {
+                $Output = @(& $script:CliPath report --path $script:FixturePath --email-html $AliasPath `
+                        --mail-profile event-smtp --mail-profile-store $ProfilePath `
+                        --mail-to operator@example.test --mail-dry-run 2>&1)
+            }
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from'
+        (Get-FileHash -LiteralPath $ProfilePath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'preserves a query input when its summary output is a hard link' {
+        $InputPath = Join-Path $TestDrive 'query-hardlink.evtx'
+        Copy-Item -LiteralPath $script:FixturePath -Destination $InputPath
+        $SummaryPath = Join-Path $TestDrive 'query-summary.json'
+        New-Item -ItemType HardLink -Path $SummaryPath -Target $InputPath | Out-Null
+        $BeforeHash = (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath query --path $InputPath --max 1 --summary-file $SummaryPath 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from query input'
+        (Get-FileHash -LiteralPath $InputPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
+    }
+
+    It 'writes a query summary to an existing writable <PathKind> file without read-data permission' -TestCases @(
+        @{ PathKind = 'ordinary' }
+        @{ PathKind = 'extended-length' }
+    ) {
+        param($PathKind)
+        if ($env:OS -ne 'Windows_NT') {
+            Set-ItResult -Skipped -Because 'Windows file access contract'
+            return
+        }
+        $Directory = $TestDrive
+        if ($PathKind -eq 'extended-length') {
+            $Directory = Join-Path $TestDrive ('nested-' + ('x' * 120))
+            $Directory = Join-Path $Directory ('nested-' + ('y' * 120))
+            [System.IO.Directory]::CreateDirectory($Directory) | Out-Null
+        }
+        $SummaryPath = Join-Path $Directory 'write-only-summary.json'
+        [System.IO.File]::WriteAllText($SummaryPath, 'previous summary')
+        $OriginalAcl = Get-Acl -LiteralPath $SummaryPath
+        $RestrictedAcl = Get-Acl -LiteralPath $SummaryPath
+        $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+        $Rule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList @(
+            $Identity, [System.Security.AccessControl.FileSystemRights]::ReadData,
+            [System.Security.AccessControl.AccessControlType]::Deny
+        )
+        $RestrictedAcl.AddAccessRule($Rule)
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            Set-Acl -LiteralPath $SummaryPath -AclObject $RestrictedAcl
+            { [System.IO.File]::ReadAllText($SummaryPath) } | Should -Throw
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath query --path $script:FixturePath --max 1 --summary-file $SummaryPath 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+            Set-Acl -LiteralPath $SummaryPath -AclObject $OriginalAcl
+        }
+        $ExitCode | Should -Be 0 -Because ($Output | Out-String)
+        $Summary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json
+        $Summary.SchemaVersion | Should -Be 1
+        $Summary.EventCount | Should -Be 1
+    }
+
+    It 'holds a pending mail batch when its <Change> changes' -TestCases @(
+        @{ Change = 'recipients'; Profile = 'event-smtp'; Recipient = 'other@example.test' }
+        @{ Change = 'recipient casing'; Profile = 'event-smtp'; Recipient = 'Original@example.test' }
+        @{ Change = 'profile'; Profile = 'event-graph'; Recipient = 'original@example.test' }
+    ) {
+        param([string] $Change, [string] $Profile, [string] $Recipient)
+        $Outbox = Join-Path $TestDrive "outbox-$Change"
+        $Batch = Join-Path $Outbox 'pending-batch'
+        New-Item -ItemType Directory -Path $Batch -Force | Out-Null
+        $Manifest = @{
+            SchemaVersion = 2
+            BatchId = 'pending-batch'
+            EventCount = 1
+            Title = 'Synthetic notification'
+            PersistedUtc = '2026-10-29T12:00:00Z'
+            RequiresExternalTransport = $true
+            TransportProfileId = 'event-smtp'
+            Recipients = @('original@example.test')
+            Checkpoints = @()
+        } | ConvertTo-Json -Depth 5
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'batch.json'), $Manifest)
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'email.html'), '<p>Synthetic</p>')
+        [System.IO.File]::WriteAllText((Join-Path $Batch 'email.txt'), 'Synthetic')
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath watch --type OSStartup --outbox $Outbox `
+                    --mail-profile $Profile --mail-profile-store $script:MailProfilesPath `
+                    --mail-to $Recipient --mail-dry-run --timeout 00:00:01 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'different mail profile or recipient list'
+        (Test-Path -LiteralPath (Join-Path $Batch 'delivery.json')) | Should -BeFalse
+    }
+
+    It 'protects the implicit Mailozaurr secret store from report output' {
+        $SecretDirectory = Join-Path $TestDrive 'mail-secrets-report'
+        New-Item -ItemType Directory -Path $SecretDirectory | Out-Null
+        $SecretPath = Join-Path $SecretDirectory 'profile-secrets.json'
+        [System.IO.File]::WriteAllText($SecretPath, '{"protected":"synthetic"}')
+        $BeforeHash = (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash
+        $PreviousSecretDirectory = $env:MAILOZAURR_SECRET_DIRECTORY
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $SecretDirectory
+            $ErrorActionPreference = 'Continue'
+            $Output = @(& $script:CliPath report --path $script:FixturePath `
+                    --email-html $SecretPath --mail-profile event-smtp `
+                    --mail-profile-store $script:MailProfilesPath `
+                    --mail-to operator@example.test --mail-dry-run 2>&1)
+            $ExitCode = $LASTEXITCODE
+        } finally {
+            $env:MAILOZAURR_SECRET_DIRECTORY = $PreviousSecretDirectory
+            $ErrorActionPreference = $PreviousErrorActionPreference
+        }
+
+        $ExitCode | Should -Be 1
+        ($Output | Out-String) | Should -Match 'separate from every input'
+        (Get-FileHash -LiteralPath $SecretPath -Algorithm SHA256).Hash | Should -Be $BeforeHash
     }
 
     It 'rejects an unknown HTML drawer placement' {

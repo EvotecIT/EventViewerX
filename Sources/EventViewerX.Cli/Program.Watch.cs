@@ -89,10 +89,28 @@ internal static partial class Program {
                 "dead-letter-after",
                 "Dead-letter attempt count must be greater than zero.");
         }
+        string? mailProfile = options.Get("mail-profile");
+        if (mailProfile == null &&
+            (options.Has("mail-profile-store") || options.Has("mail-to") || options.Has("mail-dry-run"))) {
+            throw new ArgumentException("--mail-profile is required for mail delivery options.");
+        }
+        EventNotificationMailDelivery? mailDelivery = mailProfile == null
+            ? null
+            : EventNotificationMailDelivery.Create(options.Get("mail-profile-store"));
+        string[] mailRecipients = options.GetMany("mail-to");
+        bool mailDryRun = options.Has("mail-dry-run");
+        if (mailDelivery != null) {
+            string[] protectedStorePaths = EventNotificationMailDelivery.ResolveStorePaths(options.Get("mail-profile-store"))
+                .Select(ComparisonPath).ToArray();
+            StringComparer pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+            foreach (string? outputPath in new[] { options.Get("jsonl"), readyFile, summaryFile, checkpointStorePath }) {
+                if (outputPath != null && protectedStorePaths.Contains(ComparisonPath(outputPath), pathComparer)) {
+                    throw new ArgumentException("Watch outputs and checkpoint storage must be separate from Mailozaurr profile and secret stores.");
+                }
+            }
+            await mailDelivery.ValidateAsync(mailProfile!, mailRecipients).ConfigureAwait(false);
+        }
         using StreamWriter? jsonLines = CreateJsonLinesWriter(options.Get("jsonl"));
-        SmtpNotificationProfile? mailProfile = options.Get("mail-profile") is string profilePath
-            ? SmtpNotificationProfile.Load(profilePath)
-            : null;
         bool bufferNotifications = !string.IsNullOrWhiteSpace(outbox) || mailProfile != null;
         EventStore? checkpointStore = string.IsNullOrWhiteSpace(checkpointStorePath)
             ? null
@@ -184,7 +202,9 @@ internal static partial class Program {
                         projected.Length,
                         checkpointBoundaries,
                         requiresExternalTransport: mailProfile != null,
-                        limits: outboxLimits);
+                        limits: outboxLimits,
+                        transportProfileId: mailProfile,
+                        recipients: mailRecipients);
                     durableBatch = EventNotificationOutbox.GetPending(outbox!)
                         .Single(candidate => string.Equals(
                             candidate.Manifest.BatchId,
@@ -200,8 +220,9 @@ internal static partial class Program {
                     }
                     if (mailProfile != null &&
                         (durableBatch == null || !durableBatch.Delivery.TransportAcknowledgedUtc.HasValue)) {
-                        Mailozaurr.SmtpResult result = await mailProfile.SendAsync(email, report.Title).ConfigureAwait(false);
-                        if (mailProfile.DryRun || !result.Status) {
+                        Mailozaurr.SendResult result = await mailDelivery!.SendAsync(
+                            mailProfile, email, mailRecipients, mailDryRun).ConfigureAwait(false);
+                        if (mailDryRun || !result.Succeeded || result.Queued) {
                             return;
                         }
                         if (durableBatch != null) {
@@ -384,17 +405,27 @@ internal static partial class Program {
                         throw new InvalidOperationException(
                             $"Pending notification batch '{batch.Manifest.BatchId}' owns checkpoint boundaries, but this watcher was restarted without --checkpoint-store.");
                     }
+                    if (!batch.Delivery.TransportAcknowledgedUtc.HasValue &&
+                        batch.Manifest.RequiresExternalTransport &&
+                        (!string.Equals(batch.Manifest.TransportProfileId, mailProfile, StringComparison.Ordinal) ||
+                         !batch.Manifest.Recipients.OrderBy(static recipient => recipient, StringComparer.Ordinal)
+                             .SequenceEqual(mailRecipients.Select(static recipient => recipient.Trim())
+                                 .OrderBy(static recipient => recipient, StringComparer.Ordinal),
+                                 StringComparer.Ordinal))) {
+                        throw new InvalidOperationException(
+                            $"Pending notification batch '{batch.Manifest.BatchId}' belongs to a different mail profile or recipient list. " +
+                            "Restore the original --mail-profile and --mail-to options before delivery; the batch remains pending.");
+                    }
                     try {
                         string title = string.IsNullOrWhiteSpace(batch.Manifest.Title)
                             ? "EventViewerX notification"
                             : batch.Manifest.Title;
                         if (!batch.Delivery.TransportAcknowledgedUtc.HasValue) {
                             if (batch.Manifest.RequiresExternalTransport) {
-                                Mailozaurr.SmtpResult result = await mailProfile!.SendAsync(
-                                    batch.Html,
-                                    batch.PlainText,
-                                    title).ConfigureAwait(false);
-                                if (mailProfile.DryRun || !result.Status) {
+                                Mailozaurr.SendResult result = await mailDelivery!.SendAsync(
+                                    mailProfile!, batch.Html, batch.PlainText, title,
+                                    mailRecipients, mailDryRun).ConfigureAwait(false);
+                                if (mailDryRun || !result.Succeeded || result.Queued) {
                                     return idleDelay;
                                 }
                             }

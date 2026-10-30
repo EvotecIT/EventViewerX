@@ -55,7 +55,7 @@
               "osx-x64",
               "osx-arm64"
             ],
-            "OutputPath": "Artefacts/Cli/Artifacts/DotNetPublish/EventViewerX.Cli",
+            "OutputPath": "Artefacts/Cli/Artifacts/DotNetPublish/{target}/{rid}/{framework}/{style}",
             "UseStaging": true,
             "ClearOutput": true,
             "Slim": true,

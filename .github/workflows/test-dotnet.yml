@@ -67,6 +67,9 @@ jobs:
         run: dotnet test Sources/EventViewerX.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
         timeout-minutes: 30
 
+      - name: Strict Release build with NuGet audit
+        run: dotnet build Sources/EventViewerX.sln --configuration Release --no-restore -p:NuGetAudit=true -warnaserror
+
       - name: Publish and run NativeAOT explicit catalog smoke test
         shell: pwsh
         run: |

@@ -18,7 +18,7 @@ internal static partial class Program {
         if (checkpointPath != null) {
             checkpointPath = System.IO.Path.GetFullPath(checkpointPath);
             StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            if (string.Equals(ResolveDiagnosticPath(inputPath), ResolveDiagnosticPath(checkpointPath), comparison)) {
+            if (string.Equals(ComparisonPath(inputPath), ComparisonPath(checkpointPath), comparison)) {
                 throw new ArgumentException("The checkpoint path must be different from the diagnostic input path.");
             }
         }
@@ -40,20 +40,6 @@ internal static partial class Program {
             } finally { if (File.Exists(temporary)) { File.Delete(temporary); } }
         }
         return exit;
-    }
-
-    private static string ResolveDiagnosticPath(string fullPath) {
-        string root = System.IO.Path.GetPathRoot(fullPath)!;
-        string[] parts = fullPath.Substring(root.Length).Split(System.IO.Path.DirectorySeparatorChar);
-        string directory = root;
-        for (int index = 0; index < parts.Length - 1; index++) {
-            directory = System.IO.Path.Combine(directory, parts[index]);
-            if (Directory.Exists(directory)) {
-                directory = new DirectoryInfo(directory).ResolveLinkTarget(true)?.FullName ?? directory;
-            }
-        }
-        string path = System.IO.Path.Combine(directory, parts[parts.Length - 1]);
-        return File.Exists(path) ? new FileInfo(path).ResolveLinkTarget(true)?.FullName ?? path : path;
     }
 
     private static TimeSpan? Offset(CliArguments options) => options.Get("utc-offset-minutes") is string minutes

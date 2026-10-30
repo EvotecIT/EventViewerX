@@ -299,7 +299,7 @@
         "Enable": true,
         "Configuration": "Release",
         "Framework": [
-          "netstandard2.1",
+          "net8.0",
           "net472"
         ],
         "ProjectName": "PSEventViewer",

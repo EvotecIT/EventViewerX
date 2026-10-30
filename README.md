@@ -133,14 +133,18 @@ Update an older installed copy before using 4.0 features:
 Update-Module -Name PSEventViewer
 ```
 
-The 4.0 source supports Windows PowerShell 5.1 and PowerShell 7+. EventViewerX
-targets .NET Framework 4.7.2, .NET 8 for Windows, and .NET 10 for Windows.
+The 4.0 module supports 64-bit Windows PowerShell 5.1 and PowerShell 7.4+ on
+Windows. Its payloads target net472 and net8.0. The five EventViewerX NuGet
+libraries target net472, net8.0, and net10.0.
 The CLI project targets .NET 10. Its release configuration defines
 framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 [CLI commands](#portable-host-and-event-triggered-automation) for source builds and qualified artifact installation.
 
 ## Documentation
 
+- [First run and scheduled report](Docs/First-Run.md): one bounded report from
+  local, remote, collector, or offline evidence, followed by a PowerShell task
+  recipe.
 - [Onboarding and prerequisites](Docs/Onboarding.md): local-first readiness,
   explicit Active Directory discovery, direct versus WEC collection, audit
   policy, permissions, firewall, and a complete scheduled daily AD-change
@@ -154,6 +158,8 @@ framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 - [EventViewerX .NET guide](Docs/EventViewerX-Guide.md): typed synchronous and
   asynchronous reads, batching, subscriptions, exports, administration, and
   writes.
+- [Legacy report API inventory](Docs/Legacy-Reports-Inventory.md): published
+  `EventViewerX.Reports.*` facades and migration work for the reporting redesign.
 - [Custom provider guide](Docs/Custom-Providers.md): PowerShell hashtables,
   JSON, typed C#, build/install, signing/trust, named writes, upgrades, repair,
   rollback, and removal.
@@ -888,42 +894,31 @@ typed and custom definitions always retain their declared columns.
 `-EmailPackage` returns `Subject`, responsive `Html`, `PlainText`, inline
 resources, attachments, and estimated size. Email event rows use columns on
 wide screens and labeled records on compact screens. That transport-neutral object can
-be handed to Mailozaurr, Microsoft Graph, TeamsX/PSTeams, or another delivery
-adapter without making those modules dependencies of PSEventViewer. The
-portable `evx.exe` includes Mailozaurr and can deliver directly from a JSON
-SMTP profile whose password is read from an environment variable.
+be handed to Mailozaurr or another delivery adapter without making a sender a
+dependency of PSEventViewer. The portable `evx` host uses Mailozaurr profiles
+and its provider handlers for Graph, SMTP, Gmail, SendGrid, Mailgun, and SES.
+Profile settings and protected secrets remain in Mailozaurr's stores.
 
 ```powershell
 # Mailozaurr stays optional for interactive PowerShell users.
 $email = Show-EVXEvent -Type ADUserLogonFailed `
     -TimePeriod Last24Hours -EmailPackage
 
-Send-EmailMessage -Server 'smtp.contoso.com' -Port 587 `
-    -From 'events@contoso.com' -To 'operations@contoso.com' `
-    -Subject $email.Subject -HTML $email.Html -Text $email.PlainText `
-    -Credential $credential -SecureSocketOptions StartTls
-```
-
-```json
-{
-  "Server": "smtp.contoso.com",
-  "Port": 587,
-  "SecureSocketOptions": "StartTls",
-  "From": "events@contoso.com",
-  "To": [ "operations@contoso.com" ],
-  "UserName": "events@contoso.com",
-  "PasswordEnvironmentVariable": "EVX_SMTP_PASSWORD",
-  "Subject": "{Title}"
-}
 ```
 
 ```powershell
-$env:EVX_SMTP_PASSWORD = '<secret supplied by the scheduler or secret store>'
 evx report --type ActiveDirectoryAuthentication --collector WEC01 `
     --since 1.00:00:00 --html .\Authentication.html `
     --drawer-placement Auto `
-    --excel .\Authentication.xlsx --mail-profile .\smtp.json
+    --excel .\Authentication.xlsx --mail-profile evx-graph `
+    --mail-to operations@contoso.com --mail-dry-run
 ```
+
+Remove `--mail-dry-run` only after the profile and recipients have been
+verified. `--mail-profile` selects a Mailozaurr profile ID created with
+`New-MailProfile`. `--mail-profile-store` can select a Mailozaurr `profiles.json`
+store instead of the default store. See the [Graph certificate and SMTP relay
+recipes](Docs/First-Run.md#send-the-report-with-mailozaurr).
 
 For C#, queries, occurrence analysis, aggregation, report rows, schemas, and
 completeness metadata are part of the core `EventViewerX` package. They work
@@ -1047,11 +1042,13 @@ do not introduce a second query or reporting implementation.
 ```powershell
 # Process the exact record that started a scheduled task.
 evx report --type ADUserLogonFailed --record-id 123456 `
-    --html C:\Reports\FailedLogon.html --mail-profile C:\EVX\smtp.json
+    --html C:\Reports\FailedLogon.html --mail-profile evx-graph `
+    --mail-to operations@contoso.com
 
 # Continuously batch matching events and create an outbox or send mail.
 evx watch --type ActiveDirectoryAuthentication --collector WEC01 `
-    --interval 00:05:00 --mail-profile C:\EVX\smtp.json `
+    --interval 00:05:00 --mail-profile evx-graph `
+    --mail-to operations@contoso.com `
     --outbox C:\EVX\outbox --notification-buffer-capacity 8192 `
     --ready-file C:\EVX\ready --summary-file C:\EVX\last-run.json
 
@@ -1147,10 +1144,9 @@ Each watcher outbox delivery is published as one completed batch directory
 containing `report.html`, `email.html`, `email.txt`, and `batch.json`. A stable
 batch identifier makes a local retry idempotent, and a failed write is never
 published as a completed directory. The notification buffer is bounded (4,096
-events by default) and fails explicitly when delivery cannot keep up. SMTP
-delivery is at-least-once: an uncertain connection failure after a server has
-accepted a message can cause a retry, so downstream mail handling should tolerate
-duplicate batch subjects.
+events by default) and fails explicitly when delivery cannot keep up. Mail
+delivery is at-least-once: an uncertain provider result after acceptance can
+cause a retry, so recipients should tolerate duplicate batch subjects.
 On graceful shutdown the CLI stops subscriptions, drains the bounded delivery
 queue, persists the active batch, and only then advances its owned checkpoint.
 Incomplete `.pending-*` directories from a process or machine crash are never
@@ -1171,13 +1167,13 @@ dead-letter, and staging files, and 10,000 pending batches. Use
 `--outbox-maximum-pending-batches` to set operator-owned limits. Delivered and
 dead-letter evidence is never silently deleted; retention or archival remains
 an explicit host policy, and reaching the byte limit stops checkpoint progress.
-The immutable batch manifest also records whether SMTP is required and the exact
+The immutable batch manifest also records whether external mail is required and the exact
 compare-and-swap checkpoint boundary. A restart therefore cannot silently skip
 mail because `--mail-profile` was omitted, or acknowledge source progress because
 `--checkpoint-store` was omitted. Transport acknowledgement is persisted before
 checkpoint advancement, so a crash after an accepted delivery resumes the
-checkpoint without sending the acknowledged batch again. SMTP remains
-at-least-once because a crash can still occur after the server accepts a message
+checkpoint without sending the acknowledged batch again. Mail remains
+at-least-once because a crash can still occur after a provider accepts a message
 but before local acknowledgement is durable.
 
 In the exact-artifact, five-launch cold-start matrix, the framework-dependent

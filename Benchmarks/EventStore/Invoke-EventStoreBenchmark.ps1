@@ -41,7 +41,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $repositoryRoot 'Sources\PSEventViewer\PSEventViewer.csproj'
-$runtimeRoot = Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net8.0-windows'
+$runtimeRoot = Join-Path $repositoryRoot 'Sources\PSEventViewer\bin\Release\net8.0'
 $specPath = Join-Path $PSScriptRoot 'event-store.benchmark.ps1'
 $fixtureProjectPath = Join-Path $PSScriptRoot 'EventStore.BenchmarkFixture.csproj'
 $fixtureAssemblyPath = Join-Path $PSScriptRoot 'bin\Release\net8.0-windows\EventStore.BenchmarkFixture.dll'
@@ -66,7 +66,7 @@ $resolvedRowCounts = @($RowCount | ForEach-Object {
     } | Sort-Object -Unique)
 
 if (-not $SkipBuild.IsPresent) {
-    dotnet build $projectPath --configuration Release --framework net8.0-windows
+    dotnet build $projectPath --configuration Release --framework net8.0
     if ($LASTEXITCODE -ne 0) {
         throw 'The PSEventViewer Release build failed before the event-store benchmark.'
     }
