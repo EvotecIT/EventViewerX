@@ -1,0 +1,38 @@
+name: Verify CI result
+
+on:
+  workflow_call:
+    inputs:
+      results:
+        description: Coverage selection and the selected jobs' results
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  result:
+    name: Verify selected coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require successful coverage or a selected prose-only skip
+        shell: bash
+        env:
+          RESULTS: ${{ inputs.results }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          results = json.loads(os.environ['RESULTS'])
+          selection = results.pop('changes')
+          assert selection['result'] == 'success', 'Coverage selection did not succeed'
+          build = selection['outputs']['build']
+          assert build in ('true', 'false'), 'Missing coverage decision'
+          expected = 'success' if build == 'true' else 'skipped'
+          for name, job in results.items():
+              assert job['result'] == expected, f"{name}: {job['result']}, expected {expected}"
+          print('All selected jobs passed.' if build == 'true' else 'Prose-only PR; heavy jobs skipped.')
+          PY

@@ -3,15 +3,27 @@ name: Test Packed Artifacts
 on:
   push:
     branches: [master]
-    paths-ignore: ['README.md', 'Docs/**']
   pull_request:
   workflow_dispatch:
+
+# Only newer commits to the same PR may replace a run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   DOTNET_VERSION: '10.0.112'
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-changes.yml
+
   library-package:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'NuGet library targets'
     runs-on: windows-latest
     steps:
@@ -31,6 +43,8 @@ jobs:
           ./Build/Test-LibraryPackageTargets.ps1 -PackageRoot $packageRoot -Version $version
 
   cli-package:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'CLI tool (${{ matrix.os }})'
     strategy:
       fail-fast: false
@@ -54,6 +68,8 @@ jobs:
           ./Build/Test-CliPackage.ps1 -PackageRoot $packageRoot
 
   module-package:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'PowerShell ZIP (5.1 and 7)'
     runs-on: windows-latest
     steps:
@@ -71,3 +87,11 @@ jobs:
           $version = (Import-PowerShellDataFile ./PSEventViewer.psd1).ModuleVersion
           Invoke-ModuleBuild -ConfigPath ./Build/module.json -RunMode Build -ModuleVersion $version -NoSign -IncludeProjectPackages:$false -NoInteractive -StagingPath (Join-Path $env:RUNNER_TEMP 'evx-module-stage')
           ./Build/Test-ModulePackage.ps1 -ModuleArchive (Join-Path $PWD "Artefacts/Packed/PSEventViewer.v$version.zip") -Version $version
+
+  result:
+    name: Test Packed Artifacts result
+    needs: [changes, library-package, cli-package, module-package]
+    if: always()
+    uses: ./.github/workflows/ci-result.yml
+    with:
+      results: ${{ toJSON(needs) }}

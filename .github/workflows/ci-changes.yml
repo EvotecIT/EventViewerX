@@ -1,0 +1,79 @@
+name: Select CI coverage
+
+on:
+  workflow_call:
+    outputs:
+      build:
+        description: Whether build, test and package jobs are needed
+        value: ${{ jobs.changes.outputs.build }}
+      archives:
+        description: Native archive matrix for this event
+        value: ${{ jobs.changes.outputs.archives }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.paths.outputs.build }}
+      archives: ${{ steps.paths.outputs.archives }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select coverage from the complete PR diff
+        id: paths
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          def prose_only(path):
+              lower = path.lower()
+              # These paths are compiled, tested, packed or generated help.
+              # README.md is embedded in the NuGet packages; Docs is module input.
+              if lower == 'readme.md' or lower.startswith((
+                  'sources/', 'tests/', 'build/', 'benchmarks/', 'docs/', 'en-us/'
+              )):
+                  return False
+              if any(part in ('schema', 'schemas') for part in lower.split('/')):
+                  return False
+              return lower.startswith('website/') or ('/' not in path and lower.endswith('.md'))
+
+          build = True
+          if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+              with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as stream:
+                  pr = json.load(stream)['pull_request']
+              # No rename detection: both the old and new paths must be safe.
+              changed = subprocess.check_output([
+                  'git', 'diff', '--no-renames', '--name-only', '-z',
+                  pr['base']['sha'] + '...' + pr['head']['sha'], '--'
+              ]).decode('utf-8').split('\0')
+              paths = [path for path in changed if path]
+              build = not paths or not all(prose_only(path) for path in paths)
+              print(f'Checked {len(paths)} changed paths; heavy coverage needed: {build}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+              stream.write(f'build={str(build).lower()}\n')
+              archives = [
+                  {'runtime': 'win-x64', 'os': 'windows-2025'},
+                  {'runtime': 'win-arm64', 'os': 'windows-11-arm',
+                   'git-path': r'C:\Program Files\Git\bin\git.exe'},
+                  {'runtime': 'linux-x64', 'os': 'ubuntu-24.04'},
+                  {'runtime': 'linux-arm64', 'os': 'ubuntu-24.04-arm'},
+              ]
+              if os.environ['GITHUB_EVENT_NAME'] != 'pull_request':
+                  archives.extend([
+                      {'runtime': 'osx-x64', 'os': 'macos-15-intel',
+                       'dotnet-root': '/usr/local/share/dotnet'},
+                      {'runtime': 'osx-arm64', 'os': 'macos-15',
+                       'dotnet-root': '/usr/local/share/dotnet'},
+                  ])
+              stream.write('archives=' + json.dumps({'include': archives}) + '\n')
+          PY

@@ -4,18 +4,28 @@ on:
   push:
     branches:
       - master
-    paths-ignore:
-      - 'README.md'
-      - 'Docs/**'
   pull_request:
-  workflow_dispatch:  # 👈 enables manual triggering
+  workflow_dispatch:
+
+# Only newer commits to the same PR may replace a run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   DOTNET_VERSION: '10.0.112'
   BUILD_CONFIGURATION: 'Debug'
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-changes.yml
+
   refresh-psd1:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'Refresh PSD1'
     runs-on: windows-latest
     steps:
@@ -50,7 +60,8 @@ jobs:
           path: PSEventViewer.psd1
 
   test-windows-ps5:
-    needs: refresh-psd1
+    needs: [changes, refresh-psd1]
+    if: needs.changes.outputs.build == 'true'
     name: 'Windows PowerShell 5.1'
     runs-on: windows-latest
     steps:
@@ -88,7 +99,8 @@ jobs:
         run: .\PSEventViewer.Tests.ps1
 
   test-windows-ps7:
-    needs: refresh-psd1
+    needs: [changes, refresh-psd1]
+    if: needs.changes.outputs.build == 'true'
     name: 'Windows PowerShell 7'
     runs-on: windows-latest
     steps:
@@ -124,3 +136,11 @@ jobs:
       - name: Run PowerShell tests
         shell: pwsh
         run: .\PSEventViewer.Tests.ps1
+
+  result:
+    name: Test PowerShell Module result
+    needs: [changes, refresh-psd1, test-windows-ps5, test-windows-ps7]
+    if: always()
+    uses: ./.github/workflows/ci-result.yml
+    with:
+      results: ${{ toJSON(needs) }}

@@ -4,11 +4,16 @@ on:
   push:
     branches:
       - master
-    paths-ignore:
-      - 'README.md'
-      - 'Docs/**'
   pull_request:
-  workflow_dispatch:  # 👈 enables manual triggering
+  workflow_dispatch:
+
+# Only newer commits to the same PR may replace a run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   BUILD_CONFIGURATION: 'Debug'
@@ -16,7 +21,12 @@ env:
   SUMMARIZE_FAILURES: true # set to 'false' to disable summarizing failing tests
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-changes.yml
+
   test-portability-linux:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'Linux portability'
     runs-on: ubuntu-latest
     steps:
@@ -43,6 +53,8 @@ jobs:
           path: '**/*.trx'
 
   test-windows:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     name: 'Windows'
     runs-on: windows-latest
     strategy:
@@ -135,3 +147,11 @@ jobs:
         with:
           files: '**/coverage.cobertura.xml'
           verbose: true
+
+  result:
+    name: Test .NET Libraries result
+    needs: [changes, test-portability-linux, test-windows]
+    if: always()
+    uses: ./.github/workflows/ci-result.yml
+    with:
+      results: ${{ toJSON(needs) }}
