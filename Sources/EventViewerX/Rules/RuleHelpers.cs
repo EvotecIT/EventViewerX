@@ -12,6 +12,7 @@ internal static class RuleHelpers
     /// </summary>
     /// <param name="e">Source event whose data dictionary contains the unlabeled date/time fields.</param>
     /// <returns>UTC <see cref="DateTime"/> when both fragments are present and parseable; otherwise <c>null</c>.</returns>
+    /// <remarks>Numeric dates retain invariant date order; these payload fields do not identify the source culture.</remarks>
     /// <example>
     /// When Directory Service events store date in <c>NoNameA1</c> (e.g., "2025-02-12") and time in <c>NoNameA0</c> (e.g., "08:51:44"),
     /// call <c>ParseUnlabeledOsTimestamp(evt)</c> to normalise to UTC without hand-written concatenation logic.
@@ -23,14 +24,14 @@ internal static class RuleHelpers
         var date = e.GetValueFromDataDictionary("NoNameA1");
         var time = e.GetValueFromDataDictionary("NoNameA0");
 
+        // Windows inserts directional formatting marks into localized shutdown timestamps.
+        date = new string(date.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
+        time = new string(time.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
+
         if (string.IsNullOrWhiteSpace(date) || string.IsNullOrWhiteSpace(time))
         {
             return null;
         }
-
-        // Windows inserts directional formatting marks into localized shutdown timestamps.
-        date = new string(date.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
-        time = new string(time.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
 
         var candidates = new[]
         {

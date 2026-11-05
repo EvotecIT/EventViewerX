@@ -57,18 +57,16 @@ public class OSBugCheck : EventRuleBase {
 
         if (RuleHelpers.IsProvider(SourceEvent, "Microsoft-Windows-WER-SystemErrorReporting") &&
             !SourceEvent.TryGetDataValue("BugcheckCode", out _)) {
-            // WER stores code + parameters together; param2 and param3 describe the report.
-            DumpFile = SourceEvent.GetValueFromDataDictionary("param2");
-            ReportId = SourceEvent.GetValueFromDataDictionary("param3");
-            Parameter1 = Parameter2 = Parameter3 = Parameter4 = string.Empty;
-
             Match packed = PackedBugCheck.Match(BugCheckCode);
             if (packed.Success) {
+                // WER's packed layout uses param2 and param3 for the dump path and report ID.
                 BugCheckCode = packed.Groups[1].Value;
                 Parameter1 = packed.Groups[2].Value;
                 Parameter2 = packed.Groups[3].Value;
                 Parameter3 = packed.Groups[4].Value;
                 Parameter4 = packed.Groups[5].Value;
+                DumpFile = SourceEvent.GetValueFromDataDictionary("param2");
+                ReportId = SourceEvent.GetValueFromDataDictionary("param3");
             }
         }
     }

@@ -6,31 +6,37 @@ namespace EventViewerX.Tests;
 
 public sealed class TestOsCrashRules {
     [Theory]
-    [InlineData(0x200e)]
-    [InlineData(0x200f)]
-    [InlineData(0x061c)]
-    [InlineData(0x2066)]
-    public void OSCrash_UsesShutdownTimeWithFormattingMarks(int markCode) {
+    [InlineData(0x200e, "complete")]
+    [InlineData(0x200f, "complete")]
+    [InlineData(0x061c, "complete")]
+    [InlineData(0x2066, "complete")]
+    [InlineData(0x200e, "missing-date")]
+    [InlineData(0x200e, "missing-time")]
+    public void OSCrash_UsesShutdownTimeOrEventTimeForIncompleteFragments(int markCode, string fragments) {
         char mark = (char)markCode;
+        string time = fragments == "missing-time" ? $"{mark}" : $"{mark}10:06:28 AM{mark}";
+        string date = fragments == "missing-date" ? $"{mark}" : $"{mark}11/{mark}5/{mark}2026";
         EventObject source = CreateEvent(6008, "EventLog", $"""
-            <Data>{mark}10:06:28 AM{mark}</Data>
-            <Data>{mark}11/{mark}5/{mark}2026</Data>
+            <Data>{time}</Data>
+            <Data>{date}</Data>
             """);
 
         var crash = new OSCrash(source);
-        DateTime expected = new DateTime(2026, 11, 5, 10, 6, 28, DateTimeKind.Local).ToUniversalTime();
+        DateTime expected = fragments == "complete"
+            ? new DateTime(2026, 11, 5, 10, 6, 28, DateTimeKind.Local).ToUniversalTime()
+            : source.TimeCreated.ToUniversalTime();
 
         Assert.True(crash.CanHandle(source));
         Assert.Equal(expected, crash.ActionTimestampUtc);
         Assert.Equal(DateTimeKind.Utc, crash.ActionTimestampUtc!.Value.Kind);
         Assert.Equal(expected, crash.When);
-        Assert.NotEqual(source.TimeCreated, crash.When);
     }
 
     [Theory]
     [InlineData("wer")]
     [InlineData("named")]
     [InlineData("positional")]
+    [InlineData("wer-positional")]
     public void OSBugCheck_MapsCodeParametersAndReportFields(string layout) {
         string data = layout switch {
             "wer" => """
