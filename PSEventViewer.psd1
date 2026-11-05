@@ -1,4 +1,4 @@
-@{
+﻿@{
     AliasesToExport       = @('Find-WinEvent', 'Get-EVXFilter', 'Write-EVXEntry')
     Author                = 'Przemyslaw Klys'
     CmdletsToExport       = @('Backup-EVXStore', 'Clear-EVXLog', 'Compare-EVXDetectionPack', 'Export-EVXEvent', 'Export-EVXInvestigation', 'Get-EVXAnalysisContract', 'Get-EVXCollectorSubscription', 'Get-EVXDetectionCoverage', 'Get-EVXDetectionPack', 'Get-EVXDiagnostic', 'Get-EVXEvent', 'Get-EVXKerberosImpact', 'Get-EVXLog', 'Get-EVXPowerShellScript', 'Get-EVXProvider', 'Get-EVXRequirement', 'Get-EVXStoredEvent', 'Get-EVXTarget', 'Get-EVXWatcher', 'Import-EVXSigmaRule', 'Install-EVXProviderPackage', 'Invoke-EVXDetection', 'Invoke-EVXInvestigation', 'Invoke-EVXStoreRetention', 'Measure-EVXEvent', 'New-EVXCollectorSubscription', 'New-EVXFilter', 'New-EVXLog', 'New-EVXProviderPackage', 'New-EVXSource', 'Open-EVXInvestigation', 'Remove-EVXLog', 'Remove-EVXSource', 'Reset-EVXEventCheckpoint', 'Restore-EVXStore', 'Set-EVXCollectorSubscription', 'Set-EVXLog', 'Show-EVXEvent', 'Start-EVXWatcher', 'Stop-EVXWatcher', 'Test-EVXDetectionPack', 'Test-EVXLog', 'Test-EVXProviderDefinition', 'Test-EVXReadiness', 'Test-EVXSigmaRule', 'Test-EVXStore', 'Uninstall-EVXProviderPackage', 'Update-EVXLogArchive', 'Write-EVXEvent')
@@ -8,7 +8,7 @@
     Description           = 'High-performance typed Windows Event Log queries, reports, exports, watchers, WEC, custom providers, diagnostics, and administration for PowerShell.'
     FunctionsToExport     = @()
     GUID                  = '5df72a79-cdf6-4add-b38d-bcacf26fb7bc'
-    ModuleVersion         = '4.0.1'
+    ModuleVersion         = '4.0.2'
     PowerShellVersion     = '5.1'
     ProcessorArchitecture = 'None'
     PrivateData           = @{
