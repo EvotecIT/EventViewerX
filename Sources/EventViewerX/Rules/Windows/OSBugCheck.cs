@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace EventViewerX.Rules.Windows;
 
 /// <summary>
@@ -5,6 +7,9 @@ namespace EventViewerX.Rules.Windows;
 /// 1001: The computer has rebooted from a bugcheck.
 /// </summary>
 public class OSBugCheck : EventRuleBase {
+    private static readonly Regex PackedBugCheck = new(
+        @"\A\s*(0[xX][0-9a-fA-F]+)\s*\(\s*(0[xX][0-9a-fA-F]+)\s*,\s*(0[xX][0-9a-fA-F]+)\s*,\s*(0[xX][0-9a-fA-F]+)\s*,\s*(0[xX][0-9a-fA-F]+)\s*\)\s*\z");
+
     /// <inheritdoc />
     public override List<int> EventIds => new() { 1001 };
     /// <inheritdoc />
@@ -49,5 +54,20 @@ public class OSBugCheck : EventRuleBase {
         DumpFile = SourceEvent.GetValueFromDataDictionary("DumpFile");
         ReportId = SourceEvent.GetValueFromDataDictionary("ReportId");
         When = SourceEvent.TimeCreated;
+
+        if (RuleHelpers.IsProvider(SourceEvent, "Microsoft-Windows-WER-SystemErrorReporting") &&
+            !SourceEvent.TryGetDataValue("BugcheckCode", out _)) {
+            Match packed = PackedBugCheck.Match(BugCheckCode);
+            if (packed.Success) {
+                // WER's packed layout uses param2 and param3 for the dump path and report ID.
+                BugCheckCode = packed.Groups[1].Value;
+                Parameter1 = packed.Groups[2].Value;
+                Parameter2 = packed.Groups[3].Value;
+                Parameter3 = packed.Groups[4].Value;
+                Parameter4 = packed.Groups[5].Value;
+                DumpFile = SourceEvent.GetValueFromDataDictionary("param2");
+                ReportId = SourceEvent.GetValueFromDataDictionary("param3");
+            }
+        }
     }
 }
