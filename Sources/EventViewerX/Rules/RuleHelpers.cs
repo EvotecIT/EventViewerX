@@ -28,6 +28,10 @@ internal static class RuleHelpers
             return null;
         }
 
+        // Windows inserts directional formatting marks into localized shutdown timestamps.
+        date = new string(date.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
+        time = new string(time.Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format).ToArray());
+
         var candidates = new[]
         {
             $"{date} {time}",
