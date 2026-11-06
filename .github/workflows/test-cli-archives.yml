@@ -50,7 +50,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install shared archive build and validation owner
         shell: pwsh
-        run: Install-Module PSPublishModule -MinimumVersion 3.0.155 -Scope CurrentUser -Force -AllowClobber
+        run: Install-PSResource -Name PSPublishModule -Version '[3.0.188,)' -Repository PSGallery -TrustRepository -Reinstall -Scope CurrentUser -ErrorAction Stop
       - name: Build and qualify native archives
         shell: pwsh
         run: |

@@ -91,10 +91,18 @@ if ($null -ne $projectBuild.ExpectedVersionMap.PSObject.Properties['EventViewerX
 if ($libraryVersions.Count -ne 1 -or [string] $libraryVersions[0] -ne '4.1.X') {
     throw 'All EventViewerX library packages must use the configured 4.1.X version track.'
 }
+$sourceRoot = Join-Path $RepositoryRoot 'Sources'
+$pathComparison = if ($env:OS -eq 'Windows_NT') { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
 foreach ($path in @('EventViewerX.Cli/EventViewerX.Cli.csproj', 'PSEventViewer/PSEventViewer.csproj')) {
-    $bindings = @($projectBuild.VersionBindings | Where-Object { $_.Path -eq $path })
+    $hostPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($sourceRoot, $path))
+    $bindings = @($projectBuild.VersionBindings | Where-Object {
+        $bindingPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($sourceRoot, $_.Path))
+        [string]::Equals($bindingPath, $hostPath, $pathComparison)
+    })
     if ($bindings.Count -ne 1 -or $bindings[0].Project -ne 'EventViewerX' -or
-        $bindings[0].Replacement -notlike '*{Version}*') {
+        $bindings[0].Pattern -cne '<VersionPrefix>[^<]+</VersionPrefix>' -or
+        $bindings[0].Replacement -cne '<VersionPrefix>{Version}</VersionPrefix>' -or
+        [regex]::Matches((Get-Content -LiteralPath $hostPath -Raw), $bindings[0].Pattern).Count -ne 1) {
         throw "The compiled host '$path' must bind its version to the EventViewerX release."
     }
 }

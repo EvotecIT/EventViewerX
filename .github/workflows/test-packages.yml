@@ -58,7 +58,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
         shell: pwsh
-        run: Install-Module PSPublishModule -MinimumVersion 3.0.151 -Scope CurrentUser -Force -AllowClobber
+        run: Install-PSResource -Name PSPublishModule -Version '[3.0.188,)' -Repository PSGallery -TrustRepository -Reinstall -Scope CurrentUser -ErrorAction Stop
       - name: Pack and validate the CLI tool
         shell: pwsh
         run: |
@@ -79,7 +79,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Install package validation owner
         shell: pwsh
-        run: Install-Module PSPublishModule -MinimumVersion 3.0.151 -Scope CurrentUser -Force -AllowClobber
+        run: Install-PSResource -Name PSPublishModule -Version '[3.0.188,)' -Repository PSGallery -TrustRepository -Reinstall -Scope CurrentUser -ErrorAction Stop
       - name: Build and validate the module ZIP
         shell: pwsh
         run: |
