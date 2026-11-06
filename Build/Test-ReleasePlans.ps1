@@ -34,7 +34,8 @@ if ($fullPlan.ModulePlan.UnifiedGitHubRelease -ne $true) {
     throw 'The full release plan must retain unified GitHub publication.'
 }
 
-$cliPlan = & $buildCliPath -RunMode Plan
+$cliVersion = '4.1.123'
+$cliPlan = & $buildCliPath -RunMode Plan -Version $cliVersion
 if ($null -eq $cliPlan -or -not $cliPlan.Success) {
     throw 'The CLI-only release plan did not succeed.'
 }
@@ -44,6 +45,11 @@ if ($null -ne $cliPlan.ModulePlan -or $null -eq $cliPlan.DotNetToolPlan) {
 if (@($cliPlan.DotNetToolPlan.Targets.Combinations).Count -ne 12 -or
     $null -ne $cliPlan.UnifiedGitHubRelease) {
     throw 'The CLI-only release plan must contain exactly 12 CLI artifacts without unified publication.'
+}
+
+if ($cliPlan.DotNetToolPlan.MsBuildProperties['Version'] -cne $cliVersion -or
+    $cliPlan.DotNetToolPlan.MsBuildProperties['VersionPrefix'] -cne $cliVersion) {
+    throw 'The CLI-only release must pass its selected version to the shared publisher.'
 }
 
 [pscustomobject] @{

@@ -39,7 +39,7 @@ jobs:
 
       - name: Setup PowerShell modules
         run: |
-          Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
+          Install-PSResource -Name PSPublishModule -Version '[3.0.188,)' -Repository PSGallery -TrustRepository -Reinstall -Scope CurrentUser -ErrorAction Stop
         shell: pwsh
 
       - name: Test release selection
@@ -80,14 +80,12 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install PowerShell modules
-        shell: powershell
+        shell: pwsh
         run: |
-          Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
-          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
-            Register-PSRepository -Default
-          }
-          Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-          Install-Module -Name PSSharedGoods -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+          $moduleRoot = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'WindowsPowerShell/Modules'
+          New-Item -ItemType Directory -Path $moduleRoot -Force | Out-Null
+          Save-PSResource -Name Pester, PSSharedGoods, PSWriteColor -Path $moduleRoot `
+            -Repository PSGallery -TrustRepository -ErrorAction Stop
 
       - name: Build .NET solution
         run: |
