@@ -10,7 +10,7 @@ public sealed partial class EventInvestigationSession {
         EventInvestigationManifest? manifest = null, IEnumerable<EventObservation>? observations = null,
         EventDetectionPlan? plan = null, EventDetectionCoverage? coverage = null, CancellationToken cancellationToken = default) {
         if (capture == null) { throw new ArgumentNullException(nameof(capture)); }
-        capture = JsonSerializer.Deserialize<EventEndpointCapture>(JsonSerializer.Serialize(capture, CompactOptions), CompactOptions)!;
+        capture = EventJson.Deserialize<EventEndpointCapture>(EventJson.Serialize(capture, CompactOptions), CompactOptions)!;
         ValidateCapture(capture);
         manifest ??= new EventInvestigationManifest {
             StartUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
@@ -25,7 +25,7 @@ public sealed partial class EventInvestigationSession {
     /// <summary>Reads the verified original endpoint result without evaluating rules or executing collection.</summary>
     public EventEndpointAnalysis ReadEndpointAnalysis(CancellationToken cancellationToken = default) {
         RequireEndpoint(); Verify(cancellationToken);
-        return JsonSerializer.Deserialize<EventEndpointAnalysis>(ReadText("endpoint-analysis.json", 256 * 1024 * 1024, true), CompactOptions)
+        return EventJson.Deserialize<EventEndpointAnalysis>(ReadText("endpoint-analysis.json", 256 * 1024 * 1024, true), CompactOptions)
             ?? throw new InvalidDataException("Missing endpoint analysis.");
     }
 
@@ -34,7 +34,7 @@ public sealed partial class EventInvestigationSession {
         RequireEndpoint();
         if (!allowDifferentEngine && _manifest.EngineIdentity != CurrentEngineIdentity) { throw new InvalidDataException("Engine build differs; explicitly opt in to comparative replay."); }
         Verify(cancellationToken);
-        EndpointReceipt receipt = JsonSerializer.Deserialize<EndpointReceipt>(ReadText("endpoint-capture.json", 4 * 1024 * 1024, true), CompactOptions)
+        EndpointReceipt receipt = EventJson.Deserialize<EndpointReceipt>(ReadText("endpoint-capture.json", 4 * 1024 * 1024, true), CompactOptions)
             ?? throw new InvalidDataException("Missing endpoint receipt.");
         var diagnostics = new List<string>(receipt.Diagnostics);
         if (_manifest.EngineIdentity != CurrentEngineIdentity) { diagnostics.Add("Comparative replay used a different engine build."); }
@@ -86,7 +86,7 @@ public sealed partial class EventInvestigationSession {
                     bool capped = false;
                     foreach (EventDiagnosticRecord record in batch.Records) {
                         record.CaptureContext = input.ExecutionContext;
-                        long bytes = Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(record, CompactOptions));
+                        long bytes = Encoding.UTF8.GetByteCount(EventJson.Serialize(record, CompactOptions));
                         if (recordBytes + bytes > capture.MaximumRecordBytes) { complete = false; capped = true; diagnostics.Add(artifact.Path + ": diagnostic byte limit reached."); break; }
                         records.Add(record); recordBytes += bytes;
                     }
@@ -107,14 +107,14 @@ public sealed partial class EventInvestigationSession {
             Diagnostics = diagnostics.ToArray(), MaximumRecords = capture.MaximumRecords, MaximumRecordBytes = capture.MaximumRecordBytes, RecordCount = records.Count };
         using (var stream = new FileStream(Resolve("endpoint-records.jsonl"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
         using (var writer = new StreamWriter(stream, new UTF8Encoding(false))) {
-            foreach (EventDiagnosticRecord record in records) { token.ThrowIfCancellationRequested(); writer.WriteLine(JsonSerializer.Serialize(record, CompactOptions)); }
+            foreach (EventDiagnosticRecord record in records) { token.ThrowIfCancellationRequested(); writer.WriteLine(EventJson.Serialize(record, CompactOptions)); }
             writer.Flush(); stream.Flush(true);
         }
-        string receiptJson = JsonSerializer.Serialize(receipt, CompactOptions);
+        string receiptJson = EventJson.Serialize(receipt, CompactOptions);
         if (Encoding.UTF8.GetByteCount(receiptJson) > 4 * 1024 * 1024) { throw new InvalidDataException("Endpoint context receipt exceeds 4 MiB."); }
         WriteNew("endpoint-capture.json", receiptJson);
         EventEndpointAnalysis analysis = EventIntuneApplicationAnalyzer.Analyze(records, snapshots, capture.ExpectedJoin, complete, diagnostics);
-        string analysisJson = JsonSerializer.Serialize(analysis, CompactOptions);
+        string analysisJson = EventJson.Serialize(analysis, CompactOptions);
         if (Encoding.UTF8.GetByteCount(analysisJson) > 256 * 1024 * 1024) { throw new InvalidDataException("Endpoint output exceeds 256 MiB."); }
         WriteNew("endpoint-analysis.json", analysisJson);
         foreach (string path in new[] { "endpoint-records.jsonl", "endpoint-capture.json", "endpoint-analysis.json" }) {
@@ -140,7 +140,7 @@ public sealed partial class EventInvestigationSession {
                 line.Append((char)value); continue;
             }
             if (++count > receipt.MaximumRecords) { throw new InvalidDataException("Diagnostic record count exceeded."); }
-            EventDiagnosticRecord record = JsonSerializer.Deserialize<EventDiagnosticRecord>(line.ToString(), CompactOptions) ?? throw new InvalidDataException("Missing diagnostic record.");
+            EventDiagnosticRecord record = EventJson.Deserialize<EventDiagnosticRecord>(line.ToString(), CompactOptions) ?? throw new InvalidDataException("Missing diagnostic record.");
             if (record.ByteStart < 0 || record.ByteEnd <= record.ByteStart || record.LineStart <= 0 || record.LineEnd < record.LineStart || string.IsNullOrWhiteSpace(record.Identity)) { throw new InvalidDataException("Invalid diagnostic source coordinates."); }
             yield return record; line.Clear();
         }
@@ -159,7 +159,7 @@ public sealed partial class EventInvestigationSession {
         return encoding.GetString(content, skip, content.Length - skip);
     }
 
-    private sealed class EndpointReceipt {
+    internal sealed class EndpointReceipt {
         public string? ExpectedJoin { get; set; }
         public EventDsRegSnapshot[] IdentitySnapshots { get; set; } = Array.Empty<EventDsRegSnapshot>();
         public bool InputComplete { get; set; }

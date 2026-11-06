@@ -88,8 +88,8 @@ if ($null -ne $projectBuild.ExpectedVersionMap.PSObject.Properties['EventViewerX
 }
 [array] $libraryVersions = @($projectBuild.ExpectedVersionMap.PSObject.Properties.Value |
     Select-Object -Unique)
-if ($libraryVersions.Count -ne 1 -or [string] $libraryVersions[0] -ne '4.0.X') {
-    throw 'All EventViewerX library packages must use the configured 4.0.X version track.'
+if ($libraryVersions.Count -ne 1 -or [string] $libraryVersions[0] -ne '4.1.X') {
+    throw 'All EventViewerX library packages must use the configured 4.1.X version track.'
 }
 $nuGetKeyPath = [string] $projectBuild.PublishApiKeyFilePath
 if ([string] $projectBuild.PublishApiKeyEnvName -ne 'NUGET_API_KEY' -or
@@ -104,8 +104,8 @@ if ([string] $projectBuild.GitHubAccessTokenEnvName -ne 'GITHUB_TOKEN' -or
 
 $moduleBuild = Get-Content -LiteralPath (Join-Path $RepositoryRoot 'Build\module.json') -Raw |
     ConvertFrom-Json
-if ([string] $moduleBuild.Build.Version -ne '4.0.X') {
-    throw 'Build/module.json must remain the module version source with the 4.0.X track.'
+if ([string] $moduleBuild.Build.Version -ne '4.1.X') {
+    throw 'Build/module.json must remain the module version source with the 4.1.X track.'
 }
 if ($moduleBuild.Install.Enabled -ne $false) {
     throw 'The release configuration must not install the freshly signed module into the user module path.'

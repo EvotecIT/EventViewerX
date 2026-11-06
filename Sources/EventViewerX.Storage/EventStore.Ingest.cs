@@ -39,7 +39,7 @@ public sealed partial class EventStore {
         }
         EventReportSectionSchema[] snapshot = NormalizeIncomingSchemas(schemas.ToArray())
             .Select(schema => DeserializeStoredSchema(schema.Name,
-                System.Text.Json.JsonSerializer.Serialize(schema, JsonOptions))).ToArray();
+                EventJson.Serialize(schema, JsonOptions))).ToArray();
         EventStoreCheckpoint? previous = SnapshotCheckpoint(expectedCheckpoint);
         var batch = new List<EventReportRow>(batchSize);
         long attempted = 0;
@@ -66,7 +66,7 @@ public sealed partial class EventStore {
             EventStoreCheckpoint? next = checkpointFactory == null ? null : SnapshotCheckpoint(
                 checkpointFactory(Array.AsReadOnly(batchRows)) ??
                 throw new InvalidDataException("The checkpoint factory cannot return null."));
-            EventReport report = EventReportEngine.CreateStored(batchRows, snapshot);
+            EventReport report = EventReportEngine.CreateStoredCore(_serialization.ResolveType, batchRows, snapshot);
             EventStoreWriteResult result = next == null
                 ? await WriteAsync(report, cancellationToken: cancellationToken).ConfigureAwait(false)
                 : await WriteAsync(report, next, previous, cancellationToken).ConfigureAwait(false);

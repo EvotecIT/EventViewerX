@@ -9,6 +9,11 @@ namespace EventViewerX;
 /// <summary>
 /// Typed event projection with common event metadata and the original event snapshot.
 /// </summary>
+#if NET8_0_OR_GREATER
+[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+    System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+    System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
 public class EventTypeRecord {
     /// <summary>
     /// Gets the detailed event snapshot used to build this rule result.

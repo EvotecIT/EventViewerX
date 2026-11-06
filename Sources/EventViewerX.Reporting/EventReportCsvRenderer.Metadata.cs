@@ -9,14 +9,14 @@ public static partial class EventReportCsvRenderer {
         using SHA256 hash = SHA256.Create();
         using FileStream csv = File.OpenRead(csvPath);
         string digest = BitConverter.ToString(hash.ComputeHash(csv)).Replace("-", string.Empty).ToLowerInvariant();
-        File.WriteAllText(metadataPath, JsonSerializer.Serialize(new {
+        File.WriteAllText(metadataPath, JsonSerializer.Serialize(new EventCsvMetadata {
             SchemaVersion = 1,
-            report.Title,
-            report.GeneratedAt,
+            Title = report.Title,
+            GeneratedAt = report.GeneratedAt,
             QueryDurationMilliseconds = report.QueryDuration.TotalMilliseconds,
             FileName = Path.GetFileName(destination),
             Sha256 = digest,
             Summary = EventReportSummary.Create(report)
-        }), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }, EventReportingJsonContext.Default.EventCsvMetadata), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 }

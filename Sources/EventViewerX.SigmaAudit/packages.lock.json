@@ -10,8 +10,8 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
@@ -53,7 +53,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )"
         }
@@ -61,7 +61,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }

@@ -133,7 +133,7 @@ public static partial class EventDetectionEngine {
             foreach (int id in compiled.IndexEventIds) { yield return "EventId:" + id; }
             // Retain selector combinations as well as individual dimensions. Moving an
             // existing provider to another channel can introduce a new collection scope.
-            string Scope(EventDetectionStepDefinition? step) => "Scope:" + System.Text.Json.JsonSerializer.Serialize(new {
+            string Scope(EventDetectionStepDefinition? step) => "Scope:" + EventJson.Serialize(new DetectionScopeJsonDocument {
                 RuleChannels = rule.Channels.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray(),
                 RuleProviders = rule.Providers.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray(),
                 RuleEventIds = rule.EventIds.OrderBy(value => value).ToArray(),

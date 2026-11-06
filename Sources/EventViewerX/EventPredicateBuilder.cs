@@ -99,12 +99,31 @@ public sealed class EventPredicateBuilder {
     /// Creates a builder from a discovered projection schema, including the common EventViewerX fields.
     /// This is intended for durable or remote schemas whose original definition object is unavailable.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Arbitrary field types require their enumerable interface metadata to be preserved. Use built-in or declarative event definitions in trimmed consumers.")]
+#endif
     public static EventPredicateBuilder ForFields(
         string definitionName,
         IEnumerable<KeyValuePair<string, Type>> fields,
         string? displayName = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? aliases = null) {
+        if (fields == null) {
+            throw new ArgumentNullException(nameof(fields));
+        }
+        KeyValuePair<string, Type>[] snapshot = fields.ToArray();
+        foreach (KeyValuePair<string, Type> field in snapshot) {
+            if (field.Value != null) {
+                EventFieldDefinition.RegisterEnumerableFieldType(field.Value);
+            }
+        }
+        return ForKnownFields(definitionName, snapshot, displayName, aliases);
+    }
 
+    internal static EventPredicateBuilder ForKnownFields(
+        string definitionName,
+        IEnumerable<KeyValuePair<string, Type>> fields,
+        string? displayName = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? aliases = null) {
         if (string.IsNullOrWhiteSpace(definitionName)) {
             throw new ArgumentException("Definition name cannot be empty.", nameof(definitionName));
         }

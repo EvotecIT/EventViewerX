@@ -79,7 +79,7 @@ public sealed partial class EventStore {
         }
     }
 
-    private static async Task<IReadOnlyList<StoredEventDetectionFinding>> ReadFindingSnapshotAsync(
+    private async Task<IReadOnlyList<StoredEventDetectionFinding>> ReadFindingSnapshotAsync(
         SQLiteAsyncSession session,
         EventFindingStoreQuery snapshot,
         CancellationToken cancellationToken) {
@@ -146,7 +146,7 @@ public sealed partial class EventStore {
             cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<StoredFindingRow[]> ReadManagedFindingRowsAsync(
+    private async Task<StoredFindingRow[]> ReadManagedFindingRowsAsync(
         SQLiteAsyncSession session,
         string sql,
         IDictionary<string, object?> parameters,
@@ -199,7 +199,7 @@ public sealed partial class EventStore {
         return rows.ToArray();
     }
 
-    private static async Task<IReadOnlyList<StoredEventDetectionFinding>> RestoreFindingRowsAsync(
+    private async Task<IReadOnlyList<StoredEventDetectionFinding>> RestoreFindingRowsAsync(
         SQLiteAsyncSession session,
         StoredFindingRow[] rows,
         EventFindingStoreQuery snapshot,
@@ -211,7 +211,7 @@ public sealed partial class EventStore {
         }
         string[] findingIds = rows.Select(static row => row.FindingId).ToArray();
         var detailParameters = new Dictionary<string, object?> {
-            ["$findingIds"] = JsonSerializer.Serialize(findingIds, JsonOptions)
+            ["$findingIds"] = EventJson.Serialize(findingIds, JsonOptions)
         };
         IReadOnlyList<StoredEvidenceRow> evidenceRows = await session.QueryAsListAsync(
             SelectFindingEvidenceSql,
@@ -246,7 +246,7 @@ public sealed partial class EventStore {
             .ToArray();
     }
 
-    private static async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> ReadFindingEntitiesAsync(
+    private async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> ReadFindingEntitiesAsync(
         SQLiteAsyncSession session,
         string[] findingIds,
         CancellationToken cancellationToken) {
@@ -255,7 +255,7 @@ public sealed partial class EventStore {
             return new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
         }
         var parameters = new Dictionary<string, object?> {
-            ["$findingIds"] = JsonSerializer.Serialize(findingIds, JsonOptions)
+            ["$findingIds"] = EventJson.Serialize(findingIds, JsonOptions)
         };
         IReadOnlyList<StoredEntityRow> entityRows = await session.QueryAsListAsync(
             SelectFindingEntitiesSql,
@@ -272,7 +272,7 @@ public sealed partial class EventStore {
                 StringComparer.Ordinal);
     }
 
-    private static Dictionary<string, object?> CreateFindingParameters(
+    private Dictionary<string, object?> CreateFindingParameters(
         EventDetectionFinding finding,
         string findingKey,
         string insertedAt) => new() {
@@ -292,9 +292,9 @@ public sealed partial class EventStore {
             ["$status"] = (int)finding.Status,
             ["$start"] = finding.StartTimeUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             ["$end"] = finding.EndTimeUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
-            ["$tags"] = JsonSerializer.Serialize(finding.Tags, JsonOptions),
-            ["$falsePositives"] = JsonSerializer.Serialize(finding.FalsePositives, JsonOptions),
-            ["$references"] = JsonSerializer.Serialize(finding.References, JsonOptions),
+            ["$tags"] = EventJson.Serialize(finding.Tags, JsonOptions),
+            ["$falsePositives"] = EventJson.Serialize(finding.FalsePositives, JsonOptions),
+            ["$references"] = EventJson.Serialize(finding.References, JsonOptions),
             ["$explanation"] = finding.Explanation,
             ["$diagnostic"] = finding.CompletenessDiagnostic,
             ["$coverage"] = finding.Coverage.ToJson(),
@@ -394,7 +394,7 @@ public sealed partial class EventStore {
         builder.Append(value);
     }
 
-    private static StoredFindingRow MapFindingRow(IDataRecord record) => new(
+    private StoredFindingRow MapFindingRow(IDataRecord record) => new(
         record.GetString(0),
         record.GetString(1),
         record.GetString(2),
@@ -436,8 +436,8 @@ public sealed partial class EventStore {
             ParseUtc(record.GetString(12)),
             ParseUtc(record.GetString(13))));
 
-    private static string[] DeserializeStringArray(string json) =>
-        JsonSerializer.Deserialize<string[]>(json, JsonOptions) ?? Array.Empty<string>();
+    private string[] DeserializeStringArray(string json) =>
+        EventJson.Deserialize<string[]>(json, JsonOptions) ?? Array.Empty<string>();
 
     private static EventDetectionCoverage DeserializeCoverage(string json) =>
         string.IsNullOrWhiteSpace(json)

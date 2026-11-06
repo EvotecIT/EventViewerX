@@ -87,7 +87,7 @@ public static class EventRequirementCatalog {
 
     /// <summary>Returns requirements for all built-in event types.</summary>
     public static IReadOnlyList<EventTypeRequirement> GetRequirements() =>
-        Enum.GetValues(typeof(EventType)).Cast<EventType>().Select(GetRequirement).ToArray();
+        EventEnum.GetValues<EventType>().Select(GetRequirement).ToArray();
 
     /// <summary>Returns requirements for one leaf or composite event type.</summary>
     public static EventTypeRequirement GetRequirement(EventType type) {

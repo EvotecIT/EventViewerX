@@ -13,14 +13,14 @@ public sealed partial class EventPredicate {
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     /// <summary>Node kind.</summary>
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<EventPredicateKind>))]
     public EventPredicateKind Kind { get; set; }
 
     /// <summary>Field name for a comparison node.</summary>
     public string? Field { get; set; }
 
     /// <summary>Comparison operation.</summary>
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<EventPredicateOperator>))]
     public EventPredicateOperator Operator { get; set; }
 
     /// <summary>Whether text, wildcard, regex, and enum comparisons ignore case.</summary>
@@ -67,7 +67,7 @@ public sealed partial class EventPredicate {
         if (string.IsNullOrWhiteSpace(json)) {
             throw new ArgumentException("Predicate JSON cannot be empty.", nameof(json));
         }
-        EventPredicate? predicate = JsonSerializer.Deserialize<EventPredicate>(json, JsonOptions);
+        EventPredicate? predicate = EventJson.Deserialize<EventPredicate>(json, JsonOptions);
         if (predicate == null) {
             throw new InvalidDataException("Predicate JSON did not contain an object.");
         }
@@ -88,7 +88,7 @@ public sealed partial class EventPredicate {
         Validate();
         JsonSerializerOptions options = CreateJsonOptions();
         options.WriteIndented = indented;
-        return JsonSerializer.Serialize(this, options);
+        return EventJson.Serialize(this, options);
     }
 
     /// <summary>Saves this predicate to a JSON file.</summary>
@@ -227,11 +227,14 @@ public sealed partial class EventPredicate {
             : value.ToString();
     }
 
-    private static JsonSerializerOptions CreateJsonOptions() => new() {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false,
-        Converters = { new JsonStringEnumConverter() }
-    };
+    private static JsonSerializerOptions CreateJsonOptions() {
+        var options = new JsonSerializerOptions {
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = false
+        };
+        EventJson.AddStringEnumConverters(options);
+        return options;
+    }
 
     private static void ValidatePattern(EventPredicate predicate, string path) {
         string? value = predicate.Values.Count == 0 ? null : predicate.Values[0];

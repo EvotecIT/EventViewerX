@@ -386,7 +386,7 @@ VALUES ($consumer, $computer, $container, $recordId, $bookmark, $updated, $ident
 
     private static string CreateCheckpointIdentityKey(string consumer, string computer, string container) {
         using SHA256 hash = SHA256.Create();
-        byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new[] {
+        byte[] bytes = Encoding.UTF8.GetBytes(EventJson.Serialize(new[] {
             consumer.ToUpperInvariant(), computer.ToUpperInvariant(), container.ToUpperInvariant() }));
         return "v1:" + BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", string.Empty);
     }

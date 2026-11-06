@@ -14,6 +14,11 @@ namespace EventViewerX;
 /// The constructor takes ownership of the supplied <see cref="EventRecord"/> and disposes it after
 /// copying the requested data. This keeps large and long-running queries from retaining native event handles.
 /// </remarks>
+#if NET8_0_OR_GREATER
+[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+    System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+    System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
 public partial class EventObject {
     private Dictionary<string, string>? _data;
     private readonly string _message;

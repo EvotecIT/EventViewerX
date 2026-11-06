@@ -37,7 +37,7 @@ public sealed partial class EventStore {
                 Column(nameof(EventStoreSummaryRow.LastEventUtc), "Latest event", typeof(DateTime))
             }
         };
-        return EventReportEngine.CreateStored(
+        return EventReportEngine.CreateStoredCore(_serialization.ResolveType,
             rows,
             new[] { schema },
             string.IsNullOrWhiteSpace(title) ? $"EventViewerX {period.ToString().ToLowerInvariant()} summary" : title,

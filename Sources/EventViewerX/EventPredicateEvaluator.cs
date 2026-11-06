@@ -41,12 +41,15 @@ public static class EventPredicateEvaluator {
     }
 
     /// <summary>Evaluates a predicate against a built-in or custom event record.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Arbitrary record models require their public properties and fields to be preserved. Use Compile, CompileCustom, or the field dictionary overload for Native AOT.")]
+#endif
     public static bool Matches(EventPredicate predicate, object record) {
         if (record == null) {
             throw new ArgumentNullException(nameof(record));
         }
         predicate?.Validate();
-        return EvaluateSafely(predicate!, record);
+        return EvaluateSafely(predicate!, record, ResolveAnyValue);
     }
 
     /// <summary>Evaluates a predicate against a case-insensitive field dictionary.</summary>
@@ -69,9 +72,9 @@ public static class EventPredicateEvaluator {
         return predicate.Clone();
     }
 
-    private static bool EvaluateSafely(EventPredicate predicate, object record) {
+    private static bool EvaluateSafely(EventPredicate predicate, object record, Func<object, string, object?>? resolver = null) {
         try {
-            return EvaluateCore(predicate, record);
+            return EvaluateCore(predicate, record, resolver ?? ResolveValue);
         } catch (ArgumentException) {
             return false;
         } catch (FormatException) {
@@ -154,16 +157,16 @@ public static class EventPredicateEvaluator {
         return new Regex(expression, options, RegexTimeout);
     }
 
-    private static bool EvaluateCore(EventPredicate predicate, object record) {
+    private static bool EvaluateCore(EventPredicate predicate, object record, Func<object, string, object?> resolver) {
         switch (predicate.Kind) {
             case EventPredicateKind.All:
-                return predicate.Children.All(child => EvaluateCore(child, record));
+                return predicate.Children.All(child => EvaluateCore(child, record, resolver));
             case EventPredicateKind.Any:
-                return predicate.Children.Any(child => EvaluateCore(child, record));
+                return predicate.Children.Any(child => EvaluateCore(child, record, resolver));
             case EventPredicateKind.Not:
-                return !EvaluateCore(predicate.Children[0], record);
+                return !EvaluateCore(predicate.Children[0], record, resolver);
             case EventPredicateKind.Comparison:
-                object? actual = ResolveValue(record, predicate.Field!);
+                object? actual = resolver(record, predicate.Field!);
                 return Compare(actual, predicate.Operator, predicate.Values, predicate.IgnoreCase);
             default:
                 throw new InvalidOperationException($"Unsupported predicate kind '{predicate.Kind}'.");
@@ -185,9 +188,13 @@ public static class EventPredicateEvaluator {
             }
             return ResolveEventValue(custom.SourceEvent, field);
         }
-        Func<object, object?> accessor = Accessors.GetOrAdd(
-            (record.GetType(), field),
-            static key => CreateAccessor(key.Type, key.Field));
+        Func<object, object?> accessor;
+        if (record is EventTypeRecord typedRecord) {
+            accessor = GetTypedAccessor(typedRecord, field);
+        } else {
+            accessor = Accessors.GetOrAdd((typeof(EventObject), field),
+                _ => CreateAccessor(typeof(EventObject), field));
+        }
         object? value = accessor(record);
         if (value != MissingValue.Instance) {
             return value;
@@ -197,7 +204,28 @@ public static class EventPredicateEvaluator {
             : null;
     }
 
-    private static Func<object, object?> CreateAccessor(Type type, string field) {
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("The caller must preserve arbitrary record properties and fields.")]
+#endif
+    private static object? ResolveAnyValue(object record, string field) {
+        if (record is EventTypeRecord or EventObject or CustomEventRecord or IReadOnlyDictionary<string, object?>) {
+            return ResolveValue(record, field);
+        }
+        object? value = Accessors.GetOrAdd((record.GetType(), field),
+            static key => CreateAccessor(key.Type, key.Field))(record);
+        return value == MissingValue.Instance ? null : value;
+    }
+
+    private static Func<object, object?> GetTypedAccessor(EventTypeRecord record, string field) =>
+        Accessors.GetOrAdd((record.GetType(), field), _ => CreateAccessor(record.GetType(), field));
+
+    private static Func<object, object?> CreateAccessor(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type type, string field) {
         PropertyInfo? property = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .FirstOrDefault(candidate =>
                 candidate.GetIndexParameters().Length == 0 &&

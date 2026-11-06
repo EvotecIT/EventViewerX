@@ -29,6 +29,9 @@ public static class DataTableHelper {
     /// </summary>
     /// <param name="events">Events to convert.</param>
     /// <returns>DataTable containing event data.</returns>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+#endif
     public static DataTable ToDataTable(this IEnumerable<EventObject> events) {
         return ToDataTableInternal(events);
     }
@@ -38,10 +41,16 @@ public static class DataTableHelper {
     /// </summary>
     /// <param name="events">Events to convert.</param>
     /// <returns>DataTable containing event data.</returns>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+#endif
     public static DataTable ToDataTable(this IEnumerable<EventTypeRecord> events) {
         return ToDataTableInternal(events);
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+#endif
     private static DataTable ToDataTableInternal<T>(IEnumerable<T> items) where T : class {
         if (items == null) throw new ArgumentNullException(nameof(items));
         var list = items.ToList();
@@ -111,7 +120,7 @@ public static class DataTableHelper {
 
         return dataTable;
     }
-  
+
     private static bool IsSimpleType(Type type) {
         var targetType = Nullable.GetUnderlyingType(type) ?? type;
 
@@ -122,5 +131,5 @@ public static class DataTableHelper {
             || targetType == typeof(decimal)
             || targetType == typeof(Guid);
     }
-    
+
 }

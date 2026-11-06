@@ -294,7 +294,7 @@ public sealed class EventDetectionPack {
     public string ToJson(bool indented = true) {
         JsonSerializerOptions options = CreateJsonOptions();
         options.WriteIndented = indented;
-        return JsonSerializer.Serialize(ToEnvelope(), options);
+        return EventJson.Serialize(ToEnvelope(), options);
     }
 
     /// <summary>Parses a manifest and rules without silently replacing declared integrity values.</summary>
@@ -302,7 +302,7 @@ public sealed class EventDetectionPack {
         if (string.IsNullOrWhiteSpace(json)) {
             throw new ArgumentException("Pack JSON cannot be empty.", nameof(json));
         }
-        PackEnvelope envelope = JsonSerializer.Deserialize<PackEnvelope>(json, JsonOptions) ??
+        PackEnvelope envelope = EventJson.Deserialize<PackEnvelope>(json, JsonOptions) ??
             throw new InvalidDataException("Pack JSON did not contain an object.");
         string packId = NormalizeRequired(envelope.PackId, nameof(envelope.PackId), 200);
         string version = NormalizeSemanticVersion(envelope.Version, nameof(envelope.Version));
@@ -366,7 +366,7 @@ public sealed class EventDetectionPack {
         snapshot.PackId = string.Empty;
         snapshot.PackVersion = string.Empty;
         snapshot.SourceHash = string.Empty;
-        return Sha256(JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions));
+        return Sha256(EventJson.SerializeToUtf8Bytes(snapshot, JsonOptions));
     }
 
     private static bool RulesEquivalent(
@@ -395,7 +395,7 @@ public sealed class EventDetectionPack {
             CreatedUtc = createdUtc.ToUniversalTime(),
             Rules = rules.Select(static rule => rule.Snapshot()).ToArray()
         };
-        return Sha256(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
+        return Sha256(EventJson.SerializeToUtf8Bytes(payload, JsonOptions));
     }
 
     private static string Sha256(byte[] value) {
@@ -507,7 +507,7 @@ public sealed class EventDetectionPack {
     private static JsonSerializerOptions CreateJsonOptions() =>
         EventAnalysisJson.CreateSerializerOptions();
 
-    private class PackPayload {
+    internal class PackPayload {
         public string PackId { get; set; } = string.Empty;
         public string Version { get; set; } = string.Empty;
         public string MinimumEngineVersion { get; set; } = string.Empty;
@@ -518,7 +518,7 @@ public sealed class EventDetectionPack {
         public EventDetectionRuleDefinition[] Rules { get; set; } = Array.Empty<EventDetectionRuleDefinition>();
     }
 
-    private sealed class PackEnvelope : PackPayload {
+    internal sealed class PackEnvelope : PackPayload {
         public string ContentHash { get; set; } = string.Empty;
         public string SignatureAlgorithm { get; set; } = string.Empty;
         public string Signature { get; set; } = string.Empty;

@@ -4,7 +4,7 @@ namespace EventViewerX;
 
 public sealed partial class EventDetectionPlan {
     /// <summary>Serializes effective rules and suppressions for reproducible replay.</summary>
-    public string ToJson() => JsonSerializer.Serialize(new PlanDocument {
+    public string ToJson() => EventJson.Serialize(new PlanDocument {
         SchemaVersion = 1, PlanHash = PlanHash,
         Rules = CompiledRules.Select(rule => rule.Definition).ToArray(),
         Suppressions = CompiledRules.SelectMany(rule => rule.SuppressionDefinitions).ToArray()
@@ -12,7 +12,7 @@ public sealed partial class EventDetectionPlan {
 
     /// <summary>Restores an effective plan and rejects unsupported or inconsistent identities.</summary>
     public static EventDetectionPlan FromJson(string json) {
-        PlanDocument document = JsonSerializer.Deserialize<PlanDocument>(json, EventAnalysisJson.CreateSerializerOptions())
+        PlanDocument document = EventJson.Deserialize<PlanDocument>(json, EventAnalysisJson.CreateSerializerOptions())
             ?? throw new InvalidDataException("Missing detection plan.");
         if (document.SchemaVersion != 1 || document.Rules == null || document.Suppressions == null) {
             throw new InvalidDataException("Unsupported detection plan document.");
@@ -25,7 +25,7 @@ public sealed partial class EventDetectionPlan {
         return plan;
     }
 
-    private sealed class PlanDocument {
+    internal sealed class PlanDocument {
         public int SchemaVersion { get; set; }
         public string PlanHash { get; set; } = string.Empty;
         public EventDetectionRuleDefinition[] Rules { get; set; } = Array.Empty<EventDetectionRuleDefinition>();

@@ -164,10 +164,35 @@ public sealed class EventFieldDefinition {
                elementType != null && IsSupportedType(elementType);
     }
 
-#if NET5_0_OR_GREATER
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
-        "Field schema inspection is best-effort; built-in record metadata is rooted by explicit registration.")]
+    private static readonly ConcurrentDictionary<Type, Type> EnumerableElementTypes = new();
+
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Caller-owned fields must preserve enumerable interface metadata.")]
 #endif
+    internal static void RegisterEnumerableFieldTypes(Type recordType) {
+        foreach (System.Reflection.PropertyInfo property in recordType.GetProperties()) {
+            RegisterEnumerableFieldType(property.PropertyType);
+        }
+        foreach (System.Reflection.FieldInfo field in recordType.GetFields()) {
+            RegisterEnumerableFieldType(field.FieldType);
+        }
+    }
+
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Caller-owned enumerable types must preserve their interface metadata.")]
+#endif
+    internal static void RegisterEnumerableFieldType(Type type) {
+        if (!typeof(IEnumerable).IsAssignableFrom(type) || type == typeof(string)) {
+            return;
+        }
+        Type? enumerable = type.GetInterfaces().Concat(new[] { type })
+            .FirstOrDefault(static candidate => candidate.IsGenericType &&
+                candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+        if (enumerable != null) {
+            EnumerableElementTypes[type] = enumerable.GetGenericArguments()[0];
+        }
+    }
+
     internal static bool TryGetEnumerableElementType(Type type, out Type? elementType) {
         elementType = null;
         if (type == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(type)) {
@@ -177,15 +202,33 @@ public sealed class EventFieldDefinition {
             elementType = type.GetElementType();
             return elementType != null;
         }
-        Type? enumerable = type.GetInterfaces()
-            .Concat(new[] { type })
-            .FirstOrDefault(candidate =>
-                candidate.IsGenericType &&
-                candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
-        if (enumerable == null) {
-            return false;
+#if NET8_0_OR_GREATER
+        if (EnumerableElementTypes.TryGetValue(type, out elementType)) {
+            return true;
         }
-        elementType = enumerable.GetGenericArguments()[0];
-        return true;
+        // Standard collection shapes expose their element directly in the closed type.
+        for (Type? current = type; current != null; current = current.BaseType) {
+            if (!current.IsGenericType) {
+                continue;
+            }
+            Type definition = current.GetGenericTypeDefinition();
+            if (definition == typeof(IEnumerable<>) || definition == typeof(ICollection<>) ||
+                definition == typeof(IReadOnlyCollection<>) || definition == typeof(IList<>) ||
+                definition == typeof(IReadOnlyList<>) || definition == typeof(List<>) ||
+                definition == typeof(HashSet<>) || definition == typeof(SortedSet<>) ||
+                definition == typeof(ISet<>) || definition == typeof(IReadOnlySet<>) ||
+                definition == typeof(Queue<>) ||
+                definition == typeof(Stack<>) || definition == typeof(LinkedList<>) ||
+                definition == typeof(System.Collections.ObjectModel.Collection<>) ||
+                definition == typeof(System.Collections.ObjectModel.ReadOnlyCollection<>)) {
+                elementType = current.GetGenericArguments()[0];
+                return true;
+            }
+        }
+        return false;
+#else
+        RegisterEnumerableFieldType(type);
+        return EnumerableElementTypes.TryGetValue(type, out elementType);
+#endif
     }
 }

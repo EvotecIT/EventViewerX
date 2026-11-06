@@ -39,7 +39,7 @@ public sealed class EventDefinition {
             throw new ArgumentException("Definition path cannot be empty.", nameof(path));
         }
         string json = File.ReadAllText(Path.GetFullPath(path));
-        EventDefinition? definition = JsonSerializer.Deserialize<EventDefinition>(json, ReadOptions);
+        EventDefinition? definition = EventJson.Deserialize<EventDefinition>(json, ReadOptions);
         if (definition == null) {
             throw new InvalidDataException("The definition JSON did not contain an object.");
         }
@@ -55,7 +55,7 @@ public sealed class EventDefinition {
         if (!string.IsNullOrWhiteSpace(directory)) {
             Directory.CreateDirectory(directory!);
         }
-        File.WriteAllText(fullPath, JsonSerializer.Serialize(this, indented ? WriteOptions : ReadOptions));
+        File.WriteAllText(fullPath, EventJson.Serialize(this, indented ? WriteOptions : ReadOptions));
     }
 
     /// <summary>Validates the declarative contract.</summary>
@@ -185,7 +185,7 @@ public sealed class EventDefinition {
             PropertyNameCaseInsensitive = true,
             WriteIndented = writeIndented
         };
-        options.Converters.Add(new JsonStringEnumConverter());
+        EventJson.AddStringEnumConverters(options);
         return options;
     }
 }

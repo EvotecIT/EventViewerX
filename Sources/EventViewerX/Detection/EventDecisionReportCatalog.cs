@@ -6,9 +6,7 @@ public static class EventDecisionReportCatalog {
         CreateDefinitions().ToDictionary(static definition => definition.Kind);
 
     /// <summary>Returns every built-in report profile in stable enum order.</summary>
-    public static IReadOnlyList<EventDecisionReportDefinition> GetDefinitions() => Enum
-        .GetValues(typeof(EventDecisionReportKind))
-        .Cast<EventDecisionReportKind>()
+    public static IReadOnlyList<EventDecisionReportDefinition> GetDefinitions() => EventEnum.GetValues<EventDecisionReportKind>()
         .Select(GetDefinition)
         .ToArray();
 

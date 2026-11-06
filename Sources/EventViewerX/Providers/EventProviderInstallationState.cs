@@ -24,7 +24,7 @@ internal static class EventProviderInstallationStore {
         if (!File.Exists(path)) {
             return null;
         }
-        return JsonSerializer.Deserialize<EventProviderInstallationState>(
+        return EventJson.Deserialize<EventProviderInstallationState>(
                    File.ReadAllText(path, Encoding.UTF8),
                    EventProviderDefinitionJson.SerializerOptions) ??
                throw new InvalidDataException(
@@ -44,7 +44,7 @@ internal static class EventProviderInstallationStore {
         try {
             File.WriteAllText(
                 temporary,
-                JsonSerializer.Serialize(
+                EventJson.Serialize(
                     state,
                     EventProviderDefinitionJson.SerializerOptions),
                 new UTF8Encoding(false));

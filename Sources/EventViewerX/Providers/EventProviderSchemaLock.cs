@@ -74,7 +74,7 @@ public sealed class EventProviderSchemaLock {
 
     /// <summary>Serializes the lock using the package JSON contract.</summary>
     public string ToJson() {
-        return JsonSerializer.Serialize(
+        return EventJson.Serialize(
             this,
             EventProviderDefinitionJson.SerializerOptions);
     }

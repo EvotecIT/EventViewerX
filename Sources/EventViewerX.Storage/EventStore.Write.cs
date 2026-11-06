@@ -77,7 +77,7 @@ public sealed partial class EventStore {
                             !string.Equals(row.Type, "Generic", StringComparison.OrdinalIgnoreCase))) {
             throw new InvalidDataException("Every stored typed row must have a matching homogeneous report schema.");
         }
-        rows = EventReportEngine.CreateStored(rows, schemas).Rows.ToArray();
+        rows = EventReportEngine.CreateStoredCore(_serialization.ResolveType, rows, schemas).Rows.ToArray();
         EnsureInitialized();
 
         using var sqlite = new SQLite { BusyTimeoutMs = 10000 };
@@ -144,7 +144,7 @@ public sealed partial class EventStore {
                         ["$description"] = schema.Description,
                         ["$kind"] = (int)schema.Kind,
                         ["$schemaHash"] = schemaHash,
-                        ["$schema"] = JsonSerializer.Serialize(schema, JsonOptions),
+                        ["$schema"] = EventJson.Serialize(schema, JsonOptions),
                         ["$updated"] = updatedAt
                     },
                     token).ConfigureAwait(false);
@@ -215,7 +215,7 @@ public sealed partial class EventStore {
         };
     }
 
-    private static Dictionary<string, object?> CreateEventParameters(
+    private Dictionary<string, object?> CreateEventParameters(
         EventReportRow row,
         string definitionName,
         string insertedAt) {
@@ -245,14 +245,14 @@ public sealed partial class EventStore {
             ["$processId"] = row.ProcessId,
             ["$threadId"] = row.ThreadId,
             ["$message"] = row.Message ?? string.Empty,
-            ["$values"] = JsonSerializer.Serialize(row.Values, JsonOptions),
+            ["$values"] = EventJson.Serialize(row.Values, JsonOptions),
             ["$received"] = row.ReceivedTimeUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             ["$processed"] = row.ProcessedTimeUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
             ["$inserted"] = insertedAt
         };
     }
 
-    private static string CreateEventKey(EventReportRow row, string definitionName) {
+    private string CreateEventKey(EventReportRow row, string definitionName) {
         string identity = string.Join("\0", new[] {
             CreateOriginalEventKey(row, definitionName),
             row.RecordId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
@@ -276,7 +276,7 @@ public sealed partial class EventStore {
         return CreateSha256(identity);
     }
 
-    private static string CreateOriginalEventKey(EventReportRow row, string definitionName) {
+    private string CreateOriginalEventKey(EventReportRow row, string definitionName) {
         string identity = CreateOriginalEventIdentity(
             row.SourceComputer,
             row.SourceLog,
@@ -344,16 +344,16 @@ public sealed partial class EventStore {
         return string.Concat(hash.Select(static value => value.ToString("x2", CultureInfo.InvariantCulture)));
     }
 
-    private static string CreateSemanticIdentity(IReadOnlyDictionary<string, object?> values) {
+    private string CreateSemanticIdentity(IReadOnlyDictionary<string, object?> values) {
         return string.Join(
             "\u001e",
             values
                 .OrderBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(static item => item.Key, StringComparer.Ordinal)
-                .Select(static item =>
+                .Select(item =>
                     NormalizeSqliteNoCaseIdentity(item.Key) +
                     "\u001f" +
-                    JsonSerializer.Serialize(item.Value, JsonOptions)));
+                    EventJson.Serialize(item.Value, JsonOptions)));
     }
 
     private static string CreateSemanticIdentity(IReadOnlyDictionary<string, JsonElement> values) {

@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
+    <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishAot>true</PublishAot>
     <PublishTrimmed>true</PublishTrimmed>
@@ -11,9 +10,26 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
     <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <RuntimeFrameworkVersion>8.0.33</RuntimeFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
+    <ProjectReference Include="..\EventViewerX.Detection\EventViewerX.Detection.csproj" />
+    <ProjectReference Include="..\EventViewerX.Evtx\EventViewerX.Evtx.csproj" />
+    <ProjectReference Include="..\EventViewerX.Reporting\EventViewerX.Reporting.csproj" />
+    <ProjectReference Include="..\EventViewerX.Storage\EventViewerX.Storage.csproj" />
+    <None Include="..\..\Tests\Logs\NamedFilterExamples.evtx" Link="Fixtures\NamedFilterExamples.evtx"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\Tests\Fixtures\NativeCompatibility\*.json" Link="Fixtures\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

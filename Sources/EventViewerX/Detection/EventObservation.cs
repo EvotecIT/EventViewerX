@@ -146,7 +146,7 @@ public sealed class EventObservation {
     private static void AddTypedMembers(IDictionary<string, object?> fields, EventTypeRecord typedRecord) {
         TypedMemberAccessor[] accessors = TypedMemberAccessors.GetOrAdd(
             typedRecord.GetType(),
-            CreateTypedMemberAccessors);
+            _ => CreateTypedMemberAccessors(typedRecord.GetType()));
         foreach (TypedMemberAccessor accessor in accessors) {
             fields[accessor.Name] = accessor.GetValue(typedRecord);
         }
@@ -213,7 +213,13 @@ public sealed class EventObservation {
         fields[alias] = domain.Length == 0 ? account : domain + "\\" + account;
     }
 
-    private static TypedMemberAccessor[] CreateTypedMemberAccessors(Type type) {
+    private static TypedMemberAccessor[] CreateTypedMemberAccessors(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type type) {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
         IEnumerable<MemberInfo> properties = type.GetProperties(flags)
             .Where(static property =>

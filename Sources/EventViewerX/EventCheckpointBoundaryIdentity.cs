@@ -38,7 +38,7 @@ public static class EventCheckpointBoundaryIdentity {
         };
 
         using SHA256 sha256 = SHA256.Create();
-        byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(identity)));
+        byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(EventJson.Serialize(identity)));
         return BitConverter.ToString(hash).Replace("-", string.Empty);
     }
 

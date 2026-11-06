@@ -14,7 +14,7 @@ internal static partial class NamedEventsTimelineQueryExecutor {
             throw new ArgumentNullException(nameof(item));
         }
 
-        var plan = PayloadExtractionPlanCache.GetOrAdd(item.GetType(), static type => BuildPayloadExtractionPlan(type));
+        var plan = PayloadExtractionPlanCache.GetOrAdd(item.GetType(), _ => BuildPayloadExtractionPlan(item.GetType()));
         var payload = new Dictionary<string, object?>(
             plan.FieldAccessors.Length + plan.PropertyAccessors.Length,
             StringComparer.OrdinalIgnoreCase);
@@ -38,7 +38,13 @@ internal static partial class NamedEventsTimelineQueryExecutor {
         return payload;
     }
 
-    private static PayloadExtractionPlan BuildPayloadExtractionPlan(Type type) {
+    private static PayloadExtractionPlan BuildPayloadExtractionPlan(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type type) {
         var fieldAccessors = new List<PayloadFieldAccessor>();
         var propertyAccessors = new List<PayloadPropertyAccessor>();
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

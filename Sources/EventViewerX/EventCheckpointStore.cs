@@ -278,7 +278,7 @@ public static class EventCheckpointStore {
         var values = new Dictionary<string, EventCheckpointValue>(StringComparer.OrdinalIgnoreCase);
         CheckpointStateDocument? state;
         try {
-            state = JsonSerializer.Deserialize<CheckpointStateDocument>(stateJson);
+            state = EventJson.Deserialize<CheckpointStateDocument>(stateJson);
         } catch (JsonException ex) {
             throw new InvalidDataException($"Checkpoint generation state '{statePath}' is not valid JSON.", ex);
         }
@@ -308,7 +308,7 @@ public static class EventCheckpointStore {
 
         Dictionary<string, long>? records;
         try {
-            records = JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(checkpointPath));
+            records = EventJson.Deserialize<Dictionary<string, long>>(File.ReadAllText(checkpointPath));
         } catch (JsonException ex) {
             throw new InvalidDataException($"Checkpoint file '{checkpointPath}' is not valid JSON.", ex);
         }
@@ -341,9 +341,9 @@ public static class EventCheckpointStore {
                 static entry => entry.Value.RecordId!.Value,
                 StringComparer.OrdinalIgnoreCase);
 
-        AtomicWrite(GetStateFilePath(checkpointPath), JsonSerializer.Serialize(document));
+        AtomicWrite(GetStateFilePath(checkpointPath), EventJson.Serialize(document));
         try {
-            AtomicWrite(checkpointPath, JsonSerializer.Serialize(numeric));
+            AtomicWrite(checkpointPath, EventJson.Serialize(numeric));
         } catch (IOException ex) {
             Settings._logger.WriteWarning(
                 $"The authoritative checkpoint state was saved, but the legacy numeric mirror '{checkpointPath}' could not be updated: {ex.Message}");
@@ -427,12 +427,12 @@ public static class EventCheckpointStore {
     private static EventCheckpointValue CreateResetValue()
         => new(recordId: null, Guid.NewGuid(), boundaryIdentity: null);
 
-    private sealed class CheckpointStateDocument {
+    internal sealed class CheckpointStateDocument {
         public int Version { get; set; }
         public Dictionary<string, CheckpointStateEntry>? Checkpoints { get; set; }
     }
 
-    private sealed class CheckpointStateEntry {
+    internal sealed class CheckpointStateEntry {
         public long? RecordId { get; set; }
         public Guid GenerationId { get; set; }
         public string? BoundaryIdentity { get; set; }

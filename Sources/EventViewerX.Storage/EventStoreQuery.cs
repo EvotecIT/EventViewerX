@@ -88,7 +88,7 @@ public sealed class EventStoreQuery {
         predicate?.Validate();
         if (predicate != null && types != null && types.Length > 0) {
             predicate = IsEnrichedGroupPolicySelection(types)
-                ? EventReportSectionSchema.FromGroupPolicyAudit().CreatePredicateBuilder().Normalize(predicate)
+                ? EventReportSectionSchema.FromGroupPolicyAudit().CreateKnownPredicateBuilder(EventReportColumnSchema.ResolveKnownValueTypeName).Normalize(predicate)
                 : EventPredicateBuilder.ForTypes(types).Normalize(predicate);
         }
         return new EventStoreQuery {

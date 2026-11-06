@@ -69,7 +69,34 @@ public static partial class EventReportEngine {
     }
 
     /// <summary>Rehydrates persisted normalized rows without querying Windows Event Log again.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Persisted CLR schemas may refer to types that trimming removes. Use live typed or declarative reports in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Persisted CLR schemas may require generic or array instantiations unavailable to Native AOT.")]
+#endif
     public static EventReport CreateStored(
+        IEnumerable<EventReportRow> rows,
+        IEnumerable<EventReportSectionSchema> schemas,
+        string? title = null,
+        IEnumerable<EventReportCoverage>? coverage = null,
+        DateTime? generatedAt = null,
+        long? eventsScanned = null,
+        bool scanLimitReached = false,
+        string? completenessDiagnostic = null) =>
+        CreateStoredCore(EventReportColumnSchema.ResolveValueTypeName, rows, schemas, title, coverage, generatedAt, eventsScanned, scanLimitReached, completenessDiagnostic);
+
+    internal static EventReport CreateStoredKnown(
+        IEnumerable<EventReportRow> rows,
+        IEnumerable<EventReportSectionSchema> schemas,
+        string? title = null,
+        IEnumerable<EventReportCoverage>? coverage = null,
+        DateTime? generatedAt = null,
+        long? eventsScanned = null,
+        bool scanLimitReached = false,
+        string? completenessDiagnostic = null) =>
+        CreateStoredCore(EventReportColumnSchema.ResolveKnownValueTypeName, rows, schemas, title, coverage, generatedAt, eventsScanned, scanLimitReached, completenessDiagnostic);
+
+    internal static EventReport CreateStoredCore(
+        Func<string?, Type> resolveType,
         IEnumerable<EventReportRow> rows,
         IEnumerable<EventReportSectionSchema> schemas,
         string? title = null,
@@ -122,7 +149,8 @@ public static partial class EventReportEngine {
                     $"Stored row type '{row.Type}' must match exactly one homogeneous schema.",
                     nameof(rows));
             }
-            NormalizeStoredRow(row, matchingSchemas[0]);
+            NormalizeStoredValues(row, matchingSchemas[0], resolveType);
+            EventValueNormalizationEngine.Populate(row);
         }
         var sections = new List<EventReportSection>();
         foreach (EventReportSectionSchema schema in schemaSnapshot) {
@@ -134,16 +162,16 @@ public static partial class EventReportEngine {
                 .ToArray();
             EventReportColumn[] columns = schema.Kind == EventReportSectionKind.Generic
                 ? sectionRows.Length == 0
-                    ? schema.Columns.Select(static column => new EventReportColumn(
+                    ? schema.Columns.Select(column => new EventReportColumn(
                         column.Name,
                         column.DisplayName,
-                        EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName),
+                        resolveType(column.ValueTypeName),
                         column.Aliases)).ToArray()
                     : EventReportTableProjection.BuildGenericColumns(sectionRows).ToArray()
-                : schema.Columns.Select(static column => new EventReportColumn(
+                : schema.Columns.Select(column => new EventReportColumn(
                     column.Name,
                     column.DisplayName,
-                    EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName),
+                    resolveType(column.ValueTypeName),
                     column.Aliases)).ToArray();
             sections.Add(new EventReportSection(
                 schema.Name,
@@ -241,18 +269,25 @@ public static partial class EventReportEngine {
     }
 
     /// <summary>Rehydrates one detached stored row using its persisted schema and canonical value normalization.</summary>
-    public static void NormalizeStoredRow(EventReportRow row, EventReportSectionSchema schema) {
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Persisted CLR schemas may refer to types that trimming removes. Use live typed or declarative reports in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Persisted CLR schemas may require generic or array instantiations unavailable to Native AOT.")]
+#endif
+    public static void NormalizeStoredRow(EventReportRow row, EventReportSectionSchema schema) =>
+        NormalizeStoredRowCore(row, schema, EventReportColumnSchema.ResolveValueTypeName);
+
+    internal static void NormalizeStoredRowCore(EventReportRow row, EventReportSectionSchema schema, Func<string?, Type> resolveType) {
         if (row == null) {
             throw new ArgumentNullException(nameof(row));
         }
         if (schema == null || !string.Equals(row.Type, schema.Name, StringComparison.OrdinalIgnoreCase)) {
             throw new ArgumentException("Stored row type must match its schema.", nameof(schema));
         }
-        NormalizeStoredValues(row, schema);
+        NormalizeStoredValues(row, schema, resolveType);
         EventValueNormalizationEngine.Populate(row);
     }
 
-    private static void NormalizeStoredValues(EventReportRow row, EventReportSectionSchema schema) {
+    private static void NormalizeStoredValues(EventReportRow row, EventReportSectionSchema schema, Func<string?, Type> resolveType) {
         if (schema.Kind == EventReportSectionKind.Generic) {
             return;
         }
@@ -266,8 +301,8 @@ public static partial class EventReportEngine {
                     $"Stored row '{row.Type}' contains field '{value.Key}' that is not declared by its schema.",
                     nameof(row));
             }
-            Type targetType = EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName);
-            string normalizedTypeName = EventReportColumnSchema.NormalizeValueTypeName(column.ValueTypeName);
+            Type targetType = resolveType(column.ValueTypeName);
+            string normalizedTypeName = EventReportColumnSchema.NormalizeKnownValueTypeName(column.ValueTypeName);
             if (targetType == typeof(object) &&
                 !string.Equals(
                     normalizedTypeName,

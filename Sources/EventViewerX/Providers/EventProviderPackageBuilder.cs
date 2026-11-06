@@ -73,7 +73,7 @@ public static class EventProviderPackageBuilder {
                     buildRoot,
                     EventProviderPackageLayout
                         .PackageManifestFileName),
-                JsonSerializer.Serialize(
+                EventJson.Serialize(
                     packageManifest,
                     EventProviderDefinitionJson.SerializerOptions),
                 new UTF8Encoding(false));

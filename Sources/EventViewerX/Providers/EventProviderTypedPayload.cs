@@ -10,12 +10,25 @@ public static class EventProviderTypedPayload {
         TypedPayloadDescriptor> Cache = new();
 
     /// <summary>Describes the public readable properties of a payload type.</summary>
-    public static IReadOnlyList<EventProviderFieldDefinition> Describe<TPayload>() {
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
+#endif
+    public static IReadOnlyList<EventProviderFieldDefinition> Describe<
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
+        TPayload>() {
         return Describe(typeof(TPayload));
     }
 
     /// <summary>Describes the public readable properties of a payload type.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
+#endif
     public static IReadOnlyList<EventProviderFieldDefinition> Describe(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
         Type payloadType) {
 
         if (payloadType == null) {
@@ -23,7 +36,7 @@ public static class EventProviderTypedPayload {
         }
         return Cache.GetOrAdd(
                 payloadType,
-                CreateDescriptor)
+                _ => CreateDescriptor(payloadType))
             .Bindings
             .Select(static binding =>
                 Clone(binding.Field))
@@ -33,6 +46,10 @@ public static class EventProviderTypedPayload {
     /// <summary>
     /// Reads public properties into a case-insensitive named payload dictionary.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
+#endif
     public static IReadOnlyDictionary<string, object?> Read<TPayload>(
         TPayload payload) {
 
@@ -53,7 +70,13 @@ public static class EventProviderTypedPayload {
         return values;
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
+#endif
     private static TypedPayloadDescriptor CreateDescriptor(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
         Type payloadType) {
 
         PropertyInfo[] properties = payloadType

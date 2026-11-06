@@ -69,7 +69,11 @@ public abstract class EventRuleBase : EventTypeRecord, IEventRule {
     /// </summary>
     /// <param name="eventObject">The event object to process</param>
     /// <returns>An instance of the event rule or null if it cannot be processed</returns>
-    public static EventTypeRecord? TryCreate<T>(EventObject eventObject) where T : EventRuleBase, new() {
+    public static EventTypeRecord? TryCreate<
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]
+#endif
+        T>(EventObject eventObject) where T : EventRuleBase, new() {
         var instance = new T();
         return instance.CanHandle(eventObject) ? Activator.CreateInstance(typeof(T), eventObject) as T : null;
     }

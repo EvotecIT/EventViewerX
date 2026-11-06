@@ -28,7 +28,54 @@ public sealed class EventReportColumnSchema {
         return type.FullName ?? type.Name;
     }
 
+    internal static Type ResolveKnownValueTypeName(string? name) {
+        string normalized = NormalizeKnownValueTypeName(name);
+        return KnownValueTypes.TryGetValue(normalized, out Type? type) ? type : typeof(object);
+    }
+
+    internal static string NormalizeKnownValueTypeName(string? name) {
+        if (string.IsNullOrWhiteSpace(name)) {
+            return "System.Object";
+        }
+        string trimmed = name!.Trim();
+        string normalized = NormalizeTypeIdentity(trimmed);
+        return KnownValueTypes.ContainsKey(normalized) ? normalized : trimmed;
+    }
+
+    internal static string NormalizeTypeIdentity(string name) {
+        name = name.Trim();
+        if (name.StartsWith("[", StringComparison.Ordinal) && name.EndsWith("]", StringComparison.Ordinal)) {
+            name = name.Substring(1, name.Length - 2);
+        }
+        int depth = 0;
+        for (int index = 0; index < name.Length; index++) {
+            if (name[index] == '[') { depth++; }
+            if (name[index] == ']') { depth--; }
+            if (name[index] == ',' && depth == 0) {
+                name = name.Substring(0, index).Trim();
+                break;
+            }
+        }
+        if (name.EndsWith("[]", StringComparison.Ordinal)) {
+            return NormalizeTypeIdentity(name.Substring(0, name.Length - 2)) + "[]";
+        }
+        int open = name.IndexOf('[');
+        if (open < 0) {
+            return name;
+        }
+        string arguments = name.Substring(open + 1, name.Length - open - 2);
+        return name.Substring(0, open) + "[" + string.Join(",",
+            SplitGenericArguments(arguments).Select(NormalizeTypeIdentity)) + "]";
+    }
+
+    private static readonly IReadOnlyDictionary<string, Type> KnownValueTypes =
+        EventJson.ValueTypes.Distinct().ToDictionary(GetStableTypeName, StringComparer.Ordinal);
+
     /// <summary>Resolves a runtime-neutral or legacy assembly-qualified type identity.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     public static Type ResolveValueTypeName(string? valueTypeName) {
         if (string.IsNullOrWhiteSpace(valueTypeName)) {
             return typeof(object);
@@ -38,6 +85,10 @@ public sealed class EventReportColumnSchema {
     }
 
     /// <summary>Converts a runtime-neutral or legacy assembly-qualified identity into its stable form.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     public static string NormalizeValueTypeName(string? valueTypeName) {
         if (string.IsNullOrWhiteSpace(valueTypeName)) {
             return GetStableTypeName(typeof(object));
@@ -47,11 +98,19 @@ public sealed class EventReportColumnSchema {
         return resolved == null ? name : GetStableTypeName(resolved);
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Type? TryResolveValueTypeName(string name) =>
         Type.GetType(name, throwOnError: false) ??
         ResolveLegacyQualifiedType(name) ??
         ResolveStableType(name);
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Type? ResolveLegacyQualifiedType(string name) {
         try {
             return Type.GetType(
@@ -68,6 +127,10 @@ public sealed class EventReportColumnSchema {
         }
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Assembly? ResolveLegacyAssembly(AssemblyName requested) {
         string name = requested.Name ?? string.Empty;
         if (name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase) ||
@@ -91,12 +154,20 @@ public sealed class EventReportColumnSchema {
         }
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Type? ResolveLegacyType(Assembly? assembly, string typeName, bool ignoreCase) =>
         assembly?.GetType(typeName, throwOnError: false, ignoreCase: ignoreCase) ??
         AppDomain.CurrentDomain.GetAssemblies()
             .Select(candidate => candidate.GetType(typeName, throwOnError: false, ignoreCase: ignoreCase))
             .FirstOrDefault(static type => type != null);
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Type? ResolveStableType(string name) {
         if (name.EndsWith("[]", StringComparison.Ordinal)) {
             return ResolveStableType(name.Substring(0, name.Length - 2))?.MakeArrayType();
@@ -118,6 +189,10 @@ public sealed class EventReportColumnSchema {
         return ResolveNamedType(name);
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Resolving arbitrary persisted CLR type names requires preserved types. Use schema type names without rehydration in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary persisted generic and array types may not have Native AOT instantiations.")]
+#endif
     private static Type? ResolveNamedType(string name) {
         Type? resolved = Type.GetType(name, throwOnError: false);
         if (resolved != null) {

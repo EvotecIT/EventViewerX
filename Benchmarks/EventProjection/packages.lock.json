@@ -4,8 +4,8 @@
     "net8.0-windows7.0": {
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
@@ -25,7 +25,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )",
           "System.Threading.AccessControl": "[10.0.11, )"

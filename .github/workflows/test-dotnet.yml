@@ -82,18 +82,21 @@ jobs:
       - name: Strict Release build with NuGet audit
         run: dotnet build Sources/EventViewerX.sln --configuration Release --no-restore -p:NuGetAudit=true -warnaserror
 
-      - name: Publish and run NativeAOT explicit catalog smoke test
+      - name: Publish and run NativeAOT public-path smoke tests
         shell: pwsh
         run: |
-          $output = Join-Path $env:RUNNER_TEMP 'eventviewerx-aot-smoke'
-          dotnet publish Sources/EventViewerX.AotSmoke/EventViewerX.AotSmoke.csproj `
-            --configuration Release `
-            --output $output
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+          foreach ($framework in @('net8.0-windows', 'net10.0-windows')) {
+            $output = Join-Path $env:RUNNER_TEMP "eventviewerx-aot-smoke/$framework"
+            dotnet publish Sources/EventViewerX.AotSmoke/EventViewerX.AotSmoke.csproj `
+              --configuration Release --framework $framework --output $output
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+            & (Join-Path $output 'EventViewerX.AotSmoke.exe')
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
           }
-          & (Join-Path $output 'EventViewerX.AotSmoke.exe')
-          exit $LASTEXITCODE
 
       - name: Summarize failing tests
         if: failure() && env.SUMMARIZE_FAILURES == 'true'
