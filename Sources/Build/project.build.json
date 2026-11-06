@@ -12,6 +12,20 @@
   "ExpectedVersionMapAsInclude": true,
   "ExpectedVersionMapUseWildcards": false,
   "AlignPackageVersions": true,
+  "VersionBindings": [
+    {
+      "Path": "EventViewerX.Cli/EventViewerX.Cli.csproj",
+      "Project": "EventViewerX",
+      "Pattern": "<VersionPrefix>[^<]+</VersionPrefix>",
+      "Replacement": "<VersionPrefix>{Version}</VersionPrefix>"
+    },
+    {
+      "Path": "PSEventViewer/PSEventViewer.csproj",
+      "Project": "EventViewerX",
+      "Pattern": "<VersionPrefix>[^<]+</VersionPrefix>",
+      "Replacement": "<VersionPrefix>{Version}</VersionPrefix>"
+    }
+  ],
   "NugetSource": [],
   "IncludePrerelease": false,
   "Configuration": "Release",

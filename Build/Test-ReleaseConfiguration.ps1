@@ -91,6 +91,13 @@ if ($null -ne $projectBuild.ExpectedVersionMap.PSObject.Properties['EventViewerX
 if ($libraryVersions.Count -ne 1 -or [string] $libraryVersions[0] -ne '4.1.X') {
     throw 'All EventViewerX library packages must use the configured 4.1.X version track.'
 }
+foreach ($path in @('EventViewerX.Cli/EventViewerX.Cli.csproj', 'PSEventViewer/PSEventViewer.csproj')) {
+    $bindings = @($projectBuild.VersionBindings | Where-Object { $_.Path -eq $path })
+    if ($bindings.Count -ne 1 -or $bindings[0].Project -ne 'EventViewerX' -or
+        $bindings[0].Replacement -notlike '*{Version}*') {
+        throw "The compiled host '$path' must bind its version to the EventViewerX release."
+    }
+}
 $nuGetKeyPath = [string] $projectBuild.PublishApiKeyFilePath
 if ([string] $projectBuild.PublishApiKeyEnvName -ne 'NUGET_API_KEY' -or
     [System.IO.Path]::IsPathRooted($nuGetKeyPath) -or
