@@ -34,7 +34,13 @@ No Windows SDK, Visual Studio, native compiler, generated source, or external bu
 
 ### EXAMPLE 1
 ```powershell
-New-EVXProviderPackage -BaselinePath 'C:\Path'
+New-EVXProviderPackage -Definition 'Value' -OutputPath 'C:\Path'
+```
+
+
+### EXAMPLE 2
+```powershell
+New-EVXProviderPackage -DefinitionPath 'C:\Path' -OutputPath 'C:\Path'
 ```
 
 

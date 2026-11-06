@@ -8,7 +8,7 @@
     Description           = 'High-performance typed Windows Event Log queries, reports, exports, watchers, WEC, custom providers, diagnostics, and administration for PowerShell.'
     FunctionsToExport     = @()
     GUID                  = '5df72a79-cdf6-4add-b38d-bcacf26fb7bc'
-    ModuleVersion         = '4.0.2'
+    ModuleVersion         = '4.1.0'
     PowerShellVersion     = '5.1'
     ProcessorArchitecture = 'None'
     PrivateData           = @{

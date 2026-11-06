@@ -30,6 +30,12 @@ Checks provider identity, channels, event versions, field references, maps, loca
 
 ### EXAMPLE 1
 ```powershell
+Test-EVXProviderDefinition -Definition 'Value'
+```
+
+
+### EXAMPLE 2
+```powershell
 Test-EVXProviderDefinition -Path 'C:\Path'
 ```
 

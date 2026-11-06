@@ -4258,7 +4258,7 @@ Each isolated failure is emitted as a non-terminating PowerShell error.</maml:pa
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="1" aliases="Id">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Id">
           <maml:name>EventId</maml:name>
           <maml:description>
             <maml:para>Event identifiers used to filter results.</maml:para>
@@ -19947,7 +19947,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
           <maml:name>Path</maml:name>
           <maml:description>
             <maml:para>One or more offline EVTX files. Type or Definition may be supplied to apply typed semantics; Path alone creates a generic report.</maml:para>
@@ -20220,7 +20220,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Definition</maml:name>
           <maml:description>
             <maml:para>Custom JSON definition path or an EventDefinition instance.</maml:para>
@@ -20350,7 +20350,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>LogName</maml:name>
           <maml:description>
             <maml:para>Generic event channel. Mutually exclusive with Type.</maml:para>
@@ -20604,7 +20604,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
           <maml:name>Type</maml:name>
           <maml:description>
             <maml:para>Built-in leaf or composite event definitions. Each definition owns its channels and event IDs.</maml:para>
@@ -21725,7 +21725,7 @@ This is available only with -Type GroupPolicyDirectoryAudit and never performs d
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="PSPath">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="named" aliases="PSPath">
           <maml:name>Path</maml:name>
           <maml:description>
             <maml:para>One or more offline EVTX files. Type or Definition may be supplied to apply typed semantics; Path alone creates a generic report.</maml:para>
@@ -27024,7 +27024,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="EventId">
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="2" aliases="EventId">
           <maml:name>Id</maml:name>
           <maml:description>
             <maml:para>Event identifier declared by the provider manifest.</maml:para>
@@ -27072,7 +27072,7 @@ Strict is lossless and rejects categories without exact native selectors.</maml:
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="Source,Provider">
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="Source,Provider">
           <maml:name>ProviderName</maml:name>
           <maml:description>
             <maml:para>Name of a registered local manifest event provider.</maml:para>
