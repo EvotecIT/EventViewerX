@@ -21,40 +21,40 @@ public enum EventDiagnosticCodeKind {
 public sealed partial class EventDiagnosticCode {
     /// <summary>Unmodified input.</summary>
     [JsonInclude]
-    public string Original { get; private set; } = string.Empty;
+    public string Original { get; internal set; } = string.Empty;
     /// <summary>Declared context.</summary>
     [JsonInclude]
-    public EventDiagnosticCodeKind Kind { get; private set; }
+    public EventDiagnosticCodeKind Kind { get; internal set; }
     /// <summary>Unsigned 32-bit representation, or null for invalid input.</summary>
     [JsonInclude]
-    public uint? Value { get; private set; }
+    public uint? Value { get; internal set; }
     /// <summary>Canonical hexadecimal representation.</summary>
     [JsonInclude]
-    public string? Hex { get; private set; }
+    public string? Hex { get; internal set; }
     /// <summary>HRESULT facility, only for a declared HRESULT.</summary>
     [JsonInclude]
-    public int? Facility { get; private set; }
+    public int? Facility { get; internal set; }
     /// <summary>HRESULT severity bit, only for a declared HRESULT.</summary>
     [JsonInclude]
-    public bool? HResultFailure { get; private set; }
+    public bool? HResultFailure { get; internal set; }
     /// <summary>Embedded Win32 value for a Win32-facility HRESULT.</summary>
     [JsonInclude]
-    public uint? Win32Value { get; private set; }
+    public uint? Win32Value { get; internal set; }
     /// <summary>Success, SuccessRestartRequired, SuccessRestartInitiated, Failure, or Unknown.</summary>
     [JsonInclude]
-    public string Outcome { get; private set; } = "Unknown";
+    public string Outcome { get; internal set; } = "Unknown";
     /// <summary>Meaning within the declared context; never an inferred root cause.</summary>
     [JsonInclude]
-    public string Explanation { get; private set; } = string.Empty;
+    public string Explanation { get; internal set; } = string.Empty;
     /// <summary>Next artifact or configuration to inspect.</summary>
     [JsonInclude]
-    public string NextCheck { get; private set; } = string.Empty;
+    public string NextCheck { get; internal set; } = string.Empty;
     /// <summary>Primary documentation for the number family.</summary>
     [JsonInclude]
-    public string Reference { get; private set; } = string.Empty;
+    public string Reference { get; internal set; } = string.Empty;
     /// <summary>Documented constant or explicit HRESULT_FROM_WIN32 expression, when known in the declared family.</summary>
     [JsonInclude]
-    public string? SymbolicName { get; private set; }
+    public string? SymbolicName { get; internal set; }
 
     /// <summary>Interprets signed decimal, unsigned decimal, or 0x-prefixed 32-bit hexadecimal. No context is guessed from magnitude.</summary>
     public static EventDiagnosticCode Resolve(string text, EventDiagnosticCodeKind kind = EventDiagnosticCodeKind.Unknown) {

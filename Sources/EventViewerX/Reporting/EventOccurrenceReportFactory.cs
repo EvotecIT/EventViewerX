@@ -88,7 +88,7 @@ public static class EventOccurrenceReportFactory {
                 }
             };
         }
-        return EventReportEngine.CreateStored(
+        return EventReportEngine.CreateStoredKnown(
             rows,
             new[] { schema },
             string.IsNullOrWhiteSpace(title) ? "EventViewerX occurrences" : title,
@@ -167,7 +167,13 @@ public static class EventOccurrenceReportFactory {
             sourceComplete
                 ? null
                 : "The source query was incomplete; occurrence output cannot be treated as exhaustive.");
-        return EventReportEngine.CreateStored(
+        Dictionary<string, Type> valueTypes = sourceReport.Sections
+            .SelectMany(static section => section.Columns)
+            .GroupBy(static column => EventReportColumnSchema.GetStableTypeName(column.ValueType), StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.First().ValueType, StringComparer.Ordinal);
+        return EventReportEngine.CreateStoredCore(
+            name => name != null && valueTypes.TryGetValue(name, out Type? type)
+                ? type : EventReportColumnSchema.ResolveKnownValueTypeName(name),
             result.Groups.Select(static group => group.Representative),
             schemas,
             string.IsNullOrWhiteSpace(title) ? sourceReport.Title : title,

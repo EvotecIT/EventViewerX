@@ -104,7 +104,7 @@ public sealed class EventDetectionReplaySession {
             CoverageJson = (_options.Coverage ?? EventDetectionCoverage.Unknown()).ToJson()
         };
         document.StateHash = CheckpointHash(document);
-        string json = JsonSerializer.Serialize(document, EventAnalysisJson.CreateSerializerOptions());
+        string json = EventJson.Serialize(document, EventAnalysisJson.CreateSerializerOptions());
         if (Encoding.UTF8.GetByteCount(json) > maximumCheckpointBytes) { throw new InvalidDataException("Checkpoint exceeds its serialized byte bound."); }
         return json;
     }
@@ -119,7 +119,7 @@ public sealed class EventDetectionReplaySession {
         }
         if (plan == null) { throw new ArgumentNullException(nameof(plan)); }
         options ??= new EventDetectionEngineOptions();
-        ReplayCheckpoint document = JsonSerializer.Deserialize<ReplayCheckpoint>(checkpointJson, EventAnalysisJson.CreateSerializerOptions())
+        ReplayCheckpoint document = EventJson.Deserialize<ReplayCheckpoint>(checkpointJson, EventAnalysisJson.CreateSerializerOptions())
             ?? throw new InvalidDataException("Missing replay checkpoint.");
         if (document.SchemaVersion != 1 || document.EngineIdentity != EventInvestigationSession.CurrentEngineIdentity) { throw new InvalidDataException("Checkpoint format or engine build changed."); }
         if (document.PlanHash != plan.PlanHash) { throw new InvalidDataException("Checkpoint invalidated by changed rules or tuning."); }
@@ -166,10 +166,10 @@ public sealed class EventDetectionReplaySession {
         string savedHash = document.StateHash;
         try {
             document.StateHash = string.Empty;
-            return Hash(JsonSerializer.Serialize(document, EventAnalysisJson.CreateSerializerOptions()));
+            return Hash(EventJson.Serialize(document, EventAnalysisJson.CreateSerializerOptions()));
         } finally { document.StateHash = savedHash; }
     }
-    private sealed class ReplayCheckpoint {
+    internal sealed class ReplayCheckpoint {
         public int SchemaVersion { get; set; }
         public string EngineIdentity { get; set; } = string.Empty;
         public string PlanHash { get; set; } = string.Empty;

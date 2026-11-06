@@ -10,7 +10,7 @@ public static class EventProviderDefinitionJson {
     /// <summary>Serializes a provider definition as stable, readable JSON.</summary>
     public static string Serialize(EventProviderDefinition definition) {
         EventProviderDefinitionValidator.ValidateOrThrow(definition);
-        return JsonSerializer.Serialize(
+        return EventJson.Serialize(
             definition,
             Options);
     }
@@ -23,7 +23,7 @@ public static class EventProviderDefinitionJson {
                 nameof(json));
         }
         EventProviderDefinition definition =
-            JsonSerializer.Deserialize<EventProviderDefinition>(
+            EventJson.Deserialize<EventProviderDefinition>(
                 json,
                 Options) ??
             throw new InvalidDataException(
@@ -118,10 +118,7 @@ public static class EventProviderDefinitionJson {
             UnmappedMemberHandling =
                 JsonUnmappedMemberHandling.Disallow
         };
-        options.Converters.Add(
-            new JsonStringEnumConverter(
-                JsonNamingPolicy.CamelCase,
-                allowIntegerValues: false));
+        EventJson.AddStringEnumConverters(options, JsonNamingPolicy.CamelCase, allowIntegerValues: false);
         return options;
     }
 }

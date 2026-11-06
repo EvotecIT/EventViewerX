@@ -91,7 +91,7 @@ public static class EventAggregationReportFactory {
                 }
             };
         }
-        return EventReportEngine.CreateStored(
+        return EventReportEngine.CreateStoredKnown(
             rows,
             new[] { schema },
             string.IsNullOrWhiteSpace(title) ? "EventViewerX aggregation" : title,

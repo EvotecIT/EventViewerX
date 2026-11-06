@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace EventViewerX.Reporting;
 
@@ -19,8 +20,28 @@ public static partial class EventEvidenceBundle {
 
     /// <summary>Writes normalized rows, schemas, completion evidence and selected provenance to a caller-owned writable stream.</summary>
     /// <remarks>The caller owns atomic publication. A failed or canceled write leaves a partial stream that must not be published. Apply a privacy policy before calling, and select provenance separately.</remarks>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Caller-owned field values require preserved JSON metadata. Supply generated value contracts to use Native AOT.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Caller-owned field values may require runtime serialization code. Supply generated value contracts to use Native AOT.")]
+#endif
     public static EventEvidenceBundleManifest Write(EventReport report, Stream destination,
-        EventEvidenceBundleOptions? options = null, CancellationToken cancellationToken = default) {
+        EventEvidenceBundleOptions? options = null, CancellationToken cancellationToken = default) =>
+        WriteCore(report, destination, options, cancellationToken,
+            EventJson.WithReflectionValues(new JsonSerializerOptions(), stringEnums: false));
+
+    /// <summary>Writes evidence using generated contracts for additional caller-owned row values.</summary>
+    /// <param name="report">Report to preserve.</param>
+    /// <param name="destination">Caller-owned writable stream.</param>
+    /// <param name="options">Bundle provenance and size settings.</param>
+    /// <param name="cancellationToken">Cancellation for bundle creation.</param>
+    /// <param name="valueTypes">Generated contracts for additional values. An empty collection uses the built-in contracts.</param>
+    public static EventEvidenceBundleManifest Write(EventReport report, Stream destination,
+        EventEvidenceBundleOptions? options, CancellationToken cancellationToken, IReadOnlyCollection<JsonTypeInfo> valueTypes) =>
+        WriteCore(report, destination, options, cancellationToken,
+            EventJson.WithValueContracts(new JsonSerializerOptions(), valueTypes));
+
+    private static EventEvidenceBundleManifest WriteCore(EventReport report, Stream destination,
+        EventEvidenceBundleOptions? options, CancellationToken cancellationToken, JsonSerializerOptions valueOptions) {
         if (report == null) { throw new ArgumentNullException(nameof(report)); }
         if (destination == null) { throw new ArgumentNullException(nameof(destination)); }
         if (!destination.CanWrite) { throw new ArgumentException("The destination must be writable.", nameof(destination)); }
@@ -35,9 +56,12 @@ public static partial class EventEvidenceBundle {
         ValidateContext(options.QueryJson);
         ValidateContext(options.DefinitionJson);
         ValidateContext(options.PackProvenanceJson);
-        string? privacyJson = options.PrivacyPolicy == null ? null : JsonSerializer.Serialize(new {
-            SchemaVersion = 1, RowType = "Generic", options.PrivacyPolicy.RetainedValueFields,
-            options.PrivacyPolicy.PseudonymizedValueFields, options.PrivacyPolicy.PseudonymizeSourceIdentities
+        string? privacyJson = options.PrivacyPolicy == null ? null : EventJson.Serialize(new EvidencePrivacyJsonDocument {
+            SchemaVersion = 1,
+            RowType = "Generic",
+            RetainedValueFields = options.PrivacyPolicy.RetainedValueFields,
+            PseudonymizedValueFields = options.PrivacyPolicy.PseudonymizedValueFields,
+            PseudonymizeSourceIdentities = options.PrivacyPolicy.PseudonymizeSourceIdentities
         });
         ValidateContext(privacyJson);
         cancellationToken.ThrowIfCancellationRequested();
@@ -57,11 +81,11 @@ public static partial class EventEvidenceBundle {
         Add("rows.jsonl", output => {
             foreach (EventReportRow row in report.Rows) {
                 cancellationToken.ThrowIfCancellationRequested();
-                byte[] json = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(EventReportJsonProjection.Project(row, sectionsByRow[row])) + "\n");
+                byte[] json = Encoding.UTF8.GetBytes(EventJson.Serialize(EventReportJsonProjection.Project(row, sectionsByRow[row]), valueOptions) + "\n");
                 output.Write(json, 0, json.Length);
             }
         });
-        AddJson("schemas.json", JsonSerializer.Serialize(report.Sections.Select(EventReportSectionSchema.FromSection)));
+        AddJson("schemas.json", EventJson.Serialize(report.Sections.Select(EventReportSectionSchema.FromSection)));
         if (options.QueryJson != null) { AddJson("query.json", options.QueryJson); }
         if (options.DefinitionJson != null) { AddJson("definition.json", options.DefinitionJson); }
         if (options.PackProvenanceJson != null) { AddJson("packs.json", options.PackProvenanceJson); }
@@ -69,13 +93,13 @@ public static partial class EventEvidenceBundle {
         foreach (KeyValuePair<string, Stream> artifact in options.Reports.OrderBy(static item => item.Key, StringComparer.Ordinal)) {
             Add(artifact.Key, output => Copy(artifact.Value, output, cancellationToken));
         }
-        using JsonDocument summary = JsonDocument.Parse(JsonSerializer.Serialize(EventReportSummary.Create(report)));
+        using JsonDocument summary = JsonDocument.Parse(EventJson.Serialize(EventReportSummary.Create(report)));
         var manifest = new EventEvidenceBundleManifest {
             SchemaVersion = 1, GeneratedAtUtc = report.GeneratedAt,
             ProducerVersion = typeof(EventEvidenceBundle).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown",
             Summary = summary.RootElement.Clone(), Entries = entries.ToArray()
         };
-        byte[] manifestBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest));
+        byte[] manifestBytes = Encoding.UTF8.GetBytes(EventJson.Serialize(manifest));
         if (manifestBytes.Length > MaximumManifestBytes || manifestBytes.Length > options.MaximumUncompressedBytes - total) {
             throw new InvalidDataException("The evidence manifest exceeds its byte bound.");
         }

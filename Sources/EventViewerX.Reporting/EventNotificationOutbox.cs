@@ -153,7 +153,7 @@ public static partial class EventNotificationOutbox {
             Checkpoints = checkpointSnapshot
         };
         string reportHtml = EventReportHtmlRenderer.Render(report);
-        string manifestJson = JsonSerializer.Serialize(manifest);
+        string manifestJson = JsonSerializer.Serialize(manifest, EventReportingJsonContext.Default.EventNotificationBatchManifest);
         long batchBytes = GetUtf8Bytes(reportHtml) +
                           GetUtf8Bytes(email.Html) +
                           GetUtf8Bytes(email.PlainText) +
@@ -243,7 +243,7 @@ public static partial class EventNotificationOutbox {
                     $"Outbox batch '{directory}' has no explicit manifest schema version and cannot be delivered safely.");
             }
             EventNotificationBatchManifest? manifest =
-                JsonSerializer.Deserialize<EventNotificationBatchManifest>(manifestJson);
+                JsonSerializer.Deserialize(manifestJson, EventReportingJsonContext.Default.EventNotificationBatchManifest);
             if (manifest == null || string.IsNullOrWhiteSpace(manifest.BatchId) ||
                 !string.Equals(manifest.BatchId, name, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"Outbox batch '{directory}' has invalid identity metadata.");
@@ -400,7 +400,7 @@ public static partial class EventNotificationOutbox {
         if (!File.Exists(path)) {
             return new EventNotificationDeliveryState();
         }
-        return JsonSerializer.Deserialize<EventNotificationDeliveryState>(File.ReadAllText(path)) ??
+        return JsonSerializer.Deserialize(File.ReadAllText(path), EventReportingJsonContext.Default.EventNotificationDeliveryState) ??
             throw new InvalidDataException($"Outbox delivery state '{path}' is empty.");
     }
 
@@ -410,7 +410,7 @@ public static partial class EventNotificationOutbox {
         try {
             File.WriteAllText(
                 temporary,
-                JsonSerializer.Serialize(state),
+                JsonSerializer.Serialize(state, EventReportingJsonContext.Default.EventNotificationDeliveryState),
                 new UTF8Encoding(false));
             if (File.Exists(path)) {
                 File.Replace(temporary, path, destinationBackupFileName: null);

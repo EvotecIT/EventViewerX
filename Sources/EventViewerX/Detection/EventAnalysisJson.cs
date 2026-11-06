@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace EventViewerX;
 
@@ -9,26 +10,40 @@ public static class EventAnalysisJson {
     private static readonly JsonSerializerOptions Indented = CreateSerializerOptions(true);
 
     /// <summary>Serializes one canonical observation without embedding its runtime source object.</summary>
-    public static string Serialize(EventObservation observation, bool indented = false) {
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Caller-owned field values require preserved JSON metadata. Supply generated value contracts to use Native AOT.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Caller-owned field values may require runtime serialization code. Supply generated value contracts to use Native AOT.")]
+#endif
+    public static string Serialize(EventObservation observation, bool indented = false) =>
+        SerializeObservation(observation, EventJson.WithReflectionValues(Options(indented), stringEnums: true));
+
+    /// <summary>Serializes one canonical observation with generated contracts for additional caller-owned field values.</summary>
+    /// <param name="observation">Observation to serialize.</param>
+    /// <param name="indented">Whether to indent the output.</param>
+    /// <param name="valueTypes">Generated contracts for additional field values. An empty collection uses the built-in contracts.</param>
+    public static string Serialize(EventObservation observation, bool indented, IReadOnlyCollection<JsonTypeInfo> valueTypes) =>
+        SerializeObservation(observation, EventJson.WithValueContracts(Options(indented), valueTypes));
+
+    private static string SerializeObservation(EventObservation observation, JsonSerializerOptions options) {
         if (observation == null) {
             throw new ArgumentNullException(nameof(observation));
         }
-        return JsonSerializer.Serialize(new {
+        return EventJson.Serialize(new ObservationJsonDocument {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
-            observation.Identity,
-            observation.TypeName,
-            observation.EventId,
-            observation.RecordId,
-            observation.ProviderName,
-            observation.SourceLog,
-            observation.ContainerLog,
-            observation.SourceComputer,
-            observation.CollectorComputer,
-            observation.EventTimeUtc,
-            observation.ReceivedTimeUtc,
-            observation.ProcessedTimeUtc,
-            observation.Fields
-        }, Options(indented));
+            Identity = observation.Identity,
+            TypeName = observation.TypeName,
+            EventId = observation.EventId,
+            RecordId = observation.RecordId,
+            ProviderName = observation.ProviderName,
+            SourceLog = observation.SourceLog,
+            ContainerLog = observation.ContainerLog,
+            SourceComputer = observation.SourceComputer,
+            CollectorComputer = observation.CollectorComputer,
+            EventTimeUtc = observation.EventTimeUtc,
+            ReceivedTimeUtc = observation.ReceivedTimeUtc,
+            ProcessedTimeUtc = observation.ProcessedTimeUtc,
+            Fields = observation.Fields
+        }, options);
     }
 
     /// <summary>Serializes one finding with stable evidence identities and coverage, excluding duplicate source objects.</summary>
@@ -36,31 +51,31 @@ public static class EventAnalysisJson {
         if (finding == null) {
             throw new ArgumentNullException(nameof(finding));
         }
-        return JsonSerializer.Serialize(new {
+        return EventJson.Serialize(new FindingJsonDocument {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
-            finding.RuleId,
-            finding.RuleVersion,
-            finding.PackId,
-            finding.PackVersion,
-            finding.SourceKind,
-            finding.SourceId,
-            finding.SourceStatus,
-            finding.SourceHash,
-            finding.License,
-            finding.Title,
-            finding.Severity,
-            finding.Confidence,
-            finding.Status,
-            finding.StartTimeUtc,
-            finding.EndTimeUtc,
-            finding.EvidenceIdentities,
-            finding.Tags,
-            finding.FalsePositives,
-            finding.References,
-            finding.Entities,
+            RuleId = finding.RuleId,
+            RuleVersion = finding.RuleVersion,
+            PackId = finding.PackId,
+            PackVersion = finding.PackVersion,
+            SourceKind = finding.SourceKind,
+            SourceId = finding.SourceId,
+            SourceStatus = finding.SourceStatus,
+            SourceHash = finding.SourceHash,
+            License = finding.License,
+            Title = finding.Title,
+            Severity = finding.Severity,
+            Confidence = finding.Confidence,
+            Status = finding.Status,
+            StartTimeUtc = finding.StartTimeUtc,
+            EndTimeUtc = finding.EndTimeUtc,
+            EvidenceIdentities = finding.EvidenceIdentities,
+            Tags = finding.Tags,
+            FalsePositives = finding.FalsePositives,
+            References = finding.References,
+            Entities = finding.Entities,
             Coverage = ParseElement(finding.Coverage.ToJson()),
-            finding.Explanation,
-            finding.CompletenessDiagnostic
+            Explanation = finding.Explanation,
+            CompletenessDiagnostic = finding.CompletenessDiagnostic
         }, Options(indented));
     }
 
@@ -70,13 +85,13 @@ public static class EventAnalysisJson {
             throw new ArgumentNullException(nameof(plan));
         }
         EventDetectionPlanExplanation explanation = plan.Explain();
-        return JsonSerializer.Serialize(new {
+        return EventJson.Serialize(new PlanExplanationJsonDocument {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
-            explanation.PlanHash,
-            explanation.RuleCount,
-            explanation.StatefulRuleCount,
-            explanation.RequiredEventTypes,
-            explanation.Rules
+            PlanHash = explanation.PlanHash,
+            RuleCount = explanation.RuleCount,
+            StatefulRuleCount = explanation.StatefulRuleCount,
+            RequiredEventTypes = explanation.RequiredEventTypes,
+            Rules = explanation.Rules
         }, Options(indented));
     }
 
@@ -85,14 +100,14 @@ public static class EventAnalysisJson {
         if (trace == null) {
             throw new ArgumentNullException(nameof(trace));
         }
-        return JsonSerializer.Serialize(new {
+        return EventJson.Serialize(new RuleTraceJsonDocument {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
-            trace.RuleId,
-            trace.Title,
-            trace.ObservationIdentity,
-            trace.Outcome,
-            trace.MatchingSteps,
-            trace.Conditions
+            RuleId = trace.RuleId,
+            Title = trace.Title,
+            ObservationIdentity = trace.ObservationIdentity,
+            Outcome = trace.Outcome,
+            MatchingSteps = trace.MatchingSteps,
+            Conditions = trace.Conditions
         }, Options(indented));
     }
 
@@ -107,7 +122,7 @@ public static class EventAnalysisJson {
             PropertyNameCaseInsensitive = true,
             WriteIndented = indented
         };
-        options.Converters.Add(new JsonStringEnumConverter());
+        EventJson.AddStringEnumConverters(options);
         return options;
     }
 

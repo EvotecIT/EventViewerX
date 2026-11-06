@@ -10,12 +10,19 @@ public static class EventProviderTypedPayload {
         TypedPayloadDescriptor> Cache = new();
 
     /// <summary>Describes the public readable properties of a payload type.</summary>
-    public static IReadOnlyList<EventProviderFieldDefinition> Describe<TPayload>() {
+    public static IReadOnlyList<EventProviderFieldDefinition> Describe<
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
+        TPayload>() {
         return Describe(typeof(TPayload));
     }
 
     /// <summary>Describes the public readable properties of a payload type.</summary>
     public static IReadOnlyList<EventProviderFieldDefinition> Describe(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
         Type payloadType) {
 
         if (payloadType == null) {
@@ -23,7 +30,7 @@ public static class EventProviderTypedPayload {
         }
         return Cache.GetOrAdd(
                 payloadType,
-                CreateDescriptor)
+                _ => CreateDescriptor(payloadType))
             .Bindings
             .Select(static binding =>
                 Clone(binding.Field))
@@ -33,6 +40,9 @@ public static class EventProviderTypedPayload {
     /// <summary>
     /// Reads public properties into a case-insensitive named payload dictionary.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+#endif
     public static IReadOnlyDictionary<string, object?> Read<TPayload>(
         TPayload payload) {
 
@@ -54,6 +64,9 @@ public static class EventProviderTypedPayload {
     }
 
     private static TypedPayloadDescriptor CreateDescriptor(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
         Type payloadType) {
 
         PropertyInfo[] properties = payloadType
@@ -76,7 +89,11 @@ public static class EventProviderTypedPayload {
             })
             .OrderBy(static item =>
                 item.Attribute?.Order ?? int.MaxValue)
+#if NET8_0_OR_GREATER
+            .ThenBy(static item => item.Property.HasMetadataToken() ? item.Property.MetadataToken : 0)
+#else
             .ThenBy(static item => item.Property.MetadataToken)
+#endif
             .ToArray();
 
         var explicitOrders = new HashSet<int>();

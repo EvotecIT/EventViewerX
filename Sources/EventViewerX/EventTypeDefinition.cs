@@ -11,6 +11,11 @@ public sealed class EventTypeDefinition {
         string category,
         IReadOnlyList<EventSourceDefinition> sources,
         IReadOnlyList<EventFieldDefinition> fields,
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
         Type? recordType,
         IReadOnlyList<EventType> includedTypes) {
 
@@ -47,6 +52,11 @@ public sealed class EventTypeDefinition {
     public IReadOnlyList<EventFieldDefinition> Fields { get; }
 
     /// <summary>Concrete projected CLR record type for a leaf definition.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
     public Type? RecordType { get; }
 
     /// <summary>Direct members of a composite definition.</summary>

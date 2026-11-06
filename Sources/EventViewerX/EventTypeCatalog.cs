@@ -44,7 +44,7 @@ public static partial class EventTypeCatalog {
         public IReadOnlyList<string> ProviderNames { get; }
     }
 
-    private static readonly Dictionary<EventType, Type> _reflectionRuleTypes = new();
+    private static readonly Dictionary<EventType, RuleFactoryRegistration> _reflectionRuleTypes = new();
     private static readonly Dictionary<EventType, int> _reflectionRulePriorities = new();
     private static readonly Dictionary<EventType, (string LogName, IReadOnlyList<int> EventIds, IReadOnlyList<string> ProviderNames)> _reflectionRuleSources = new();
     private static readonly Dictionary<EventType, EventProjectorDefinition> _reflectionProjectors = new();
@@ -76,7 +76,7 @@ public static partial class EventTypeCatalog {
     private static EventRuleDiscoveryMode _discoveryMode = EventRuleDiscoveryMode.Auto;
 
     /// <summary>
-    /// Configures how rule discovery works. Call this once at startup (before any queries) for AOT-friendly behavior.
+    /// Configures rule registration behavior before the first query. Built-in rules use static factories in every mode.
     /// </summary>
     public static void Configure(EventRuleDiscoveryMode mode) {
         lock (_initLock) {
@@ -86,6 +86,33 @@ public static partial class EventTypeCatalog {
             }
             _discoveryMode = mode;
         }
+    }
+
+    /// <summary>Registers a delegate-based rule factory without discovering a runtime record schema.</summary>
+    /// <param name="namedEvent">Named event identifier.</param>
+    /// <param name="logName">Windows channel.</param>
+    /// <param name="eventIds">Handled event identifiers.</param>
+    /// <param name="factory">Typed record factory.</param>
+    /// <param name="canHandle">Optional event precondition.</param>
+    public static void RegisterRuleFactory(EventType namedEvent, string logName,
+        IReadOnlyList<int> eventIds, Func<EventObject, EventTypeRecord> factory,
+        Func<EventObject, bool>? canHandle = null) {
+        RegisterRuleFactoryCore(namedEvent, logName, eventIds, Array.Empty<string>(),
+            factory, canHandle, ruleType: null, matchPriority: 0);
+    }
+
+    /// <summary>Registers a provider-scoped delegate factory without discovering a runtime record schema.</summary>
+    /// <param name="namedEvent">Named event identifier.</param>
+    /// <param name="logName">Windows channel.</param>
+    /// <param name="eventIds">Handled event identifiers.</param>
+    /// <param name="providerNames">Handled event providers.</param>
+    /// <param name="factory">Typed record factory.</param>
+    /// <param name="canHandle">Optional event precondition.</param>
+    public static void RegisterRuleFactory(EventType namedEvent, string logName,
+        IReadOnlyList<int> eventIds, IReadOnlyList<string> providerNames,
+        Func<EventObject, EventTypeRecord> factory, Func<EventObject, bool>? canHandle = null) {
+        RegisterRuleFactoryCore(namedEvent, logName, eventIds, providerNames,
+            factory, canHandle, ruleType: null, matchPriority: 0);
     }
 
     /// <summary>
@@ -99,6 +126,9 @@ public static partial class EventTypeCatalog {
     /// <param name="canHandle">Optional predicate to further validate an event before instantiation.</param>
     /// <param name="ruleType">Optional rule type used for legacy APIs returning <see cref="Type"/>.</param>
     /// <param name="matchPriority">Relative priority used when several registered projections match one event.</param>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Arbitrary field types require their enumerable interface metadata to be preserved. Use built-in or declarative event definitions in trimmed consumers.")]
+#endif
     public static void RegisterRuleFactory(
         EventType namedEvent,
         string logName,
@@ -112,6 +142,9 @@ public static partial class EventTypeCatalog {
         Type? ruleType = null,
         int matchPriority = 0) {
 
+        if (ruleType != null) {
+            EventFieldDefinition.RegisterEnumerableFieldTypes(ruleType);
+        }
         RegisterRuleFactoryCore(
             namedEvent,
             logName,
@@ -134,6 +167,9 @@ public static partial class EventTypeCatalog {
     /// <param name="canHandle">Optional predicate to further validate an event before instantiation.</param>
     /// <param name="ruleType">Optional rule type used for legacy APIs returning <see cref="Type"/>.</param>
     /// <param name="matchPriority">Relative priority used when several registered projections match one event.</param>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Arbitrary field types require their enumerable interface metadata to be preserved. Use built-in or declarative event definitions in trimmed consumers.")]
+#endif
     public static void RegisterRuleFactory(
         EventType namedEvent,
         string logName,
@@ -148,6 +184,9 @@ public static partial class EventTypeCatalog {
         Type? ruleType = null,
         int matchPriority = 0) {
 
+        if (ruleType != null) {
+            EventFieldDefinition.RegisterEnumerableFieldTypes(ruleType);
+        }
         RegisterRuleFactoryCore(
             namedEvent,
             logName,
@@ -259,81 +298,10 @@ public static partial class EventTypeCatalog {
     }
 
     /// <summary>
-    /// Discovers and registers all event rule types using reflection (legacy behavior).
+    /// Populates the legacy registration tables from the built-in static factories.
     /// </summary>
-#if NET5_0_OR_GREATER
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification =
-        "Reflection discovery is excluded by ExplicitOnly mode; conventional hosts intentionally retain this fallback.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
-        "Reflection discovery is excluded by ExplicitOnly mode; conventional hosts intentionally retain this fallback.")]
-#endif
     private static void InitializeEventRulesWithReflection() {
-        var assembly = typeof(EventTypeRecord).Assembly;
-
-        var eventRuleTypes = assembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract &&
-                   (t.IsSubclassOf(typeof(EventRuleBase)) ||
-                    (t.IsSubclassOf(typeof(EventTypeRecord)) && t.GetInterfaces().Contains(typeof(IEventRule)))));
-
-        foreach (var type in eventRuleTypes) {
-            RegisterEventRuleType(type);
-        }
-    }
-
-    /// <summary>
-    /// Registers a single event rule type (reflection-based).
-    /// </summary>
-#if NET5_0_OR_GREATER
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
-        "This method is reachable only from the documented reflection discovery path.")]
-#endif
-    private static void RegisterEventRuleType(Type ruleType) {
-        if (ruleType.IsSubclassOf(typeof(EventRuleBase))) {
-            try {
-#pragma warning disable SYSLIB0050
-                var instance = (EventRuleBase)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(ruleType);
-#pragma warning restore SYSLIB0050
-                _reflectionRuleTypes[instance.Type] = ruleType;
-                _reflectionRulePriorities[instance.Type] = instance.MatchPriority;
-                _reflectionRuleSources[instance.Type] = (
-                    instance.LogName,
-                    instance.EventIds.ToArray(),
-                    instance.ProviderNames.ToArray());
-                if (TryCompileReflectionProjector(instance.Type, ruleType, out EventProjectorDefinition? projector)) {
-                    _reflectionProjectors[instance.Type] = projector!;
-                }
-
-                foreach (var eventId in instance.EventIds) {
-                    var key = (eventId, instance.LogName);
-                    if (!_reflectionHandlers.ContainsKey(key)) {
-                        _reflectionHandlers[key] = new List<Type>();
-                    }
-                    _reflectionHandlers[key].Add(ruleType);
-                }
-            } catch {
-                return;
-            }
-        } else {
-            var attr = ruleType.GetCustomAttribute<EventRuleAttribute>();
-            if (attr != null) {
-                _reflectionRuleTypes[attr.Type] = ruleType;
-                _reflectionRuleSources[attr.Type] = (
-                    attr.LogName,
-                    attr.EventIds.ToArray(),
-                    attr.ProviderNames.ToArray());
-                if (TryCompileReflectionProjector(attr.Type, ruleType, out EventProjectorDefinition? projector)) {
-                    _reflectionProjectors[attr.Type] = projector!;
-                }
-
-                foreach (var eventId in attr.EventIds) {
-                    var key = (eventId, attr.LogName);
-                    if (!_reflectionHandlers.ContainsKey(key)) {
-                        _reflectionHandlers[key] = new List<Type>();
-                    }
-                    _reflectionHandlers[key].Add(ruleType);
-                }
-            }
-        }
+        RegisterBuiltInRuleFactories(reflection: true);
     }
 
     /// <summary>
@@ -371,8 +339,6 @@ public static partial class EventTypeCatalog {
 #if NET5_0_OR_GREATER
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties |
         DynamicallyAccessedMemberTypes.PublicFields)]
-    [UnconditionalSuppressMessage("Trimming", "IL2068", Justification =
-        "Explicit registrations root public record metadata; the reflection-only return is documented as trim-unsafe.")]
 #endif
     public static Type? GetEventRuleType(EventType namedEvent) {
         var mode = _discoveryMode;
@@ -384,11 +350,11 @@ public static partial class EventTypeCatalog {
                 : null;
         }
         if (mode == EventRuleDiscoveryMode.Reflection) {
-            return _reflectionRuleTypes.TryGetValue(namedEvent, out var reflectionType) ? reflectionType : null;
+            return _reflectionRuleTypes.TryGetValue(namedEvent, out var reflectionType) ? reflectionType.RuleType : null;
         }
 
         return _ruleFactories.TryGetValue(namedEvent, out RuleFactoryRegistration? registered) ? registered.RuleType
-            : _reflectionRuleTypes.TryGetValue(namedEvent, out var reflection) ? reflection
+            : _reflectionRuleTypes.TryGetValue(namedEvent, out var reflection) ? reflection.RuleType
             : null;
     }
 
@@ -632,66 +598,9 @@ public static partial class EventTypeCatalog {
         return false;
     }
 
-#if NET5_0_OR_GREATER
-    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
-        "This method is reachable only from the documented reflection discovery path.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification =
-        "ExplicitOnly mode uses checked-in delegates and does not compile expression trees.")]
-#endif
-    private static bool TryCompileReflectionProjector(
-        EventType type,
-        Type ruleType,
-        out EventProjectorDefinition? projector) {
-
-        ConstructorInfo? constructor = ruleType.GetConstructor(new[] { typeof(EventObject) });
-        if (constructor == null) {
-            projector = null;
-            return false;
-        }
-        ParameterExpression source = Expression.Parameter(typeof(EventObject), "source");
-        NewExpression create = Expression.New(constructor, source);
-        UnaryExpression convert = Expression.Convert(create, typeof(EventTypeRecord));
-        Func<EventObject, EventTypeRecord> factory = Expression
-            .Lambda<Func<EventObject, EventTypeRecord>>(convert, source)
-            .Compile();
-        projector = new EventProjectorDefinition(
-            type,
-            ruleType.FullName ?? ruleType.Name,
-            factory,
-            precondition: null);
-        return true;
-    }
-
-#if NET5_0_OR_GREATER
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
-        "This legacy helper is used by the documented reflection discovery path.")]
-#endif
-    private static EventType GetEventTypeForRuleType(Type type) {
-        if (type.IsSubclassOf(typeof(EventRuleBase))) {
-            try {
-#pragma warning disable SYSLIB0050
-                var instance = (EventRuleBase)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
-#pragma warning restore SYSLIB0050
-                return instance.Type;
-            } catch {
-            }
-        }
-
-        var attr = type.GetCustomAttribute<EventRuleAttribute>();
-        if (attr != null) {
-            return attr.Type;
-        }
-
-        throw new InvalidOperationException($"Type {type.Name} is not properly configured");
-    }
-
     /// <summary>
     /// Gets event IDs and log names for event types using rule classes.
     /// </summary>
-#if NET5_0_OR_GREATER
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
-        "ExplicitOnly returns from registered source metadata before the reflection fallback.")]
-#endif
     internal static Dictionary<string, HashSet<int>> GetSourceMap(IReadOnlyCollection<EventType> eventTypes) {
         var mode = _discoveryMode;
         EnsureInitialized();
@@ -714,40 +623,15 @@ public static partial class EventTypeCatalog {
                 continue;
             }
 
-            if (!_reflectionRuleTypes.TryGetValue(namedEvent, out var ruleType) || ruleType == null) {
+            if (!_reflectionRuleSources.TryGetValue(namedEvent, out var source)) {
                 continue;
             }
-
-            List<int>? ruleEventIds = null;
-            string? ruleLogName = null;
-
-            if (ruleType.IsSubclassOf(typeof(EventRuleBase))) {
-                try {
-#pragma warning disable SYSLIB0050
-                    var instance = (EventRuleBase)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(ruleType);
-#pragma warning restore SYSLIB0050
-                    ruleEventIds = instance.EventIds;
-                    ruleLogName = instance.LogName;
-                } catch {
-                    continue;
-                }
-            } else {
-                var attr = ruleType.GetCustomAttribute<EventRuleAttribute>();
-                if (attr != null) {
-                    ruleEventIds = attr.EventIds;
-                    ruleLogName = attr.LogName;
-                }
+            if (!eventInfoDict.TryGetValue(source.LogName, out var eventIdSet)) {
+                eventIdSet = new HashSet<int>();
+                eventInfoDict[source.LogName] = eventIdSet;
             }
-
-            if (ruleEventIds != null && ruleLogName != null) {
-                if (!eventInfoDict.TryGetValue(ruleLogName, out var eventIdSet)) {
-                    eventIdSet = new HashSet<int>();
-                    eventInfoDict[ruleLogName] = eventIdSet;
-                }
-
-                foreach (var eventId in ruleEventIds) {
-                    eventIdSet.Add(eventId);
-                }
+            foreach (int eventId in source.EventIds) {
+                eventIdSet.Add(eventId);
             }
         }
 

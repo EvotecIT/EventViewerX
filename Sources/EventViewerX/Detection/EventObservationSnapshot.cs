@@ -60,17 +60,17 @@ internal sealed class EventAnalysisValue {
     public EventAnalysisValue[]? Items { get; set; }
 
     internal static EventAnalysisValue Capture(object? value) {
-        if (value == null) { return new EventAnalysisValue { Value = JsonSerializer.SerializeToElement<object?>(null) }; }
+        if (value == null) { return new EventAnalysisValue { Value = EventJson.SerializeToElement<object?>(null) }; }
         Type type = value.GetType();
         string name = type.FullName!;
         if (Scalars.ContainsKey(name) || (type.IsEnum && type.Assembly == typeof(EventObject).Assembly)) {
-            return new EventAnalysisValue { Type = name, Value = JsonSerializer.SerializeToElement(value, type) };
+            return new EventAnalysisValue { Type = name, Value = EventJson.SerializeToElement(value, type) };
         }
         if (value is System.Net.IPAddress address) {
-            return new EventAnalysisValue { Type = "IPAddress", Value = JsonSerializer.SerializeToElement(address.ToString()) };
+            return new EventAnalysisValue { Type = "IPAddress", Value = EventJson.SerializeToElement(address.ToString()) };
         }
         if (value is System.Collections.IEnumerable values && value is not System.Collections.IDictionary) {
-            return new EventAnalysisValue { Type = "array", Value = JsonSerializer.SerializeToElement<object?>(null),
+            return new EventAnalysisValue { Type = "array", Value = EventJson.SerializeToElement<object?>(null),
                 Items = values.Cast<object?>().Select(Capture).ToArray() };
         }
         throw new NotSupportedException($"Durable observation field type '{name}' is not supported.");
@@ -81,9 +81,9 @@ internal sealed class EventAnalysisValue {
         if (Type == "array") { return (Items ?? throw new InvalidDataException("Missing array values.")).Select(item => item.Restore()).ToArray(); }
         if (Type == "IPAddress") { return System.Net.IPAddress.Parse(Value.GetString()!); }
         if (!Scalars.TryGetValue(Type, out Type? type)) {
-            type = typeof(EventObject).Assembly.GetType(Type, throwOnError: false);
+            type = EventJsonContext.Default.GetTypeByName(Type);
             if (type == null || !type.IsEnum) { throw new InvalidDataException($"Unsupported durable field type '{Type}'."); }
         }
-        return JsonSerializer.Deserialize(Value.GetRawText(), type);
+        return EventJson.Deserialize(Value.GetRawText(), type);
     }
 }

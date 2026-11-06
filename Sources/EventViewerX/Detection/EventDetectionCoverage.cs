@@ -116,7 +116,7 @@ public sealed class EventDetectionCoverage {
         Failures.Count == 0;
 
     /// <summary>Serializes the immutable coverage snapshot using the versioned public contract.</summary>
-    public string ToJson(bool indented = false) => JsonSerializer.Serialize(
+    public string ToJson(bool indented = false) => EventJson.Serialize(
         new CoverageEnvelope {
             SchemaVersion = CurrentSchemaVersion,
             IsDeclared = IsDeclared,
@@ -139,7 +139,7 @@ public sealed class EventDetectionCoverage {
         if (string.IsNullOrWhiteSpace(json)) {
             throw new ArgumentException("Coverage JSON cannot be empty.", nameof(json));
         }
-        CoverageEnvelope envelope = JsonSerializer.Deserialize<CoverageEnvelope>(json, JsonOptions) ??
+        CoverageEnvelope envelope = EventJson.Deserialize<CoverageEnvelope>(json, JsonOptions) ??
             throw new InvalidDataException("Coverage JSON did not contain a document.");
         if (envelope.SchemaVersion != CurrentSchemaVersion) {
             throw new InvalidDataException(
@@ -257,7 +257,7 @@ public sealed class EventDetectionCoverage {
         return snapshot;
     }
 
-    private sealed class CoverageEnvelope {
+    internal sealed class CoverageEnvelope {
         public int SchemaVersion { get; set; }
         public bool IsDeclared { get; set; }
         public string[] ExpectedTargets { get; set; } = Array.Empty<string>();

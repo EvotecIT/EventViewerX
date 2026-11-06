@@ -140,6 +140,16 @@ The CLI project targets .NET 10. Its release configuration defines
 framework-dependent and runtime-bundled `PortableCompat` ZIPs. Use the
 [CLI commands](#portable-host-and-event-triggered-automation) for source builds and qualified artifact installation.
 
+## Native AOT
+
+The .NET 8 and .NET 10 targets of EventViewerX, Detection, Evtx, Reporting and Storage are trim and Native AOT compatible. Library builds enable the trim, single-file and AOT analyzers and treat warnings as errors. Built-in rules use static factories in every discovery mode. Typed member access preserves the required properties and fields.
+
+The Windows native smoke publishes for both modern frameworks and exercises the default catalog, fixture-backed crash queries, managed predicates, crash timestamps and packed WER fields, observations, generated JSON, storage, evidence bundles, CSV/HTML/email reports, Sigma rules and saved EVTX templates. It also runs a bounded read-only System-log query. Fixture assertions run even when the machine has no crash events.
+
+Library-owned JSON uses generated contracts. Native applications supply generated value contracts when calling the observation `EventAnalysisJson.Serialize` overload, `EventEvidenceBundle.Write`, or `new EventStore(path, valueTypes)`. An empty collection selects the built-in value contracts. Caller-owned field types require their own generated `JsonTypeInfo` entries.
+
+The existing general-purpose APIs remain available with trim/AOT annotations where they inspect arbitrary runtime models or instantiate runtime types. These include expression translation, arbitrary-object predicate matching, DataTable conversion, generic provider-payload writing, general CLR schema rehydration, and overloads that serialize arbitrary values without supplied contracts. Native reading paths use declarative predicates, typed records, field dictionaries and generated contracts. See the method annotations for the supported alternative at each boundary.
+
 ## Documentation
 
 - [First run and scheduled report](Docs/First-Run.md): one bounded report from

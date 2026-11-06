@@ -5,17 +5,17 @@ namespace EventViewerX;
 /// </summary>
 public enum EventRuleDiscoveryMode {
     /// <summary>
-    /// Uses explicit registrations when provided; otherwise falls back to reflection-based discovery.
+    /// Uses explicit registrations when provided, with built-in factory registrations as the fallback.
     /// </summary>
     Auto = 0,
 
     /// <summary>
-    /// Uses only explicitly registered rules. Reflection discovery is disabled.
+    /// Uses only explicitly registered rules.
     /// </summary>
     ExplicitOnly = 1,
 
     /// <summary>
-    /// Always uses reflection-based discovery (legacy behavior).
+    /// Uses the legacy built-in registration tables, populated from static factories.
     /// </summary>
     Reflection = 2
 }

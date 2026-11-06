@@ -10,7 +10,7 @@ public sealed partial class EventStore {
             static definition => definition.Name,
             StringComparer.OrdinalIgnoreCase);
 
-    private static EventReportSectionSchema[] NormalizeIncomingSchemas(
+    private EventReportSectionSchema[] NormalizeIncomingSchemas(
         IReadOnlyList<EventReportSectionSchema> schemas) {
 
         var normalized = new List<EventReportSectionSchema>(schemas.Count);
@@ -39,7 +39,7 @@ public sealed partial class EventStore {
         return normalized.ToArray();
     }
 
-    private static void ValidateSchema(EventReportSectionSchema schema) {
+    private void ValidateSchema(EventReportSectionSchema schema) {
         if (string.IsNullOrWhiteSpace(schema.Name)) {
             throw new InvalidDataException("Incoming report contains a schema without a name.");
         }
@@ -132,13 +132,13 @@ public sealed partial class EventStore {
         };
     }
 
-    private static EventReportSectionSchema DeserializeStoredSchema(StoredDefinitionSchema definition) {
+    private EventReportSectionSchema DeserializeStoredSchema(StoredDefinitionSchema definition) {
         return DeserializeStoredSchema(definition.Name, definition.Json);
     }
 
-    private static EventReportSectionSchema DeserializeStoredSchema(string definitionName, string json) {
+    private EventReportSectionSchema DeserializeStoredSchema(string definitionName, string json) {
         try {
-            EventReportSectionSchema? schema = JsonSerializer.Deserialize<EventReportSectionSchema>(
+            EventReportSectionSchema? schema = EventJson.Deserialize<EventReportSectionSchema>(
                 json,
                 JsonOptions);
             if (schema == null) {
@@ -168,7 +168,7 @@ public sealed partial class EventStore {
                 column.DisplayName = string.IsNullOrWhiteSpace(column.DisplayName)
                     ? column.Name
                     : column.DisplayName.Trim();
-                column.ValueTypeName = EventReportColumnSchema.NormalizeValueTypeName(column.ValueTypeName);
+                column.ValueTypeName = _serialization.NormalizeTypeName(column.ValueTypeName);
                 column.Aliases = (column.Aliases ?? Array.Empty<string>())
                     .Where(static alias => !string.IsNullOrWhiteSpace(alias))
                     .Select(static alias => alias.Trim())
@@ -187,15 +187,15 @@ public sealed partial class EventStore {
         }
     }
 
-    private static string CreateSchemaHash(EventReportSectionSchema schema) {
+    private string CreateSchemaHash(EventReportSectionSchema schema) {
         if (schema.Kind == EventReportSectionKind.Generic) {
             return "generic-dynamic-v1";
         }
         string identity = string.Join("\0", new[] {
             ((int)schema.Kind).ToString(CultureInfo.InvariantCulture)
-        }.Concat(schema.Columns.SelectMany(static column => new[] {
+        }.Concat(schema.Columns.SelectMany(column => new[] {
             column.Name,
-            EventReportColumnSchema.NormalizeValueTypeName(column.ValueTypeName),
+            _serialization.NormalizeTypeName(column.ValueTypeName),
             string.Join(",", (column.Aliases ?? Array.Empty<string>())
                 .OrderBy(static alias => alias, StringComparer.OrdinalIgnoreCase))
         })));
@@ -204,9 +204,9 @@ public sealed partial class EventStore {
         return string.Concat(hash.Select(static value => value.ToString("x2", CultureInfo.InvariantCulture)));
     }
 
-    private static bool HasEquivalentSchema(string json, string expectedHash) {
+    private bool HasEquivalentSchema(string json, string expectedHash) {
         try {
-            EventReportSectionSchema? schema = JsonSerializer.Deserialize<EventReportSectionSchema>(json, JsonOptions);
+            EventReportSectionSchema? schema = EventJson.Deserialize<EventReportSectionSchema>(json, JsonOptions);
             return schema != null &&
                    string.Equals(CreateSchemaHash(schema), expectedHash, StringComparison.Ordinal);
         } catch (JsonException) {

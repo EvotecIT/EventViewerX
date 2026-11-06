@@ -79,8 +79,8 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "DocumentFormat.OpenXml": {
         "type": "Transitive",
@@ -549,7 +549,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )"
         }
@@ -557,11 +557,11 @@
       "eventviewerx.cli": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
-          "EventViewerX.Detection": "[4.0.1, )",
-          "EventViewerX.Evtx": "[4.0.1, )",
-          "EventViewerX.Reporting": "[4.0.1, )",
-          "EventViewerX.Storage": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
+          "EventViewerX.Detection": "[4.0.2, )",
+          "EventViewerX.Evtx": "[4.0.2, )",
+          "EventViewerX.Reporting": "[4.0.2, )",
+          "EventViewerX.Storage": "[4.0.2, )",
           "Mailozaurr": "[3.0.5, )",
           "System.Security.Cryptography.Pkcs": "[10.0.14, )"
         }
@@ -569,7 +569,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }
@@ -577,14 +577,14 @@
       "eventviewerx.evtx": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "evtx": "[1.5.2, )"
         }
       },
       "eventviewerx.reporting": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "HtmlForgeX": "[1.4.0, )",
           "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
@@ -595,7 +595,7 @@
         "type": "Project",
         "dependencies": {
           "DBAClientX.SQLite": "[1.0.8, )",
-          "EventViewerX": "[4.0.1, )"
+          "EventViewerX": "[4.0.2, )"
         }
       }
     },
@@ -654,8 +654,8 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "DocumentFormat.OpenXml": {
         "type": "Transitive",
@@ -876,7 +876,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )",
           "System.Threading.AccessControl": "[10.0.11, )"
@@ -885,7 +885,7 @@
       "eventviewerx.detection": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "JsonSchema.Net": "[9.4.0, )",
           "YamlDotNet": "[18.1.0, )"
         }
@@ -893,7 +893,7 @@
       "eventviewerx.reporting": {
         "type": "Project",
         "dependencies": {
-          "EventViewerX": "[4.0.1, )",
+          "EventViewerX": "[4.0.2, )",
           "HtmlForgeX": "[1.4.0, )",
           "HtmlForgeX.Email": "[2.0.0, )",
           "OfficeIMO.CSV": "[3.2.4, )",
@@ -904,7 +904,7 @@
         "type": "Project",
         "dependencies": {
           "DBAClientX.SQLite": "[1.0.8, )",
-          "EventViewerX": "[4.0.1, )"
+          "EventViewerX": "[4.0.2, )"
         }
       }
     }

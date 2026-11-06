@@ -114,6 +114,9 @@ public sealed class ResolvedManifestEventWriter : IDisposable {
     /// names. Use <see cref="EventProviderPayloadFieldAttribute"/> to override
     /// names and stable ordering.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+#endif
     public ManifestEventWriteResult Write<TPayload>(
         TPayload payload) {
 

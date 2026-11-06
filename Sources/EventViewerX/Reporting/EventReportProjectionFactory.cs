@@ -300,6 +300,12 @@ internal static class EventReportProjectionFactory {
     }
 
     internal static EventReportSectionDefinition Create(
+
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
         Type recordType,
         EventTypeDefinition definition) => GetTypedPlan(recordType, definition).Section;
 
@@ -388,7 +394,13 @@ internal static class EventReportProjectionFactory {
         return row;
     }
 
-    private static TypedProjectionPlan BuildPlan(Type recordType, EventTypeDefinition definition) {
+    private static TypedProjectionPlan BuildPlan(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type recordType, EventTypeDefinition definition) {
         ReportMember[] members = BuildMembers(recordType);
         var fields = definition.Fields.ToDictionary(static field => field.Name, StringComparer.OrdinalIgnoreCase);
         EventReportColumn[] columns = members.Select(member => new EventReportColumn(
@@ -407,30 +419,42 @@ internal static class EventReportProjectionFactory {
         return new TypedProjectionPlan(members, section);
     }
 
-    private static TypedProjectionPlan GetTypedPlan(Type recordType, EventTypeDefinition definition) =>
+    private static TypedProjectionPlan GetTypedPlan(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type recordType, EventTypeDefinition definition) =>
         TypedPlans.GetOrAdd(
             (recordType, definition.Type),
             _ => BuildPlan(recordType, definition));
 
-    private static ReportMember[] BuildMembers(Type recordType) {
-        var hierarchy = new Stack<Type>();
-        for (Type? type = recordType;
-             type != null && type != typeof(EventRuleBase) && type != typeof(EventTypeRecord);
-             type = type.BaseType) {
-            hierarchy.Push(type);
+    private static ReportMember[] BuildMembers(
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties |
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
+#endif
+        Type recordType) {
+        if (recordType == typeof(EventRuleBase) || recordType == typeof(EventTypeRecord)) {
+            return Array.Empty<ReportMember>();
         }
-        var members = new List<ReportMember>();
-        while (hierarchy.Count > 0) {
-            Type type = hierarchy.Pop();
-            IEnumerable<MemberInfo> declared = type
-                .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
-                .Where(static member => member is FieldInfo || member is PropertyInfo)
-                .Where(static member => !RoutingMembers.Contains(member.Name))
-                .Where(static member => member is not PropertyInfo property ||
-                    property.CanRead && property.GetIndexParameters().Length == 0)
-                .OrderBy(static member => member.MetadataToken);
-            members.AddRange(declared.Select(static member => new ReportMember(member)));
-        }
+        var members = recordType.BaseType == null
+            ? new List<ReportMember>()
+            : BuildMembers(recordType.BaseType).ToList();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
+        IEnumerable<MemberInfo> declared = recordType.GetFields(flags).Cast<MemberInfo>()
+            .Concat(recordType.GetProperties(flags))
+            .Where(static member => !RoutingMembers.Contains(member.Name))
+            .Where(static member => member is not PropertyInfo property ||
+                property.CanRead && property.GetIndexParameters().Length == 0)
+#if NET8_0_OR_GREATER
+            .OrderBy(static member => member.HasMetadataToken() ? member.MetadataToken : 0);
+#else
+            .OrderBy(static member => member.MetadataToken);
+#endif
+        members.AddRange(declared.Select(static member => new ReportMember(member)));
         return members
             .GroupBy(static member => member.Name, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.Last())

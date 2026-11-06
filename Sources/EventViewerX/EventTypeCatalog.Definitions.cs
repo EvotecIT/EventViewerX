@@ -141,8 +141,7 @@ public static partial class EventTypeCatalog {
 
     /// <summary>Returns every built-in leaf and composite event definition.</summary>
     public static IReadOnlyList<EventTypeDefinition> GetDefinitions() {
-        return Enum.GetValues(typeof(EventType))
-            .Cast<EventType>()
+        return EventEnum.GetValues<EventType>()
             .Select(GetDefinition)
             .ToArray();
     }

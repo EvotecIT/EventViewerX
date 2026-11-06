@@ -1,0 +1,1 @@
+The plan and pack fixtures were written by the published EventViewerX 4.0.2 package through EventDetectionPlan.ToJson and EventDetectionPack.ToJson. They retain the original string selectors and integrity values. The native smoke restores and validates them to protect serialized compatibility across the source-generated JSON transition.

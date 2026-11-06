@@ -192,7 +192,7 @@ public sealed partial class EventStore {
                     Detail = string.Empty
                 };
             }).ToArray();
-        return EventReportEngine.CreateStored(
+        return EventReportEngine.CreateStoredCore(_serialization.ResolveType,
             rows, schemas, title, coverage,
             eventsScanned: result.EventsScanned,
             scanLimitReached: result.ScanLimitReached,
@@ -218,7 +218,7 @@ public sealed partial class EventStore {
         return remaining == long.MaxValue ? long.MaxValue : remaining + 1L;
     }
 
-    private static QueryCommand BuildReadCommand(
+    private QueryCommand BuildReadCommand(
         EventStoreQuery query,
         PredicatePushdownPolicy pushdown,
         string? cursorTime = null,
@@ -250,7 +250,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         return new QueryCommand(sql, filter.Parameters, candidateLimit);
     }
 
-    private static WhereCommand BuildWhere(
+    private WhereCommand BuildWhere(
         EventStoreQuery query,
         bool includePredicateNative,
         PredicatePushdownPolicy? pushdown = null) {
@@ -290,7 +290,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         return new WhereCommand(where, parameters);
     }
 
-    private static async Task<StoredSchemaContext> ReadSchemaContextAsync(
+    private async Task<StoredSchemaContext> ReadSchemaContextAsync(
         SQLiteAsyncSession session,
         IReadOnlyList<string> definitionNames,
         IReadOnlyList<EventReportSectionSchema>? suppliedSchemas,
@@ -306,7 +306,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         sql += ";";
         IReadOnlyList<EventReportSectionSchema> loadedSchemas = await session.QueryAsListAsync(
             sql,
-            static record => DeserializeStoredSchema(record.GetString(0), record.GetString(1)),
+            record => DeserializeStoredSchema(record.GetString(0), record.GetString(1)),
             parameters,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         var schemas = loadedSchemas
@@ -365,10 +365,10 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             : new PredicatePushdownPolicy(schemas
                 .SelectMany(static schema => schema.Columns)
                 .Select(static column => column.Name));
-        return new StoredSchemaContext(schemas, pushdown);
+        return new StoredSchemaContext(schemas, pushdown, CreateDeclaredTypes);
     }
 
-    private static EventReportRow MapEventRow(
+    private EventReportRow MapEventRow(
         IDataRecord record,
         StoredSchemaContext context) {
 
@@ -423,12 +423,12 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             $"Stored field '{definitionName}.{fieldName}' is not a valid GUID.");
     }
 
-    private static IReadOnlyDictionary<string, object?> DeserializeValues(
+    private IReadOnlyDictionary<string, object?> DeserializeValues(
         string json,
         EventReportSectionSchema? schema,
         IReadOnlyDictionary<string, Type>? declaredTypes) {
 
-        Dictionary<string, JsonElement>? values = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, JsonOptions);
+        Dictionary<string, JsonElement>? values = EventJson.Deserialize<Dictionary<string, JsonElement>>(json, JsonOptions);
         if (values == null) {
             return new Dictionary<string, object?>();
         }
@@ -447,7 +447,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         return result;
     }
 
-    private static IReadOnlyDictionary<string, Type> CreateDeclaredTypes(EventReportSectionSchema? schema) {
+    private IReadOnlyDictionary<string, Type> CreateDeclaredTypes(EventReportSectionSchema? schema) {
         if (schema == null) {
             return new Dictionary<string, Type>();
         }
@@ -459,12 +459,12 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             }
             result.Add(
                 column.Name,
-                EventReportColumnSchema.ResolveValueTypeName(column.ValueTypeName));
+                _serialization.ResolveType(column.ValueTypeName));
         }
         return result;
     }
 
-    private static EventPredicate? NormalizeStoredPredicate(
+    private EventPredicate? NormalizeStoredPredicate(
         EventPredicate? predicate,
         IReadOnlyList<EventReportSectionSchema> schemas) {
 
@@ -484,10 +484,10 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
                 : null;
         return schema == null || schema.Kind == EventReportSectionKind.Generic
             ? predicate
-            : schema.CreatePredicateBuilder().Normalize(predicate);
+            : schema.CreateKnownPredicateBuilder(_serialization.ResolveType).Normalize(predicate);
     }
 
-    private static object? ConvertDeclaredJson(
+    private object? ConvertDeclaredJson(
         JsonElement value,
         Type declaredType,
         string definitionName,
@@ -497,7 +497,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
             return null;
         }
         try {
-            return JsonSerializer.Deserialize(value.GetRawText(), declaredType, JsonOptions);
+            return _serialization.DeserializeValue(value.GetRawText(), declaredType);
         } catch (JsonException exception) {
             throw new InvalidDataException(
                 $"Stored field '{definitionName}.{fieldName}' cannot be restored as '{declaredType.FullName}'.",
@@ -563,7 +563,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         parameters[parameter] = value;
     }
 
-    private static void AddIn<T>(
+    private void AddIn<T>(
         ICollection<string> where,
         IDictionary<string, object?> parameters,
         string column,
@@ -578,12 +578,12 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
         if (parameters.ContainsKey(parameter)) {
             throw new InvalidOperationException($"Stored selector parameter '{parameter}' is already defined.");
         }
-        parameters[parameter] = JsonSerializer.Serialize(values, JsonOptions);
+        parameters[parameter] = EventJson.Serialize(values, JsonOptions);
         string expression = caseInsensitive ? $"{column} COLLATE NOCASE" : column;
         where.Add($"{expression} IN (SELECT value FROM json_each({parameter}))");
     }
 
-    private static void AddSqliteNoCaseIn(
+    private void AddSqliteNoCaseIn(
         ICollection<string> where,
         IDictionary<string, object?> parameters,
         string column,
@@ -681,7 +681,8 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
     private sealed class StoredSchemaContext {
         internal StoredSchemaContext(
             IReadOnlyList<EventReportSectionSchema> schemas,
-            PredicatePushdownPolicy pushdown) {
+            PredicatePushdownPolicy pushdown,
+            Func<EventReportSectionSchema?, IReadOnlyDictionary<string, Type>> createDeclaredTypes) {
 
             Schemas = schemas;
             Pushdown = pushdown;
@@ -690,7 +691,7 @@ observation_identity, received_time_utc, processed_time_utc, inserted_utc" +
                 StringComparer.OrdinalIgnoreCase);
             DeclaredTypes = schemas.ToDictionary(
                 static schema => schema.Name,
-                static schema => CreateDeclaredTypes(schema),
+                schema => createDeclaredTypes(schema),
                 StringComparer.OrdinalIgnoreCase);
         }
 

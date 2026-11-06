@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Json.Schema;
 using YamlDotNet.RepresentationModel;
 
@@ -20,8 +21,8 @@ public static class SigmaSchemaCatalog {
     public static string GetSchema(bool correlation) => correlation ? CorrelationSchemaJson : DetectionSchemaJson;
 
     internal static bool Validate(YamlMappingNode root, bool correlation) {
-        object? instance = ConvertNode(root);
-        JsonElement json = JsonSerializer.SerializeToElement(instance);
+        using JsonDocument document = JsonDocument.Parse(ConvertNode(root)?.ToJsonString() ?? "null");
+        JsonElement json = document.RootElement;
         EvaluationResults result = (correlation ? CorrelationSchema : DetectionSchema).Evaluate(json);
         return result.IsValid;
     }
@@ -38,42 +39,43 @@ public static class SigmaSchemaCatalog {
         return reader.ReadToEnd();
     }
 
-    private static object? ConvertNode(YamlNode node) {
+    private static JsonNode? ConvertNode(YamlNode node) {
         if (node is YamlMappingNode mapping) {
-            var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            var result = new JsonObject(new JsonNodeOptions { PropertyNameCaseInsensitive = true });
             foreach (KeyValuePair<YamlNode, YamlNode> item in mapping.Children) {
                 if (item.Key is not YamlScalarNode scalarKey || string.IsNullOrWhiteSpace(scalarKey.Value)) {
                     throw new InvalidDataException("YAML mapping keys must be non-empty scalar strings.");
                 }
                 string key = scalarKey.Value!;
-                if (!result.TryAdd(key, ConvertNode(item.Value))) {
+                if (result.ContainsKey(key)) {
                     throw new InvalidDataException(
                         $"YAML mapping key '{key}' is duplicated when compared case-insensitively.");
                 }
+                result.Add(key, ConvertNode(item.Value));
             }
             return result;
         }
         if (node is YamlSequenceNode sequence) {
-            return sequence.Children.Select(ConvertNode).ToArray();
+            return new JsonArray(sequence.Children.Select(ConvertNode).ToArray());
         }
         if (node is not YamlScalarNode scalar) {
             return null;
         }
         string value = scalar.Value ?? string.Empty;
         if (scalar.Style != YamlDotNet.Core.ScalarStyle.Plain) {
-            return value;
+            return JsonValue.Create(value);
         }
         if (string.Equals(value, "null", StringComparison.OrdinalIgnoreCase) || value == "~") {
             return null;
         }
         if (bool.TryParse(value, out bool boolean)) {
-            return boolean;
+            return JsonValue.Create(boolean);
         }
         if (long.TryParse(value, System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out long integer)) {
-            return integer;
+            return JsonValue.Create(integer);
         }
-        return value;
+        return JsonValue.Create(value);
     }
 
 }

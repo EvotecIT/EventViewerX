@@ -42,8 +42,7 @@ public static class EventAnalysisContractCatalog {
 
     private static readonly IReadOnlyDictionary<EventAnalysisContractKind, EventAnalysisContractDescriptor> Contracts =
         new ReadOnlyDictionary<EventAnalysisContractKind, EventAnalysisContractDescriptor>(
-            Enum.GetValues(typeof(EventAnalysisContractKind))
-                .Cast<EventAnalysisContractKind>()
+            EventEnum.GetValues<EventAnalysisContractKind>()
                 .ToDictionary(
                     static kind => kind,
                     static kind => new EventAnalysisContractDescriptor(kind, CurrentSchemaVersion, CreateSchema(kind))));
@@ -101,6 +100,6 @@ public static class EventAnalysisContractCatalog {
             ["properties"] = properties,
             ["additionalProperties"] = true
         };
-        return JsonSerializer.Serialize(schema, new JsonSerializerOptions { WriteIndented = true });
+        return EventJson.Serialize(schema, new JsonSerializerOptions { WriteIndented = true });
     }
 }

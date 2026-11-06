@@ -31,7 +31,7 @@ public static partial class EventEvidenceBundle {
                 throw new InvalidDataException("Unsupported evidence schema or invalid completion evidence.");
             }
             ValidateSummary(json.RootElement.GetProperty("Summary"));
-            manifest = JsonSerializer.Deserialize<EventEvidenceBundleManifest>(json.RootElement.GetRawText())
+            manifest = EventJson.Deserialize<EventEvidenceBundleManifest>(json.RootElement.GetRawText())
                 ?? throw new InvalidDataException("The evidence manifest is empty.");
         } catch (Exception exception) when (exception is JsonException || exception is KeyNotFoundException || exception is InvalidOperationException || exception is FormatException) {
             throw new InvalidDataException("The evidence manifest is invalid.", exception);

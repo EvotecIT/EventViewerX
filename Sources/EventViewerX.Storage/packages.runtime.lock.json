@@ -16,9 +16,9 @@
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "vHPomsJPqUvf1ExdzCCSEUMQqloONPTBMGqNqBUdr4UgSTs9bCzH1oLkuS6WgUgIu+xqWngQbjelUBNlDuzLWQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "HCu9NbiXDh9++j4eRNRHCOiKPw/7I5UEJlFIRaDM3v0+ttZaH8p8rjxSWfNgP2cGv5JAa4EZnmc/nlcUOTFlpA==",
         "dependencies": {
           "System.Threading.Tasks.Extensions": "4.6.3"
         }
@@ -43,11 +43,11 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw==",
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg==",
         "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "10.0.10",
-          "System.Text.Json": "10.0.10"
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.14",
+          "System.Text.Json": "10.0.14"
         }
       },
       "Microsoft.Data.Sqlite": {
@@ -154,8 +154,8 @@
       },
       "System.IO.Pipelines": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "5e8M112rzbW5xKNXKipNFoTgM330QS6S6+UA6CaDyr/KDrow8bzfvOPFA4S05QC3n/m096oj+pfttvme6I0YyA==",
+        "resolved": "10.0.14",
+        "contentHash": "pLVClkIC4XfXhcOQXNtNDJl5LYJOS4XAQAdzbqF8rj6sk2zdXO/5uikBsZqgqnAAb07z9Fmtu0sMj3TwEiBtIw==",
         "dependencies": {
           "System.Buffers": "4.6.1",
           "System.Memory": "4.6.3",
@@ -197,8 +197,8 @@
       },
       "System.Text.Encodings.Web": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "5wdXVVbJ5TH6YdKJYM0CHvQOY6SiCCeQ3KyLRx9daWag0cT9g4FT5CGN2qCNWbHZkqaCOEPRiA0uCBARB5Vk7w==",
+        "resolved": "10.0.14",
+        "contentHash": "+aDpFLtsHyft9ZVx9pZQ9MILqwrr8LK1te1L39VMKQYhoYDbs+RUqBhCT3Zydb5ymi2Buo4Cn+3Wi208IxD6rw==",
         "dependencies": {
           "System.Buffers": "4.6.1",
           "System.Memory": "4.6.3",
@@ -207,15 +207,15 @@
       },
       "System.Text.Json": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "AHlVpUiY96eC6Oar1Gf0YbafU7E2NUU9D80O2Xk5v7ryL3kpSsbI0EusJBE8kQfwPuDdUDoKUItArzXQHxomCg==",
+        "resolved": "10.0.14",
+        "contentHash": "JSSLGJTJJDvS76VnLdY1X289rFcHuYApk7QGw0hCoP5wVR1mk7BvJbOYxQLXq4x1qK/Ml9OHa/AKaAbBVCfSSQ==",
         "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "10.0.12",
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.14",
           "System.Buffers": "4.6.1",
-          "System.IO.Pipelines": "10.0.12",
+          "System.IO.Pipelines": "10.0.14",
           "System.Memory": "4.6.3",
           "System.Runtime.CompilerServices.Unsafe": "6.1.2",
-          "System.Text.Encodings.Web": "10.0.12",
+          "System.Text.Encodings.Web": "10.0.14",
           "System.Threading.Tasks.Extensions": "4.6.3",
           "System.ValueTuple": "4.6.2"
         }
@@ -245,11 +245,11 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
-          "Microsoft.Bcl.AsyncInterfaces": "[10.0.12, )",
+          "DnsClientX": "[2.3.0, )",
+          "Microsoft.Bcl.AsyncInterfaces": "[10.0.14, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )",
-          "System.Text.Json": "[10.0.12, )",
+          "System.Text.Json": "[10.0.14, )",
           "System.Threading.Channels": "[10.0.11, )",
           "System.Threading.Tasks.Extensions": "[4.6.3, )"
         }
@@ -442,6 +442,12 @@
           "SQLitePCLRaw.core": "3.0.5"
         }
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "xi+BDjFpW+Sb+MHFHaH6Y/gV9I8BluFwRXc1QyCdoZbIK26eNiBeFuMTe/FMwc33G1wdHCyDg7CVTmb8OdQrMQ=="
+      },
       "DBAClientX.Core": {
         "type": "Transitive",
         "resolved": "1.0.8",
@@ -449,8 +455,8 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
@@ -518,7 +524,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )"
         }
@@ -639,6 +645,12 @@
           "SQLitePCLRaw.core": "3.0.5"
         }
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.31, )",
+        "resolved": "8.0.31",
+        "contentHash": "OJdAGATV2QoVWL11zlDLEluA06q8rK+cgZR47ohrO8V+Qj5z9dlvN7bG9/0e5t0IOe+yD8tREC0bpsEgDGrzIQ=="
+      },
       "DBAClientX.Core": {
         "type": "Transitive",
         "resolved": "1.0.8",
@@ -649,8 +661,8 @@
       },
       "DnsClientX": {
         "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "Pp57zl3zJHkB1MMiVApLZuksJitylTQ1baThYTScU8DR9uh8iPqskFj6HNsSEKlW/vJnTvnWwu5zuouAFxEBNw=="
+        "resolved": "2.3.0",
+        "contentHash": "7b58DAkEgVYHPlKwAXuW0LHhXyX6T4zo0yMd15k4gW4WdAXuWdokjCuqU4KyIZtvaseA2Lm9PDqIisP9ggWRQg=="
       },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
@@ -728,7 +740,7 @@
       "eventviewerx": {
         "type": "Project",
         "dependencies": {
-          "DnsClientX": "[2.1.0, )",
+          "DnsClientX": "[2.3.0, )",
           "System.Diagnostics.EventLog": "[10.0.11, )",
           "System.DirectoryServices": "[10.0.11, )",
           "System.Threading.AccessControl": "[10.0.11, )"

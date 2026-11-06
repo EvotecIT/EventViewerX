@@ -9,6 +9,10 @@ public sealed partial class EventPredicate {
     /// Translates a restricted strongly typed C# expression into the shared serializable predicate model.
     /// Arbitrary method calls are rejected rather than executed.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime collection comparers require preserved reflection metadata. Construct EventPredicate comparisons directly for Native AOT.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Runtime collection comparer types may require generic instantiations unavailable to Native AOT. Construct EventPredicate comparisons directly.")]
+#endif
     public static EventPredicate FromExpression<TRecord>(
         Expression<Func<TRecord, bool>> expression) where TRecord : EventTypeRecord {
 
@@ -20,6 +24,10 @@ public sealed partial class EventPredicate {
         return predicate;
     }
 
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime collection comparers require preserved reflection metadata. Construct EventPredicate comparisons directly for Native AOT.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Runtime collection comparer types may require generic instantiations unavailable to Native AOT. Construct EventPredicate comparisons directly.")]
+#endif
     private static class ExpressionTranslator {
         internal static EventPredicate Translate(Expression expression, ParameterExpression parameter) {
             expression = StripConvert(expression);

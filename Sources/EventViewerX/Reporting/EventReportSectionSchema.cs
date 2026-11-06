@@ -49,6 +49,10 @@ public sealed class EventReportSectionSchema {
         FromDefinition(EventReportProjectionFactory.CreateGenericDefinition());
 
     /// <summary>Creates a predicate builder for this detached schema.</summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Persisted CLR schemas may refer to types that trimming removes. Use live typed or declarative reports in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Persisted CLR schemas may require generic or array instantiations unavailable to Native AOT.")]
+#endif
     public EventPredicateBuilder CreatePredicateBuilder() => EventPredicateBuilder.ForFields(
         Name,
         Columns.Select(static column => new KeyValuePair<string, Type>(
@@ -59,6 +63,12 @@ public sealed class EventReportSectionSchema {
             static column => column.Name,
             static column => column.Aliases ?? Array.Empty<string>(),
             StringComparer.OrdinalIgnoreCase));
+
+    internal EventPredicateBuilder CreateKnownPredicateBuilder(Func<string?, Type> resolveType) =>
+        EventPredicateBuilder.ForKnownFields(Name,
+            Columns.Select(column => new KeyValuePair<string, Type>(column.Name, resolveType(column.ValueTypeName))),
+            DisplayName, Columns.ToDictionary(static column => column.Name,
+                static column => column.Aliases ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase));
 
     private static EventReportSectionSchema FromDefinition(EventReportSectionDefinition definition) => new() {
         Name = definition.Name,

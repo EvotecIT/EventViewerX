@@ -13,7 +13,8 @@ internal sealed class EvtxTemplateXmlRenderer {
     private const int MaximumTokens = 100_000;
     private const int MaximumXmlCharacters = 4 * 1024 * 1024;
     private static readonly UnicodeEncoding Unicode = new(false, false, true);
-    private static readonly ConcurrentDictionary<Type, TemplateAccess> Accessors = new();
+    private static readonly TemplateAccess TemplateAccessor = new(
+        Type.GetType("evtx.Tags.TemplateInstance, evtx", throwOnError: true)!);
     private static readonly FieldInfo ChunkField = typeof(OpenStartElementTag).GetField("_chunk", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidDataException("The pinned parser does not expose its node chunk context.");
     private Template _currentTemplate = null!;
@@ -28,7 +29,7 @@ internal sealed class EvtxTemplateXmlRenderer {
         IBinXml instance = record.Nodes.SingleOrDefault(static node =>
             node.TagType == TagBuilder.BinaryTag.TemplateInstance)
             ?? throw new InvalidDataException("The EVTX record does not contain a template instance.");
-        TemplateAccess access = Accessors.GetOrAdd(instance.GetType(), static type => new TemplateAccess(type));
+        TemplateAccess access = TemplateAccessor;
         var template = access.Template.GetValue(instance) as Template
             ?? throw new InvalidDataException("The parser's template property is unavailable.");
         var entries = access.Entries.GetValue(instance) as List<SubstitutionArrayEntry>
@@ -72,7 +73,7 @@ internal sealed class EvtxTemplateXmlRenderer {
         // TemplateInstance is internal in the pinned parser; its two public
         // properties expose the existing parsed template and raw substitutions.
         // Validate that shape explicitly rather than falling back to lossy XML.
-        TemplateAccess access = Accessors.GetOrAdd(instance.GetType(), static type => new TemplateAccess(type));
+        TemplateAccess access = TemplateAccessor;
         var template = access.Template.GetValue(instance) as Template
             ?? throw new InvalidDataException("The parser's template property is unavailable.");
         var entries = access.Entries.GetValue(instance) as List<SubstitutionArrayEntry>
@@ -283,7 +284,11 @@ internal sealed class EvtxTemplateXmlRenderer {
         : throw new InvalidDataException($"Undeclared XML namespace prefix '{prefix}'.");
 
     private sealed class TemplateAccess {
-        internal TemplateAccess(Type type) {
+        internal TemplateAccess(
+#if NET8_0_OR_GREATER
+            [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
+            Type type) {
             Template = type.GetProperty("Template") ?? throw new InvalidDataException("The parser does not expose its template.");
             Entries = type.GetProperty("SubstitutionEntries") ?? throw new InvalidDataException("The parser does not expose raw substitutions.");
         }

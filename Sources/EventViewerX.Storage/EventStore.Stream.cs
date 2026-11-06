@@ -108,7 +108,7 @@ public sealed partial class EventStore {
                 if (!schemaContext.ByName.TryGetValue(row.Type, out EventReportSectionSchema? schema)) {
                     throw new InvalidDataException($"Stored row type '{row.Type}' has no persisted schema.");
                 }
-                EventReportEngine.NormalizeStoredRow(row, schema);
+                EventReportEngine.NormalizeStoredRowCore(row, schema, _serialization.ResolveType);
                 await onRow(row, cancellationToken).ConfigureAwait(false);
                 delivered++;
                 return true;

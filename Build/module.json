@@ -4,7 +4,7 @@
     "Name": "PSEventViewer",
     "SourcePath": "..",
     "SkipDotNetBuild": false,
-    "Version": "4.0.X",
+    "Version": "4.1.X",
     "Configuration": "Release",
     "Frameworks": [],
     "NuGetRestoreSources": [],
@@ -61,7 +61,7 @@
     {
       "Type": "Manifest",
       "Configuration": {
-        "ModuleVersion": "4.0.X",
+        "ModuleVersion": "4.1.X",
         "CompatiblePSEditions": [
           "Desktop",
           "Core"

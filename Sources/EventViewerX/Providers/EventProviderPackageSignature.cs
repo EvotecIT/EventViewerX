@@ -93,7 +93,7 @@ internal static class EventProviderPackageSignature {
         string signature = manifest.Signature;
         try {
             manifest.Signature = string.Empty;
-            return JsonSerializer.SerializeToUtf8Bytes(
+            return EventJson.SerializeToUtf8Bytes(
                 manifest,
                 EventProviderDefinitionJson.SerializerOptions);
         } finally {

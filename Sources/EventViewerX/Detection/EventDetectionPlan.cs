@@ -79,11 +79,11 @@ public sealed partial class EventDetectionPlan {
         RequiredEventTypes);
 
     private static string ComputePlanHash(IReadOnlyList<CompiledRule> rules) {
-        byte[] payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
+        byte[] payload = Encoding.UTF8.GetBytes(EventJson.Serialize(new PlanHashJsonDocument {
             SchemaVersion = EventAnalysisContractCatalog.CurrentSchemaVersion,
             Rules = rules.Select(static rule => rule.Definition).ToArray(),
-            Suppressions = rules.Select(static rule => new {
-                rule.Definition.RuleId,
+            Suppressions = rules.Select(static rule => new SuppressionHashJsonDocument {
+                RuleId = rule.Definition.RuleId,
                 Values = rule.SuppressionDefinitions
             }).ToArray()
         }));

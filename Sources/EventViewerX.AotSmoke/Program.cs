@@ -1,8 +1,5 @@
 using EventViewerX;
 
-EventTypeCatalog.RegisterBuiltInRules();
-EventTypeCatalog.Configure(EventRuleDiscoveryMode.ExplicitOnly);
-
 EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
 EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
 if (leaves.Length != 90 || leaves.Any(static definition =>
@@ -24,4 +21,7 @@ if (!entraConnectQuery.Contains("Provider[@Name='Directory Synchronization']", S
     throw new InvalidOperationException("Explicit provider metadata was not retained in the typed query.");
 }
 
-Console.WriteLine($"EventViewerX NativeAOT explicit catalog: {leaves.Length} leaf definitions.");
+Console.WriteLine($"EventViewerX NativeAOT default catalog: {leaves.Length} leaf definitions.");
+
+LegacyJsonSmoke.Run();
+await CrashSmoke.RunAsync();

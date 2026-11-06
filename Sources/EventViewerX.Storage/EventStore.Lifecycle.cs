@@ -172,7 +172,7 @@ public sealed partial class EventStore {
                     new Dictionary<string, object?> { ["$destination"] = pending },
                     cancellationToken).ConfigureAwait(false);
             }
-            EventStoreIntegrityResult integrity = await new EventStore(pending)
+            EventStoreIntegrityResult integrity = await new EventStore(pending, _serialization)
                 .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
             if (!integrity.IsHealthy) {
                 throw new InvalidDataException(
@@ -228,7 +228,7 @@ public sealed partial class EventStore {
                 backup,
                 pending,
                 cancellationToken).ConfigureAwait(false);
-            EventStoreIntegrityResult backupIntegrity = await new EventStore(pending)
+            EventStoreIntegrityResult backupIntegrity = await new EventStore(pending, _serialization)
                 .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
             if (!backupIntegrity.IsHealthy) {
                 throw new InvalidDataException(
@@ -239,7 +239,7 @@ public sealed partial class EventStore {
                     Path,
                     recovery,
                     cancellationToken).ConfigureAwait(false);
-                EventStoreIntegrityResult recoveryIntegrity = await new EventStore(recovery)
+                EventStoreIntegrityResult recoveryIntegrity = await new EventStore(recovery, _serialization)
                     .CheckIntegrityAsync(cancellationToken).ConfigureAwait(false);
                 if (!recoveryIntegrity.IsHealthy) {
                     throw new InvalidDataException(

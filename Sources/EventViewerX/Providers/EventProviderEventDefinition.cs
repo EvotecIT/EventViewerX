@@ -68,7 +68,11 @@ public sealed class EventProviderEventDefinition {
     /// <summary>
     /// Creates an event whose ordered fields are inferred from a typed payload.
     /// </summary>
-    public static EventProviderEventDefinition FromType<TPayload>(
+    public static EventProviderEventDefinition FromType<
+#if NET8_0_OR_GREATER
+        [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
+        TPayload>(
         string name,
         int id,
         string channel,

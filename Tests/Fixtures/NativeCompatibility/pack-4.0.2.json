@@ -1,0 +1,51 @@
+{
+  "contentHash": "5B1B70F973944D186EE8BF5AE62F0668EC044730962818CC4FAC86601C9FB125",
+  "signatureAlgorithm": "",
+  "signature": "",
+  "packId": "EVX-LEGACY",
+  "version": "1.0.0",
+  "minimumEngineVersion": "4.0.0",
+  "observationSchemaVersion": "1.0.0",
+  "authors": [
+    "EventViewerX"
+  ],
+  "license": "MIT",
+  "createdUtc": "2026-11-05T00:00:00Z",
+  "rules": [
+    {
+      "ruleId": "EVX-LEGACY-BUGCHECK",
+      "version": "1.0.0",
+      "packId": "EVX-LEGACY",
+      "packVersion": "1.0.0",
+      "sourceKind": "Native",
+      "sourceId": "EVX-LEGACY-BUGCHECK",
+      "sourceStatus": "",
+      "sourceHash": "88C6F279F49309DE28F1E04F939B97E108D873184FA401A28DE5306DDD6DF7D0",
+      "license": "MIT",
+      "title": "Legacy bugcheck selector",
+      "description": "",
+      "severity": "Medium",
+      "confidence": 50,
+      "kind": "Stateless",
+      "eventTypes": [
+        "OSBugCheck"
+      ],
+      "eventIds": [
+        1001
+      ],
+      "channels": [
+        "System"
+      ],
+      "providers": [],
+      "predicate": null,
+      "threshold": 1,
+      "window": "00:05:00",
+      "groupBy": null,
+      "distinctBy": null,
+      "steps": [],
+      "tags": [],
+      "falsePositives": [],
+      "references": []
+    }
+  ]
+}

@@ -13,12 +13,11 @@ public sealed partial class EventStore {
     private bool _initialized;
 
     /// <summary>Creates a local event store for one SQLite database path.</summary>
-    public EventStore(string path) {
-        if (string.IsNullOrWhiteSpace(path)) {
-            throw new ArgumentException("Store path cannot be empty.", nameof(path));
-        }
-        Path = System.IO.Path.GetFullPath(path);
-    }
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Arbitrary stored CLR values require preserved JSON metadata. Supply generated value contracts to the EventStore constructor for Native AOT.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Arbitrary stored CLR values may require runtime JSON serialization code. Supply generated value contracts to the EventStore constructor for Native AOT.")]
+#endif
+    public EventStore(string path) : this(path, StoreSerialization.CreateReflection()) { }
 
     /// <summary>Absolute SQLite database path.</summary>
     public string Path { get; }
@@ -74,14 +73,13 @@ public sealed partial class EventStore {
         var options = new JsonSerializerOptions {
             PropertyNameCaseInsensitive = true
         };
-        options.Converters.Add(new JsonStringEnumConverter());
+        EventJson.AddStringEnumConverters(options);
         options.Converters.Add(new IPAddressJsonConverter());
         return options;
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
-    private static void EnsureEventIdentitySchema(SQLiteSession session) {
+    private void EnsureEventIdentitySchema(SQLiteSession session) {
         session.RunInTransaction(transaction => {
             // Acquire the database writer reservation before inspecting the legacy schema. Separate
             // EventStore instances and processes must not act on the same stale column snapshot.
@@ -202,7 +200,7 @@ public sealed partial class EventStore {
         });
     }
 
-    private static void MigrateEventIdentity(SQLiteSession session) {
+    private void MigrateEventIdentity(SQLiteSession session) {
         long lastRowId = 0;
         while (true) {
             IReadOnlyList<LegacyIdentityRow> rows = session.QueryAsList(
@@ -213,7 +211,7 @@ public sealed partial class EventStore {
                   WHERE rowid > $lastRowId
                   ORDER BY rowid
                   LIMIT $pageSize;",
-                static record => new LegacyIdentityRow(
+                record => new LegacyIdentityRow(
                     record.GetInt64(0),
                     record.GetString(1),
                     record.GetString(2),
@@ -226,7 +224,7 @@ public sealed partial class EventStore {
                     record.GetString(9),
                     record.IsDBNull(10) ? null : record.GetString(10),
                     record.IsDBNull(11) ? null : record.GetString(11),
-                    JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(record.GetString(12), JsonOptions) ??
+                    EventJson.Deserialize<Dictionary<string, JsonElement>>(record.GetString(12), JsonOptions) ??
                         new Dictionary<string, JsonElement>()),
                 new Dictionary<string, object?> {
                     ["$lastRowId"] = lastRowId,

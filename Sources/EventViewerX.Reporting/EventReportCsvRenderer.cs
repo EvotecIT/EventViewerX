@@ -135,23 +135,23 @@ public static partial class EventReportCsvRenderer {
                 using var manifestWriter = new StreamWriter(
                     manifestStream,
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                manifestWriter.Write(JsonSerializer.Serialize(new {
-                    report.Title,
-                    report.GeneratedAt,
+                manifestWriter.Write(JsonSerializer.Serialize(new EventCsvManifest {
+                    Title = report.Title,
+                    GeneratedAt = report.GeneratedAt,
                     QueryDurationMilliseconds = report.QueryDuration.TotalMilliseconds,
                     EventCount = report.Rows.Count,
-                    report.EventsScanned,
-                    report.ScanLimitReached,
-                    report.CompletenessDiagnostic,
+                    EventsScanned = report.EventsScanned,
+                    ScanLimitReached = report.ScanLimitReached,
+                    CompletenessDiagnostic = report.CompletenessDiagnostic,
                     Summary = EventReportSummary.Create(report),
-                    Sections = sectionFiles.Select(static item => new {
-                        item.Section.Name,
-                        item.Section.DisplayName,
+                    Sections = sectionFiles.Select(static item => new EventCsvSectionManifest {
+                        Name = item.Section.Name,
+                        DisplayName = item.Section.DisplayName,
                         Kind = item.Section.Kind.ToString(),
                         RowCount = item.Section.Rows.Count,
-                        item.FileName
+                        FileName = item.FileName
                     })
-                }));
+                }, EventReportingJsonContext.Default.EventCsvManifest));
             }
             MoveIntoPlace(temporaryPath, fullPath);
             return fullPath;

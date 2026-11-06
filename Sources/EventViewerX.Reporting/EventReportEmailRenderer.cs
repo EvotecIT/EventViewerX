@@ -46,7 +46,7 @@ public static class EventReportEmailRenderer {
                 box.EmailDivider().WithPattern(EmailDividerPattern.Dashed);
                 box.EmailHeading(section.DisplayName, level: 3);
                 box.EmailText($"{section.Rows.Count:N0} matching event{(section.Rows.Count == 1 ? string.Empty : "s")}");
-                box.EmailTable(rows).WithMobileStackedLayout(true);
+                box.EmailTable(rows.Cast<IDictionary<string, object?>>()).WithMobileStackedLayout(true);
             }
         });
         EmailRenderResult result = await email.RenderAsync().ConfigureAwait(false);

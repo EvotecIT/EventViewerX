@@ -33,7 +33,7 @@ public static partial class EventDetectionEngine {
                 groups.Add(new CheckpointGroup { RuleId = pair.Key.RuleId, Group = pair.Key.GroupValue,
                     Kind = EventDetectionRuleKind.Absence, Observations = pair.Value.Observations.Select(EventObservationSnapshot.Capture).ToArray() });
             }
-            return JsonSerializer.Serialize(new CheckpointState { Groups = groups.ToArray(), AbsenceLatestUtc = _absenceLatestUtc }, EventAnalysisJson.CreateSerializerOptions());
+            return EventJson.Serialize(new CheckpointState { Groups = groups.ToArray(), AbsenceLatestUtc = _absenceLatestUtc }, EventAnalysisJson.CreateSerializerOptions());
         }
 
         internal void RestoreState(string json, long processedObservations) {
@@ -41,7 +41,7 @@ public static partial class EventDetectionEngine {
             if (processedObservations < 0 || (_options.MaximumObservations > 0 && processedObservations > _options.MaximumObservations)) {
                 throw new InvalidDataException("Checkpoint exceeds the configured observation bound.");
             }
-            CheckpointState document = JsonSerializer.Deserialize<CheckpointState>(json, EventAnalysisJson.CreateSerializerOptions())
+            CheckpointState document = EventJson.Deserialize<CheckpointState>(json, EventAnalysisJson.CreateSerializerOptions())
                 ?? throw new InvalidDataException("Missing correlation checkpoint state.");
             if (document.Groups == null || document.Groups.Length > _options.MaximumGroups) { throw new InvalidDataException("Checkpoint exceeds the group bound."); }
             var seen = new HashSet<StateKey>();
@@ -111,11 +111,11 @@ public static partial class EventDetectionEngine {
             _observations = processedObservations;
         }
 
-        private sealed class CheckpointState {
+        internal sealed class CheckpointState {
             public CheckpointGroup[] Groups { get; set; } = Array.Empty<CheckpointGroup>();
             public DateTime AbsenceLatestUtc { get; set; }
         }
-        private sealed class CheckpointGroup {
+        internal sealed class CheckpointGroup {
             public string RuleId { get; set; } = string.Empty;
             public string Group { get; set; } = string.Empty;
             public EventDetectionRuleKind Kind { get; set; }
@@ -127,11 +127,11 @@ public static partial class EventDetectionEngine {
             public EventObservationSnapshot[]?[] Prefixes { get; set; } = Array.Empty<EventObservationSnapshot[]?>();
             public long MatchingWork { get; set; }
         }
-        private sealed class CheckpointDistinct {
+        internal sealed class CheckpointDistinct {
             public string Value { get; set; } = string.Empty;
             public EventObservationSnapshot Observation { get; set; } = new();
         }
-        private sealed class CheckpointCandidate {
+        internal sealed class CheckpointCandidate {
             public EventObservationSnapshot Observation { get; set; } = new();
             public int[] MatchingSteps { get; set; } = Array.Empty<int>();
         }

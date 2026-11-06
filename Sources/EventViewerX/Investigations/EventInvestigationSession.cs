@@ -82,7 +82,7 @@ public sealed partial class EventInvestigationSession {
                     throw new InvalidDataException("Observation is outside the declared investigation window. Include correlation warm-up in the declared window.");
                 }
                 EventObservationSnapshot snapshot = EventObservationSnapshot.Capture(observation);
-                string json = JsonSerializer.Serialize(snapshot, CompactOptions);
+                string json = EventJson.Serialize(snapshot, CompactOptions);
                 if (Encoding.UTF8.GetByteCount(json) > manifest.Limits.MaximumObservationBytes) { throw new InvalidDataException("Investigation observation byte limit exceeded."); }
                 writer.WriteLine(json);
                 // Evaluate the exact durable form, preventing source mutation after capture from changing the original output.
@@ -105,7 +105,7 @@ public sealed partial class EventInvestigationSession {
         if (endpoint != null) { session.WriteEndpoint(endpoint, artifacts, cancellationToken); }
         manifest.Artifacts = artifacts.ToArray();
         // The manifest is the commit marker; failed creation never leaves a seemingly complete session.
-        string manifestJson = JsonSerializer.Serialize(manifest, JsonOptions);
+        string manifestJson = EventJson.Serialize(manifest, JsonOptions);
         if (Encoding.UTF8.GetByteCount(manifestJson) > 4 * 1024 * 1024) { throw new InvalidDataException("Investigation manifest exceeds 4 MiB."); }
         session.WriteNew("manifest.json", manifestJson);
         return session;
@@ -115,7 +115,7 @@ public sealed partial class EventInvestigationSession {
     public static EventInvestigationSession Open(string directory, CancellationToken cancellationToken = default) {
         string root = System.IO.Path.GetFullPath(directory);
         var session = new EventInvestigationSession(root, new EventInvestigationManifest());
-        EventInvestigationManifest manifest = JsonSerializer.Deserialize<EventInvestigationManifest>(session.ReadText("manifest.json", 4 * 1024 * 1024, false), JsonOptions)
+        EventInvestigationManifest manifest = EventJson.Deserialize<EventInvestigationManifest>(session.ReadText("manifest.json", 4 * 1024 * 1024, false), JsonOptions)
             ?? throw new InvalidDataException("Missing investigation manifest.");
         Validate(manifest);
         if (manifest.Artifacts.Length < 3) { throw new InvalidDataException("Investigation artifact inventory is missing."); }
@@ -183,7 +183,7 @@ public sealed partial class EventInvestigationSession {
             if (++count > _manifest.Limits.MaximumObservations) { throw new InvalidDataException("Observation count exceeds its limit."); }
             string json = line.ToString(); line.Clear();
             if (Encoding.UTF8.GetByteCount(json.TrimEnd('\r')) > _manifest.Limits.MaximumObservationBytes) { throw new InvalidDataException("Observation bytes exceed their limit."); }
-            EventObservation observation = (JsonSerializer.Deserialize<EventObservationSnapshot>(json, CompactOptions)
+            EventObservation observation = (EventJson.Deserialize<EventObservationSnapshot>(json, CompactOptions)
                 ?? throw new InvalidDataException("Missing observation.")).Restore();
             if (observation.EventTimeUtc < _manifest.StartUtc || observation.EventTimeUtc >= _manifest.EndUtc) { throw new InvalidDataException("Observation outside investigation window."); }
             yield return observation;
@@ -250,7 +250,7 @@ public sealed partial class EventInvestigationSession {
         return path;
     }
     private static EventInvestigationManifest Clone(EventInvestigationManifest manifest) =>
-        JsonSerializer.Deserialize<EventInvestigationManifest>(JsonSerializer.Serialize(manifest, JsonOptions), JsonOptions)!;
+        EventJson.Deserialize<EventInvestigationManifest>(EventJson.Serialize(manifest, JsonOptions), JsonOptions)!;
     private static void Validate(EventInvestigationManifest manifest) {
         if (manifest.SchemaVersion != 1 || manifest.StartUtc.Kind != DateTimeKind.Utc || manifest.EndUtc.Kind != DateTimeKind.Utc ||
             manifest.EndUtc <= manifest.StartUtc || string.IsNullOrWhiteSpace(manifest.QueryIdentity) ||

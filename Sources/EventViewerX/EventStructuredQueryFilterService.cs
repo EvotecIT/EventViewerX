@@ -511,8 +511,8 @@ public static class EventStructuredQueryFilterService {
         return map;
     }
 
-    private static IEnumerable<TEnum> GetEnumValues<TEnum>() where TEnum : struct {
-        return Enum.GetValues(typeof(TEnum)).Cast<TEnum>();
+    private static IEnumerable<TEnum> GetEnumValues<TEnum>() where TEnum : struct, Enum {
+        return EventEnum.GetValues<TEnum>();
     }
 
     private static string[]? CreateSingleValueArray(string? value) {

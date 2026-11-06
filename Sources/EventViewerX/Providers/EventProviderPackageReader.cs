@@ -92,7 +92,7 @@ public static class EventProviderPackageReader {
             WriteNewFile(
                 manifestPath,
                 Encoding.UTF8.GetBytes(
-                    JsonSerializer.Serialize(
+                    EventJson.Serialize(
                         contents.Manifest,
                         EventProviderDefinitionJson.SerializerOptions)),
                 writtenPaths);
@@ -285,7 +285,7 @@ public static class EventProviderPackageReader {
         }
         long expandedBytes = 0;
         EventProviderPackageManifest manifest =
-            JsonSerializer.Deserialize<EventProviderPackageManifest>(
+            EventJson.Deserialize<EventProviderPackageManifest>(
                 ReadText(
                     packageEntry,
                     ref expandedBytes),
