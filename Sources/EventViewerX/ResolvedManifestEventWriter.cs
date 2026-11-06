@@ -116,6 +116,7 @@ public sealed class ResolvedManifestEventWriter : IDisposable {
     /// </summary>
 #if NET8_0_OR_GREATER
     [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model reflection requires preserved public members. Use explicit field dictionaries in trimmed consumers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
 #endif
     public ManifestEventWriteResult Write<TPayload>(
         TPayload payload) {

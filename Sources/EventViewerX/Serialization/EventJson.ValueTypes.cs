@@ -12,6 +12,8 @@ internal static partial class EventJson {
         typeof(GroupPolicy),
         typeof(List<GroupPolicyLinks>),
         typeof(Dictionary<string, int>),
+        typeof(IReadOnlyList<long>),
+        typeof(IReadOnlyList<byte>),
         typeof(bool),
         typeof(byte),
         typeof(byte[]),

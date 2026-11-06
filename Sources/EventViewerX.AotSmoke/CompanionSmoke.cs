@@ -12,7 +12,7 @@ internal static class CompanionSmoke {
         string directory = Path.Combine(Path.GetTempPath(), "eventviewerx-aot-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try {
-            CustomValueSmoke.Run(observation.SourceEvent);
+            await CustomValueSmoke.RunAsync(observation.SourceEvent, directory);
             await BuiltInValueSmoke.RunAsync(directory);
             var store = new EventStore(Path.Combine(directory, "events.db"), Array.Empty<JsonTypeInfo>());
             EventStoreWriteResult written = await store.WriteAsync(report);

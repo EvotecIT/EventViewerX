@@ -215,7 +215,9 @@ public sealed class EventFieldDefinition {
             if (definition == typeof(IEnumerable<>) || definition == typeof(ICollection<>) ||
                 definition == typeof(IReadOnlyCollection<>) || definition == typeof(IList<>) ||
                 definition == typeof(IReadOnlyList<>) || definition == typeof(List<>) ||
-                definition == typeof(HashSet<>) || definition == typeof(Queue<>) ||
+                definition == typeof(HashSet<>) || definition == typeof(SortedSet<>) ||
+                definition == typeof(ISet<>) || definition == typeof(IReadOnlySet<>) ||
+                definition == typeof(Queue<>) ||
                 definition == typeof(Stack<>) || definition == typeof(LinkedList<>) ||
                 definition == typeof(System.Collections.ObjectModel.Collection<>) ||
                 definition == typeof(System.Collections.ObjectModel.ReadOnlyCollection<>)) {

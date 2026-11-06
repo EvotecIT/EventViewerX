@@ -42,7 +42,7 @@ public sealed class EventReportColumnSchema {
         return KnownValueTypes.ContainsKey(normalized) ? normalized : trimmed;
     }
 
-    private static string NormalizeTypeIdentity(string name) {
+    internal static string NormalizeTypeIdentity(string name) {
         name = name.Trim();
         if (name.StartsWith("[", StringComparison.Ordinal) && name.EndsWith("]", StringComparison.Ordinal)) {
             name = name.Substring(1, name.Length - 2);
@@ -56,8 +56,11 @@ public sealed class EventReportColumnSchema {
                 break;
             }
         }
+        if (name.EndsWith("[]", StringComparison.Ordinal)) {
+            return NormalizeTypeIdentity(name.Substring(0, name.Length - 2)) + "[]";
+        }
         int open = name.IndexOf('[');
-        if (open < 0 || name.EndsWith("[]", StringComparison.Ordinal)) {
+        if (open < 0) {
             return name;
         }
         string arguments = name.Substring(open + 1, name.Length - open - 2);

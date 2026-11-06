@@ -52,7 +52,7 @@ public sealed partial class EventStore {
                 static contract => EventReportColumnSchema.GetStableTypeName(contract.Type),
                 static contract => contract.Type, StringComparer.Ordinal);
             JsonSerializerOptions options = EventJson.WithValueContracts(CreateJsonOptions(), contracts);
-            Type Resolve(string? name) => name != null && byName.TryGetValue(name.Trim(), out Type? type)
+            Type Resolve(string? name) => name != null && byName.TryGetValue(EventReportColumnSchema.NormalizeTypeIdentity(name), out Type? type)
                 ? type : EventReportColumnSchema.ResolveKnownValueTypeName(name);
             JsonTypeInfo Contract(Type type) => byType.TryGetValue(type, out JsonTypeInfo? contract)
                 ? contract : EventJson.GetTypeInfo(type, options);
@@ -70,7 +70,12 @@ public sealed partial class EventStore {
         internal static StoreSerialization CreateReflection() {
             JsonSerializerOptions options = CreateJsonOptions();
             options.Converters.Add(new JsonStringEnumConverter());
-            return new StoreSerialization(EventReportColumnSchema.ResolveValueTypeName,
+            Type Resolve(string? name) {
+                Type type = EventReportColumnSchema.ResolveValueTypeName(name);
+                EventFieldDefinition.RegisterEnumerableFieldType(type);
+                return type;
+            }
+            return new StoreSerialization(Resolve,
                 EventReportColumnSchema.NormalizeValueTypeName,
                 (json, type) => JsonSerializer.Deserialize(json, type, options),
                 EventJson.WithReflectionValues(options, stringEnums: false));

@@ -68,6 +68,9 @@ public sealed class EventProviderEventDefinition {
     /// <summary>
     /// Creates an event whose ordered fields are inferred from a typed payload.
     /// </summary>
+#if NET8_0_OR_GREATER
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Implicit payload field order requires runtime metadata tokens. Use explicit manifest field definitions and named dictionaries for Native AOT.")]
+#endif
     public static EventProviderEventDefinition FromType<
 #if NET8_0_OR_GREATER
         [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]

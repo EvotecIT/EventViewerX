@@ -5,9 +5,26 @@ using System.Text.Json.Serialization.Metadata;
 using EventViewerX;
 using EventViewerX.Reporting;
 using EventViewerX.Rules.Windows;
+using EventViewerX.Storage;
 
 internal static class CustomValueSmoke {
-    internal static void Run(EventObject source) {
+    internal static async Task RunAsync(EventObject source, string directory) {
+        foreach (Type type in new[] { typeof(ConsumerDetails), typeof(int?[]), typeof(IReadOnlyList<long>), typeof(IReadOnlyList<byte>) }) {
+            var schema = new EventReportSectionSchema {
+                Name = "GeneratedValues", Kind = EventReportSectionKind.Custom,
+                Columns = new[] {
+                    new EventReportColumnSchema { Name = "Value", ValueTypeName = type.AssemblyQualifiedName! }
+                }
+            };
+            var store = new EventStore(Path.Combine(directory, "generated-schemas.db"),
+                new[] { ConsumerJsonContext.Default.ConsumerDetails });
+            EventReport restored = await store.ReadReportAsync(new EventStoreQuery {
+                DefinitionNames = new[] { schema.Name }, DefinitionSchemas = new[] { schema }
+            });
+            if (restored.Sections.Single().Columns.Single().ValueType != type) {
+                throw new InvalidOperationException("A legacy generated-contract schema lost its concrete column type.");
+            }
+        }
         var record = new ConsumerBugCheck(source);
         JsonTypeInfo[] contracts = {
             ConsumerJsonContext.Default.ConsumerState,
