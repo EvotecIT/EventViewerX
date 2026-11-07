@@ -200,6 +200,9 @@ The existing general-purpose APIs remain available with trim/AOT annotations whe
   [event query benchmark contract](Benchmarks/EventLogParsing/README.md), and
   [local history benchmark contract](Benchmarks/EventStore/README.md).
 
+For typed application, service, storage, hardware and startup/shutdown events, see
+[Workstation health events](Docs/WorkstationHealth.md).
+
 ## PowerShell quick start
 
 ```powershell

@@ -4,7 +4,7 @@
     "Name": "PSEventViewer",
     "SourcePath": "..",
     "SkipDotNetBuild": false,
-    "Version": "4.1.X",
+    "Version": "4.2.X",
     "Configuration": "Release",
     "Frameworks": [],
     "NuGetRestoreSources": [],

@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-WHEA-Logger" Guid="{c26c4f3c-3f66-4e99-8f8a-39405cfed220}" />
+    <EventID>17</EventID>
+    <Version>1</Version>
+    <Level>3</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8000000000000000</Keywords>
+    <TimeCreated SystemTime="2023-11-13T20:29:10.3880715Z" />
+    <EventRecordID>208292</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="4404" ThreadID="4616" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="ErrorSource">4</Data>
+    <Data Name="FRUId">{00000000-0000-0000-0000-000000000000}</Data>
+    <Data Name="FRUText" />
+    <Data Name="ValidBits">0xdf</Data>
+    <Data Name="PortType">4</Data>
+    <Data Name="Version">0x101</Data>
+    <Data Name="Command">0x406</Data>
+    <Data Name="Status">0x10</Data>
+    <Data Name="Bus">0x0</Data>
+    <Data Name="Device">0x1d</Data>
+    <Data Name="Function">0x5</Data>
+    <Data Name="Segment">0x0</Data>
+    <Data Name="SecondaryBus">0x0</Data>
+    <Data Name="SecondaryDevice">0x0</Data>
+    <Data Name="SecondaryFunction">0x0</Data>
+    <Data Name="VendorID">0x8086</Data>
+    <Data Name="DeviceID">0x6b5</Data>
+    <Data Name="ClassCode">0x30400</Data>
+    <Data Name="DeviceSerialNumber">0x0</Data>
+    <Data Name="BridgeControl">0x0</Data>
+    <Data Name="BridgeStatus">0x0</Data>
+    <Data Name="UncorrectableErrorStatus">0x0</Data>
+    <Data Name="CorrectableErrorStatus">0x1</Data>
+    <Data Name="HeaderLog">00000000000000000000000000000000</Data>
+    <Data Name="PrimaryDeviceName">PCI\VEN_8086&amp;DEV_06B5&amp;SUBSYS_1E911043&amp;REV_F0</Data>
+    <Data Name="SecondaryDeviceName" />
+  </EventData>
+</Event>

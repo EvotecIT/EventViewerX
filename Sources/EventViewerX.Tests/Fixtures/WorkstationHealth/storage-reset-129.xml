@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="stornvme" />
+    <EventID Qualifiers="32772">129</EventID>
+    <Version>0</Version>
+    <Level>3</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x80000000000000</Keywords>
+    <TimeCreated SystemTime="2020-11-17T12:55:53.1375465Z" />
+    <EventRecordID>9784</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="4" ThreadID="572" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data>\Device\RaidPort1</Data>
+  </EventData>
+</Event>

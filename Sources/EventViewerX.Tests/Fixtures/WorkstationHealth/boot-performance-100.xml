@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Diagnostics-Performance" Guid="{GUID}" />
+    <EventID>100</EventID>
+    <Version>2</Version>
+    <Level>1</Level>
+    <Task>4002</Task>
+    <Opcode>34</Opcode>
+    <Keywords>0x8000000000010000</Keywords>
+    <TimeCreated SystemTime="2020-10-09T02:55:51.9555512Z" />
+    <EventRecordID>12</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="3580" ThreadID="4588" />
+    <Channel>Microsoft-Windows-Diagnostics-Performance/Operational</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="BootTsVersion">2</Data>
+    <Data Name="BootStartTime">2020-10-09T02:53:52.9883590Z</Data>
+    <Data Name="BootEndTime">2020-10-09T02:55:48.8421729Z</Data>
+    <Data Name="SystemBootInstance">3</Data>
+    <Data Name="UserBootInstance">3</Data>
+    <Data Name="BootTime">102026</Data>
+    <Data Name="MainPathBootTime">33326</Data>
+    <Data Name="BootKernelInitTime">93</Data>
+    <Data Name="BootDriverInitTime">268</Data>
+    <Data Name="BootDevicesInitTime">278</Data>
+    <Data Name="BootPrefetchInitTime">0</Data>
+    <Data Name="BootPrefetchBytes">0</Data>
+    <Data Name="BootAutoChkTime">0</Data>
+    <Data Name="BootSmssInitTime">9454</Data>
+    <Data Name="BootCriticalServicesInitTime">1930</Data>
+    <Data Name="BootUserProfileProcessingTime">1210</Data>
+    <Data Name="BootMachineProfileProcessingTime">2</Data>
+    <Data Name="BootExplorerInitTime">10369</Data>
+    <Data Name="BootNumStartupApps">17</Data>
+    <Data Name="BootPostBootTime">68700</Data>
+    <Data Name="BootIsRebootAfterInstall">false</Data>
+    <Data Name="BootRootCauseStepImprovementBits">0</Data>
+    <Data Name="BootRootCauseGradualImprovementBits">0</Data>
+    <Data Name="BootRootCauseStepDegradationBits">13647872</Data>
+    <Data Name="BootRootCauseGradualDegradationBits">13647872</Data>
+    <Data Name="BootIsDegradation">true</Data>
+    <Data Name="BootIsStepDegradation">true</Data>
+    <Data Name="BootIsGradualDegradation">true</Data>
+    <Data Name="BootImprovementDelta">0</Data>
+    <Data Name="BootDegradationDelta">53279</Data>
+    <Data Name="BootIsRootCauseIdentified">true</Data>
+    <Data Name="OSLoaderDuration">737</Data>
+    <Data Name="BootPNPInitStartTimeMS">93</Data>
+    <Data Name="BootPNPInitDuration">736</Data>
+    <Data Name="OtherKernelInitDuration">168</Data>
+    <Data Name="SystemPNPInitStartTimeMS">890</Data>
+    <Data Name="SystemPNPInitDuration">217</Data>
+    <Data Name="SessionInitStartTimeMS">1122</Data>
+    <Data Name="Session0InitDuration">7178</Data>
+    <Data Name="Session1InitDuration">559</Data>
+    <Data Name="SessionInitOtherDuration">1716</Data>
+    <Data Name="WinLogonStartTimeMS">10576</Data>
+    <Data Name="OtherLogonInitActivityDuration">11168</Data>
+    <Data Name="UserLogonWaitDuration">177</Data>
+  </EventData>
+</Event>

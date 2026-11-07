@@ -32,4 +32,8 @@
     <None Include="..\..\Tests\Fixtures\NativeCompatibility\*.json" Link="Fixtures\%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="../EventViewerX.Tests/Fixtures/WorkstationHealth/*.xml" LogicalName="WorkstationHealth.%(Filename)%(Extension)" />
+    </ItemGroup>
+
 </Project>

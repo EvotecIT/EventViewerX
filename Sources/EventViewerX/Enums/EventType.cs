@@ -460,5 +460,29 @@ namespace EventViewerX {
         GroupPolicyDirectoryAudit,
         /// <summary>KDCsvc RC4 audit, explicit-configuration, and enforcement events.</summary>
         KerberosKdcRc4Audit,
+        /// <summary>Application Error reported a faulting application (1000).</summary>
+        ApplicationCrash,
+        /// <summary>Application Hang reported an unresponsive application (1002).</summary>
+        ApplicationHang,
+        /// <summary>Service Control Manager reported a start failure, timeout, termination error or unexpected termination.</summary>
+        ServiceFailure,
+        /// <summary>Disk reported a bad block (7), paging I/O error (51) or retried I/O (153).</summary>
+        DiskError,
+        /// <summary>NTFS reported file-system corruption (55) or a volume requiring action (98).</summary>
+        FileSystemError,
+        /// <summary>The NVMe storage driver issued a controller/device reset (129).</summary>
+        StorageReset,
+        /// <summary>WHEA reported corrected PCI Express, processor or memory errors, or a fatal processor error.</summary>
+        HardwareError,
+        /// <summary>Windows recovered a display driver that stopped responding (4101).</summary>
+        DisplayDriverReset,
+        /// <summary>Windows measured boot duration and its main path (100).</summary>
+        BootPerformance,
+        /// <summary>Windows measured shutdown duration (200).</summary>
+        ShutdownPerformance,
+        /// <summary>Windows attributed startup degradation to a component or startup phase (101–110).</summary>
+        StartupDegradation,
+        /// <summary>Windows attributed shutdown delay to a service (203).</summary>
+        ShutdownDegradation,
     }
 }

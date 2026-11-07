@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Display" />
+    <EventID Qualifiers="0">4101</EventID>
+    <Version>0</Version>
+    <Level>3</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x80000000000000</Keywords>
+    <TimeCreated SystemTime="2023-11-13T20:29:31.7785563Z" />
+    <EventRecordID>208298</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="7628" ThreadID="0" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data>nvlddmkm</Data>
+    <Data />
+  </EventData>
+</Event>

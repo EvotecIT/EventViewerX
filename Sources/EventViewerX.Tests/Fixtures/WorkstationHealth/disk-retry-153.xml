@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="disk" />
+    <EventID Qualifiers="32772">153</EventID>
+    <Level>3</Level>
+    <Task>0</Task>
+    <Keywords>0x80000000000000</Keywords>
+    <TimeCreated SystemTime="2021-06-14T14:47:05.984062500Z" />
+    <EventRecordID>76114</EventRecordID>
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data>\Device\Harddisk1\DR1</Data>
+    <Data>600848</Data>
+    <Data>1</Data>
+  </EventData>
+</Event>

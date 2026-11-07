@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Ntfs" Guid="{3ff37a1c-a68d-4d6e-8c9b-f79e8b16c482}" />
+    <EventID>98</EventID>
+    <Version>0</Version>
+    <Level>4</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8000000000000002</Keywords>
+    <TimeCreated SystemTime="2026-11-06T14:02:48.2630483Z" />
+    <EventRecordID>1368367</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="4" ThreadID="87720" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="DriveName">TestVolume</Data>
+    <Data Name="DeviceName">\Device\HarddiskVolume3</Data>
+    <Data Name="CorruptionActionState">0</Data>
+  </EventData>
+</Event>

@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Diagnostics-Performance" Guid="{cfc18ec0-96b1-4eba-961b-622caee05b0a}" />
+    <EventID>101</EventID>
+    <Version>1</Version>
+    <Level>3</Level>
+    <Task>4002</Task>
+    <Opcode>33</Opcode>
+    <Keywords>0x8000000000010000</Keywords>
+    <TimeCreated SystemTime="2022-06-16T15:06:42.2718140Z" />
+    <EventRecordID>583</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="4936" ThreadID="6992" />
+    <Channel>Microsoft-Windows-Diagnostics-Performance/Operational</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="StartTime">2022-06-16T15:01:58.9212636Z</Data>
+    <Data Name="NameLength">12</Data>
+    <Data Name="Name">svchost.exe</Data>
+    <Data Name="FriendlyNameLength">34</Data>
+    <Data Name="FriendlyName">Host Process for Windows Services</Data>
+    <Data Name="VersionLength">36</Data>
+    <Data Name="Version">10.0.19041.1 (WinBuild.160101.0800)</Data>
+    <Data Name="TotalTime">3865</Data>
+    <Data Name="DegradationTime">1341</Data>
+    <Data Name="PathLength">32</Data>
+    <Data Name="Path">C:\Windows\System32\svchost.exe</Data>
+    <Data Name="ProductNameLength">37</Data>
+    <Data Name="ProductName">Microsoft® Windows® Operating System</Data>
+    <Data Name="CompanyNameLength">22</Data>
+    <Data Name="CompanyName">Microsoft Corporation</Data>
+  </EventData>
+</Event>

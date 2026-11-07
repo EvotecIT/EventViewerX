@@ -2,7 +2,7 @@ using EventViewerX;
 
 EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
 EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
-if (leaves.Length != 90 || leaves.Any(static definition =>
+if (leaves.Length != 102 || leaves.Any(static definition =>
         definition.RecordType == null || definition.Sources.Count == 0 || definition.Fields.Count == 0)) {
     throw new InvalidOperationException(
         $"Explicit event projector catalog is incomplete: {leaves.Length} leaf definitions were available.");
@@ -25,3 +25,5 @@ Console.WriteLine($"EventViewerX NativeAOT default catalog: {leaves.Length} leaf
 
 LegacyJsonSmoke.Run();
 await CrashSmoke.RunAsync();
+
+await WorkstationHealthSmoke.RunAsync();

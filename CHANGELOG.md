@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.0
+
+- Add provider-qualified workstation health rules for application crashes and hangs, service failures, disk and NTFS errors, NVMe resets, WHEA errors, display-driver recovery, and boot/shutdown performance.
+- Preserve unnamed insertion-string positions after empty XML data entries, so classic application hang details remain correctly aligned.
+- Exercise captured health events, typed query projections and observation JSON in the strict .NET 8 and .NET 10 Native AOT smoke.
+- Patch the private URI dependency graph and validate module-only releases without requiring standalone CLI archives.
+
 ## 4.1.0
 
 - Make the modern .NET 8 and .NET 10 library targets trim and Native AOT compatible, including Detection, Evtx, Reporting and Storage. Enable strict analyzers and native consumer checks.

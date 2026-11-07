@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Service Control Manager" Guid="{555908d1-a6d7-4695-8e1e-26931d2012f4}" EventSourceName="Service Control Manager" />
+    <EventID Qualifiers="49152">7031</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8080000000000000</Keywords>
+    <TimeCreated SystemTime="2026-11-04T06:53:04.1443803Z" />
+    <EventRecordID>1362120</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="2052" ThreadID="27244" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="param1">Health Fixture Service</Data>
+    <Data Name="param2">28</Data>
+    <Data Name="param3">180000</Data>
+    <Data Name="param4">1</Data>
+    <Data Name="param5">Restart the service</Data>
+  </EventData>
+</Event>
