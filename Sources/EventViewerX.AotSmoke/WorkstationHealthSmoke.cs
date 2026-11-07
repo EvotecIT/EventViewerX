@@ -16,7 +16,9 @@ internal static class WorkstationHealthSmoke {
             }) {
                 Paths = new[] { path },
                 SavedEventReader = new FixtureReader(),
-                Predicate = EventPredicate.Compare("EventId", EventPredicateOperator.GreaterThan, 0),
+                Predicate = EventPredicate.AnyOf(
+                    EventPredicate.Compare("ApplicationName", EventPredicateOperator.Equal, "HealthFixture.exe"),
+                    EventPredicate.Compare("EventId", EventPredicateOperator.NotEqual, 1000)),
                 Oldest = true
             };
             var records = new List<EventTypeRecord>();

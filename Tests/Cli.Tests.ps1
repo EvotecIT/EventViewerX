@@ -96,7 +96,7 @@ Describe 'evx portable host' {
 
         $LASTEXITCODE | Should -Be 0
         $Definitions.Count | Should -Be ([Enum]::GetValues([EventViewerX.EventType]).Count)
-        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 90
+        @($Definitions | Where-Object { -not $_.IsComposite }).Count | Should -Be 102
         @($Definitions | Where-Object IsComposite).Count | Should -Be 14
         $Definitions.Name | Should -Contain 'GroupPolicyDirectoryAudit'
         $Definitions.Name | Should -Contain 'KerberosKdcRc4Audit'
