@@ -94,7 +94,12 @@
   "Validation": {
     "AfterStaging": [
       {
-        "Name": "Validate EventViewerX release artifacts",
+        "Name": "Validate EventViewerX NuGet and PSEventViewer release artifacts",
+        "ConfigPath": "release-validation.module.json",
+        "TimeoutSeconds": 1800
+      },
+      {
+        "Name": "Validate EventViewerX CLI release artifacts",
         "ConfigPath": "release-validation.json",
         "TimeoutSeconds": 1800
       }

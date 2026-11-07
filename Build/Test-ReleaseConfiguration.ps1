@@ -76,8 +76,30 @@ if (($fullModuleAssets -join "`n") -cne ($moduleOnlyAssets -join "`n")) {
 }
 [array] $moduleReleaseValidations = @($moduleRelease.Validation.AfterStaging)
 if ($moduleReleaseValidations.Count -ne 1 -or
-    [string] $moduleReleaseValidations[0].ConfigPath -ne 'release-validation.json') {
+    [string] $moduleReleaseValidations[0].ConfigPath -ne 'release-validation.module.json') {
     throw 'The module release must validate its exact staged package and module artifacts.'
+}
+$moduleValidation = Get-Content -LiteralPath `
+    (Join-Path $RepositoryRoot "Build/$($moduleReleaseValidations[0].ConfigPath)") -Raw |
+    ConvertFrom-Json
+if ($null -eq $moduleValidation.Packages -or @($moduleValidation.Modules).Count -ne 1 -or
+    $null -ne $moduleValidation.CliArtifacts) {
+    throw 'Module-only validation must check packages and the module without requiring CLI artifacts.'
+}
+[array] $fullReleaseValidations = @($release.Validation.AfterStaging)
+if ($fullReleaseValidations.Count -ne 2 -or
+    $fullReleaseValidations[0].ConfigPath -cne $moduleReleaseValidations[0].ConfigPath -or
+    $fullReleaseValidations[1].ConfigPath -cne 'release-validation.json') {
+    throw 'The full release must run the shared package/module contract followed by CLI validation.'
+}
+$cliValidation = Get-Content -LiteralPath `
+    (Join-Path $RepositoryRoot "Build/$($fullReleaseValidations[1].ConfigPath)") -Raw |
+    ConvertFrom-Json
+if ($cliValidation.CliArtifacts.Target -cne 'EventViewerX.Cli' -or
+    $cliValidation.CliArtifacts.PublishConfigPath -cne 'Build/release.json' -or
+    $cliValidation.CliArtifacts.ManifestPath -cne '{ReleaseManifestPath}' -or
+    $null -ne $cliValidation.Packages -or $null -ne $cliValidation.Modules) {
+    throw 'CLI validation must use the full release matrix without duplicating package/module contracts.'
 }
 
 $projectBuild = Get-Content -LiteralPath `
