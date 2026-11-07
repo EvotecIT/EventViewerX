@@ -100,10 +100,11 @@ public static class SavedEventXmlProjector {
         foreach (XElement element in eventData.Elements()) {
             string name = Attribute(element, "Name");
             if (string.IsNullOrWhiteSpace(name)) {
+                int index = unnamedIndex++;
                 if (string.IsNullOrEmpty(element.Value)) {
                     continue;
                 }
-                name = $"NoNameA{unnamedIndex++}";
+                name = $"NoNameA{index}";
             }
             data[name] = element.Value;
         }

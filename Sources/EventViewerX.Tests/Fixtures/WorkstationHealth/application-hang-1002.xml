@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Application Hang" />
+    <EventID Qualifiers="0">1002</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>101</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x80000000000000</Keywords>
+    <TimeCreated SystemTime="2020-10-24T20:28:45.1914826Z" />
+    <EventRecordID>6529</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="0" ThreadID="0" />
+    <Channel>Application</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data>FTK Imager.exe</Data>
+    <Data>4.5.0.3</Data>
+    <Data>19e4</Data>
+    <Data>01d6a8f4a7784904</Data>
+    <Data>80</Data>
+    <Data>C:\Program Files\AccessData\FTK Imager\FTK Imager.exe</Data>
+    <Data>Value</Data>
+    <Data />
+    <Data />
+    <Data>Unknown</Data>
+  </EventData>
+</Event>

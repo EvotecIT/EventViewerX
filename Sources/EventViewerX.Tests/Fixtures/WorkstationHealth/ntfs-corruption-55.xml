@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Ntfs" Guid="{dd70bc80-ef44-421b-8ac3-cd31da613a4e}" />
+    <EventID>55</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8000000000000000</Keywords>
+    <TimeCreated SystemTime="2019-11-04T13:41:03.583214500Z" />
+    <EventRecordID>491689</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="4" ThreadID="25808" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="DriveName">\\?\Volume{11111111-2222-3333-4444-555555555555}</Data>
+    <Data Name="DeviceName">\Device\HarddiskVolume3</Data>
+    <Data Name="CorruptionState">0x0</Data>
+    <Data Name="HeaderFlags">0x922</Data>
+    <Data Name="Severity">Critical</Data>
+    <Data Name="Origin">File System Driver</Data>
+    <Data Name="Verb">Bad FRS</Data>
+    <Data Name="Description">The Master File Table (MFT) contains a corrupted file record.  The file reference number is 0x1000000029104.  The name of the file is "&lt;unable to determine file name&gt;".</Data>
+    <Data Name="Signature">0x504df163</Data>
+    <Data Name="Outcome">Read Only Volume</Data>
+    <Data Name="SampleLength">0</Data>
+    <Data Name="SampleData" />
+    <Data Name="SourceFile">0x1</Data>
+    <Data Name="SourceLine">1250</Data>
+    <Data Name="SourceTag">203</Data>
+    <Data Name="AdditionalInfo">0xd00000a2</Data>
+    <Data Name="CallStack">Ntfs+0x11e86, Ntfs+0x1710f4, Ntfs+0x15374f, Ntfs+0x15fec1, Ntfs+0xf3d56, Ntfs+0x19a5e, ntoskrnl+0x5d11a, ntoskrnl+0x1216c5, ntoskrnl+0x1b849c</Data>
+  </EventData>
+</Event>

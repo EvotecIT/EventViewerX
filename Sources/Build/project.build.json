@@ -3,11 +3,11 @@
   "RootPath": "..",
   "ExpectedVersion": null,
   "ExpectedVersionMap": {
-    "EventViewerX": "4.1.X",
-    "EventViewerX.Detection": "4.1.X",
-    "EventViewerX.Evtx": "4.1.X",
-    "EventViewerX.Reporting": "4.1.X",
-    "EventViewerX.Storage": "4.1.X"
+    "EventViewerX": "4.2.X",
+    "EventViewerX.Detection": "4.2.X",
+    "EventViewerX.Evtx": "4.2.X",
+    "EventViewerX.Reporting": "4.2.X",
+    "EventViewerX.Storage": "4.2.X"
   },
   "ExpectedVersionMapAsInclude": true,
   "ExpectedVersionMapUseWildcards": false,

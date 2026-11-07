@@ -40,7 +40,7 @@ public sealed class ADComputerCreateChange : EventRuleBase {
     public ADComputerCreateChange(EventObject eventObject)
         : base(eventObject) {
 
-        Type = nameof(ADComputerCreateChange);
+        TypeName = nameof(ADComputerCreateChange);
     }
 }
 ```
@@ -50,7 +50,7 @@ field distinguishes the scenario:
 
 ```csharp
 public override bool CanHandle(EventObject eventObject) {
-    return eventObject.Data.TryGetValue(
+    return eventObject.TryGetDataValue(
                "ObjectClass",
                out string? objectClass) &&
            string.Equals(
@@ -70,13 +70,19 @@ session, cancellation, export, and checkpoint logic in the shared engines.
 2. Add one focused `EventRuleBase` implementation under the appropriate
    `Rules/<Area>` folder.
 3. Declare the exact channel and positive event IDs.
-4. Implement `CanHandle` for any provider-specific discriminator.
+4. Declare `ProviderNames` and implement `CanHandle` for provider-specific or
+   payload discriminators.
 5. Map only useful, stable fields in the constructor.
-6. Add a focused projection test with representative `EventObject` data.
-7. Add live validation when the provider is available in the test lab.
+6. Add its strongly referenced factory to
+   `EventTypeCatalog.BuiltInRegistration.cs`, with channel, event IDs and providers
+   matching the rule. Built-in registration does not scan assemblies for new types.
+7. Add a focused projection test with representative `EventObject` data and
+   exercise the new rule in `EventViewerX.AotSmoke`.
+8. Add live validation when the provider is available in the test lab.
 
-No central event-ID table is required. Rule metadata stays with the
-projection that understands it.
+Rule metadata stays with the projection that understands it. The static catalog
+also retains that source metadata so trimmed and Native AOT callers can compile
+queries and construct the same typed records.
 
 ## Discovery modes
 

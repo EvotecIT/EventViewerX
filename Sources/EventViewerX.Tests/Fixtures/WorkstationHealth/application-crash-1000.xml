@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Application Error" Guid="{a0e9b465-b939-57d7-b27d-95d8e925ff57}" />
+    <EventID>1000</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>100</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8000000000000000</Keywords>
+    <TimeCreated SystemTime="2026-11-06T23:02:37.7465154Z" />
+    <EventRecordID>4566887</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="86452" ThreadID="128004" />
+    <Channel>Application</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="AppName">HealthFixture.exe</Data>
+    <Data Name="AppVersion">1.2.3.4</Data>
+    <Data Name="AppTimeStamp">6aee5c88</Data>
+    <Data Name="ModuleName">fixture.dll</Data>
+    <Data Name="ModuleVersion">2.3.4.5</Data>
+    <Data Name="ModuleTimeStamp">6aee5c88</Data>
+    <Data Name="ExceptionCode">c0000409</Data>
+    <Data Name="FaultingOffset">00000000001e4e40</Data>
+    <Data Name="ProcessId">0xfa90</Data>
+    <Data Name="ProcessCreationTime">0x1dd6e42e7aaf260</Data>
+    <Data Name="AppPath">C:\Program Files\HealthFixture\HealthFixture.exe</Data>
+    <Data Name="ModulePath">C:\Program Files\HealthFixture\fixture.dll</Data>
+    <Data Name="IntegratorReportId">11111111-2222-3333-4444-555555555555</Data>
+    <Data Name="PackageFullName" />
+    <Data Name="PackageRelativeAppId" />
+  </EventData>
+</Event>

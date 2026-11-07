@@ -347,10 +347,11 @@ namespace EventViewerX {
                 string value = ReadElementText(reader);
                 if (string.IsNullOrEmpty(name)) {
                     if (string.Equals(localName, "Data", StringComparison.Ordinal)) {
+                        int index = noNameIndex++;
                         if (string.IsNullOrEmpty(value)) {
                             continue;
                         }
-                        name = $"NoNameA{noNameIndex++}";
+                        name = $"NoNameA{index}";
                     } else {
                         name = localName;
                     }

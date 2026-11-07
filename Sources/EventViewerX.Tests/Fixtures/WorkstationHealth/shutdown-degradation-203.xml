@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Diagnostics-Performance" Guid="{cfc18ec0-96b1-4eba-961b-622caee05b0a}" />
+    <EventID>203</EventID>
+    <Version>1</Version>
+    <Level>2</Level>
+    <Task>4007</Task>
+    <Opcode>41</Opcode>
+    <Keywords>0x8000000000010000</Keywords>
+    <TimeCreated SystemTime="2020-06-19T04:59:20.1561731Z" />
+    <EventRecordID>15</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="3768" ThreadID="4092" />
+    <Channel>Microsoft-Windows-Diagnostics-Performance/Operational</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="StartTime">2020-06-19T04:57:21.6829184Z</Data>
+    <Data Name="NameLength">5</Data>
+    <Data Name="Name">Dhcp</Data>
+    <Data Name="FriendlyNameLength">22</Data>
+    <Data Name="FriendlyName">Servicio cliente DHCP</Data>
+    <Data Name="VersionLength">36</Data>
+    <Data Name="Version">10.0.19041.1 (WinBuild.160101.0800)</Data>
+    <Data Name="TotalTime">4967</Data>
+    <Data Name="DegradationTime">967</Data>
+    <Data Name="PathLength">33</Data>
+    <Data Name="Path">C:\Windows\system32\dhcpcore.dll</Data>
+    <Data Name="ProductNameLength">38</Data>
+    <Data Name="ProductName">Sistema operativo Microsoft® Windows®</Data>
+    <Data Name="CompanyNameLength">22</Data>
+    <Data Name="CompanyName">Microsoft Corporation</Data>
+  </EventData>
+</Event>

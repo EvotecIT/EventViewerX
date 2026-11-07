@@ -39,4 +39,8 @@
         <ProjectReference Include="..\EventViewerX.Cli\EventViewerX.Cli.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <EmbeddedResource Include="Fixtures/WorkstationHealth/*.xml" LogicalName="WorkstationHealth.%(Filename)%(Extension)" />
+    </ItemGroup>
+
 </Project>

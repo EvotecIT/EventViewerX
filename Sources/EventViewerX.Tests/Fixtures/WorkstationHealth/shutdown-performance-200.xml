@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Diagnostics-Performance" Guid="{GUID}" />
+    <EventID>200</EventID>
+    <Version>1</Version>
+    <Level>3</Level>
+    <Task>4007</Task>
+    <Opcode>40</Opcode>
+    <Keywords>0x8000000000010000</Keywords>
+    <TimeCreated SystemTime="2020-10-09T17:04:07.8978367Z" />
+    <EventRecordID>18</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="3624" ThreadID="4608" />
+    <Channel>Microsoft-Windows-Diagnostics-Performance/Operational</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="ShutdownTsVersion">1</Data>
+    <Data Name="ShutdownStartTime">2020-10-09T17:00:48.2298106Z</Data>
+    <Data Name="ShutdownEndTime">2020-10-09T17:01:19.5423828Z</Data>
+    <Data Name="ShutdownTime">31312</Data>
+    <Data Name="ShutdownUserSessionTime">2612</Data>
+    <Data Name="ShutdownUserPolicyTime">37</Data>
+    <Data Name="ShutdownUserProfilesTime">6</Data>
+    <Data Name="ShutdownSystemSessionsTime">12428</Data>
+    <Data Name="ShutdownPreShutdownNotificationsTime">7385</Data>
+    <Data Name="ShutdownServicesTime">4997</Data>
+    <Data Name="ShutdownKernelTime">16271</Data>
+    <Data Name="ShutdownRootCauseStepImprovementBits">0</Data>
+    <Data Name="ShutdownRootCauseGradualImprovementBits">0</Data>
+    <Data Name="ShutdownRootCauseStepDegradationBits">121</Data>
+    <Data Name="ShutdownRootCauseGradualDegradationBits">121</Data>
+    <Data Name="ShutdownIsDegradation">true</Data>
+    <Data Name="ShutdownTimeChange">15562</Data>
+  </EventData>
+</Event>

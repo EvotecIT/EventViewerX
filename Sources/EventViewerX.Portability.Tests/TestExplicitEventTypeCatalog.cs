@@ -19,7 +19,7 @@ public sealed class TestExplicitEventTypeCatalog {
         EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
 
         Assert.Equal(Enum.GetValues<EventType>().Length, definitions.Length);
-        Assert.Equal(90, leaves.Length);
+        Assert.Equal(102, leaves.Length);
         Assert.Equal(102, (int)EventType.GroupPolicyDirectoryAudit);
         Assert.Equal(103, (int)EventType.KerberosKdcRc4Audit);
         Assert.All(leaves, static definition => {

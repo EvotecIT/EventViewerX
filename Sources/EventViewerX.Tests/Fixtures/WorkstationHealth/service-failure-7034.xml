@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Service Control Manager" Guid="{555908d1-a6d7-4695-8e1e-26931d2012f4}" EventSourceName="Service Control Manager" />
+    <EventID Qualifiers="49152">7034</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8080000000000000</Keywords>
+    <TimeCreated SystemTime="2012-04-04 01:48:01.8866267" />
+    <EventRecordID>15001</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="548" ThreadID="3352" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="param1">PsExec</Data>
+    <Data Name="param2">1</Data>
+  </EventData>
+</Event>
