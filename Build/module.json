@@ -61,7 +61,7 @@
     {
       "Type": "Manifest",
       "Configuration": {
-        "ModuleVersion": "4.1.X",
+        "ModuleVersion": "4.2.X",
         "CompatiblePSEditions": [
           "Desktop",
           "Core"
