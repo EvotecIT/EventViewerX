@@ -8,7 +8,7 @@ public class WindowsUpdateFailure : EventRuleBase {
     /// <inheritdoc />
     public override List<int> EventIds => new() { 20 };
     /// <inheritdoc />
-    public override string LogName => "Setup";
+    public override string LogName => "System";
     /// <inheritdoc />
     public override EventType Type => EventType.WindowsUpdateFailure;
 

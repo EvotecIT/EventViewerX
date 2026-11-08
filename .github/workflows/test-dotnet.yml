@@ -145,12 +145,6 @@ jobs:
           name: coverage-reports-windows-${{ matrix.dotnet-version }}
           path: '**/coverage.cobertura.xml'
 
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v7
-        with:
-          files: '**/coverage.cobertura.xml'
-          verbose: true
-
   result:
     name: Test .NET Libraries result
     needs: [changes, test-portability-linux, test-windows]

@@ -9,6 +9,14 @@ was formatted as text rather than valid XML.
 
 - `application-crash-1000`, `service-failure-7031` and `ntfs-healthy-98` are
   redacted local Windows 11 captures.
+- `windows-update-failure-20` is a local Windows 11 System event from
+  Microsoft-Windows-WindowsUpdateClient. The Store app title, GUIDs, timestamp,
+  computer, record and execution identifiers are synthetic replacements; the
+  lowercase data names and `0x80073d02` error code are preserved.
+- `bitlocker-suspended-773` follows the suspension template from the installed
+  Windows 11 Microsoft-Windows-BitLocker-API provider manifest. Its three data
+  fields are `IdentificationGUID`, `VolumeName` and `VolumeMountPoint`; values
+  and system metadata are synthetic. It is a schema fixture, not a local capture.
 - `application-hang-1002`, `service-failure-7034`, `ntfs-corruption-55`,
   `boot-performance-100`, `startup-degradation-101` and
   `shutdown-performance-200` come from the example event data in

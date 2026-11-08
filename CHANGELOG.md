@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.1
+
+- Read BitLocker suspensions from event 773 in `Microsoft-Windows-BitLocker/BitLocker Management`, qualified by the BitLocker API provider. Event 24660 describes encryption on write, not suspension.
+- Read Windows Update installation failures from the System log and qualify queries by the WindowsUpdateClient provider.
+- Cover the corrected queries and provider payloads in regression tests and the strict .NET 8 and .NET 10 Native AOT smoke.
+
 ## 4.2.0
 
 - Add provider-qualified workstation health rules for application crashes and hangs, service failures, disk and NTFS errors, NVMe resets, WHEA errors, display-driver recovery, and boot/shutdown performance.

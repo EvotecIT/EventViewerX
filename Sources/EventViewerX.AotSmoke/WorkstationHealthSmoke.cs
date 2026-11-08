@@ -12,7 +12,8 @@ internal static class WorkstationHealthSmoke {
                 EventType.ApplicationCrash, EventType.ApplicationHang, EventType.ServiceFailure,
                 EventType.DiskError, EventType.FileSystemError, EventType.StorageReset,
                 EventType.HardwareError, EventType.DisplayDriverReset, EventType.BootPerformance,
-                EventType.ShutdownPerformance, EventType.StartupDegradation, EventType.ShutdownDegradation
+                EventType.ShutdownPerformance, EventType.StartupDegradation, EventType.ShutdownDegradation,
+                EventType.BitLockerSuspended, EventType.WindowsUpdateFailure
             }) {
                 Paths = new[] { path },
                 SavedEventReader = new FixtureReader(),
@@ -31,7 +32,9 @@ internal static class WorkstationHealthSmoke {
                     throw new InvalidOperationException("A health observation lost its typed payload.");
                 }
             }
-            if (records.Count != 13 || records.Select(record => record.TypeName).Distinct().Count() != 12 ||
+            if (records.Count != 15 || records.Select(record => record.TypeName).Distinct().Count() != 14 ||
+                records.OfType<BitLockerSuspended>().Single().EventId != 773 ||
+                records.OfType<WindowsUpdateFailure>().Single().Reason != "0x80073d02" ||
                 records.OfType<ApplicationCrash>().Single().ExceptionCode != "c0000409" ||
                 records.OfType<ApplicationHang>().Single().ApplicationName != "FTK Imager.exe" ||
                 records.OfType<ServiceFailure>().Single(record => record.EventId == 7031).RecoveryDelayMilliseconds != 180000 ||

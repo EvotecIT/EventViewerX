@@ -1,0 +1,18 @@
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-BitLocker-API" Guid="{5d674230-ca9f-11da-a94d-0800200c9a66}" />
+    <EventID>773</EventID>
+    <Version>0</Version>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>773</EventRecordID>
+    <Channel>Microsoft-Windows-BitLocker/BitLocker Management</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="IdentificationGUID">{11111111-2222-3333-4444-555555555555}</Data>
+    <Data Name="VolumeName">\\?\Volume{11111111-2222-3333-4444-555555555555}\</Data>
+    <Data Name="VolumeMountPoint">C:</Data>
+  </EventData>
+</Event>
