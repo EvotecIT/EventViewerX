@@ -53,7 +53,13 @@ public class IISSiteBindingFailure : EventRuleBase {
         if (string.IsNullOrEmpty(message)) return;
         if (string.IsNullOrEmpty(Binding)) {
             Match prefix = Regex.Match(message, @"https?://[^\s'""<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (prefix.Success) { Binding = prefix.Value.TrimEnd(')', ',', ';', '.'); }
+            if (prefix.Success) {
+                // HTTP Server API prefixes end in '/'; keep IPv6 and path punctuation inside it.
+                int end = prefix.Value.LastIndexOf('/');
+                if (end > prefix.Value.IndexOf("://", StringComparison.Ordinal) + 3) {
+                    Binding = prefix.Value.Substring(0, end + 1);
+                }
+            }
         }
         var match = Regex.Match(message, @"URL prefix\s+(?<binding>\S+).*?site\s+['""]?(?<site>[^'""]+)");
         if (match.Success) {

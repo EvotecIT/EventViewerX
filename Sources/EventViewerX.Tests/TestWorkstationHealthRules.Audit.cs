@@ -7,9 +7,11 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestWorkstationHealthRules {
     [Theory]
-    [InlineData("The World Wide Web Publishing Service did not register the URL prefix http://*:8080/ for site 2.")]
-    [InlineData("Nie można zarejestrować adresu http://*:8080/ dla witryny 2.")]
-    public void IISBindingFallbackDoesNotTreatTheNumericSiteIdAsASiteName(string message) {
+    [InlineData("The World Wide Web Publishing Service did not register the URL prefix http://*:8080/ for site 2.", "http://*:8080/")]
+    [InlineData("Nie można zarejestrować adresu http://*:8080/ dla witryny 2.", "http://*:8080/")]
+    [InlineData("Nie można zarejestrować adresu [http://*:8080/] dla witryny 2.", "http://*:8080/")]
+    [InlineData("URL prefix [http://[::1]:8080/reports(archived)/] for site 2.", "http://[::1]:8080/reports(archived)/")]
+    public void IISBindingFallbackDoesNotTreatTheNumericSiteIdAsASiteName(string message, string expectedBinding) {
         EventObject source = new SavedEventRecord {
             ProviderName = "Microsoft-Windows-IIS-W3SVC", Channel = "System", EventId = 1007,
             TimeCreatedUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
@@ -19,7 +21,7 @@ public sealed partial class TestWorkstationHealthRules {
         }.ToEventObject("iis-schema-fixture", EventReadMode.StructuredDataAndMessage);
         var record = Assert.IsType<EventViewerX.Rules.IIS.IISSiteBindingFailure>(
             EventTypeCatalog.CreateEventRule(source, new[] { EventType.IISSiteBindingFailure }));
-        Assert.Equal("http://*:8080/", record.Binding);
+        Assert.Equal(expectedBinding, record.Binding);
         Assert.Equal("2", record.SiteId);
         Assert.Empty(record.SiteName);
     }
