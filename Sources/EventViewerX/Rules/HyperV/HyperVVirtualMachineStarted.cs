@@ -8,13 +8,15 @@ public class HyperVVirtualMachineStarted : EventRuleBase {
     /// <inheritdoc />
     public override List<int> EventIds => new() { 18500 };
     /// <inheritdoc />
-    public override string LogName => "Microsoft-Windows-Hyper-V-VMMS/Admin";
+    public override string LogName => "Microsoft-Windows-Hyper-V-Worker-Admin";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Hyper-V-Worker" };
     /// <inheritdoc />
     public override EventType Type => EventType.HyperVVirtualMachineStarted;
 
     /// <summary>Accepts Hyper-V VM start events.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Hyper-V-Worker");
     }
 
     /// <summary>Hyper-V host that started the VM.</summary>
@@ -31,8 +33,8 @@ public class HyperVVirtualMachineStarted : EventRuleBase {
         SourceEvent = eventObject;
         TypeName = "HyperVVirtualMachineStarted";
         Computer = SourceEvent.ComputerName;
-        VirtualMachine = SourceEvent.GetValueFromDataDictionary("Name", "VMName");
-        VirtualMachineId = SourceEvent.GetValueFromDataDictionary("VMId", "VirtualMachineId");
+        VirtualMachine = Value("VmName", "VMName", "Name");
+        VirtualMachineId = Value("VmId", "VMId", "VirtualMachineId");
         When = SourceEvent.TimeCreated;
     }
 }

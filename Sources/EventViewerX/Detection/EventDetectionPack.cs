@@ -258,7 +258,7 @@ public sealed class EventDetectionPack {
             .Distinct()
             .OrderBy(static type => type)
             .ToArray();
-        IReadOnlyList<EventSourceDefinition> typedSources = EventTypeCatalog.GetSources(eventTypes);
+        IReadOnlyList<EventSourceDefinition> typedSources = EventTypeCatalog.GetSourcesForInspection(eventTypes);
         EventPrerequisite[] prerequisites = eventTypes
             .Select(EventRequirementCatalog.GetRequirement)
             .SelectMany(static requirement => requirement.Prerequisites)

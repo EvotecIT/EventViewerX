@@ -10,6 +10,8 @@ public class KerberosTicketFailure : EventRuleBase
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.KerberosTicketFailure;
 
     /// <summary>Checks whether the supplied event is a Kerberos ticket failure from the security auditing provider.</summary>

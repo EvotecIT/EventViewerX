@@ -39,6 +39,8 @@ public sealed class FirewallRuleAdded : FirewallRuleLifecycle {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.FirewallRuleAdded;
     /// <summary>Creates the typed projection.</summary>
     public FirewallRuleAdded(EventObject eventObject) : base(eventObject, nameof(FirewallRuleAdded)) { }
@@ -50,6 +52,8 @@ public sealed class FirewallRuleDeleted : FirewallRuleLifecycle {
     public override List<int> EventIds => new() { 4948 };
     /// <inheritdoc />
     public override string LogName => "Security";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
     /// <inheritdoc />
     public override EventType Type => EventType.FirewallRuleDeleted;
     /// <summary>Creates the typed projection.</summary>

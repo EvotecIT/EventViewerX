@@ -442,6 +442,7 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<EventType> ordered = GetOrderedExpandedCandidates(expanded, mode);
         var candidateLists = new Dictionary<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>>();
         foreach (EventType type in ordered) {
+            if (UnavailableSources.ContainsKey(type)) { continue; }
             if (!TryGetRuleSource(
                     type,
                     mode,
@@ -602,37 +603,13 @@ public static partial class EventTypeCatalog {
     /// Gets event IDs and log names for event types using rule classes.
     /// </summary>
     internal static Dictionary<string, HashSet<int>> GetSourceMap(IReadOnlyCollection<EventType> eventTypes) {
-        var mode = _discoveryMode;
-        EnsureInitialized();
-
         var eventInfoDict = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var namedEvent in Expand(eventTypes)) {
-            if (mode != EventRuleDiscoveryMode.Reflection && _ruleFactories.TryGetValue(namedEvent, out var reg)) {
-                if (!eventInfoDict.TryGetValue(reg.LogName, out var idSet)) {
-                    idSet = new HashSet<int>();
-                    eventInfoDict[reg.LogName] = idSet;
-                }
-                foreach (var id in reg.EventIds) {
-                    idSet.Add(id);
-                }
-                continue;
+        foreach (EventSourceDefinition source in GetSources(eventTypes)) {
+            if (!eventInfoDict.TryGetValue(source.LogName, out HashSet<int>? ids)) {
+                ids = new HashSet<int>();
+                eventInfoDict[source.LogName] = ids;
             }
-
-            if (mode == EventRuleDiscoveryMode.ExplicitOnly) {
-                continue;
-            }
-
-            if (!_reflectionRuleSources.TryGetValue(namedEvent, out var source)) {
-                continue;
-            }
-            if (!eventInfoDict.TryGetValue(source.LogName, out var eventIdSet)) {
-                eventIdSet = new HashSet<int>();
-                eventInfoDict[source.LogName] = eventIdSet;
-            }
-            foreach (int eventId in source.EventIds) {
-                eventIdSet.Add(eventId);
-            }
+            ids.UnionWith(source.EventIds);
         }
 
         return eventInfoDict;

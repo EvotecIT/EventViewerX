@@ -10,6 +10,8 @@ public class OSUncleanShutdown : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Kernel-Power" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSUncleanShutdown;
 
     /// <summary>Accepts kernel power events indicating unclean shutdowns.</summary>

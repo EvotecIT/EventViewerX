@@ -488,10 +488,11 @@ internal static partial class Program {
             Console.WriteLine(JsonSerializer.Serialize(new {
                 definition.Name,
                 definition.DisplayName,
+                definition.UnavailableReason,
                 definition.Description,
                 definition.Category,
                 definition.IsComposite,
-                Sources = definition.Sources.Select(static source => new { source.LogName, source.EventIds }),
+                Sources = definition.Sources.Select(static source => new { source.LogName, source.EventIds, source.ProviderNames }),
                 Fields = DescribeFields(builder.Fields)
             }, JsonOptions));
         }

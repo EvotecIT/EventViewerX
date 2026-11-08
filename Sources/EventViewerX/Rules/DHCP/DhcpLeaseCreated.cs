@@ -2,19 +2,19 @@ namespace EventViewerX.Rules.DHCP;
 
 /// <summary>
 /// DHCP lease creation event
-/// 10: A new IP address was leased to a client
+/// DHCP text audit code 10 is not a Windows Event Log identifier.
 /// </summary>
 public class DhcpLeaseCreated : EventRuleBase {
-    /// <inheritdoc />
+    /// <summary>Historical identifiers retained for compatibility; this built-in source is unavailable.</summary>
     public override List<int> EventIds => new() { 10 };
-    /// <inheritdoc />
+    /// <summary>Historical channel retained for compatibility; see the catalog definition's UnavailableReason.</summary>
     public override string LogName => "Microsoft-Windows-DHCP Server/Operational";
     /// <inheritdoc />
     public override EventType Type => EventType.DhcpLeaseCreated;
 
-    /// <summary>Accepts DHCP lease events from the DHCP Server provider.</summary>
+    /// <summary>Rejects the historical source because it does not establish the advertised event.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-DHCP-Server");
+        return false;
     }
 
     /// <summary>

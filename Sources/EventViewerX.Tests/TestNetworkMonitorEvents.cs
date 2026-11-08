@@ -6,15 +6,16 @@ namespace EventViewerX.Tests {
         [Fact]
         public void EventInfoContainsNetworkMonitorEvents() {
             var info = EventTypeCatalog.GetSourceMap(new List<EventType> {
-                EventType.NetworkMonitorDriverLoaded,
-                EventType.NetworkPromiscuousMode
+                EventType.NetworkMonitorDriverLoaded
             });
 
-            Assert.Contains(6, info["System"]);
+            Assert.DoesNotContain(6, info["System"]);
             Assert.Contains(7035, info["System"]);
             Assert.Contains(7045, info["System"]);
-            Assert.Contains(10400, info["System"]);
-            Assert.Contains(10401, info["System"]);
+            Assert.DoesNotContain(10400, info["System"]);
+            Assert.DoesNotContain(10401, info["System"]);
+            Assert.Throws<NotSupportedException>(() => EventTypeCatalog.GetSourceMap(
+                new[] { EventType.NetworkPromiscuousMode }));
         }
     }
 }

@@ -15,11 +15,13 @@ public class OSBugCheck : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-WER-SystemErrorReporting", "BugCheck" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSBugCheck;
 
     /// <summary>Accepts any bugcheck (1001) event in the System log.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-WER-SystemErrorReporting", "BugCheck");
     }
 
     /// <summary>Computer where the bugcheck occurred.</summary>

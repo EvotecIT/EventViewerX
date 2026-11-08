@@ -43,6 +43,7 @@ internal static partial class Program {
             return WriteRows(ApplyOccurrenceGrouping(contextual, options), options, token);
         }
         EventReportRequest request = CreateRequest(options);
+        if (request.Types is { Count: > 0 }) { EventTypeCatalog.GetSources(request.Types); }
         CollectionCheckpointContext? checkpoint =
             await PrepareCollectionCheckpointAsync(request, options, token)
                 .ConfigureAwait(false);

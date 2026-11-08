@@ -10,6 +10,8 @@ public class OSStartup : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Kernel-General" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSStartup;
 
     /// <summary>Accepts kernel general provider startup events.</summary>

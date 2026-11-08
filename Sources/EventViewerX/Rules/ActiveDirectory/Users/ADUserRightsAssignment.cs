@@ -9,12 +9,13 @@ public class ADUserRightsAssignment : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADUserRightsAssignment;
 
     /// <summary>Accepts matching user rights assignment events without extra filters.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Simple rule - always handle if event ID and log name match
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>Machine where the change occurred.</summary>
     public string Computer;

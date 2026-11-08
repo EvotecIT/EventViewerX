@@ -30,6 +30,8 @@ public sealed class ScheduledTaskEnabled : ScheduledTaskStateChange {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ScheduledTaskEnabled;
     /// <summary>Creates the typed projection.</summary>
     public ScheduledTaskEnabled(EventObject eventObject) : base(eventObject, nameof(ScheduledTaskEnabled)) { }
@@ -42,6 +44,8 @@ public sealed class ScheduledTaskDisabled : ScheduledTaskStateChange {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ScheduledTaskDisabled;
     /// <summary>Creates the typed projection.</summary>
     public ScheduledTaskDisabled(EventObject eventObject) : base(eventObject, nameof(ScheduledTaskDisabled)) { }
@@ -53,6 +57,8 @@ public sealed class ScheduledTaskUpdated : ScheduledTaskStateChange {
     public override List<int> EventIds => new() { 4702 };
     /// <inheritdoc />
     public override string LogName => "Security";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
     /// <inheritdoc />
     public override EventType Type => EventType.ScheduledTaskUpdated;
     /// <summary>Updated task XML.</summary>

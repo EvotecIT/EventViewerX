@@ -95,6 +95,24 @@ public sealed partial class TestEventDetection {
     }
 
     [Fact]
+    public void ImpactCanCompareRetainedTypesWithoutRequiringTheirWithdrawnNativeSources() {
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {
+            RuleId = "historical", Title = "Historical identity", EventTypes = new[] { EventType.NetworkPromiscuousMode }
+        }) });
+        var typedCoverage = EventDetectionCoverage.Create(
+            expectedEventTypes: new[] { EventType.NetworkPromiscuousMode },
+            observedEventTypes: new[] { EventType.NetworkPromiscuousMode });
+        var complete = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
+            new EventDetectionEngineOptions(coverage: typedCoverage));
+        Assert.True(complete.IsComplete);
+        var nativeCoverage = EventDetectionCoverage.Create(expectedEventIds: new[] { 10400 }, observedEventIds: new[] { 10400 });
+        var unknown = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
+            new EventDetectionEngineOptions(coverage: nativeCoverage));
+        Assert.False(unknown.IsComplete);
+        Assert.Contains(unknown.Diagnostics, value => value.Contains("EventId", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ImpactChecksTypedCoverageAndDoesNotMisreadTypedSourcesAsWildcards() {
         EventDetectionPlan Plan(EventType type) => EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {
             RuleId = "typed", Title = "Typed", EventTypes = new[] { type }

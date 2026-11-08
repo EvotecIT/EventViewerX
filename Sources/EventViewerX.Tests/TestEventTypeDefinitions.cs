@@ -5,6 +5,9 @@ using Xunit;
 namespace EventViewerX.Tests;
 
 public sealed class TestEventTypeDefinitions {
+    private static EventType[] SupportedEntraTypes() => EventTypeCatalog.Expand(new[] { EventType.EntraConnectHealth })
+        .Where(type => type != EventType.AADConnectRunProfile).ToArray();
+
     [Fact]
     public void CatalogDescribesEveryEnumValueAndEveryLeafHasARecordType() {
         EventTypeDefinition[] definitions = EventTypeCatalog
@@ -17,7 +20,8 @@ public sealed class TestEventTypeDefinitions {
             definitions.Where(static item => !item.IsComposite),
             static definition => {
                 Assert.NotNull(definition.RecordType);
-                Assert.NotEmpty(definition.Sources);
+                if (definition.UnavailableReason == null) { Assert.NotEmpty(definition.Sources); }
+                else { Assert.Empty(definition.Sources); }
                 Assert.NotEmpty(definition.Fields);
                 Assert.Contains(definition.Fields, static field =>
                     !field.IsCommon && field.Name is not "EventIds" and not "LogName" and not "Type");
@@ -65,7 +69,7 @@ public sealed class TestEventTypeDefinitions {
     [Fact]
     public void ProviderScopedCompositeKeepsDistinctNativeSources() {
         IReadOnlyList<EventSourceDefinition> sources = EventTypeCatalog.GetSources(
-            new[] { EventType.EntraConnectHealth });
+            SupportedEntraTypes());
 
         EventSourceDefinition directorySynchronization = Assert.Single(
             sources,
@@ -76,7 +80,7 @@ public sealed class TestEventTypeDefinitions {
 
         Assert.Equal("Application", directorySynchronization.LogName);
         Assert.Contains(611, directorySynchronization.EventIds);
-        Assert.Contains(906, directorySynchronization.EventIds);
+        Assert.DoesNotContain(906, directorySynchronization.EventIds);
         Assert.Contains(907, directorySynchronization.EventIds);
         Assert.DoesNotContain(6952, directorySynchronization.EventIds);
         Assert.Equal(new[] { 6952 }, adSync.EventIds);
@@ -85,9 +89,9 @@ public sealed class TestEventTypeDefinitions {
     [Fact]
     public void ProviderScopedCompositeRetainsItsProviderNeutralLegacyLogUnion() {
         IReadOnlyList<EventSourceDefinition> currentSources = EventTypeCatalog.GetSources(
-            new[] { EventType.EntraConnectHealth });
+            SupportedEntraTypes());
         Dictionary<string, HashSet<int>> legacySources = EventTypeCatalog.GetSourceMap(
-            new[] { EventType.EntraConnectHealth });
+            SupportedEntraTypes());
 
         HashSet<int> legacyApplication = Assert.Single(legacySources).Value;
         int[] currentApplication = currentSources
@@ -99,7 +103,7 @@ public sealed class TestEventTypeDefinitions {
 
         Assert.Equal(currentApplication, legacyApplication.OrderBy(static eventId => eventId));
         Assert.Contains(611, legacyApplication);
-        Assert.Contains(906, legacyApplication);
+        Assert.DoesNotContain(906, legacyApplication);
         Assert.Contains(907, legacyApplication);
         Assert.Contains(6952, legacyApplication);
     }
@@ -107,7 +111,7 @@ public sealed class TestEventTypeDefinitions {
     [Fact]
     public void TypedQueryCompilerIncludesCatalogProviderPredicates() {
         string queryXml = EventDefinitionCompiler.BuildQueryXml(
-            new[] { EventType.EntraConnectHealth, EventType.KerberosKdcRc4Audit });
+            SupportedEntraTypes().Append(EventType.KerberosKdcRc4Audit));
 
         Assert.Contains("Provider[@Name='Directory Synchronization']", queryXml, StringComparison.Ordinal);
         Assert.Contains("Provider[@Name='ADSync']", queryXml, StringComparison.Ordinal);

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
-public sealed class TestEventReadinessEngine {
+public sealed partial class TestEventReadinessEngine {
     [Fact]
     public void LocalReadinessCombinesTransportAndEffectivePolicyWithoutMutation() {
         var evidence = new FakeEvidenceProvider {
@@ -1100,11 +1100,11 @@ public sealed class TestEventReadinessEngine {
         evidence.Subscription!.RawXml = """
             <QueryList>
               <Query Id="0" Path="Security">
-                <Select Path="Security">*[System[EventID=4624]]</Select>
-                <Suppress Path="Security">*[System[EventID=4624]]</Suppress>
+                <Select Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Select>
+                <Suppress Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Suppress>
               </Query>
               <Query Id="1" Path="Security">
-                <Select Path="Security">*[System[EventID=4624]]</Select>
+                <Select Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Select>
               </Query>
             </QueryList>
             """;

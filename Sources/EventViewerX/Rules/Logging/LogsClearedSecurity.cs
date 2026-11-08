@@ -3,14 +3,14 @@ namespace EventViewerX.Rules.Logging;
 /// <summary>
 /// Logs Cleared Security
 /// 1102: The audit log was cleared
-/// 1105: Event log automatic backup
-/// Url: https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-1105
 /// </summary>
 public class LogsClearedSecurity : EventRuleBase {
     /// <inheritdoc />
-    public override List<int> EventIds => new() { 1102, 1105 };
+    public override List<int> EventIds => new() { 1102 };
     /// <inheritdoc />
     public override string LogName => "Security";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Eventlog" };
     /// <inheritdoc />
     public override EventType Type => EventType.LogsClearedSecurity;
 
@@ -37,20 +37,17 @@ public class LogsClearedSecurity : EventRuleBase {
 
         TypeName = "LogsClearedSecurity";
         Computer = SourceEvent.ComputerName;
-        Action = SourceEvent.MessageSubject;
+        Action = string.IsNullOrWhiteSpace(SourceEvent.MessageSubject) ? "Audit log cleared" : SourceEvent.MessageSubject;
         BackupPath = SourceEvent.GetValueFromDataDictionary("BackupPath");
-        LogType = ConvertFromOperationType(SourceEvent.GetDataValueOrEmpty("Channel"));
+        LogType = Value("Channel");
+        if (LogType.Length == 0) { LogType = SourceEvent.OriginalLogName; }
 
         // common fields
         Who = SourceEvent.GetSubjectAccountOrEmpty();
         When = SourceEvent.TimeCreated;
 
-        if (SourceEvent.Id == 1105) {
-            Who = "Automatic Backup";
-        }
-        if (BackupPath == "") {
-            BackupPath = "N/A";
-        }
+
+
     }
 
 }

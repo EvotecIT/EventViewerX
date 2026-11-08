@@ -10,6 +10,8 @@ public class LogsClearedOther : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Eventlog" };
+    /// <inheritdoc />
     public override EventType Type => EventType.LogsClearedOther;
 
     /// <summary>Verifies the event originates from the EventLog provider.</summary>
@@ -35,18 +37,16 @@ public class LogsClearedOther : EventRuleBase {
 
         TypeName = "LogsClearedOther";
         Computer = SourceEvent.ComputerName;
-        Action = SourceEvent.MessageSubject;
+        Action = string.IsNullOrWhiteSpace(SourceEvent.MessageSubject) ? "Event log cleared" : SourceEvent.MessageSubject;
         BackupPath = SourceEvent.GetValueFromDataDictionary("BackupPath");
-        LogType = ConvertFromOperationType(SourceEvent.GetDataValueOrEmpty("Channel"));
+        LogType = SourceEvent.GetDataValueOrEmpty("Channel");
 
         // common fields
         Who = SourceEvent.GetSubjectAccountOrEmpty();
         When = SourceEvent.TimeCreated;
 
 
-        if (BackupPath == "") {
-            BackupPath = "N/A";
-        }
+
     }
 }
 

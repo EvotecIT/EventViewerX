@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Eventlog" />
+    <EventID>1105</EventID>
+    <Version>0</Version>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>100</EventRecordID>
+    <Channel>Security</Channel>
+    <Computer>server-fixture</Computer>
+  </System>
+  <EventData>
+    <Data Name="Channel">Security</Data>
+    <Data Name="BackupPath">C:\Windows\System32\winevt\Logs\Archive-Security.evtx</Data>
+  </EventData>
+</Event>

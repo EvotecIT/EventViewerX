@@ -11,12 +11,13 @@ public class NetworkAccessAuthenticationPolicy : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.NetworkAccessAuthenticationPolicy;
 
     /// <summary>Accepts any event whose ID/log match the overrides.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Simple rule - always handle if event ID and log name match
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>
     /// Computer where the policy event originated.

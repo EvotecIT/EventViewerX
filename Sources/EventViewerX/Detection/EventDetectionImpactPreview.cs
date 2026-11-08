@@ -111,7 +111,7 @@ public static partial class EventDetectionEngine {
         foreach (EventDetectionPlan.CompiledRule rule in plan.CompiledRules) {
             IReadOnlyList<EventSourceDefinition> typedSources = rule.IndexEventTypeNames.Count == 0
                 ? Array.Empty<EventSourceDefinition>()
-                : EventTypeCatalog.GetSources(rule.Definition.EventTypes.Concat(rule.Definition.Steps.SelectMany(step => step.EventTypes)));
+                : EventTypeCatalog.GetSourcesForInspection(rule.Definition.EventTypes.Concat(rule.Definition.Steps.SelectMany(step => step.EventTypes)));
             Check("EventId", coverage.ExpectedEventIds, coverage.ObservedEventIds,
                 rule.IndexEventIds.Count != 0 ? rule.IndexEventIds : typedSources.SelectMany(source => source.EventIds));
             Check("Channel", coverage.ExpectedChannels, coverage.ObservedChannels,

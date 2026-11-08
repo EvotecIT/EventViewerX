@@ -10,6 +10,8 @@ public class WindowsUpdateFailure : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-WindowsUpdateClient" };
+    /// <inheritdoc />
     public override EventType Type => EventType.WindowsUpdateFailure;
 
     /// <summary>Accepts update failure events from the Windows Update Client provider.</summary>
@@ -20,6 +22,8 @@ public class WindowsUpdateFailure : EventRuleBase {
     public string Computer;
     /// <summary>KB article number of the update.</summary>
     public string KB;
+    /// <summary>Title of the update or Store application that failed to install.</summary>
+    public string UpdateTitle;
     /// <summary>Reason of the failure.</summary>
     public string Reason;
     /// <summary>Time the event occurred.</summary>
@@ -30,10 +34,11 @@ public class WindowsUpdateFailure : EventRuleBase {
         SourceEvent = eventObject;
         TypeName = "WindowsUpdateFailure";
         Computer = SourceEvent.ComputerName;
-        var title = SourceEvent.GetValueFromDataDictionary("UpdateTitle", "Title");
+        var title = Value("UpdateTitle", "Title");
         if (string.IsNullOrEmpty(title)) {
             title = SourceEvent.Message;
         }
+        UpdateTitle = title ?? string.Empty;
         var kbMatch = System.Text.RegularExpressions.Regex.Match(title ?? string.Empty, @"KB\d{6,7}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         KB = kbMatch.Success ? kbMatch.Value : string.Empty;
         Reason = SourceEvent.GetValueFromDataDictionary("ErrorDescription", "Message");

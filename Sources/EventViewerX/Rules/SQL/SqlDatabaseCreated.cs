@@ -3,20 +3,19 @@ namespace EventViewerX.Rules.SQL;
 /// <summary>
 /// SQL Server database created
 /// 17137: Starting up database
-/// 1802: CREATE DATABASE succeeded
+/// 1802: CREATE DATABASE failed; neither historical event proves creation.
 /// </summary>
 public class SqlDatabaseCreated : EventRuleBase {
-    /// <inheritdoc />
+    /// <summary>Historical identifiers retained for compatibility; this built-in source is unavailable.</summary>
     public override List<int> EventIds => new() { 17137, 1802 };
-    /// <inheritdoc />
+    /// <summary>Historical channel retained for compatibility; see the catalog definition's UnavailableReason.</summary>
     public override string LogName => "Application";
     /// <inheritdoc />
     public override EventType Type => EventType.SqlDatabaseCreated;
 
-    /// <summary>Accepts events based solely on ID/log matching.</summary>
+    /// <summary>Rejects the historical source because it does not establish the advertised event.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Simple rule - always handle if event ID and log name match
-        return true;
+        return false;
     }
 
     /// <summary>Server where the database was created.</summary>

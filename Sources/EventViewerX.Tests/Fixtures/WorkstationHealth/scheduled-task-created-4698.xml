@@ -1,0 +1,7 @@
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><Provider Name="Microsoft-Windows-Security-Auditing" Guid="{54849625-5478-4994-a5ba-3e3b0328c30d}" /><EventID>4698</EventID><Version>1</Version><Level>0</Level><Task>12804</Task><Opcode>0</Opcode><Keywords>0x8020000000000000</Keywords><TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" /><EventRecordID>100</EventRecordID><Correlation /><Execution /><Channel>Security</Channel><Computer>server-fixture</Computer><Security /></System><EventData><Data Name="SubjectUserSid">S-1-5-18</Data><Data Name="SubjectUserName">fixture-user</Data><Data Name="SubjectDomainName">EXAMPLE</Data><Data Name="SubjectLogonId">0x3e7</Data><Data Name="TaskName">\Example\AuditTask</Data><Data Name="TaskContent">&lt;ns0:Task xmlns:ns0="http://schemas.microsoft.com/windows/2004/02/mit/task" version="1.2"&gt;
+  &lt;ns0:RegistrationInfo&gt;
+    &lt;ns0:Date&gt;2026-11-01T12:00:00&lt;/ns0:Date&gt;
+    &lt;ns0:Author&gt;EXAMPLE\Scheduler&lt;/ns0:Author&gt;
+    &lt;ns0:URI&gt;\Example\AuditTask&lt;/ns0:URI&gt;
+  &lt;/ns0:RegistrationInfo&gt;
+  &lt;ns0:Actions&gt;&lt;ns0:Exec&gt;&lt;ns0:Command&gt;C:\Windows\System32\cmd.exe&lt;/ns0:Command&gt;&lt;ns0:Arguments&gt;/c exit 0&lt;/ns0:Arguments&gt;&lt;/ns0:Exec&gt;&lt;/ns0:Actions&gt;&lt;/ns0:Task&gt;</Data><Data Name="ClientProcessStartKey">112589990684982824</Data><Data Name="ClientProcessId">4588</Data><Data Name="ParentProcessId">1080</Data><Data Name="RpcCallClientLocality">0</Data><Data Name="FQDN">server-fixture.example.test</Data></EventData></Event>

@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-IIS-W3SVC" />
+    <EventID Qualifiers="49152">1007</EventID>
+    <Version>0</Version>
+    <Level>2</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x80000000000000</Keywords>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>100</EventRecordID>
+    <Correlation />
+    <Execution />
+    <Channel>System</Channel>
+    <Computer>server-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="UrlPrefix">http://*:8080/</Data>
+    <Data Name="SiteID">2</Data>
+  </EventData>
+</Event>

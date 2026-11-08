@@ -571,6 +571,7 @@ public sealed partial class CmdletGetEVXEvent : AsyncPSCmdlet {
             }
             return;
         }
+        if (UsesBuiltInTypeQuery) { EventTypeCatalog.GetSources(Type); }
         if (!string.IsNullOrWhiteSpace(ContextStorePath)) {
             await ProcessGroupPolicyContextAsync();
             return;

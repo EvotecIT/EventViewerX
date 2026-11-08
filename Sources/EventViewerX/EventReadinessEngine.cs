@@ -41,6 +41,15 @@ public static partial class EventReadinessEngine {
         var checks = new List<EventReadinessCheckResult>();
         checks.Add(CreateRuntimeCheck());
 
+        cancellationToken.ThrowIfCancellationRequested();
+        EventType[] unavailableTypes = EventTypeCatalog.Expand(snapshot.Types)
+            .Where(type => EventTypeCatalog.GetUnavailableSourceReason(type) != null).ToArray();
+        if (unavailableTypes.Length > 0) {
+            AddRuleCatalogChecks(unavailableTypes, checks);
+            return new EventReadinessReport(snapshot.Scenario, snapshot.Types, null,
+                Array.Empty<EventTargetInfo>(), checks, stopwatch.Elapsed);
+        }
+
         EventTargetDiscoveryResult? discovery = null;
         IReadOnlyList<EventTargetInfo> targets;
         if (snapshot.Collector != null) {
@@ -275,8 +284,11 @@ public static partial class EventReadinessEngine {
                 type.ToString(),
                 EventReadinessStatus.Fail,
                 EventReadinessEvidenceLevel.Inspected,
-                $"No active event rule/source registration exists for requested type '{type}'.",
-                "Register the requested rule before catalog initialization or use a discovery mode that includes it.",
+                EventTypeCatalog.GetUnavailableSourceReason(type) ??
+                    $"No active event rule/source registration exists for requested type '{type}'.",
+                EventTypeCatalog.GetUnavailableSourceReason(type) != null
+                    ? "Select a supported leaf definition or inspect the original telemetry with a generic query."
+                    : "Register the requested rule before catalog initialization or use a discovery mode that includes it.",
                 required: true,
                 requirementKey: "rule-catalog:" + type.ToString().ToUpperInvariant(),
                 diagnosticKind: EventReadinessDiagnosticKind.InvalidConfiguration));

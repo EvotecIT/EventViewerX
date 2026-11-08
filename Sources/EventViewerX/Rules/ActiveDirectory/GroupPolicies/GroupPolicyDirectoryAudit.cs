@@ -7,6 +7,8 @@ public sealed class GroupPolicyDirectoryAudit : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.GroupPolicyDirectoryAudit;
 
     /// <summary>Handles Group Policy containers, scope links/inheritance, and WMI-filter objects or assignments.</summary>

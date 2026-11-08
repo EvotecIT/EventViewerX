@@ -148,7 +148,9 @@ public sealed partial class EventStore {
             return eventIds.Distinct().ToArray();
         }
         EventType[] expanded = EventTypeCatalog.Expand(eventTypes).ToArray();
-        if (expanded.Length == 0) {
+        // Historical type identities can remain valid stored evidence after a native source is withdrawn.
+        if (expanded.Length == 0 || expanded.Any(static type =>
+                EventTypeCatalog.GetDefinition(type).UnavailableReason != null)) {
             return Array.Empty<int>();
         }
         int[][] perType = expanded

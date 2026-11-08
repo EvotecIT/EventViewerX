@@ -17,7 +17,8 @@ public sealed class EventTypeDefinition {
             System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields)]
 #endif
         Type? recordType,
-        IReadOnlyList<EventType> includedTypes) {
+        IReadOnlyList<EventType> includedTypes,
+        string? unavailableReason = null) {
 
         Type = type;
         Name = type.ToString();
@@ -28,6 +29,7 @@ public sealed class EventTypeDefinition {
         Fields = fields;
         RecordType = recordType;
         IncludedTypes = includedTypes;
+        UnavailableReason = unavailableReason;
     }
 
     /// <summary>Stable built-in event type.</summary>
@@ -41,6 +43,9 @@ public sealed class EventTypeDefinition {
 
     /// <summary>Short user-facing purpose.</summary>
     public string Description { get; }
+
+    /// <summary>Why this definition cannot currently be queried, or null when its sources are available. Composite definitions include reasons for unavailable members.</summary>
+    public string? UnavailableReason { get; }
 
     /// <summary>Broad report and discovery category.</summary>
     public string Category { get; }

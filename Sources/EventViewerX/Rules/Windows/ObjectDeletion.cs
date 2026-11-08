@@ -10,11 +10,13 @@ public class ObjectDeletion : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ObjectDeletion;
 
     /// <summary>Accepts object deletion events (4660) in the Security log.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>Machine where the object was deleted.</summary>
     public string Computer;

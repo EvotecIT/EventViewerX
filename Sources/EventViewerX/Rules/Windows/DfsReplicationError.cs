@@ -10,11 +10,13 @@ public class DfsReplicationError : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "DFS Replication";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "DFSR" };
+    /// <inheritdoc />
     public override EventType Type => EventType.DfsReplicationError;
 
     /// <summary>Accepts DFS Replication partner communication errors.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "DFSR");
     }
 
     /// <summary>Replication group affected.</summary>
@@ -30,9 +32,9 @@ public class DfsReplicationError : EventRuleBase {
     public DfsReplicationError(EventObject eventObject) : base(eventObject) {
         SourceEvent = eventObject;
         TypeName = "DfsReplicationError";
-        ReplicationGroup = SourceEvent.GetValueFromDataDictionary("Replication Group");
-        ErrorCode = SourceEvent.GetValueFromDataDictionary("Error Code", "Error");
-        Partner = SourceEvent.GetValueFromDataDictionary("Partner Name");
+        ReplicationGroup = Value("ReplicationGroupName", "Replication Group", "NoNameA2");
+        ErrorCode = Value("ErrorCode", "Error Code", "Error", "NoNameA6");
+        Partner = Value("PartnerName", "Partner Name", "NoNameA1");
         When = SourceEvent.TimeCreated;
     }
 }

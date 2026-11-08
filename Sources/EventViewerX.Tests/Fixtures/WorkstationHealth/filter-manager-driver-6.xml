@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-FilterManager" Guid="{f3c5e28e-63f6-49c7-a204-e48a1bc4b09d}" />
+    <EventID>6</EventID>
+    <Version>0</Version>
+    <Level>4</Level>
+    <Task>0</Task>
+    <Opcode>0</Opcode>
+    <Keywords>0x8000000000000000</Keywords>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>100</EventRecordID>
+    <Correlation />
+    <Execution />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="FinalStatus">0x0</Data>
+    <Data Name="DeviceVersionMajor">10</Data>
+    <Data Name="DeviceVersionMinor">0</Data>
+    <Data Name="DeviceNameLength">7</Data>
+    <Data Name="DeviceName">gameflt</Data>
+    <Data Name="DeviceTime">2047-06-13T08:32:47.0000000Z</Data>
+  </EventData>
+</Event>

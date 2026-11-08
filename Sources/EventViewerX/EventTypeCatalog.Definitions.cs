@@ -170,12 +170,21 @@ public static partial class EventTypeCatalog {
     }
 
     /// <summary>Returns the distinct native sources selected by one or more leaf or composite definitions.</summary>
+    /// <exception cref="NotSupportedException">A selected definition or composite member has an unavailable source. Inspect its UnavailableReason before querying.</exception>
     public static IReadOnlyList<EventSourceDefinition> GetSources(IEnumerable<EventType> eventTypes) {
+        IReadOnlyList<EventType> expanded = Expand(eventTypes);
+        EnsureSourcesAvailable(expanded);
+        return GetSourcesForInspection(expanded);
+    }
+
+    /// <summary>Returns inspected source metadata without enabling unavailable definitions for native execution.</summary>
+    internal static IReadOnlyList<EventSourceDefinition> GetSourcesForInspection(IEnumerable<EventType> eventTypes) {
         IReadOnlyList<EventType> expanded = Expand(eventTypes);
         var mode = _discoveryMode;
         EnsureInitialized();
         var sources = new List<EventSourceDefinition>();
         foreach (EventType type in expanded) {
+            if (UnavailableSources.ContainsKey(type)) { continue; }
             if (TryGetRuleSource(
                 type,
                 mode,
@@ -229,7 +238,11 @@ public static partial class EventTypeCatalog {
     }
 
     private static EventTypeDefinition CreateDefinition(EventType type) {
-        string displayName = SplitWords(type.ToString());
+        string displayName = type switch {
+            EventType.IISSiteStopped => "IIS WWW service stopped",
+            EventType.NetworkMonitorDriverLoaded => "Packet-monitor driver service activity",
+            _ => SplitWords(type.ToString())
+        };
         string category = ResolveCategory(type);
         EventType[] includedTypes = CompositeMembers.TryGetValue(type, out EventType[]? members)
             ? members.ToArray()
@@ -245,7 +258,10 @@ public static partial class EventTypeCatalog {
                 .Select(static group => group.First())
                 .ToArray()
             : GetFields(recordType);
-        string description = includedTypes.Length == 0
+        string? unavailableReason = GetUnavailableSourceReason(type);
+        string description = unavailableReason != null
+            ? "Unavailable source. " + unavailableReason
+            : includedTypes.Length == 0
             ? $"Typed projection for {displayName} events."
             : $"Composite view combining {Expand(new[] { type }).Count} typed event definitions.";
 
@@ -254,10 +270,11 @@ public static partial class EventTypeCatalog {
             displayName,
             description,
             category,
-            GetSources(new[] { type }),
+            GetSourcesForInspection(new[] { type }),
             fields,
             recordType,
-            includedTypes);
+            includedTypes,
+            unavailableReason);
     }
 
     private static IReadOnlyList<EventFieldDefinition> GetFields(
@@ -270,7 +287,7 @@ public static partial class EventTypeCatalog {
         var fields = new List<EventFieldDefinition>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (PropertyInfo property in recordType.GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-            if (property.GetIndexParameters().Length != 0 || !seen.Add(property.Name)) {
+            if (property.GetIndexParameters().Length != 0 || EventRuleBase.IsRoutingMember(property.Name) || !seen.Add(property.Name)) {
                 continue;
             }
             fields.Add(new EventFieldDefinition(
@@ -331,7 +348,10 @@ public static partial class EventTypeCatalog {
             value,
             "(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])",
             " ");
+        separated = separated.Replace("NTL Mv1", "NTLMv1").Replace("Bit Locker", "BitLocker");
         return string.Join(" ", separated.Split(' ').Select(static word => word switch {
+            "Ldap" => "LDAP",
+            "Dfs" => "DFS",
             "Dhcp" => "DHCP",
             "Dns" => "DNS",
             "Gpo" => "GPO",

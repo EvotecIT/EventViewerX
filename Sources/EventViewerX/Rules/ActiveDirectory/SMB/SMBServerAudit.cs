@@ -36,6 +36,8 @@ public class SMBServerAudit : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Microsoft-Windows-SMBServer/Audit";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-SMBServer" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADSMBServerAuditV1;
 
     /// <summary>

@@ -64,8 +64,9 @@ internal static class EventReportPresentationProjection {
     internal static string FormatValue(object? value) => value switch {
         null => string.Empty,
         string text => IsPlaceholder(text) ? string.Empty : CollapseWhitespace(text),
-        DateTime date => date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-        DateTimeOffset date => date.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture),
+        DateTime date => (date.Kind == DateTimeKind.Unspecified ? date : date.ToUniversalTime())
+            .ToString("yyyy-MM-dd HH:mm:ssK", CultureInfo.InvariantCulture),
+        DateTimeOffset date => date.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture),
         IEnumerable enumerable => FormatEnumerable(enumerable),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
         _ => value.ToString() ?? string.Empty
@@ -88,7 +89,7 @@ internal static class EventReportPresentationProjection {
             }
         }
 
-        return $"{section.Section.DisplayName} · {source.TimeCreated:yyyy-MM-dd HH:mm:ss}";
+        return $"{section.Section.DisplayName} · {FormatValue(source.TimeCreated)}";
     }
 
     internal static string BuildSummary(

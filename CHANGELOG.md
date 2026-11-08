@@ -2,9 +2,15 @@
 
 ## 4.2.1
 
-- Read BitLocker suspensions from event 773 in `Microsoft-Windows-BitLocker/BitLocker Management`, qualified by the BitLocker API provider. Event 24660 describes encryption on write, not suspension.
-- Read Windows Update installation failures from the System log and qualify queries by the WindowsUpdateClient provider.
-- Cover the corrected queries and provider payloads in regression tests and the strict .NET 8 and .NET 10 Native AOT smoke.
+- Read BitLocker suspensions from Management event 773 and key protector changes from the BitLocker API provider, rather than unrelated encryption, privilege-use or DPAPI events. Preserve volume and protector identity.
+- Read Windows Update failures from the System log, retaining the update title and error code for Store apps as well as KB updates.
+- Qualify Windows, directory, LDAP, SMB, DFSR and IIS sources by their providers. Correct Hyper-V lifecycle channels and the virtual-machine turn-off event, and accept Application-log Group Policy preference providers.
+- Parse classic DFSR insertion fields, namespaced task registration metadata, Defender configuration paths and native IIS binding fields. Keep certificate request receipt separate from issuance, preserve request text and hexadecimal serial numbers, and keep automatic log backup separate from clearing.
+- Remove rule-routing properties from field discovery and reports. Use numeric severity for report states, display known-zone event times in UTC, preserve complete messages in record details and show error/warning counts in overview cards.
+- Keep the existing DHCP lease, SQL database creation, promiscuous-mode, Hyper-V checkpoint creation and AD Connect run-profile identifiers, while marking their invalid native sources unavailable. Discovery exposes the reason; queries and composites fail clearly, and readiness reports the source contract failure before querying machines.
+- Preserve detection-pack inspection and stored-history replay for unavailable source contracts, and reject unsupported native selections before checkpoint probes or predicate explanation.
+- Update the endpoint-protection pack to 1.0.1: withdraw the invalid promiscuous-mode detection and describe packet-monitor driver service activity accurately. Preserve native log names and useful fallback actions in log-clearing/full reports.
+- Extend redacted capture and native-schema regression coverage and the strict .NET 8 and .NET 10 Native AOT smoke.
 
 ## 4.2.0
 

@@ -10,6 +10,8 @@ public class ADLdapBindingDetails : EventRuleBase {
 
     /// <inheritdoc />
     public override string LogName => "Directory Service";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-ActiveDirectory_DomainService" };
 
     /// <inheritdoc />
     public override EventType Type => EventType.ADLdapBindingDetails;
