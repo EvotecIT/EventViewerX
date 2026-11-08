@@ -1,5 +1,10 @@
 using EventViewerX;
 
+if (args.SequenceEqual(new[] { "--custom-source" })) {
+    await CustomSourceSmoke.RunAsync();
+    return;
+}
+
 EventTypeDefinition[] definitions = EventTypeCatalog.GetDefinitions().ToArray();
 EventTypeDefinition[] leaves = definitions.Where(static definition => !definition.IsComposite).ToArray();
 if (leaves.Length != 102 || leaves.Any(static definition =>

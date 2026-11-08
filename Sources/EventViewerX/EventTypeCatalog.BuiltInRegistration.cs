@@ -150,7 +150,7 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<string> providers, Func<EventObject, EventTypeRecord> factory, int matchPriority = 0, Func<EventObject, bool>? canHandle = null) {
         if (!reflection) {
             RegisterRuleFactoryCore(type, logName, eventIds, providers, factory,
-                canHandle, typeof(TRecord), matchPriority);
+                canHandle, typeof(TRecord), matchPriority, isBuiltIn: true);
             return;
         }
         var registration = new RuleFactoryRegistration(type, logName, eventIds, factory,

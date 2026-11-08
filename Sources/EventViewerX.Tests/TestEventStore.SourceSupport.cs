@@ -6,29 +6,39 @@ using Xunit;
 namespace EventViewerX.Tests;
 
 public sealed partial class TestEventStore {
-    [Fact]
-    public async Task HistoricalDetectionKeepsRetainedTypeIdentityWithoutRequiringItsNativeSource() {
+    [Theory]
+    [InlineData(EventType.SqlDatabaseCreated, 17137)]
+    [InlineData(EventType.BitLockerKeyChange, 4673)]
+    [InlineData(EventType.BitLockerKeyChange, 4692)]
+    public async Task HistoricalDetectionKeepsRetainedTypeIdentityWithoutRequiringItsNativeSource(EventType type, int eventId) {
         string path = CreateStorePath();
         try {
             EventObject source = new SavedEventRecord {
-                EventId = 17137, ProviderName = "MSSQLSERVER", Channel = "Application", RecordId = 1,
+                EventId = eventId, ProviderName = type == EventType.SqlDatabaseCreated ? "MSSQLSERVER" : "Microsoft-Windows-Security-Auditing",
+                Channel = type == EventType.SqlDatabaseCreated ? "Application" : "Security", RecordId = 1,
                 Computer = "sql-fixture", TimeCreatedUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
                 Message = "Starting up database 'fixture'.", MessageRenderStatus = EventMessageRenderStatus.Rendered
             }.ToEventObject("historical-fixture", EventReadMode.StructuredDataAndMessage);
             // A legacy stored type is retained evidence, not proof that a new database was created.
             var store = new EventStore(path);
-            await store.WriteAsync(EventReportEngine.Create(new object[] { new SqlDatabaseCreated(source) }));
+            EventTypeRecord record = type == EventType.SqlDatabaseCreated
+                ? new SqlDatabaseCreated(source) : new EventViewerX.Rules.Windows.BitLockerKeyChange(source);
+            await store.WriteAsync(EventReportEngine.Create(new object[] { record }));
             EventDetectionPlan plan = EventDetectionPlan.Compile(new[] {
                 new EventDetectionRule(new EventDetectionRuleDefinition {
-                    RuleId = "historical-sql", Title = "Historical SQL identity", EventTypes = new[] { EventType.SqlDatabaseCreated }
+                    RuleId = "historical-type", Title = "Historical type identity", EventTypes = new[] { type }
                 })
             });
             EventDetectionExecutionResult result = await store.EvaluateDetectionAsync(new EventStoreQuery(), plan);
             EventObservation retained = Assert.Single(result.Observations);
-            Assert.Equal(nameof(EventType.SqlDatabaseCreated), retained.TypeName);
-            Assert.Equal(17137, retained.SourceEvent.Id);
-            Assert.Equal("historical-sql", Assert.Single(result.Findings).RuleId);
-            Assert.Throws<NotSupportedException>(() => EventDefinitionCompiler.BuildQueryXml(new[] { EventType.SqlDatabaseCreated }));
+            Assert.Equal(type.ToString(), retained.TypeName);
+            Assert.Equal(eventId, retained.SourceEvent.Id);
+            Assert.Equal("historical-type", Assert.Single(result.Findings).RuleId);
+            if (type == EventType.SqlDatabaseCreated) {
+                Assert.Throws<NotSupportedException>(() => EventDefinitionCompiler.BuildQueryXml(new[] { type }));
+            } else {
+                Assert.DoesNotContain(eventId, EventTypeCatalog.GetSources(new[] { type }).SelectMany(item => item.EventIds));
+            }
         } finally { DeleteStore(path); }
     }
 }

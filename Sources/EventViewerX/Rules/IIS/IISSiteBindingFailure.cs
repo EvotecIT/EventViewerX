@@ -44,7 +44,7 @@ public class IISSiteBindingFailure : EventRuleBase {
         Binding = Value("UrlPrefix", "BindingInfo", "BindingInformation", "NoNameA0");
         When = SourceEvent.TimeCreated;
 
-        if (string.IsNullOrEmpty(SiteId) && (string.IsNullOrEmpty(SiteName) || string.IsNullOrEmpty(Binding))) {
+        if (string.IsNullOrEmpty(Binding) || (string.IsNullOrEmpty(SiteId) && string.IsNullOrEmpty(SiteName))) {
             ParseMessage(SourceEvent.Message);
         }
     }
@@ -56,7 +56,7 @@ public class IISSiteBindingFailure : EventRuleBase {
             if (string.IsNullOrEmpty(Binding)) {
                 Binding = match.Groups["binding"].Value.Trim('"', '\'');
             }
-            if (string.IsNullOrEmpty(SiteName)) {
+            if (string.IsNullOrEmpty(SiteName) && string.IsNullOrEmpty(SiteId)) {
                 SiteName = match.Groups["site"].Value.Trim('"', '\'');
             }
         }

@@ -17,6 +17,10 @@ internal static class EventReportPresentationProjection {
         "Time Created", "Event ID", "Level", "Source Computer", "Message", "Source Log"
     };
 
+    private static readonly string[] FindingPriorities = {
+        "Title", "Severity", "Status", "Start Time Utc", "Evidence Count"
+    };
+
     internal static EventReportPresentationSection Create(EventReportSection section) => Create(section, int.MaxValue);
 
     internal static EventReportPresentationSection Create(EventReportSection section, int maximumRows) {
@@ -25,7 +29,7 @@ internal static class EventReportPresentationProjection {
         }
 
         List<Dictionary<string, object?>> projected = EventReportTableProjection.Project(section, maximumRows);
-        string[] priorities = section.Kind == EventReportSectionKind.Generic
+        string[] priorities = section.Name == "DetectionFinding" ? FindingPriorities : section.Kind == EventReportSectionKind.Generic
             ? GenericPriorities
             : TypedPriorities;
         IReadOnlyDictionary<string, string> displayNames =
@@ -77,7 +81,7 @@ internal static class EventReportPresentationProjection {
         IReadOnlyDictionary<string, object?> row,
         EventReportRow source) {
 
-        string[] preferred = section.Section.Kind == EventReportSectionKind.Generic
+        string[] preferred = section.Section.Name == "DetectionFinding" ? FindingPriorities : section.Section.Kind == EventReportSectionKind.Generic
             ? new[] { "Message", "Source Computer", "Provider" }
             : new[] { "Object Affected", "Account Name", "User", "Who", "Action", "Service Name", "Computer" };
         foreach (string name in preferred) {

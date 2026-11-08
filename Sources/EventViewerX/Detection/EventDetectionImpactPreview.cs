@@ -109,6 +109,12 @@ public static partial class EventDetectionEngine {
             }
         }
         foreach (EventDetectionPlan.CompiledRule rule in plan.CompiledRules) {
+            EventType[] unavailableTypes = EventTypeCatalog.Expand(rule.Definition.EventTypes.Concat(
+                    rule.Definition.Steps.SelectMany(step => step.EventTypes)))
+                .Where(type => EventTypeCatalog.GetUnavailableSourceReason(type) != null).ToArray();
+            if (unavailableTypes.Except(EventTypeCatalog.Expand(coverage.ObservedEventTypes)).Any()) {
+                gaps.Add($"Historical EventType coverage does not establish retained types with unavailable native sources required by plan {plan.PlanHash}.");
+            }
             IReadOnlyList<EventSourceDefinition> typedSources = rule.IndexEventTypeNames.Count == 0
                 ? Array.Empty<EventSourceDefinition>()
                 : EventTypeCatalog.GetSourcesForInspection(rule.Definition.EventTypes.Concat(rule.Definition.Steps.SelectMany(step => step.EventTypes)));

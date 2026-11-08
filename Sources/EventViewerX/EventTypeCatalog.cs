@@ -19,7 +19,7 @@ public static partial class EventTypeCatalog {
 #endif
             Type? ruleType,
             int matchPriority,
-            IReadOnlyList<string> providerNames) {
+            IReadOnlyList<string> providerNames, bool isBuiltIn = false) {
             Type = namedEvent;
             LogName = logName;
             EventIds = eventIds;
@@ -28,6 +28,7 @@ public static partial class EventTypeCatalog {
             RuleType = ruleType;
             MatchPriority = matchPriority;
             ProviderNames = providerNames;
+            IsBuiltIn = isBuiltIn;
         }
 
         public EventType Type { get; }
@@ -42,6 +43,7 @@ public static partial class EventTypeCatalog {
         public Type? RuleType { get; }
         public int MatchPriority { get; }
         public IReadOnlyList<string> ProviderNames { get; }
+        public bool IsBuiltIn { get; }
     }
 
     private static readonly Dictionary<EventType, RuleFactoryRegistration> _reflectionRuleTypes = new();
@@ -210,7 +212,7 @@ public static partial class EventTypeCatalog {
             DynamicallyAccessedMemberTypes.PublicFields)]
 #endif
         Type? ruleType,
-        int matchPriority) {
+        int matchPriority, bool isBuiltIn = false) {
         if (string.IsNullOrWhiteSpace(logName)) {
             throw new ArgumentException("logName cannot be null or whitespace.", nameof(logName));
         }
@@ -251,7 +253,7 @@ public static partial class EventTypeCatalog {
                 canHandle,
                 ruleType,
                 matchPriority,
-                providers);
+                providers, isBuiltIn);
             _ruleFactories[namedEvent] = reg;
 
             if (ruleType is not null) {
@@ -442,7 +444,7 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<EventType> ordered = GetOrderedExpandedCandidates(expanded, mode);
         var candidateLists = new Dictionary<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>>();
         foreach (EventType type in ordered) {
-            if (UnavailableSources.ContainsKey(type)) { continue; }
+            if (IsSourceUnavailable(type)) { continue; }
             if (!TryGetRuleSource(
                     type,
                     mode,

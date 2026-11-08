@@ -11,15 +11,17 @@ public static partial class EventTypeCatalog {
         };
 
     internal static string? GetUnavailableSourceReason(EventType type) {
+        EnsureInitialized();
         string[] reasons = Expand(new[] { type })
-            .Where(UnavailableSources.ContainsKey)
+            .Where(IsSourceUnavailable)
             .Select(leaf => $"{leaf}: {UnavailableSources[leaf]}")
             .ToArray();
         return reasons.Length == 0 ? null : string.Join(" ", reasons);
     }
 
     private static void EnsureSourcesAvailable(IReadOnlyList<EventType> expanded) {
-        string[] reasons = expanded.Where(UnavailableSources.ContainsKey)
+        EnsureInitialized();
+        string[] reasons = expanded.Where(IsSourceUnavailable)
             .Select(type => $"{type}: {UnavailableSources[type]}")
             .ToArray();
         if (reasons.Length > 0) {
@@ -27,4 +29,8 @@ public static partial class EventTypeCatalog {
                 " Select supported leaf definitions or inspect the original telemetry with a generic query.");
         }
     }
+
+    private static bool IsSourceUnavailable(EventType type) => UnavailableSources.ContainsKey(type) &&
+        (_discoveryMode == EventRuleDiscoveryMode.Reflection ||
+         !_ruleFactories.TryGetValue(type, out RuleFactoryRegistration? registration) || registration.IsBuiltIn);
 }

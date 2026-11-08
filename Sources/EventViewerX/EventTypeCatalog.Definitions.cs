@@ -184,7 +184,7 @@ public static partial class EventTypeCatalog {
         EnsureInitialized();
         var sources = new List<EventSourceDefinition>();
         foreach (EventType type in expanded) {
-            if (UnavailableSources.ContainsKey(type)) { continue; }
+            if (IsSourceUnavailable(type)) { continue; }
             if (TryGetRuleSource(
                 type,
                 mode,
@@ -251,7 +251,7 @@ public static partial class EventTypeCatalog {
             ? GetEventRuleType(type)
             : null;
         IReadOnlyList<EventFieldDefinition> fields = recordType == null
-            ? Expand(new[] { type })
+            ? includedTypes.Length == 0 ? Array.Empty<EventFieldDefinition>() : Expand(new[] { type })
                 .Select(GetDefinition)
                 .SelectMany(static definition => definition.Fields)
                 .GroupBy(static field => field.Name, StringComparer.OrdinalIgnoreCase)

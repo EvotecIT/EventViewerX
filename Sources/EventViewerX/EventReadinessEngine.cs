@@ -46,6 +46,11 @@ public static partial class EventReadinessEngine {
             .Where(type => EventTypeCatalog.GetUnavailableSourceReason(type) != null).ToArray();
         if (unavailableTypes.Length > 0) {
             AddRuleCatalogChecks(unavailableTypes, checks);
+            checks.Add(new EventReadinessCheckResult(
+                EventReadinessLayer.TargetDiscovery, "AssessmentSkipped", string.Empty,
+                EventReadinessStatus.Skipped, EventReadinessEvidenceLevel.Inspected,
+                "Targets and selected sources were not assessed because a native source is unavailable.",
+                "Assess supported leaf types separately.", required: true));
             return new EventReadinessReport(snapshot.Scenario, snapshot.Types, null,
                 Array.Empty<EventTargetInfo>(), checks, stopwatch.Elapsed);
         }

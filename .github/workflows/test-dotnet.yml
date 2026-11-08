@@ -96,6 +96,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               exit $LASTEXITCODE
             }
+            & (Join-Path $output 'EventViewerX.AotSmoke.exe') --custom-source
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
           }
 
       - name: Summarize failing tests

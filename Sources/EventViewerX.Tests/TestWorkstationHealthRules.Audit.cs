@@ -7,6 +7,59 @@ namespace EventViewerX.Tests;
 
 public sealed partial class TestWorkstationHealthRules {
     [Fact]
+    public void IISBindingFallbackDoesNotTreatTheNumericSiteIdAsASiteName() {
+        EventObject source = new SavedEventRecord {
+            ProviderName = "Microsoft-Windows-IIS-W3SVC", Channel = "System", EventId = 1007,
+            TimeCreatedUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
+            Message = "The World Wide Web Publishing Service did not register the URL prefix http://*:8080/ for site 2.",
+            MessageRenderStatus = EventMessageRenderStatus.Rendered,
+            Data = new Dictionary<string, string> { ["SiteID"] = "2" }
+        }.ToEventObject("iis-schema-fixture", EventReadMode.StructuredDataAndMessage);
+        var record = Assert.IsType<EventViewerX.Rules.IIS.IISSiteBindingFailure>(
+            EventTypeCatalog.CreateEventRule(source, new[] { EventType.IISSiteBindingFailure }));
+        Assert.Equal("http://*:8080/", record.Binding);
+        Assert.Equal("2", record.SiteId);
+        Assert.Empty(record.SiteName);
+    }
+
+    [Fact]
+    public void DetectionOverviewUsesFindingSeverityEvenWhenTheSourceIsInformational() {
+        var source = Source("network-monitor-service-7045");
+        EventTypeRecord typed = Assert.IsType<NetworkMonitorDriverLoaded>(
+            EventTypeCatalog.CreateEventRule(source, new[] { EventType.NetworkMonitorDriverLoaded }));
+        EventDetectionPlan plan = EventDetectionPlan.Compile(EventDetectionCatalog.GetBuiltInRules());
+        EventDetectionFinding finding = Assert.Single(EventDetectionEngine.Stream(new[] { EventObservation.Create(source, typed) }, plan),
+            item => item.RuleId == "EVX-ENDPOINT-0010");
+        Assert.Equal((byte)4, source.Level);
+        Assert.Equal(EventDetectionSeverity.High, finding.Severity);
+        EventReport report = EventReportEngine.Create(new object[] { finding });
+        EventReportPresentationSection presentation = EventReportPresentationProjection.Create(Assert.Single(report.Sections));
+        Assert.Equal(new[] { "Title", "Severity", "Status", "StartTimeUtc", "EvidenceCount" },
+            presentation.PrimaryColumns.Select(column => column.Name));
+        Assert.Equal(finding.Title, EventReportPresentationProjection.BuildTitle(presentation, presentation.Rows[0], report.Rows[0]));
+        string html = EventReportHtmlRenderer.Render(report);
+        Assert.Contains("1 high or critical finding", html);
+        Assert.Contains("data-hfx-monitoring-filter-values=\"state:critical ", html);
+        Assert.DoesNotContain("No error or warning levels recorded", html);
+    }
+
+    [Fact]
+    public void RowTimeMetricsAndRecentOrderingTreatUnspecifiedEventTimesAsUtc() {
+        var newer = Project<ApplicationCrash>("application-crash-1000", EventType.ApplicationCrash);
+        var older = Project<ApplicationCrash>("application-crash-1000", EventType.ApplicationCrash);
+        newer.ApplicationName = "Newest application marker";
+        older.ApplicationName = "Older application marker";
+        EventReport report = EventReportEngine.Create(new object[] { older, newer });
+        report.Rows[0].TimeCreated = new DateTime(2026, 11, 1, 11, 30, 0, DateTimeKind.Utc).ToLocalTime();
+        report.Rows[1].TimeCreated = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Unspecified);
+        string html = EventReportHtmlRenderer.Render(report);
+        Assert.Contains("2026-11-01 11:30 UTC", html);
+        Assert.Contains("2026-11-01 12:00 UTC", html);
+        Assert.True(html.IndexOf("Newest application marker", StringComparison.Ordinal) <
+            html.IndexOf("Older application marker", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LogsFullSecurity_UsesTheKnownChannelWhenTheNativeTemplateHasNoPayload() {
         // The installed Eventlog 1104 template is empty.
         EventObject source = new SavedEventRecord {

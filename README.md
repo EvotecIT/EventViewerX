@@ -318,6 +318,10 @@ The `eventviewerx.endpoint-protection` pack 1.0.1 withdraws
 inspection and historical detection replay can still describe retained types
 whose native source is unavailable.
 
+Availability follows the selected registration. A host can register its own
+verified source factory for a published identifier before catalog initialization;
+the historical built-in selector remains unavailable when that factory is not selected.
+
 Generic channel, provider and saved-file queries remain available for inspecting
 the original telemetry. Existing stored rows are retained; the unavailable source
 explanation also appears when a report uses one of these legacy type contracts.

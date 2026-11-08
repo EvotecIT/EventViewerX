@@ -1955,6 +1955,7 @@ public sealed partial class TestEventReadinessEngine {
         internal Exception? ProbeException { get; set; }
         internal Exception? AuditException { get; set; }
         internal int AuditQueryCount { get; private set; }
+        internal int TargetDiscoveryCount { get; private set; }
         internal int ConfigurationReadCount { get; private set; }
         internal CollectorSubscriptionSnapshot? Subscription { get; set; }
         internal CollectorReadinessStatus CollectorReadiness { get; set; } = new();
@@ -1970,7 +1971,10 @@ public sealed partial class TestEventReadinessEngine {
 
         public EventTargetDiscoveryResult ResolveTargets(
             EventTargetDiscoveryRequest request,
-            CancellationToken cancellationToken) => TargetResult ?? LocalTargetResult();
+            CancellationToken cancellationToken) {
+            TargetDiscoveryCount++;
+            return TargetResult ?? LocalTargetResult();
+        }
 
         public EventLogProbeResult Probe(
             string logName,

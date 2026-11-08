@@ -94,22 +94,27 @@ public sealed partial class TestEventDetection {
         Assert.Contains(preview.Diagnostics, value => value.Contains(dimension == "UnrestrictedEventId" ? "EventId" : dimension, StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void ImpactCanCompareRetainedTypesWithoutRequiringTheirWithdrawnNativeSources() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ImpactCanCompareRetainedTypesWithoutRequiringTheirWithdrawnNativeSources(bool mixedTypes) {
+        EventType[] types = mixedTypes
+            ? new[] { EventType.OSStartup, EventType.NetworkPromiscuousMode }
+            : new[] { EventType.NetworkPromiscuousMode };
         EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {
-            RuleId = "historical", Title = "Historical identity", EventTypes = new[] { EventType.NetworkPromiscuousMode }
+            RuleId = "historical", Title = "Historical identity", EventTypes = types
         }) });
         var typedCoverage = EventDetectionCoverage.Create(
-            expectedEventTypes: new[] { EventType.NetworkPromiscuousMode },
-            observedEventTypes: new[] { EventType.NetworkPromiscuousMode });
+            expectedEventTypes: types, observedEventTypes: types);
         var complete = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
             new EventDetectionEngineOptions(coverage: typedCoverage));
         Assert.True(complete.IsComplete);
-        var nativeCoverage = EventDetectionCoverage.Create(expectedEventIds: new[] { 10400 }, observedEventIds: new[] { 10400 });
+        int nativeId = mixedTypes ? 12 : 10400;
+        var nativeCoverage = EventDetectionCoverage.Create(expectedEventIds: new[] { nativeId }, observedEventIds: new[] { nativeId });
         var unknown = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
             new EventDetectionEngineOptions(coverage: nativeCoverage));
         Assert.False(unknown.IsComplete);
-        Assert.Contains(unknown.Diagnostics, value => value.Contains("EventId", StringComparison.Ordinal));
+        Assert.Contains(unknown.Diagnostics, value => value.Contains("EventType", StringComparison.Ordinal));
     }
 
     [Fact]

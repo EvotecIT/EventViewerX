@@ -125,7 +125,9 @@ public sealed partial class EventStore {
     }
 
     private static int[] GetSafeRuleEventIds(EventDetectionRuleDefinition rule) {
-        int[] baseIds = GetBoundedSelectorEventIds(rule.EventIds, rule.EventTypes);
+        // Native source IDs can change while stored type identities remain valid.
+        // Only IDs explicitly present in the historical plan can safely bound its scan.
+        int[] baseIds = rule.EventIds.Distinct().ToArray();
         if (baseIds.Length > 0) {
             return baseIds;
         }
@@ -133,34 +135,10 @@ public sealed partial class EventStore {
             return Array.Empty<int>();
         }
         int[][] stepIds = rule.Steps
-            .Select(static step => GetBoundedSelectorEventIds(step.EventIds, step.EventTypes))
+            .Select(static step => step.EventIds.Distinct().ToArray())
             .ToArray();
         return stepIds.All(static ids => ids.Length > 0)
             ? stepIds.SelectMany(static ids => ids).Distinct().ToArray()
-            : Array.Empty<int>();
-    }
-
-    private static int[] GetBoundedSelectorEventIds(
-        IReadOnlyList<int> eventIds,
-        IReadOnlyList<EventType> eventTypes) {
-
-        if (eventIds.Count > 0) {
-            return eventIds.Distinct().ToArray();
-        }
-        EventType[] expanded = EventTypeCatalog.Expand(eventTypes).ToArray();
-        // Historical type identities can remain valid stored evidence after a native source is withdrawn.
-        if (expanded.Length == 0 || expanded.Any(static type =>
-                EventTypeCatalog.GetDefinition(type).UnavailableReason != null)) {
-            return Array.Empty<int>();
-        }
-        int[][] perType = expanded
-            .Select(static type => EventTypeCatalog.GetSources(new[] { type })
-                .SelectMany(static source => source.EventIds)
-                .Distinct()
-                .ToArray())
-            .ToArray();
-        return perType.All(static ids => ids.Length > 0)
-            ? perType.SelectMany(static ids => ids).Distinct().ToArray()
             : Array.Empty<int>();
     }
 
