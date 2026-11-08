@@ -10,6 +10,8 @@ public class KerberosServiceTicket : EventRuleBase
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.KerberosServiceTicket;
 
     /// <summary>Accepts Kerberos service ticket (TGS) events from the auditing provider.</summary>

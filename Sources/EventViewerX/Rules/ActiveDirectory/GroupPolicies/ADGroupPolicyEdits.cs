@@ -31,6 +31,8 @@ public class ADGroupPolicyEdits : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADGroupPolicyEdits;
 
     /// <summary>Accepts versionNumber attribute edits on groupPolicyContainer objects.</summary>

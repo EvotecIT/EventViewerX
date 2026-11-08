@@ -415,6 +415,7 @@ public partial class EventObject {
 
     private static string LevelToDisplayName(byte? level) {
         return level switch {
+            0 => "Log Always",
             1 => "Critical",
             2 => "Error",
             3 => "Warning",

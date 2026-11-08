@@ -94,6 +94,29 @@ public sealed partial class TestEventDetection {
         Assert.Contains(preview.Diagnostics, value => value.Contains(dimension == "UnrestrictedEventId" ? "EventId" : dimension, StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ImpactCanCompareRetainedTypesWithoutRequiringTheirWithdrawnNativeSources(bool mixedTypes) {
+        EventType[] types = mixedTypes
+            ? new[] { EventType.OSStartup, EventType.NetworkPromiscuousMode }
+            : new[] { EventType.NetworkPromiscuousMode };
+        EventDetectionPlan plan = EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {
+            RuleId = "historical", Title = "Historical identity", EventTypes = types
+        }) });
+        var typedCoverage = EventDetectionCoverage.Create(
+            expectedEventTypes: types, observedEventTypes: types);
+        var complete = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
+            new EventDetectionEngineOptions(coverage: typedCoverage));
+        Assert.True(complete.IsComplete);
+        int nativeId = mixedTypes ? 12 : 10400;
+        var nativeCoverage = EventDetectionCoverage.Create(expectedEventIds: new[] { nativeId }, observedEventIds: new[] { nativeId });
+        var unknown = EventDetectionEngine.PreviewChanges(Array.Empty<EventObservation>(), plan, plan,
+            new EventDetectionEngineOptions(coverage: nativeCoverage));
+        Assert.False(unknown.IsComplete);
+        Assert.Contains(unknown.Diagnostics, value => value.Contains("EventType", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ImpactChecksTypedCoverageAndDoesNotMisreadTypedSourcesAsWildcards() {
         EventDetectionPlan Plan(EventType type) => EventDetectionPlan.Compile(new[] { new EventDetectionRule(new EventDetectionRuleDefinition {

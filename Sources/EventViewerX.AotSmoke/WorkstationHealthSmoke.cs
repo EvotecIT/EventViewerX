@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 using System.Xml.XPath;
 using EventViewerX;
+using EventViewerX.Rules.CertificateAuthority;
 using EventViewerX.Rules.Windows;
 
 internal static class WorkstationHealthSmoke {
@@ -12,7 +13,10 @@ internal static class WorkstationHealthSmoke {
                 EventType.ApplicationCrash, EventType.ApplicationHang, EventType.ServiceFailure,
                 EventType.DiskError, EventType.FileSystemError, EventType.StorageReset,
                 EventType.HardwareError, EventType.DisplayDriverReset, EventType.BootPerformance,
-                EventType.ShutdownPerformance, EventType.StartupDegradation, EventType.ShutdownDegradation
+                EventType.ShutdownPerformance, EventType.StartupDegradation, EventType.ShutdownDegradation,
+                EventType.BitLockerSuspended, EventType.WindowsUpdateFailure, EventType.BitLockerKeyChange,
+                EventType.DfsReplicationError, EventType.DefenderConfigurationChanged, EventType.ScheduledTaskCreated,
+                EventType.CertificateIssued, EventType.NetworkMonitorDriverLoaded, EventType.LogsClearedSecurity, EventType.IISSiteBindingFailure
             }) {
                 Paths = new[] { path },
                 SavedEventReader = new FixtureReader(),
@@ -31,7 +35,21 @@ internal static class WorkstationHealthSmoke {
                     throw new InvalidOperationException("A health observation lost its typed payload.");
                 }
             }
-            if (records.Count != 13 || records.Select(record => record.TypeName).Distinct().Count() != 12 ||
+            if (records.Count != 23 || records.Select(record => record.TypeName).Distinct().Count() != 21 ||
+                records.OfType<BitLockerSuspended>().Single().EventId != 773 ||
+                records.OfType<BitLockerSuspended>().Single().VolumeMountPoint != "C:" ||
+                records.OfType<WindowsUpdateFailure>().Single().Reason != "0x80073d02" ||
+                records.OfType<WindowsUpdateFailure>().Single().UpdateTitle != "Example.StoreApp" ||
+                records.OfType<BitLockerKeyChange>().Single().ProtectorType != BitLockerProtectorType.NumericalPassword ||
+                records.OfType<DfsReplicationError>().Single().ErrorCode != "1753" ||
+                records.OfType<DefenderConfigurationChanged>().Single().Configuration != @"HKLM\SOFTWARE\Example\Protection\Enabled" ||
+                records.OfType<ScheduledTaskCreated>().Single().Author != @"EXAMPLE\Scheduler" ||
+                records.OfType<CertificateIssued>().Count() != 2 ||
+                records.OfType<CertificateIssued>().Any(record => record.RequestId != "42" || record.CertificateTemplate != "User Enrollment") ||
+                !records.OfType<CertificateIssued>().Any(record => record.SerialNumber == "1234ABCD") ||
+                records.OfType<NetworkMonitorDriverLoaded>().Single().DriverName != "Npcap Packet Driver (NPCAP)" ||
+                records.OfType<EventViewerX.Rules.IIS.IISSiteBindingFailure>().Single().Binding != "http://*:8080/" ||
+                records.OfType<EventViewerX.Rules.IIS.IISSiteBindingFailure>().Single().SiteId != "2" ||
                 records.OfType<ApplicationCrash>().Single().ExceptionCode != "c0000409" ||
                 records.OfType<ApplicationHang>().Single().ApplicationName != "FTK Imager.exe" ||
                 records.OfType<ServiceFailure>().Single(record => record.EventId == 7031).RecoveryDelayMilliseconds != 180000 ||

@@ -38,7 +38,7 @@ public static class EventReportHtmlRenderer {
             string key = CreatePageKey(section.Section.Name);
             dashboard.AddPage(key, section.Section.DisplayName, BuildSectionSubtitle(section.Section),
                 section.Section.Kind == EventReportSectionKind.Generic ? TablerIconType.ListDetails : TablerIconType.ReportAnalytics,
-                page => BuildEventPage(page, section, options), badge: section.Section.Rows.Count.ToString("N0"), group: "Events");
+                page => BuildEventPage(page, section, options), badge: section.Section.Rows.Count.ToString("N0"), group: "Records");
         }
         dashboard.AddPage("coverage", "Coverage", "Every queried computer and source channel", TablerIconType.Server,
             page => BuildCoveragePage(page, report, options),
@@ -57,7 +57,7 @@ public static class EventReportHtmlRenderer {
 
         int failures = report.Coverage.Count(static item => !item.Succeeded);
         bool isComplete = EventReportSummary.Create(report).IsComplete;
-        page.AddMetric(metric => metric.Title("Events").Value(report.Rows.Count.ToString("N0"))
+        page.AddMetric(metric => metric.Title("Records").Value(report.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
             .Description($"{sections.Count:N0} populated type{(sections.Count == 1 ? string.Empty : "s")}"));
         page.AddMetric(metric => metric.Title("Sources").Value(report.Coverage.Count.ToString("N0"))
@@ -78,27 +78,31 @@ public static class EventReportHtmlRenderer {
 
         page.Grid(grid => {
             var breakdown = new MonitoringConnectionBreakdown()
-                .Settings(settings => settings.AccessibleLabel("Events by report type").Viewport("25rem").End());
+                .Settings(settings => settings.AccessibleLabel("Records by report type").Viewport("25rem").End());
             foreach (EventReportPresentationSection section in sections
-                         .OrderByDescending(static section => section.Section.Rows.Count)
+                         .OrderByDescending(static section => section.Section.Rows.Count(row => ResolveState(row) == MonitoringHealthState.Critical))
+                         .ThenByDescending(static section => section.Section.Rows.Count(row => ResolveState(row) == MonitoringHealthState.Warning))
+                         .ThenByDescending(static section => section.Section.Rows.Count)
                          .Take(12)) {
                 breakdown.AddCard(section.Section.DisplayName, section.Section.Rows.Count.ToString("N0"),
-                    section.Section.Kind == EventReportSectionKind.Generic ? "Generic event view" : "Typed domain view",
+                    BuildSeveritySummary(section.Section),
                     section.Section.Kind == EventReportSectionKind.Generic ? TablerIconType.ListDetails : TablerIconType.ReportAnalytics,
-                    MonitoringHealthState.Healthy);
+                    section.Section.Rows.Any(static row => ResolveState(row) == MonitoringHealthState.Critical) ? MonitoringHealthState.Critical
+                        : section.Section.Rows.Any(static row => ResolveState(row) == MonitoringHealthState.Warning) ? MonitoringHealthState.Warning
+                        : MonitoringHealthState.Unknown);
             }
             grid.Panel("Report contents", panel => panel
                 .Subtitle("Open a section from the sidebar to search, filter, choose columns, and inspect a record")
                 .Content(breakdown), 7);
 
             var timeline = new MonitoringTimeline()
-                .Settings(settings => settings.AccessibleLabel("Most recent report events").PageSize(8).End());
+                .Settings(settings => settings.AccessibleLabel("Most recent report records").PageSize(8).End());
             foreach ((EventReportRow row, EventReportPresentationSection section, Dictionary<string, object?> projected) in
                      LatestRows(report, sections).Take(12)) {
-                timeline.AddEvent(row.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss"),
+                timeline.AddEvent(EventReportPresentationProjection.FormatValue(row.TimeCreated),
                     EventReportPresentationProjection.BuildTitle(section, projected, row),
                     EventReportPresentationProjection.BuildSummary(section, projected),
-                    ResolveState(row.Level));
+                    ResolveState(row));
             }
             grid.Panel("Recent activity", panel => panel
                 .Subtitle("Newest matching records across the selected report types")
@@ -107,14 +111,14 @@ public static class EventReportHtmlRenderer {
     }
 
     private static void BuildEventPage(MonitoringPage page, EventReportPresentationSection section, EventReportHtmlOptions options) {
-        DateTime? first = section.Section.Rows.Count == 0 ? null : section.Section.Rows.Min(static row => row.TimeCreated);
-        DateTime? last = section.Section.Rows.Count == 0 ? null : section.Section.Rows.Max(static row => row.TimeCreated);
-        page.AddMetric(metric => metric.Title("Matching events").Value(section.Section.Rows.Count.ToString("N0"))
+        DateTime? first = section.Section.Rows.Count == 0 ? null : section.Section.Rows.Min(static row => EventAggregationEngine.NormalizeDateTimeUtc(row.TimeCreated));
+        DateTime? last = section.Section.Rows.Count == 0 ? null : section.Section.Rows.Max(static row => EventAggregationEngine.NormalizeDateTimeUtc(row.TimeCreated));
+        page.AddMetric(metric => metric.Title("Matching records").Value(section.Section.Rows.Count.ToString("N0"))
             .Icon(TablerIconType.ListDetails).State(MonitoringHealthState.Healthy)
             .Description(section.Section.Kind == EventReportSectionKind.Generic ? "Generic event records" : "Typed domain records"));
-        page.AddMetric(metric => metric.Title("First event").Value(first?.ToString("yyyy-MM-dd HH:mm") ?? "None")
+        page.AddMetric(metric => metric.Title("First event").Value(first?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "None")
             .Icon(TablerIconType.Clock).State(MonitoringHealthState.Healthy).Description("Oldest match"));
-        page.AddMetric(metric => metric.Title("Latest event").Value(last?.ToString("yyyy-MM-dd HH:mm") ?? "None")
+        page.AddMetric(metric => metric.Title("Latest event").Value(last?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "None")
             .Icon(TablerIconType.Activity).State(MonitoringHealthState.Healthy).Description("Newest match"));
         page.AddMetric(metric => metric.Title("Visible fields").Value(section.PrimaryColumns.Count.ToString("N0"))
             .Icon(TablerIconType.Table).State(MonitoringHealthState.Healthy)
@@ -206,7 +210,7 @@ public static class EventReportHtmlRenderer {
         IReadOnlyList<EventReportPresentationSection> sections) {
 
         var sectionByName = sections.ToDictionary(static section => section.Section.Name, StringComparer.OrdinalIgnoreCase);
-        foreach (EventReportRow row in report.Rows.OrderByDescending(static row => row.TimeCreated)) {
+        foreach (EventReportRow row in report.Rows.OrderByDescending(static row => EventAggregationEngine.NormalizeDateTimeUtc(row.TimeCreated))) {
             if (!sectionByName.TryGetValue(row.Type, out EventReportPresentationSection? section)) {
                 section = sections.FirstOrDefault(candidate => candidate.Section.Rows.Contains(row));
             }
@@ -231,7 +235,7 @@ public static class EventReportHtmlRenderer {
         AddDetail(record, "Collector computer", row.CollectorComputer, "Provenance");
         string message = EventReportPresentationProjection.FormatValue(row.Message);
         if (!string.IsNullOrWhiteSpace(message)) {
-            record.Detail("Message excerpt", message.Length <= 320 ? message : message.Substring(0, 319) + "…", "Message");
+            record.Detail("Message", message, "Message");
         }
         string rawValues = EventReportTableProjection.FormatRawDetails(row, separator: "; ");
         if (!string.IsNullOrWhiteSpace(rawValues)) {
@@ -255,8 +259,21 @@ public static class EventReportHtmlRenderer {
         }
     }
 
+    private static string BuildSeveritySummary(EventReportSection section) {
+        int errors = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Critical);
+        int warnings = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Warning);
+        if (section.Name == "DetectionFinding") {
+            int unknown = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Unknown);
+            return $"{errors:N0} high or critical finding{(errors == 1 ? string.Empty : "s")}, {warnings:N0} medium severity" +
+                (unknown == 0 ? string.Empty : $", {unknown:N0} unknown severity");
+        }
+        return errors > 0 || warnings > 0
+            ? $"{errors:N0} error{(errors == 1 ? string.Empty : "s")}, {warnings:N0} warning{(warnings == 1 ? string.Empty : "s")}"
+            : "No error or warning levels recorded";
+    }
+
     private static string BuildOverviewSubtitle(EventReport report) =>
-        $"{report.Rows.Count:N0} matching events across {report.Coverage.Count:N0} queried sources";
+        $"{report.Rows.Count:N0} matching records across {report.Coverage.Count:N0} queried sources";
 
     private static string BuildSectionSubtitle(EventReportSection section) =>
         string.IsNullOrWhiteSpace(section.Description)
@@ -278,10 +295,35 @@ public static class EventReportHtmlRenderer {
         _ => null
     };
 
-    private static MonitoringHealthState ResolveState(string? level) => level?.ToLowerInvariant() switch {
+    private static MonitoringHealthState ResolveState(EventReportRow row) {
+        if (row.Type == "DetectionFinding") {
+            if (!row.Values.TryGetValue(nameof(EventDetectionFinding.Severity), out object? value) ||
+                !Enum.TryParse(EventReportPresentationProjection.FormatValue(value), true, out EventDetectionSeverity severity)) {
+                return MonitoringHealthState.Unknown;
+            }
+            return severity switch {
+                EventDetectionSeverity.Critical or EventDetectionSeverity.High => MonitoringHealthState.Critical,
+                EventDetectionSeverity.Medium => MonitoringHealthState.Warning,
+                EventDetectionSeverity.Informational or EventDetectionSeverity.Low => MonitoringHealthState.Healthy,
+                _ => MonitoringHealthState.Unknown
+            };
+        }
+        return ResolveState(row.LevelValue, row.Level);
+    }
+
+    private static MonitoringHealthState ResolveState(byte? numericLevel, string? level) => numericLevel switch {
+        1 or 2 => MonitoringHealthState.Critical,
+        3 => MonitoringHealthState.Warning,
+        4 or 5 => MonitoringHealthState.Healthy,
+        not null => MonitoringHealthState.Unknown,
+        _ => ResolveNamedState(level)
+    };
+
+    private static MonitoringHealthState ResolveNamedState(string? level) => level?.ToLowerInvariant() switch {
         "critical" or "error" => MonitoringHealthState.Critical,
         "warning" => MonitoringHealthState.Warning,
-        _ => MonitoringHealthState.Healthy
+        "information" or "informational" or "verbose" => MonitoringHealthState.Healthy,
+        _ => MonitoringHealthState.Unknown
     };
 
     /// <summary>Writes a self-contained HTML report.</summary>

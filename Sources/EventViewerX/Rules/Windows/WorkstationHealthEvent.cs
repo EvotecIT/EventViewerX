@@ -21,16 +21,6 @@ public abstract class WorkstationHealthEvent : EventRuleBase {
         EventIds.Contains(source.Id) && RuleHelpers.IsChannel(source, LogName) &&
         ProviderNames.Any(provider => RuleHelpers.IsProvider(source, provider));
 
-    /// <summary>Reads the first nonempty payload field, including classic unnamed insertion strings.</summary>
-    protected string Value(params string[] keys) {
-        foreach (string key in keys) {
-            if (SourceEvent.TryGetDataValue(key, out string value) && !string.IsNullOrWhiteSpace(value)) {
-                return value;
-            }
-        }
-        return string.Empty;
-    }
-
     /// <summary>Reads a nonnegative decimal counter or millisecond duration; missing and invalid values remain unknown.</summary>
     protected long? Number(params string[] keys) => long.TryParse(Value(keys),
         NumberStyles.None, CultureInfo.InvariantCulture, out long value) ? value : null;

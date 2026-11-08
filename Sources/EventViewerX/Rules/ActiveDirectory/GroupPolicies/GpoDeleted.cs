@@ -22,6 +22,8 @@ public class GpoDeleted : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.GpoDeleted;
 
     /// <summary>Processes only GPO container objects for deletion events.</summary>

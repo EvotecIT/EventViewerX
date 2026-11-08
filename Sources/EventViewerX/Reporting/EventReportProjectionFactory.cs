@@ -446,7 +446,7 @@ internal static class EventReportProjectionFactory {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
         IEnumerable<MemberInfo> declared = recordType.GetFields(flags).Cast<MemberInfo>()
             .Concat(recordType.GetProperties(flags))
-            .Where(static member => !RoutingMembers.Contains(member.Name))
+            .Where(static member => !EventRuleBase.IsRoutingMember(member.Name) && !RoutingMembers.Contains(member.Name))
             .Where(static member => member is not PropertyInfo property ||
                 property.CanRead && property.GetIndexParameters().Length == 0)
 #if NET8_0_OR_GREATER

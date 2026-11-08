@@ -31,6 +31,8 @@ public class ADGroupPolicyChanges : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADGroupPolicyChanges;
 
     /// <summary>Handles groupPolicyContainer or container objects in the Security log.</summary>

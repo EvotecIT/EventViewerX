@@ -7,17 +7,26 @@ public abstract class DefenderSecurityEvent : EventRuleBase {
         SourceEvent = eventObject;
         TypeName = typeName;
         Computer = SourceEvent.ComputerName;
-        ThreatName = FirstValue("Threat Name", "ThreatName");
-        ThreatId = FirstValue("Threat ID", "ThreatID");
-        Path = FirstValue("Path", "Resources");
-        User = FirstValue("User", "Detection User");
-        Configuration = FirstValue("Configuration", "Feature Name");
-        OldValue = FirstValue("Old Value", "OldValue");
-        NewValue = FirstValue("New Value", "NewValue");
+        ThreatName = Value("Threat Name", "ThreatName");
+        ThreatId = Value("Threat ID", "ThreatID");
+        Path = Value("Path", "Resources");
+        User = Value("User", "Detection User");
+        Configuration = Value("Configuration", "Feature Name");
+        OldValue = Value("Old Value", "OldValue");
+        NewValue = Value("New Value", "NewValue");
+        if (Configuration.Length == 0 && eventObject.Id == 5007) {
+            string changed = NewValue.Length > 0 ? NewValue : OldValue;
+            int separator = changed.IndexOf(" = ", StringComparison.Ordinal);
+            if (separator > 0) {
+                Configuration = changed.Substring(0, separator).Trim();
+            }
+        }
         When = SourceEvent.TimeCreated;
     }
     /// <inheritdoc />
     public override string LogName => "Microsoft-Windows-Windows Defender/Operational";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Windows Defender" };
     /// <summary>Accepts Windows Defender provider events.</summary>
     public override bool CanHandle(EventObject eventObject) => RuleHelpers.IsProvider(
         eventObject,
@@ -41,12 +50,6 @@ public abstract class DefenderSecurityEvent : EventRuleBase {
     /// <summary>Event timestamp.</summary>
     public DateTime When;
 
-    private string FirstValue(string first, string second) {
-        string value = SourceEvent.GetValueFromDataDictionary(first);
-        return string.IsNullOrWhiteSpace(value)
-            ? SourceEvent.GetValueFromDataDictionary(second)
-            : value;
-    }
 }
 
 /// <summary>Microsoft Defender detected malware or potentially unwanted software (1116).</summary>

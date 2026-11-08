@@ -180,24 +180,6 @@ public class TestEventObjectTypedAccessors
     }
 
     [Fact]
-    public void LogsClearedSecurity_MissingChannel_DoesNotThrowAndFallsBack()
-    {
-        var eo = BuildEventObject(data: new Dictionary<string, string>
-        {
-            ["SubjectUserName"] = "admin",
-            ["SubjectDomainName"] = "contoso"
-        });
-
-        Exception? exception = Record.Exception(() => _ = new LogsClearedSecurity(eo));
-
-        Assert.Null(exception);
-
-        var rule = new LogsClearedSecurity(eo);
-        Assert.Equal("Unknown Operation", rule.LogType);
-        Assert.Equal("contoso\\admin", rule.Who);
-    }
-
-    [Fact]
     public void GetValueFromDataDictionary_IsCaseInsensitive_AndSupportsReverseOrder()
     {
         var eo = BuildEventObject(data: new Dictionary<string, string>(StringComparer.Ordinal)

@@ -24,9 +24,18 @@ public sealed class TestExplicitEventTypeCatalog {
         Assert.Equal(103, (int)EventType.KerberosKdcRc4Audit);
         Assert.All(leaves, static definition => {
             Assert.NotNull(definition.RecordType);
-            Assert.NotEmpty(definition.Sources);
+            if (definition.UnavailableReason == null) {
+                Assert.NotEmpty(definition.Sources);
+            } else {
+                Assert.Empty(definition.Sources);
+            }
             Assert.NotEmpty(definition.Fields);
         });
+        Assert.Equal(new[] {
+            EventType.DhcpLeaseCreated, EventType.SqlDatabaseCreated, EventType.HyperVCheckpointCreated,
+            EventType.NetworkPromiscuousMode, EventType.AADConnectRunProfile
+        }.OrderBy(static type => (int)type), leaves.Where(static definition => definition.UnavailableReason != null)
+            .Select(static definition => definition.Type).OrderBy(static type => (int)type));
 
         EventTypeProjectionPlan plan = EventTypeCatalog.CompileProjectionPlan(
             leaves.Select(static definition => definition.Type));

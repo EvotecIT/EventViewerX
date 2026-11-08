@@ -10,13 +10,15 @@ public class OSStartupSecurity : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSStartupSecurity;
 
     /// <summary>Accepts all startup events within the Security log.</summary>
     /// <param name="eventObject">Event to evaluate.</param>
     /// <returns>Always <c>true</c> for this rule.</returns>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
 
     /// <summary>Machine that logged the startup in the Security log.</summary>

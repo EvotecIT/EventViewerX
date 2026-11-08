@@ -59,6 +59,19 @@ public abstract class EventRuleBase : EventTypeRecord, IEventRule {
     protected EventRuleBase(EventObject eventObject) : base(eventObject) {
     }
 
+    /// <summary>Reads the first nonempty payload value across provider field names and classic insertion strings.</summary>
+    protected string Value(params string[] keys) {
+        foreach (string key in keys) {
+            if (SourceEvent.TryGetDataValue(key, out string value) && !string.IsNullOrWhiteSpace(value)) {
+                return value;
+            }
+        }
+        return string.Empty;
+    }
+
+    internal static bool IsRoutingMember(string name) => name is
+        nameof(EventIds) or nameof(LogName) or nameof(Type) or nameof(MatchPriority) or nameof(ProviderNames);
+
     /// <summary>Checks whether the supplied event matches this rule.</summary>
     /// <param name="eventObject">Candidate event to evaluate.</param>
     /// <returns><c>true</c> when the rule can parse the event; otherwise <c>false</c>.</returns>

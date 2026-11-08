@@ -1,0 +1,25 @@
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-WindowsUpdateClient" Guid="{945a8954-c147-4acd-923f-40c45405a658}" />
+    <EventID>20</EventID>
+    <Version>1</Version>
+    <Level>2</Level>
+    <Task>1</Task>
+    <Opcode>13</Opcode>
+    <Keywords>0x8000000000000028</Keywords>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>20</EventRecordID>
+    <Correlation />
+    <Execution ProcessID="100" ThreadID="200" />
+    <Channel>System</Channel>
+    <Computer>workstation-fixture</Computer>
+    <Security />
+  </System>
+  <EventData>
+    <Data Name="errorCode">0x80073d02</Data>
+    <Data Name="updateTitle">Example.StoreApp</Data>
+    <Data Name="updateGuid">{11111111-2222-3333-4444-555555555555}</Data>
+    <Data Name="updateRevisionNumber">1</Data>
+    <Data Name="serviceGuid">{11111111-2222-3333-4444-555555555555}</Data>
+  </EventData>
+</Event>

@@ -10,6 +10,8 @@ public class OSCrash : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "EventLog", "Microsoft-Windows-Eventlog" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSCrash;
 
     /// <summary>Accepts unexpected shutdown events from the EventLog provider.</summary>

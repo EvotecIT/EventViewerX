@@ -19,7 +19,7 @@ public static partial class EventTypeCatalog {
 #endif
             Type? ruleType,
             int matchPriority,
-            IReadOnlyList<string> providerNames) {
+            IReadOnlyList<string> providerNames, bool isBuiltIn = false) {
             Type = namedEvent;
             LogName = logName;
             EventIds = eventIds;
@@ -28,6 +28,7 @@ public static partial class EventTypeCatalog {
             RuleType = ruleType;
             MatchPriority = matchPriority;
             ProviderNames = providerNames;
+            IsBuiltIn = isBuiltIn;
         }
 
         public EventType Type { get; }
@@ -42,6 +43,7 @@ public static partial class EventTypeCatalog {
         public Type? RuleType { get; }
         public int MatchPriority { get; }
         public IReadOnlyList<string> ProviderNames { get; }
+        public bool IsBuiltIn { get; }
     }
 
     private static readonly Dictionary<EventType, RuleFactoryRegistration> _reflectionRuleTypes = new();
@@ -210,7 +212,7 @@ public static partial class EventTypeCatalog {
             DynamicallyAccessedMemberTypes.PublicFields)]
 #endif
         Type? ruleType,
-        int matchPriority) {
+        int matchPriority, bool isBuiltIn = false) {
         if (string.IsNullOrWhiteSpace(logName)) {
             throw new ArgumentException("logName cannot be null or whitespace.", nameof(logName));
         }
@@ -251,7 +253,7 @@ public static partial class EventTypeCatalog {
                 canHandle,
                 ruleType,
                 matchPriority,
-                providers);
+                providers, isBuiltIn);
             _ruleFactories[namedEvent] = reg;
 
             if (ruleType is not null) {
@@ -442,6 +444,7 @@ public static partial class EventTypeCatalog {
         IReadOnlyList<EventType> ordered = GetOrderedExpandedCandidates(expanded, mode);
         var candidateLists = new Dictionary<EventTypeProjectionPlan.SourceKey, List<EventProjectorDefinition>>();
         foreach (EventType type in ordered) {
+            if (IsSourceUnavailable(type)) { continue; }
             if (!TryGetRuleSource(
                     type,
                     mode,
@@ -602,37 +605,13 @@ public static partial class EventTypeCatalog {
     /// Gets event IDs and log names for event types using rule classes.
     /// </summary>
     internal static Dictionary<string, HashSet<int>> GetSourceMap(IReadOnlyCollection<EventType> eventTypes) {
-        var mode = _discoveryMode;
-        EnsureInitialized();
-
         var eventInfoDict = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var namedEvent in Expand(eventTypes)) {
-            if (mode != EventRuleDiscoveryMode.Reflection && _ruleFactories.TryGetValue(namedEvent, out var reg)) {
-                if (!eventInfoDict.TryGetValue(reg.LogName, out var idSet)) {
-                    idSet = new HashSet<int>();
-                    eventInfoDict[reg.LogName] = idSet;
-                }
-                foreach (var id in reg.EventIds) {
-                    idSet.Add(id);
-                }
-                continue;
+        foreach (EventSourceDefinition source in GetSources(eventTypes)) {
+            if (!eventInfoDict.TryGetValue(source.LogName, out HashSet<int>? ids)) {
+                ids = new HashSet<int>();
+                eventInfoDict[source.LogName] = ids;
             }
-
-            if (mode == EventRuleDiscoveryMode.ExplicitOnly) {
-                continue;
-            }
-
-            if (!_reflectionRuleSources.TryGetValue(namedEvent, out var source)) {
-                continue;
-            }
-            if (!eventInfoDict.TryGetValue(source.LogName, out var eventIdSet)) {
-                eventIdSet = new HashSet<int>();
-                eventInfoDict[source.LogName] = eventIdSet;
-            }
-            foreach (int eventId in source.EventIds) {
-                eventIdSet.Add(eventId);
-            }
+            ids.UnionWith(source.EventIds);
         }
 
         return eventInfoDict;

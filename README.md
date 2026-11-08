@@ -287,6 +287,47 @@ See the focused scripts in [Examples](Examples/) for live, remote, offline,
 export, watcher, catalog, administration, collector, event-writing, and
 PowerShell-script-recovery workflows.
 
+### Source availability
+
+The catalogue retains all published event type identifiers. `evx types` includes
+provider names and `UnavailableReason`; the same reason is available through
+`EventTypeCatalog.GetDefinition(type)` and `Get-EVXRequirement` prerequisites.
+
+Five historical definitions are unavailable because their registered telemetry
+does not establish the advertised event: `DhcpLeaseCreated`,
+`SqlDatabaseCreated`, `NetworkPromiscuousMode`, `HyperVCheckpointCreated` and
+`AADConnectRunProfile`. DHCP code 10 belongs to a text audit log. SQL 17137 is
+startup and 1802 is a failed CREATE DATABASE. NDIS 10400/10401 describe reset or
+timestamping activity. Neither the old checkpoint selector nor Directory
+Synchronization error 906 proves the claimed successful operation.
+
+Typed queries reject these definitions with an explanation. Composites containing
+one of them (`NetworkSecurity`, `InfrastructureHealth` and `EntraConnectHealth`)
+also fail explicitly, rather than silently reporting partial coverage. Select
+verified leaf definitions for the required workflow. For example:
+
+```powershell
+Get-EVXEvent -Type AADSyncCycleStage,AADSyncImportStatus,AADSyncPasswordHashSyncStatus
+Test-EVXReadiness -Type AADSyncCycleStage
+Get-EVXRequirement -Type SqlDatabaseCreated
+```
+
+The `eventviewerx.endpoint-protection` pack 1.0.1 withdraws
+`EVX-ENDPOINT-0011`, whose NDIS selectors do not prove promiscuous mode.
+`EVX-ENDPOINT-0010` reports packet-monitor driver service activity. Pack coverage
+inspection and historical detection replay can still describe retained types
+whose native source is unavailable.
+
+Availability follows the selected registration. A host can register its own
+verified source factory for a published identifier before catalog initialization;
+the historical built-in selector remains unavailable when that factory is not selected.
+
+Generic channel, provider and saved-file queries remain available for inspecting
+the original telemetry. Existing stored rows are retained; the unavailable source
+explanation also appears when a report uses one of these legacy type contracts.
+A zero event count on an otherwise supported rule means there was no retained
+match in that query, not that its audit configuration is complete.
+
 ## Read modes
 
 The general query default is `Message`: it gives interactive users readable

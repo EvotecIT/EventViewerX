@@ -120,6 +120,9 @@ internal static partial class Program {
         if (portableEvtx && paths.Length == 0) {
             throw new ArgumentException("--portable-evtx requires at least one --path source.");
         }
+        if (!storedSource) {
+            EventTypeCatalog.GetSources(plan.RequiredEventTypes);
+        }
         ISavedEventReader? savedEventReader = options.Get("portable-evtx-executable") is string executable
             ? new EvtxDumpSavedEventReader(executable)
             : portableEvtx

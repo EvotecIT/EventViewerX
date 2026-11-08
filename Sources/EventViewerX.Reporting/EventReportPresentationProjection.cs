@@ -17,6 +17,10 @@ internal static class EventReportPresentationProjection {
         "Time Created", "Event ID", "Level", "Source Computer", "Message", "Source Log"
     };
 
+    private static readonly string[] FindingPriorities = {
+        "Title", "Severity", "Status", "Start Time Utc", "Evidence Count"
+    };
+
     internal static EventReportPresentationSection Create(EventReportSection section) => Create(section, int.MaxValue);
 
     internal static EventReportPresentationSection Create(EventReportSection section, int maximumRows) {
@@ -25,7 +29,7 @@ internal static class EventReportPresentationProjection {
         }
 
         List<Dictionary<string, object?>> projected = EventReportTableProjection.Project(section, maximumRows);
-        string[] priorities = section.Kind == EventReportSectionKind.Generic
+        string[] priorities = section.Name == "DetectionFinding" ? FindingPriorities : section.Kind == EventReportSectionKind.Generic
             ? GenericPriorities
             : TypedPriorities;
         IReadOnlyDictionary<string, string> displayNames =
@@ -64,8 +68,9 @@ internal static class EventReportPresentationProjection {
     internal static string FormatValue(object? value) => value switch {
         null => string.Empty,
         string text => IsPlaceholder(text) ? string.Empty : CollapseWhitespace(text),
-        DateTime date => date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-        DateTimeOffset date => date.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture),
+        DateTime date => (date.Kind == DateTimeKind.Unspecified ? date : date.ToUniversalTime())
+            .ToString("yyyy-MM-dd HH:mm:ssK", CultureInfo.InvariantCulture),
+        DateTimeOffset date => date.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture),
         IEnumerable enumerable => FormatEnumerable(enumerable),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
         _ => value.ToString() ?? string.Empty
@@ -76,10 +81,13 @@ internal static class EventReportPresentationProjection {
         IReadOnlyDictionary<string, object?> row,
         EventReportRow source) {
 
-        string[] preferred = section.Section.Kind == EventReportSectionKind.Generic
+        string[] preferred = section.Section.Name == "DetectionFinding" ? FindingPriorities : section.Section.Kind == EventReportSectionKind.Generic
             ? new[] { "Message", "Source Computer", "Provider" }
             : new[] { "Object Affected", "Account Name", "User", "Who", "Action", "Service Name", "Computer" };
         foreach (string name in preferred) {
+            if (TryFormattedValue(row, name, out string stableValue)) {
+                return Truncate(stableValue, 96);
+            }
             EventReportPresentationColumn? column = section.Columns.FirstOrDefault(candidate =>
                 string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(candidate.DisplayName, name, StringComparison.OrdinalIgnoreCase));
@@ -88,7 +96,7 @@ internal static class EventReportPresentationProjection {
             }
         }
 
-        return $"{section.Section.DisplayName} · {source.TimeCreated:yyyy-MM-dd HH:mm:ss}";
+        return $"{section.Section.DisplayName} · {FormatValue(source.TimeCreated)}";
     }
 
     internal static string BuildSummary(

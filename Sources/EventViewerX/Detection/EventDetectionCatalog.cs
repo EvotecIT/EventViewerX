@@ -213,20 +213,18 @@ public static partial class EventDetectionCatalog {
                 EventType.ScheduledTaskDeleted, 85, "scheduled-task", "defense-evasion"),
             Definition("EVX-ENDPOINT-0009", "Firewall rule deleted", EventDetectionSeverity.Medium,
                 EventType.FirewallRuleDeleted, 80, "firewall", "configuration"),
-            Definition("EVX-ENDPOINT-0010", "Network monitoring driver loaded", EventDetectionSeverity.High,
-                EventType.NetworkMonitorDriverLoaded, 80, "network", "driver", "attack.t1014"),
-            Definition("EVX-ENDPOINT-0011", "Network adapter entered promiscuous mode", EventDetectionSeverity.High,
-                EventType.NetworkPromiscuousMode, 85, "network", "packet-capture", "attack.t1040"),
+            Definition("EVX-ENDPOINT-0010", "Packet-monitor driver service activity", EventDetectionSeverity.High,
+                EventType.NetworkMonitorDriverLoaded, 80, "network", "driver-service", version: "1.0.1"),
             Definition("EVX-ENDPOINT-0012", "External device recognized", EventDetectionSeverity.Low,
                 EventType.DeviceRecognized, 65, "device", "removable-media")
-        });
+        }, version: "1.0.1");
 
     private static EventDetectionPack Pack(
         string packId,
-        IEnumerable<EventDetectionRuleDefinition> rules) =>
+        IEnumerable<EventDetectionRuleDefinition> rules, string version = "1.0.0") =>
         EventDetectionPack.Create(
             packId,
-            "1.0.0",
+            version,
             rules,
             new[] { "EvotecIT" },
             "MIT",
@@ -241,11 +239,12 @@ public static partial class EventDetectionCatalog {
         string firstTag,
         string secondTag,
         string? thirdTag = null,
-        EventPredicate? predicate = null) {
+        EventPredicate? predicate = null,
+        string version = "1.0.0") {
 
         return new EventDetectionRuleDefinition {
             RuleId = id,
-            Version = "1.0.0",
+            Version = version,
             Title = title,
             Description = title + ".",
             Severity = severity,

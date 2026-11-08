@@ -10,11 +10,13 @@ public class ScheduledTaskCreated : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ScheduledTaskCreated;
 
     /// <summary>Accepts scheduled task creation events (4698) in the Security log.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>Computer where the task was created.</summary>
     public string Computer = string.Empty;
@@ -37,9 +39,12 @@ public class ScheduledTaskCreated : EventRuleBase {
         if (!string.IsNullOrEmpty(taskContent)) {
             try {
                 var xml = System.Xml.Linq.XDocument.Parse(taskContent);
-                Author = xml.Root?.Element("RegistrationInfo")?.Element("Author")?.Value ?? string.Empty;
-                var createdStr = xml.Root?.Element("RegistrationInfo")?.Element("Date")?.Value;
-                if (DateTime.TryParse(createdStr, out var dt)) {
+                var ns = xml.Root?.Name.Namespace ?? System.Xml.Linq.XNamespace.None;
+                var registration = xml.Root?.Element(ns + "RegistrationInfo");
+                Author = registration?.Element(ns + "Author")?.Value ?? string.Empty;
+                var createdStr = registration?.Element(ns + "Date")?.Value;
+                if (DateTime.TryParse(createdStr, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var dt)) {
                     Created = dt;
                 }
             } catch {

@@ -25,14 +25,15 @@ public class ADGroupMembershipChange : EventRuleBase {
 
     /// <inheritdoc />
     public override string LogName => "Security";
+    /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
 
     /// <inheritdoc />
     public override EventType Type => EventType.ADGroupMembershipChange;
 
     /// <summary>Handles all membership add/remove events in the Security log.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Simple rule - always handle if event ID and log name match
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
 
     /// <summary>Domain controller where the membership change was recorded.</summary>

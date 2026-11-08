@@ -2,20 +2,19 @@ namespace EventViewerX.Rules.Windows;
 
 /// <summary>
 /// Network adapter entered promiscuous mode
-/// 104: NDIS indicates adapter promiscuous mode
+/// Historical NDIS reset/timestamp identifiers do not establish promiscuous mode.
 /// </summary>
 public class NetworkPromiscuousMode : EventRuleBase {
-    /// <inheritdoc />
+    /// <summary>Historical identifiers retained for compatibility; this built-in source is unavailable.</summary>
     public override List<int> EventIds => new() { 10400, 10401 };
-    /// <inheritdoc />
+    /// <summary>Historical channel retained for compatibility; see the catalog definition's UnavailableReason.</summary>
     public override string LogName => "System";
     /// <inheritdoc />
     public override EventType Type => EventType.NetworkPromiscuousMode;
 
-    /// <summary>Accepts NDIS provider events signalling promiscuous mode toggles.</summary>
+    /// <summary>Rejects the historical source because it does not establish the advertised event.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return eventObject.ProviderName.Equals("Ndis", StringComparison.OrdinalIgnoreCase) &&
-               (eventObject.Id == 10400 || eventObject.Id == 10401);
+        return false;
     }
 
     /// <summary>Machine whose adapter changed mode.</summary>

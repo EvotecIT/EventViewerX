@@ -5,7 +5,35 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
-public sealed class TestWorkstationHealthRules {
+public sealed partial class TestWorkstationHealthRules {
+    [Fact]
+    public void BitLockerSuspended_SelectsManagementSuspensionEvent() {
+        BitLockerSuspended record = Project<BitLockerSuspended>("bitlocker-suspended-773", EventType.BitLockerSuspended);
+        Assert.Equal("workstation-fixture", record.Computer);
+        Assert.Equal(773, record.EventId);
+        Assert.Equal("C:", record.VolumeMountPoint);
+        Assert.Equal(@"\\?\Volume{11111111-2222-3333-4444-555555555555}\", record.VolumeName);
+        Assert.Null(record.Volume); // The provider supplies a volume path, not a volume-type code.
+        Assert.Empty(record.Who); // This payload does not identify the account that requested suspension.
+        string query = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.BitLockerSuspended });
+        Assert.Contains("Microsoft-Windows-BitLocker/BitLocker Management", query);
+        Assert.Contains("EventID=773", query);
+        Assert.Contains("Provider[@Name='Microsoft-Windows-BitLocker-API']", query);
+    }
+
+    [Fact]
+    public void WindowsUpdateFailure_SelectsSystemInstallFailureAndErrorCode() {
+        WindowsUpdateFailure record = Project<WindowsUpdateFailure>("windows-update-failure-20", EventType.WindowsUpdateFailure);
+        Assert.Equal("workstation-fixture", record.Computer);
+        Assert.Equal("0x80073d02", record.Reason);
+        Assert.Equal("Example.StoreApp", record.UpdateTitle);
+        Assert.Empty(record.KB); // Store app failures have no KB article.
+        string query = EventDefinitionCompiler.BuildQueryXml(new[] { EventType.WindowsUpdateFailure });
+        Assert.Contains("Path=\"System\"", query);
+        Assert.Contains("EventID=20", query);
+        Assert.Contains("Provider[@Name='Microsoft-Windows-WindowsUpdateClient']", query);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -218,6 +246,8 @@ public sealed class TestWorkstationHealthRules {
 
     [Theory]
     [InlineData("application-crash-1000", EventType.ApplicationCrash)]
+    [InlineData("bitlocker-suspended-773", EventType.BitLockerSuspended)]
+    [InlineData("windows-update-failure-20", EventType.WindowsUpdateFailure)]
     [InlineData("application-hang-1002", EventType.ApplicationHang)]
     [InlineData("service-failure-7031", EventType.ServiceFailure)]
     [InlineData("disk-retry-153", EventType.DiskError)]

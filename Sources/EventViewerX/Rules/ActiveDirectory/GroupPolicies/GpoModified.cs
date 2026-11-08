@@ -26,6 +26,8 @@ public class GpoModified : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.GpoModified;
 
     /// <summary>Processes only GPO container modifications.</summary>

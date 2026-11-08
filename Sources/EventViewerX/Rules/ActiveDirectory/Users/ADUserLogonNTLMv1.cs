@@ -47,6 +47,8 @@ public class ADUserLogonNTLMv1 : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADUserLogonNTLMv1;
 
     /// <summary>Handles only logon events that include the NTLM V1 package.</summary>

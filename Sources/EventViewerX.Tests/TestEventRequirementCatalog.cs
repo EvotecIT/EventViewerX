@@ -180,26 +180,14 @@ public sealed class TestEventRequirementCatalog {
     }
 
     [Fact]
-    public void BitLockerKeyEventsCoverPrivilegeAndDpapiAuditSources() {
+    public void BitLockerKeyEventsRequireTheManagementChannel() {
         EventTypeRequirement requirement = EventRequirementCatalog.GetRequirement(
             EventType.BitLockerKeyChange);
-        string[] keys = requirement.Prerequisites
-            .Where(static item => item.Kind == EventRequirementKind.AuditPolicy)
-            .Select(static item => item.Key)
-            .OrderBy(static key => key, StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(
-            new[] {
-                "audit:dpapi-activity",
-                "audit:sensitive-privilege-use"
-            },
-            keys);
+        Assert.Equal("Microsoft-Windows-BitLocker/BitLocker Management", Assert.Single(requirement.Sources).LogName);
+        Assert.Equal(new[] { 775, 776, 784, 828, 845, 897 }, Assert.Single(requirement.Sources).EventIds);
         Assert.All(
-            requirement.Prerequisites.Where(static item => item.Kind == EventRequirementKind.AuditPolicy),
-            static item => Assert.Equal(
-                EventAuditOutcome.Success | EventAuditOutcome.Failure,
-                item.AuditOutcomes));
+            requirement.Prerequisites,
+            static item => Assert.Equal(EventRequirementKind.EventChannel, item.Kind));
     }
 
     [Theory]

@@ -321,7 +321,7 @@ public partial class EventObject {
         TaskDisplayName = taskDisplayName;
         OpcodeDisplayName = opcodeDisplayName;
         KeywordsDisplayNames = keywordDisplayNames;
-        LevelDisplayName = levelDisplayName;
+        LevelDisplayName = string.IsNullOrEmpty(levelDisplayName) ? LevelToDisplayName(Level) : levelDisplayName;
         ContainerLog = string.IsNullOrEmpty(containerLog)
             ? LogName
             : containerLog;

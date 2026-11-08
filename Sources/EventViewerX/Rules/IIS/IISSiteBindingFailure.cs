@@ -14,17 +14,21 @@ public class IISSiteBindingFailure : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-IIS-W3SVC", "W3SVC" };
+    /// <inheritdoc />
     public override EventType Type => EventType.IISSiteBindingFailure;
 
     /// <summary>Accepts IIS binding failure events (1007).</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-IIS-W3SVC", "W3SVC");
     }
 
     /// <summary>Machine hosting IIS.</summary>
     public string Computer;
     /// <summary>Site name reported by the event.</summary>
     public string SiteName;
+    /// <summary>Numeric IIS site identifier recorded by the provider.</summary>
+    public string SiteId;
     /// <summary>Binding that failed to register.</summary>
     public string Binding;
     /// <summary>Event timestamp.</summary>
@@ -35,23 +39,34 @@ public class IISSiteBindingFailure : EventRuleBase {
         SourceEvent = eventObject;
         TypeName = "IISSiteBindingFailure";
         Computer = SourceEvent.ComputerName;
-        SiteName = SourceEvent.GetValueFromDataDictionary("SiteName", "Site");
-        Binding = SourceEvent.GetValueFromDataDictionary("BindingInfo", "BindingInformation");
+        SiteName = Value("SiteName", "Site");
+        SiteId = Value("SiteID", "SiteId", "NoNameA1");
+        Binding = Value("UrlPrefix", "BindingInfo", "BindingInformation", "NoNameA0");
         When = SourceEvent.TimeCreated;
 
-        if (string.IsNullOrEmpty(SiteName) || string.IsNullOrEmpty(Binding)) {
+        if (string.IsNullOrEmpty(Binding) || (string.IsNullOrEmpty(SiteId) && string.IsNullOrEmpty(SiteName))) {
             ParseMessage(SourceEvent.Message);
         }
     }
 
     private void ParseMessage(string message) {
         if (string.IsNullOrEmpty(message)) return;
+        if (string.IsNullOrEmpty(Binding)) {
+            Match prefix = Regex.Match(message, @"https?://[^\s'""<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (prefix.Success) {
+                // HTTP Server API prefixes end in '/'; keep IPv6 and path punctuation inside it.
+                int end = prefix.Value.LastIndexOf('/');
+                if (end > prefix.Value.IndexOf("://", StringComparison.Ordinal) + 3) {
+                    Binding = prefix.Value.Substring(0, end + 1);
+                }
+            }
+        }
         var match = Regex.Match(message, @"URL prefix\s+(?<binding>\S+).*?site\s+['""]?(?<site>[^'""]+)");
         if (match.Success) {
             if (string.IsNullOrEmpty(Binding)) {
                 Binding = match.Groups["binding"].Value.Trim('"', '\'');
             }
-            if (string.IsNullOrEmpty(SiteName)) {
+            if (string.IsNullOrEmpty(SiteName) && string.IsNullOrEmpty(SiteId)) {
                 SiteName = match.Groups["site"].Value.Trim('"', '\'');
             }
         }

@@ -32,7 +32,7 @@ public sealed class TestRandomizedContracts {
     [Fact]
     public void GroupPolicyLinkFlagsPreserveEveryLowByteCombination() {
         for (int options = 0; options <= byte.MaxValue; options++) {
-            EventObject source = CreateEvent(5136, options + 1);
+            EventObject source = CreateEvent(5136, options + 1, "Microsoft-Windows-Security-Auditing");
             source.Data["ObjectClass"] = "organizationalUnit";
             source.Data["AttributeLDAPDisplayName"] = "gPLink";
             source.Data["AttributeValue"] =
@@ -126,9 +126,9 @@ public sealed class TestRandomizedContracts {
     private static EventObservation Observe(EventObject source, DateTime timestamp) =>
         EventObservation.Create(source, receivedTimeUtc: timestamp, processedTimeUtc: timestamp);
 
-    private static EventObject CreateEvent(int eventId, long recordId) => new(
+    private static EventObject CreateEvent(int eventId, long recordId, string providerName = "Randomized-Provider") => new(
         new NativeEventMetadata(
-            "Randomized-Provider",
+            providerName,
             providerId: null,
             eventId,
             qualifiers: null,

@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing" />
+    <EventID>4887</EventID>
+    <Version>1</Version>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>100</EventRecordID>
+    <Channel>Security</Channel>
+    <Computer>server-fixture</Computer>
+  </System>
+  <EventData>
+    <Data Name="RequestId">42</Data>
+    <Data Name="Requester">EXAMPLE\Certificate User</Data>
+    <Data Name="Attributes">CertificateTemplate:User Enrollment</Data>
+    <Data Name="Disposition">Issued</Data>
+    <Data Name="SubjectKeyIdentifier">0123456789abcdef</Data>
+    <Data Name="Subject">CN=Fixture User, O=Example</Data>
+    <Data Name="SubjectAlternativeName">fixture.example.test</Data>
+    <Data Name="CertificateTemplate">User Enrollment</Data>
+    <Data Name="SerialNumber">1234ABCD</Data>
+    <Data Name="AuthenticationService">fixture-value</Data>
+    <Data Name="AuthenticationLevel">fixture-value</Data>
+    <Data Name="DCOMorRPC">fixture-value</Data>
+  </EventData>
+</Event>

@@ -10,11 +10,13 @@ public class ADUserPrivilegeUse : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADUserPrivilegeUse;
 
     /// <summary>Accepts special-privilege logon events (4672).</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>
     /// Computer where the privileges were assigned.

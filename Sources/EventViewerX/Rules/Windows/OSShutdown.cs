@@ -10,6 +10,8 @@ public class OSShutdown : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "System";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Kernel-General" };
+    /// <inheritdoc />
     public override EventType Type => EventType.OSShutdown;
 
     /// <summary>Accepts kernel general shutdown events.</summary>

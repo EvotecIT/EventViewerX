@@ -22,6 +22,8 @@ public class GpoCreated : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.GpoCreated;
 
     /// <summary>Processes only groupPolicyContainer object creations.</summary>

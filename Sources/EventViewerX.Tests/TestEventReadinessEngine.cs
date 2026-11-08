@@ -5,7 +5,7 @@ using Xunit;
 
 namespace EventViewerX.Tests;
 
-public sealed class TestEventReadinessEngine {
+public sealed partial class TestEventReadinessEngine {
     [Fact]
     public void LocalReadinessCombinesTransportAndEffectivePolicyWithoutMutation() {
         var evidence = new FakeEvidenceProvider {
@@ -1100,11 +1100,11 @@ public sealed class TestEventReadinessEngine {
         evidence.Subscription!.RawXml = """
             <QueryList>
               <Query Id="0" Path="Security">
-                <Select Path="Security">*[System[EventID=4624]]</Select>
-                <Suppress Path="Security">*[System[EventID=4624]]</Suppress>
+                <Select Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Select>
+                <Suppress Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Suppress>
               </Query>
               <Query Id="1" Path="Security">
-                <Select Path="Security">*[System[EventID=4624]]</Select>
+                <Select Path="Security">*[System[EventID=4624 and Provider[@Name='Microsoft-Windows-Security-Auditing']]]</Select>
               </Query>
             </QueryList>
             """;
@@ -1955,6 +1955,7 @@ public sealed class TestEventReadinessEngine {
         internal Exception? ProbeException { get; set; }
         internal Exception? AuditException { get; set; }
         internal int AuditQueryCount { get; private set; }
+        internal int TargetDiscoveryCount { get; private set; }
         internal int ConfigurationReadCount { get; private set; }
         internal CollectorSubscriptionSnapshot? Subscription { get; set; }
         internal CollectorReadinessStatus CollectorReadiness { get; set; } = new();
@@ -1970,7 +1971,10 @@ public sealed class TestEventReadinessEngine {
 
         public EventTargetDiscoveryResult ResolveTargets(
             EventTargetDiscoveryRequest request,
-            CancellationToken cancellationToken) => TargetResult ?? LocalTargetResult();
+            CancellationToken cancellationToken) {
+            TargetDiscoveryCount++;
+            return TargetResult ?? LocalTargetResult();
+        }
 
         public EventLogProbeResult Probe(
             string logName,

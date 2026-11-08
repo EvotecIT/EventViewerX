@@ -96,6 +96,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               exit $LASTEXITCODE
             }
+            & (Join-Path $output 'EventViewerX.AotSmoke.exe') --custom-source
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
           }
 
       - name: Summarize failing tests
@@ -144,12 +148,6 @@ jobs:
         with:
           name: coverage-reports-windows-${{ matrix.dotnet-version }}
           path: '**/coverage.cobertura.xml'
-
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v7
-        with:
-          files: '**/coverage.cobertura.xml'
-          verbose: true
 
   result:
     name: Test .NET Libraries result

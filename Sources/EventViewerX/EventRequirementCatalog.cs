@@ -57,7 +57,6 @@ public static class EventRequirementCatalog {
             [EventType.CertificateIssued] = CertificateIssuance(),
             [EventType.DeviceRecognized] = new[] { Audit("pnp-activity", "Audit PNP Activity", EventAuditOutcome.Success, "Target computer", "audit-pnp-activity") },
             [EventType.DeviceDisabled] = new[] { Audit("pnp-activity", "Audit PNP Activity", EventAuditOutcome.Success, "Target computer", "audit-pnp-activity") },
-            [EventType.BitLockerKeyChange] = BitLockerKeyAuditing(),
             [EventType.ObjectDeletion] = ObjectDeletionAuditing(),
             [EventType.OSStartupSecurity] = new[] { Audit("security-state-change", "Audit Security State Change", EventAuditOutcome.Success, "Target computer", "audit-security-state-change") },
             [EventType.OSCrashOnAuditFailRecovery] = new[] { Audit("security-state-change", "Audit Security State Change", EventAuditOutcome.Success, "Target computer", "audit-security-state-change") },
@@ -98,6 +97,11 @@ public static class EventRequirementCatalog {
             prerequisites.Add(Channel(source.LogName));
         }
         foreach (EventType leaf in leaves) {
+            string? unavailable = EventTypeCatalog.GetUnavailableSourceReason(leaf);
+            if (unavailable != null) {
+                prerequisites.Add(new EventPrerequisite("unavailable-source:" + leaf,
+                    EventRequirementKind.Configuration, "Unavailable event source", unavailable, "Built-in rule"));
+            }
             if (Specific.TryGetValue(leaf, out EventPrerequisite[]? specific)) {
                 prerequisites.AddRange(specific);
             }
@@ -242,11 +246,6 @@ public static class EventRequirementCatalog {
             "The selected object must have an auditing SACL that covers deletion by the identities being monitored.",
             "Selected object",
             "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/advanced-audit-policy-configuration")
-    };
-
-    private static EventPrerequisite[] BitLockerKeyAuditing() => new[] {
-        Audit("sensitive-privilege-use", "Audit Sensitive Privilege Use", EventAuditOutcome.Success | EventAuditOutcome.Failure, "Target computer", "audit-sensitive-privilege-use"),
-        Audit("dpapi-activity", "Audit DPAPI Activity", EventAuditOutcome.Success | EventAuditOutcome.Failure, "Target computer", "audit-dpapi-activity")
     };
 
     private static EventPrerequisite[] CertificateIssuance() => new[] {

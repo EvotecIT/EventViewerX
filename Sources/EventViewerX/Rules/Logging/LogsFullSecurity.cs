@@ -10,6 +10,8 @@ public class LogsFullSecurity : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Eventlog" };
+    /// <inheritdoc />
     public override EventType Type => EventType.LogsFullSecurity;
 
     /// <summary>Accepts matching events indicating the security log reached capacity.</summary>
@@ -34,8 +36,9 @@ public class LogsFullSecurity : EventRuleBase {
 
         TypeName = "LogsFullSecurity";
         Computer = SourceEvent.ComputerName;
-        Action = SourceEvent.MessageSubject;
-        LogType = ConvertFromOperationType(SourceEvent.GetDataValueOrEmpty("Channel"));
+        Action = string.IsNullOrWhiteSpace(SourceEvent.MessageSubject) ? "Security log is full" : SourceEvent.MessageSubject;
+        LogType = Value("Channel");
+        if (LogType.Length == 0) { LogType = SourceEvent.OriginalLogName; }
 
         // common fields
         Who = SourceEvent.GetSubjectAccountOrEmpty();

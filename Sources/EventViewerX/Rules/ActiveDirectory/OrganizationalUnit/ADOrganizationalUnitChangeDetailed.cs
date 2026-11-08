@@ -79,6 +79,8 @@ namespace EventViewerX.Rules.ActiveDirectory {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ADOrganizationalUnitChangeDetailed;
 
     /// <summary>Handles OU object events except gPLink changes owned by the Group Policy projection.</summary>

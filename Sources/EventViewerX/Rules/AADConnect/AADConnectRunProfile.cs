@@ -2,13 +2,13 @@ namespace EventViewerX.Rules.AADConnect;
 
 /// <summary>
 /// Azure AD Connect run profile completed
-/// 906: The run profile finished executing
+/// Event 906 is general error logging, not a run-profile completion contract.
 /// </summary>
 public class AADConnectRunProfile : EventRuleBase {
-    /// <inheritdoc />
+    /// <summary>Historical identifiers retained for compatibility; this built-in source is unavailable.</summary>
     public override List<int> EventIds => new() { 906 };
 
-    /// <inheritdoc />
+    /// <summary>Historical channel retained for compatibility; see the catalog definition's UnavailableReason.</summary>
     public override string LogName => "Application";
 
     /// <inheritdoc />
@@ -17,10 +17,9 @@ public class AADConnectRunProfile : EventRuleBase {
     /// <inheritdoc />
     public override EventType Type => EventType.AADConnectRunProfile;
 
-    /// <summary>Accepts matching Azure AD Connect run profile completion events.</summary>
+    /// <summary>Rejects the historical source because it does not establish the advertised event.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        // Simple rule - always handle if event ID and log name match
-        return true;
+        return false;
     }
 
     /// <summary>Name of the connector that executed.</summary>

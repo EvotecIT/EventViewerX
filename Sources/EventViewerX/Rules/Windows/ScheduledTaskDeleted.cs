@@ -10,11 +10,13 @@ public class ScheduledTaskDeleted : EventRuleBase {
     /// <inheritdoc />
     public override string LogName => "Security";
     /// <inheritdoc />
+    public override IReadOnlyList<string> ProviderNames => new[] { "Microsoft-Windows-Security-Auditing" };
+    /// <inheritdoc />
     public override EventType Type => EventType.ScheduledTaskDeleted;
 
     /// <summary>Accepts scheduled task deletion events (4699) in the Security log.</summary>
     public override bool CanHandle(EventObject eventObject) {
-        return true;
+        return RuleHelpers.IsProvider(eventObject, "Microsoft-Windows-Security-Auditing");
     }
     /// <summary>Computer where the task was deleted.</summary>
     public string Computer;

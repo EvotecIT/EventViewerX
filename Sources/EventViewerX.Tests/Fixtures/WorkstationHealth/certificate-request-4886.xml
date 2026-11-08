@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing" />
+    <EventID>4886</EventID>
+    <Version>0</Version>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-11-01T12:00:00.0000000Z" />
+    <EventRecordID>100</EventRecordID>
+    <Channel>Security</Channel>
+    <Computer>server-fixture</Computer>
+  </System>
+  <EventData>
+    <Data Name="RequestId">42</Data>
+    <Data Name="Requester">EXAMPLE\Certificate User</Data>
+    <Data Name="Attributes">CertificateTemplate:User Enrollment</Data>
+  </EventData>
+</Event>
