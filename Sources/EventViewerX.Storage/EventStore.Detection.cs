@@ -113,6 +113,13 @@ public sealed partial class EventStore {
     }
 
     private static void ApplySafeDetectionSelectors(EventStoreQuery query, EventDetectionPlan plan) {
+        if (query.Types is not { Count: > 0 } && query.DefinitionNames is not { Count: > 0 } &&
+            query.DefinitionSchemas is not { Count: > 0 }) {
+            EventType[][] perRuleTypes = plan.Rules.Select(GetSafeRuleTypes).ToArray();
+            if (perRuleTypes.Length > 0 && perRuleTypes.All(static types => types.Length > 0)) {
+                query.Types = perRuleTypes.SelectMany(static types => types).Distinct().ToArray();
+            }
+        }
         if (query.EventIds is { Count: > 0 }) {
             return;
         }
@@ -122,6 +129,17 @@ public sealed partial class EventStore {
         if (perRule.Length > 0 && perRule.All(static ids => ids.Length > 0)) {
             query.EventIds = perRule.SelectMany(static ids => ids).Distinct().ToArray();
         }
+    }
+
+    private static EventType[] GetSafeRuleTypes(EventDetectionRuleDefinition rule) {
+        if (rule.EventTypes.Count > 0) {
+            return EventTypeCatalog.Expand(rule.EventTypes).ToArray();
+        }
+        if (rule.Steps.Count == 0) { return Array.Empty<EventType>(); }
+        EventType[][] perStep = rule.Steps.Select(static step => EventTypeCatalog.Expand(step.EventTypes).ToArray()).ToArray();
+        return perStep.All(static types => types.Length > 0)
+            ? perStep.SelectMany(static types => types).Distinct().ToArray()
+            : Array.Empty<EventType>();
     }
 
     private static int[] GetSafeRuleEventIds(EventDetectionRuleDefinition rule) {

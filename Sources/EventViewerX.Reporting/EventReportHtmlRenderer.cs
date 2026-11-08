@@ -263,7 +263,9 @@ public static class EventReportHtmlRenderer {
         int errors = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Critical);
         int warnings = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Warning);
         if (section.Name == "DetectionFinding") {
-            return $"{errors:N0} high or critical finding{(errors == 1 ? string.Empty : "s")}, {warnings:N0} medium severity";
+            int unknown = section.Rows.Count(static row => ResolveState(row) == MonitoringHealthState.Unknown);
+            return $"{errors:N0} high or critical finding{(errors == 1 ? string.Empty : "s")}, {warnings:N0} medium severity" +
+                (unknown == 0 ? string.Empty : $", {unknown:N0} unknown severity");
         }
         return errors > 0 || warnings > 0
             ? $"{errors:N0} error{(errors == 1 ? string.Empty : "s")}, {warnings:N0} warning{(warnings == 1 ? string.Empty : "s")}"
@@ -294,12 +296,16 @@ public static class EventReportHtmlRenderer {
     };
 
     private static MonitoringHealthState ResolveState(EventReportRow row) {
-        if (row.Type == "DetectionFinding" && row.Values.TryGetValue(nameof(EventDetectionFinding.Severity), out object? value) &&
-            Enum.TryParse(EventReportPresentationProjection.FormatValue(value), true, out EventDetectionSeverity severity)) {
+        if (row.Type == "DetectionFinding") {
+            if (!row.Values.TryGetValue(nameof(EventDetectionFinding.Severity), out object? value) ||
+                !Enum.TryParse(EventReportPresentationProjection.FormatValue(value), true, out EventDetectionSeverity severity)) {
+                return MonitoringHealthState.Unknown;
+            }
             return severity switch {
                 EventDetectionSeverity.Critical or EventDetectionSeverity.High => MonitoringHealthState.Critical,
                 EventDetectionSeverity.Medium => MonitoringHealthState.Warning,
-                _ => MonitoringHealthState.Healthy
+                EventDetectionSeverity.Informational or EventDetectionSeverity.Low => MonitoringHealthState.Healthy,
+                _ => MonitoringHealthState.Unknown
             };
         }
         return ResolveState(row.LevelValue, row.Level);

@@ -85,6 +85,9 @@ internal static class EventReportPresentationProjection {
             ? new[] { "Message", "Source Computer", "Provider" }
             : new[] { "Object Affected", "Account Name", "User", "Who", "Action", "Service Name", "Computer" };
         foreach (string name in preferred) {
+            if (TryFormattedValue(row, name, out string stableValue)) {
+                return Truncate(stableValue, 96);
+            }
             EventReportPresentationColumn? column = section.Columns.FirstOrDefault(candidate =>
                 string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(candidate.DisplayName, name, StringComparison.OrdinalIgnoreCase));

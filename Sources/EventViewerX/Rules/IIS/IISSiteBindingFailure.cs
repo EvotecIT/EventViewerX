@@ -51,6 +51,10 @@ public class IISSiteBindingFailure : EventRuleBase {
 
     private void ParseMessage(string message) {
         if (string.IsNullOrEmpty(message)) return;
+        if (string.IsNullOrEmpty(Binding)) {
+            Match prefix = Regex.Match(message, @"https?://[^\s'""<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (prefix.Success) { Binding = prefix.Value.TrimEnd(')', ',', ';', '.'); }
+        }
         var match = Regex.Match(message, @"URL prefix\s+(?<binding>\S+).*?site\s+['""]?(?<site>[^'""]+)");
         if (match.Success) {
             if (string.IsNullOrEmpty(Binding)) {

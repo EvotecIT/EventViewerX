@@ -6,12 +6,14 @@ using Xunit;
 namespace EventViewerX.Tests;
 
 public sealed partial class TestWorkstationHealthRules {
-    [Fact]
-    public void IISBindingFallbackDoesNotTreatTheNumericSiteIdAsASiteName() {
+    [Theory]
+    [InlineData("The World Wide Web Publishing Service did not register the URL prefix http://*:8080/ for site 2.")]
+    [InlineData("Nie można zarejestrować adresu http://*:8080/ dla witryny 2.")]
+    public void IISBindingFallbackDoesNotTreatTheNumericSiteIdAsASiteName(string message) {
         EventObject source = new SavedEventRecord {
             ProviderName = "Microsoft-Windows-IIS-W3SVC", Channel = "System", EventId = 1007,
             TimeCreatedUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
-            Message = "The World Wide Web Publishing Service did not register the URL prefix http://*:8080/ for site 2.",
+            Message = message,
             MessageRenderStatus = EventMessageRenderStatus.Rendered,
             Data = new Dictionary<string, string> { ["SiteID"] = "2" }
         }.ToEventObject("iis-schema-fixture", EventReadMode.StructuredDataAndMessage);
@@ -20,6 +22,18 @@ public sealed partial class TestWorkstationHealthRules {
         Assert.Equal("http://*:8080/", record.Binding);
         Assert.Equal("2", record.SiteId);
         Assert.Empty(record.SiteName);
+    }
+
+    [Fact]
+    public void FindingTitleUsesItsStableFieldBeforeAnotherColumnsDisplayLabel() {
+        var rows = new[] { "", "Other A", "Other B" }.Select(alias => new EventReportRow {
+            Type = "DetectionFinding", TimeCreated = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
+            Values = new Dictionary<string, object?> { ["Alias"] = alias, ["Title"] = "Actual finding title" }
+        }).ToArray();
+        var section = new EventReportSection("DetectionFinding", "Detection findings", "", EventReportSectionKind.Custom,
+            new[] { new EventReportColumn("Alias", "Title", typeof(string)), new EventReportColumn("Title", "Title", typeof(string)) }, rows);
+        EventReportPresentationSection presentation = EventReportPresentationProjection.Create(section);
+        Assert.Equal("Actual finding title", EventReportPresentationProjection.BuildTitle(presentation, presentation.Rows[0], rows[0]));
     }
 
     [Fact]
@@ -41,6 +55,11 @@ public sealed partial class TestWorkstationHealthRules {
         Assert.Contains("1 high or critical finding", html);
         Assert.Contains("data-hfx-monitoring-filter-values=\"state:critical ", html);
         Assert.DoesNotContain("No error or warning levels recorded", html);
+        report.Rows[0].Values = new Dictionary<string, object?>(report.Rows[0].Values) { ["Severity"] = 999 };
+        string unknown = EventReportHtmlRenderer.Render(report);
+        Assert.Contains("1 unknown severity", unknown);
+        Assert.Contains("data-hfx-monitoring-filter-values=\"state:unknown ", unknown);
+        Assert.DoesNotContain("data-hfx-monitoring-filter-values=\"state:healthy ", unknown);
     }
 
     [Fact]
