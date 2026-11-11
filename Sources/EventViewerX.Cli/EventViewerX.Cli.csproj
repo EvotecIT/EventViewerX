@@ -25,6 +25,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>false</SelfContained>
+    <RuntimeFrameworkVersion Condition="'$(SelfContained)' == 'true'">10.0.15</RuntimeFrameworkVersion>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
