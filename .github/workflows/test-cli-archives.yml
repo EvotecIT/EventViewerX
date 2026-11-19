@@ -65,7 +65,7 @@ jobs:
         with:
           name: cli-native-${{ matrix.runtime }}
           path: ${{ runner.temp }}/evx-native-evidence/qualification.json
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: warn
 
   result:
