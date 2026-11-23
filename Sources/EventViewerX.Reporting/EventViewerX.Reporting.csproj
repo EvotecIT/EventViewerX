@@ -28,10 +28,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EventViewerX\EventViewerX.csproj" />
-    <PackageReference Include="HtmlForgeX" Version="1.4.0" />
-    <PackageReference Include="HtmlForgeX.Email" Version="2.0.0" />
-    <PackageReference Include="OfficeIMO.Excel" Version="3.2.4" />
-    <PackageReference Include="OfficeIMO.CSV" Version="3.2.4" />
+    <PackageReference Include="HtmlForgeX" Version="2.8.0" />
+    <PackageReference Include="HtmlForgeX.Email" Version="2.8.0" />
+    <PackageReference Include="OfficeIMO.Excel" Version="3.6.1" />
+    <PackageReference Include="OfficeIMO.CSV" Version="3.6.1" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
@@ -40,7 +40,7 @@
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="System" />
