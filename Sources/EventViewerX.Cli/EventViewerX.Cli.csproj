@@ -42,6 +42,6 @@
     <ProjectReference Include="..\EventViewerX.Evtx\EventViewerX.Evtx.csproj" />
     <PackageReference Include="Mailozaurr" Version="3.0.5" />
     <!-- MimeKit accepts Pkcs 10.0.0, which has two fixed security advisories. -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
   </ItemGroup>
 </Project>
